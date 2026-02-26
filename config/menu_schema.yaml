@@ -1,0 +1,148 @@
+menu:
+  version: 1
+  home: home
+  pages:
+    - id: home
+      title: Main Menu
+      items:
+        - id: now_page
+          label: Now
+          type: submenu
+          target_page: now
+        - id: media_page
+          label: Media
+          type: submenu
+          target_page: media
+        - id: inputs_page
+          label: Inputs
+          type: submenu
+          target_page: inputs
+        - id: system_page
+          label: System
+          type: submenu
+          target_page: system
+
+    - id: now
+      title: Now
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: navit_status
+          label: Navit Status
+          type: info
+          status_key: navit
+        - id: media_status
+          label: Media Status
+          type: info
+          status_key: media
+        - id: profile_mode
+          label: Profile Mode
+          type: info
+          status_key: system_mode
+        - id: quick_navit_start
+          label: Start Navit
+          type: action
+          command: navit.start
+        - id: quick_navit_stop
+          label: Stop Navit
+          type: action
+          command: navit.stop
+
+    - id: media
+      title: Media
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: media_status
+          label: Status
+          type: info
+          status_key: media
+        - id: media_play_pause
+          label: Play/Pause
+          type: action
+          command: media.play_pause
+        - id: media_next
+          label: Next Track
+          type: action
+          command: media.next
+        - id: media_stop
+          label: Stop
+          type: action
+          command: media.stop
+        - id: media_volume
+          label: Volume
+          type: range
+          config_path: integrations.media.startup_volume
+          value_type: float
+          min: 0.0
+          max: 1.0
+          step: 0.05
+          apply_mode: immediate
+          on_change_command: media.set_volume
+
+    - id: inputs
+      title: Inputs
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: sim_data_enabled
+          label: Simulated Data
+          type: toggle
+          config_path: inputs.simulated_data.enabled
+          apply_mode: immediate
+        - id: keyboard_sim_enabled
+          label: Keyboard Sim
+          type: toggle
+          config_path: inputs.keyboard_sim.enabled
+          apply_mode: staged
+
+    - id: system
+      title: System
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: active_theme
+          label: Theme
+          type: info
+          status_key: theme_active
+        - id: next_theme
+          label: Switch Theme
+          type: action
+          command: theme.next
+        - id: center_mode
+          label: Center Dial
+          type: info
+          status_key: center_dial_mode
+        - id: toggle_center_mode
+          label: Toggle Center Dial
+          type: action
+          command: center_dial_mode.toggle
+        - id: target_fps
+          label: Target FPS
+          type: range
+          config_path: system.target_fps
+          value_type: int
+          min: 10
+          max: 60
+          step: 1
+          apply_mode: immediate
+        - id: save_config
+          label: Save Config
+          type: action
+          command: config.save
+        - id: reload_config
+          label: Reload Config
+          type: action
+          command: config.reload
+        - id: restart_app
+          label: Restart App
+          type: action
+          command: app.restart

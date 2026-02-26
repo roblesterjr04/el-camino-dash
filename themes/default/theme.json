@@ -1,0 +1,121 @@
+{
+  "name": "default",
+  "show_ticks": {
+    "_default": true
+  },
+  "show_text": {
+    "_default": true
+  },
+  "show_primary_needle": {
+    "_default": true
+  },
+  "needle_under_dial": {
+    "_default": false
+  },
+  "show_odometer": true,
+  "tick_style": {
+    "_default": {
+      "count": 11,
+      "outer_ratio": 0.86,
+      "length_ratio": 0.14,
+      "width_scale": 1.0
+    }
+  },
+  "gauge_visuals": {
+    "speedometer": {
+      "visual_min": 0,
+      "visual_max": 140,
+      "angle_min_deg": 60,
+      "angle_max_deg": 300,
+      "calibration": {
+        "scale": 1.0,
+        "offset": 0.0
+      }
+    },
+    "tachometer": {
+      "visual_min": 0,
+      "visual_max": 8000,
+      "angle_min_deg": 60,
+      "angle_max_deg": 300,
+      "calibration": {
+        "scale": 1.0,
+        "offset": 0.0
+      }
+    },
+    "fuel": {
+      "visual_min": 0,
+      "visual_max": 100,
+      "angle_min_deg": 110,
+      "angle_max_deg": 250,
+      "calibration": {
+        "scale": 1.0,
+        "offset": 0.0
+      }
+    },
+    "temp": {
+      "visual_min": 40,
+      "visual_max": 130,
+      "angle_min_deg": 120,
+      "angle_max_deg": 250,
+      "calibration": {
+        "scale": 1.0,
+        "offset": 0.0
+      }
+    },
+    "amp": {
+      "visual_min": -100,
+      "visual_max": 100,
+      "angle_min_deg": 120,
+      "angle_max_deg": 240,
+      "calibration": {
+        "scale": 1.0,
+        "offset": 0.0
+      }
+    },
+    "tsps": {
+      "visual_min": 0,
+      "visual_max": 100,
+      "angle_min_deg": 120,
+      "angle_max_deg": 240,
+      "calibration": {
+        "scale": 1.0,
+        "offset": 0.0
+      }
+    }
+  },
+  "screen_background": [
+    0,
+    0,
+    0
+  ],
+  "fallback_palette": {
+    "background": [
+      10,
+      10,
+      10
+    ],
+    "ring": [
+      45,
+      45,
+      45
+    ],
+    "ticks": [
+      220,
+      220,
+      220
+    ],
+    "needle": [
+      230,
+      80,
+      72
+    ],
+    "overlay": [
+      25,
+      25,
+      25
+    ]
+  },
+  "center_dial_mode": {
+    "gauge_center": "clock"
+  }
+}

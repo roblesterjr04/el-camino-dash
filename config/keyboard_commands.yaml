@@ -1,0 +1,70 @@
+keyboard_commands:
+  menu_rotate_left:
+    key: K_LEFT
+    description: Rotate MENU encoder counter-clockwise
+  menu_rotate_right:
+    key: K_RIGHT
+    description: Rotate MENU encoder clockwise
+  menu_press:
+    key: K_RETURN
+    description: MENU encoder press/select
+  aux_rotate_left:
+    key: K_COMMA
+    description: Rotate AUX encoder counter-clockwise
+  aux_rotate_right:
+    key: K_PERIOD
+    description: Rotate AUX encoder clockwise
+  aux_press:
+    key: K_SLASH
+    description: AUX encoder press/select
+  rotate_repeat_ms:
+    value: 130
+    description: Keyboard rotary repeat interval in milliseconds (higher is less sensitive)
+  rpm_max:
+    value: 10000
+    description: Maximum simulated RPM used by keyboard controls (for dial sweep tuning)
+  temp_min:
+    value: 100
+    description: Minimum simulated coolant temperature for keyboard controls (F)
+  temp_max:
+    value: 260
+    description: Maximum simulated coolant temperature for keyboard controls (F)
+  speed_up:
+    key: K_w
+    description: Increase simulated vehicle speed
+  speed_down:
+    key: K_s
+    description: Decrease simulated vehicle speed
+  rpm_up:
+    key: K_e
+    description: Increase simulated engine RPM
+  rpm_down:
+    key: K_d
+    description: Decrease simulated engine RPM
+  fuel_up:
+    key: K_r
+    description: Increase simulated fuel level
+  fuel_down:
+    key: K_f
+    description: Decrease simulated fuel level
+  temp_up:
+    key: K_t
+    description: Increase simulated coolant temperature
+  temp_down:
+    key: K_g
+    description: Decrease simulated coolant temperature
+  amp_up:
+    key: K_y
+    description: Increase simulated system amperage
+  amp_down:
+    key: K_h
+    description: Decrease simulated system amperage
+  oil_up:
+    key: K_u
+    description: Increase simulated oil signal value
+  oil_down:
+    key: K_j
+    description: Decrease simulated oil signal value
+  quit:
+    key: K_ESCAPE
+    description: Exit dashboard simulation
