@@ -2,10 +2,15 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VENV_DIR="${PROJECT_DIR}/.venv"
+DEFAULT_VENV_DIR="${PROJECT_DIR}/.venv"
+if [[ "${PROJECT_DIR}" == /mnt/shared* ]]; then
+  DEFAULT_VENV_DIR="${HOME}/.el-camino-dash/.venv"
+fi
+VENV_DIR="${EL_CAMINO_VENV_DIR:-${DEFAULT_VENV_DIR}}"
 PYTHON_BIN="${VENV_DIR}/bin/python"
-PIP_BIN="${VENV_DIR}/bin/pip"
 CONFIG_PATH="${1:-${PROJECT_DIR}/config/dashboard.dev.yaml}"
+
+cd "${PROJECT_DIR}"
 
 pick_python() {
   for candidate in python3.11 python3.10 python3; do
@@ -35,29 +40,35 @@ if [[ -z "${SELECTED_PYTHON}" ]]; then
 fi
 
 venv_needs_rebuild=0
-if [[ -x "${PYTHON_BIN}" ]]; then
-  current_minor="$("${PYTHON_BIN}" - <<'PY'
+if [[ -d "${VENV_DIR}" ]]; then
+  if ! "${PYTHON_BIN}" -c "import sys" >/dev/null 2>&1; then
+    echo "Existing virtualenv is not runnable on this machine; rebuilding."
+    venv_needs_rebuild=1
+  else
+    current_minor="$("${PYTHON_BIN}" - <<'PY'
 import sys
 print(sys.version_info.minor)
 PY
 )"
-  if [[ "${current_minor}" -ge 14 ]]; then
-    venv_needs_rebuild=1
+    if [[ "${current_minor}" -ge 14 ]]; then
+      venv_needs_rebuild=1
+    fi
   fi
 fi
 
 if [[ ! -d "${VENV_DIR}" || "${venv_needs_rebuild}" -eq 1 ]]; then
   if [[ "${venv_needs_rebuild}" -eq 1 ]]; then
-    echo "Existing virtualenv uses unsupported Python 3.${current_minor}; rebuilding with ${SELECTED_PYTHON}"
+    echo "Rebuilding virtual environment with ${SELECTED_PYTHON}"
     rm -rf "${VENV_DIR}"
   fi
   echo "Creating virtual environment at ${VENV_DIR} using ${SELECTED_PYTHON}"
-  "${SELECTED_PYTHON}" -m venv "${VENV_DIR}"
+  mkdir -p "$(dirname "${VENV_DIR}")"
+  "${SELECTED_PYTHON}" -m venv --copies "${VENV_DIR}"
 fi
 
 echo "Installing/updating dependencies"
-"${PIP_BIN}" install --upgrade pip
-"${PIP_BIN}" install -r "${PROJECT_DIR}/requirements.txt"
+"${PYTHON_BIN}" -m pip install --upgrade pip
+"${PYTHON_BIN}" -m pip install -r "${PROJECT_DIR}/requirements.txt"
 
 echo "Starting dashboard simulation with config: ${CONFIG_PATH}"
 exec env PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" "${PROJECT_DIR}/src/main.py" --config "${CONFIG_PATH}"

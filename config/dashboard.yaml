@@ -14,6 +14,9 @@ system:
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.json
   odometer_write_interval_s: 1.5
+  map_view_visible: false
+  map_display_id: gauge_right
+  simulation_map_image_path: assets/maps/testmap.png
   theme_persist_enabled: true
   theme_state_path: data/theme_state.json
   raw_input_log_enabled: false

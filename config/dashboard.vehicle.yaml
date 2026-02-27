@@ -3,6 +3,8 @@ system:
   log_level: INFO
   target_fps: 30
   window_title: El Camino Dash
+  display_render_mode: multi_window
+  keyboard_focus_control_only: true
   startup_sweep_enabled: true
   startup_sweep_up_s: 1.1
   startup_sweep_hold_s: 0.12
@@ -14,6 +16,9 @@ system:
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.vehicle.json
   odometer_write_interval_s: 1.5
+  map_view_visible: false
+  map_display_id: gauge_right
+  simulation_map_image_path: assets/maps/testmap.png
   theme_persist_enabled: true
   theme_state_path: data/theme_state.vehicle.json
   raw_input_log_enabled: false
@@ -21,10 +26,10 @@ system:
   raw_input_log_interval_s: 0.2
 
 displays:
-  - {id: gauge_left, enabled: true, shape: round, width: 1080, height: 1080, position: [0, 0], fps: 30, role: gauge, gauge_id: speedometer}
-  - {id: gauge_center, enabled: true, shape: round, width: 720, height: 720, position: [2160, 0], fps: 30, role: gauge, gauge_id: fuel}
-  - {id: gauge_right, enabled: true, shape: round, width: 1080, height: 1080, position: [1080, 0], fps: 30, role: gauge, gauge_id: tachometer}
-  - {id: control_rect, enabled: true, shape: rectangle, width: 1050, height: 600, position: [0, 1080], fps: 30, role: control}
+  - {id: gauge_left, enabled: true, shape: round, width: 1080, height: 1080, position: [0, 0], monitor_index: 0, windowed: false, fullscreen: true, fps: 30, role: gauge, gauge_id: speedometer}
+  - {id: gauge_center, enabled: true, shape: round, width: 720, height: 720, position: [2160, 0], monitor_index: 1, windowed: false, fullscreen: true, fps: 30, role: gauge, gauge_id: fuel}
+  - {id: gauge_right, enabled: true, shape: round, width: 1080, height: 1080, position: [1080, 0], monitor_index: 2, windowed: false, fullscreen: true, fps: 30, role: gauge, gauge_id: tachometer}
+  - {id: control_rect, enabled: true, shape: rectangle, width: 1050, height: 600, position: [0, 1080], monitor_index: 3, windowed: false, fullscreen: true, fps: 30, role: control}
 
 themes:
   active: sport

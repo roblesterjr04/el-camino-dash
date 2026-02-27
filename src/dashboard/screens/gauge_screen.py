@@ -16,6 +16,7 @@ class GaugeScreen:
         self.layout = layout
         self.config = config
         self._font = pygame.font.Font(config["themes"]["font_name"], max(18, layout.height // 16))
+        self._font_cache: dict[str, pygame.font.Font] = {}
         self._theme_data = self._load_theme_data()
         self._sprite_cache = self._load_sprites()
         self._theme_sprite_cache: dict[str, pygame.Surface] = {}
@@ -46,18 +47,24 @@ class GaugeScreen:
             if override_filename:
                 flat_path = sprite_theme_root / str(override_filename)
                 if flat_path.exists():
-                    sprites[name] = self._load_sprite_surface(flat_path)
-                    continue
+                    surface = self._try_load_sprite_surface(flat_path)
+                    if surface is not None:
+                        sprites[name] = surface
+                        continue
 
             sprite_filename = str(sprite_files.get(name, f"{name}.png"))
             packed_path = sprite_root / sprite_filename
             if packed_path.exists():
-                sprites[name] = self._load_sprite_surface(packed_path)
-                continue
+                surface = self._try_load_sprite_surface(packed_path)
+                if surface is not None:
+                    sprites[name] = surface
+                    continue
 
             flat_default = sprite_theme_root / sprite_filename
             if flat_default.exists():
-                sprites[name] = self._load_sprite_surface(flat_default)
+                surface = self._try_load_sprite_surface(flat_default)
+                if surface is not None:
+                    sprites[name] = surface
         return sprites
 
     def _active_sprite_key(self) -> str:
@@ -67,10 +74,20 @@ class GaugeScreen:
 
     def _load_sprite_surface(self, sprite_path: Path) -> pygame.Surface:
         loaded = pygame.image.load(str(sprite_path))
-        # convert_alpha requires an initialized display surface.
-        if pygame.display.get_surface() is not None:
+        # Prefer alpha conversion when a display format is available.
+        try:
             return loaded.convert_alpha()
+        except pygame.error:
+            pass
         return loaded
+
+    def _try_load_sprite_surface(self, sprite_path: Path) -> pygame.Surface | None:
+        try:
+            return self._load_sprite_surface(sprite_path)
+        except (FileNotFoundError, OSError, pygame.error):
+            # Gracefully fall back to procedural rendering when sprite files
+            # are missing or unreadable in the current environment.
+            return None
 
     def _gauge_spec(self) -> dict[str, Any]:
         if not self.layout.gauge_id:
@@ -109,6 +126,26 @@ class GaugeScreen:
         cx = self.layout.width // 2
         cy = self.layout.height // 2
         radius = min(cx, cy) - 8
+
+        mode_key = "clock" if self._is_center_clock_mode() else (self.layout.gauge_id or "")
+        if self._gauge_mode_for_key(mode_key) == "digital":
+            if mode_key == "clock":
+                self._render_digital_clock(surface, status=status)
+            else:
+                self._render_digital_gauge(
+                    surface=surface,
+                    spec=spec,
+                    value=value,
+                    ratio=ratio,
+                    values=values,
+                    status=status,
+                    display_unit=unit_override or str(spec.get("unit", "")),
+                    visual_min=min_value,
+                    visual_max=max_value,
+                    redline_cfg=visuals.get("redline", {}),
+                    invert_value=bool(visuals.get("invert_value", False)),
+                )
+            return
 
         if self._is_center_clock_mode():
             self._render_center_clock(surface, values, status, spec, cx, cy, radius)
@@ -559,6 +596,544 @@ class GaugeScreen:
                 return bool(value["_default"])
             return default
         return bool(value)
+
+    def _gauge_mode_for_key(self, gauge_key: str) -> str:
+        cfg = self._theme_data.get("gauge_modes", {})
+        mode = "analog"
+        if isinstance(cfg, str):
+            mode = cfg
+        elif isinstance(cfg, dict):
+            raw_mode = cfg.get(gauge_key, cfg.get("_default", "analog"))
+            if isinstance(raw_mode, str):
+                mode = raw_mode
+        mode = mode.strip().lower()
+        return "digital" if mode == "digital" else "analog"
+
+    def _digital_render_config(self, gauge_key: str) -> dict[str, Any]:
+        cfg = self._theme_data.get("digital_render", {})
+        if not isinstance(cfg, dict):
+            return {}
+        merged: dict[str, Any] = {}
+        default_cfg = cfg.get("_default", {})
+        if isinstance(default_cfg, dict):
+            merged.update(default_cfg)
+        gauge_cfg = cfg.get(gauge_key, {})
+        if isinstance(gauge_cfg, dict):
+            merged.update(gauge_cfg)
+        return merged
+
+    def _digital_font(self, size: int, preferred_font: str = "") -> pygame.font.Font:
+        font_name = str(preferred_font or "").strip()
+        cache_key = f"{font_name}|{size}"
+        cached = self._font_cache.get(cache_key)
+        if cached:
+            return cached
+        fallback = self.config["themes"]["font_name"]
+        resolved = fallback
+        if font_name:
+            candidates = [
+                Path(font_name),
+                Path(self.config["themes"]["theme_root"]) / self.config["themes"]["active"] / font_name,
+                Path("assets/fonts") / font_name,
+            ]
+            for candidate in candidates:
+                if candidate.exists():
+                    resolved = str(candidate)
+                    break
+        try:
+            font = pygame.font.Font(resolved, size)
+        except (OSError, FileNotFoundError):
+            font = pygame.font.SysFont("Courier New", size, bold=True)
+        self._font_cache[cache_key] = font
+        return font
+
+    def _render_digital_gauge(
+        self,
+        surface: pygame.Surface,
+        spec: dict[str, Any],
+        value: float,
+        ratio: float,
+        values: dict[str, float],
+        status: dict[str, str],
+        display_unit: str,
+        visual_min: float,
+        visual_max: float,
+        redline_cfg: Any,
+        invert_value: bool,
+    ) -> None:
+        gauge_id = self.layout.gauge_id or ""
+        cfg = self._digital_render_config(gauge_id)
+        palette = self._theme_data.get("digital_palette", {})
+        panel_bg = tuple(palette.get("panel_background", [6, 10, 14]))
+        panel_border = tuple(palette.get("panel_border", [36, 88, 120]))
+        text_color = tuple(palette.get("text", [240, 250, 255]))
+        accent_color = tuple(palette.get("accent", [72, 218, 255]))
+        ring_fill = tuple(palette.get("bar_fill", [96, 228, 255]))
+        ring_empty = tuple(palette.get("bar_empty", [22, 36, 48]))
+
+        center_x = self.layout.width // 2
+        center_y = self.layout.height // 2
+        radius = int(min(self.layout.width, self.layout.height) * float(cfg.get("panel_radius_ratio", 0.45)))
+        radius = max(24, radius)
+        pygame.draw.circle(surface, panel_bg, (center_x, center_y), radius)
+        pygame.draw.circle(surface, panel_border, (center_x, center_y), radius, width=max(2, radius // 40))
+
+        preferred_font = str(cfg.get("font_name", ""))
+        label_font = self._digital_font(max(14, int(self.layout.height * float(cfg.get("label_scale", 0.08)))), preferred_font)
+        value_font = self._digital_font(max(18, int(self.layout.height * float(cfg.get("value_scale", 0.30)))), preferred_font)
+        unit_font = self._digital_font(max(14, int(self.layout.height * float(cfg.get("unit_scale", 0.08)))), preferred_font)
+        aux_font = self._digital_font(max(12, int(self.layout.height * float(cfg.get("aux_scale", 0.055)))), preferred_font)
+
+        label_text = label_font.render(str(spec.get("label", "")).upper(), True, accent_color)
+        show_primary_label = bool(cfg.get("show_primary_label", True))
+        if show_primary_label:
+            label_rect = label_text.get_rect(center=(center_x, center_y - int(radius * 0.55)))
+            surface.blit(label_text, label_rect)
+
+        decimals = int(cfg.get("value_decimals", 0))
+        show_sign = bool(cfg.get("show_sign", False))
+        if decimals <= 0:
+            value_text = f"{value:+.0f}" if show_sign else f"{value:.0f}"
+        else:
+            value_text = f"{value:+.{decimals}f}" if show_sign else f"{value:.{decimals}f}"
+        show_primary_readout = bool(cfg.get("show_primary_readout", True))
+        value_rect = pygame.Rect(center_x, center_y, 0, 0)
+        unit_rect = pygame.Rect(center_x, center_y, 0, 0)
+        if show_primary_readout:
+            value_surface = value_font.render(value_text, True, text_color)
+            value_rect = value_surface.get_rect(center=(center_x, center_y - int(radius * 0.06)))
+            surface.blit(value_surface, value_rect)
+
+            unit_surface = unit_font.render(display_unit, True, accent_color)
+            unit_rect = unit_surface.get_rect(midtop=(center_x, value_rect.bottom))
+            surface.blit(unit_surface, unit_rect)
+
+        secondary = self._secondary_label(spec, values_source_map=values)
+        if secondary and show_primary_readout:
+            secondary_surface = aux_font.render(secondary, True, text_color)
+            secondary_rect = secondary_surface.get_rect(midtop=(center_x, unit_rect.bottom + 4))
+            surface.blit(secondary_surface, secondary_rect)
+
+        ring_outer = max(20, int(radius * float(cfg.get("ring_outer_ratio", 0.93))))
+        ring_thickness = max(8, int(radius * float(cfg.get("ring_thickness_ratio", 0.18))))
+        ring_inner = max(6, ring_outer - ring_thickness)
+        ring_segments = max(8, int(cfg.get("ring_segments", 28)))
+        ring_gap_ratio = float(cfg.get("ring_gap_ratio", 0.22))
+        ring_angle_min = float(cfg.get("ring_angle_min_deg", 225.0))
+        ring_angle_max = float(cfg.get("ring_angle_max_deg", -45.0))
+        show_primary_ring = bool(cfg.get("show_primary_ring", True))
+        if show_primary_ring:
+            self._draw_segmented_donut(
+                surface=surface,
+                center_x=center_x,
+                center_y=center_y,
+                inner_radius=ring_inner,
+                outer_radius=ring_outer,
+                ratio=max(0.0, min(1.0, ratio)),
+                segments=ring_segments,
+                angle_min_deg=ring_angle_min,
+                angle_max_deg=ring_angle_max,
+                fill_color=ring_fill,
+                empty_color=ring_empty,
+                gap_ratio=ring_gap_ratio,
+                redline_cfg=redline_cfg,
+                visual_min=visual_min,
+                visual_max=visual_max,
+                invert_value=invert_value,
+                reverse=bool(cfg.get("reverse_fill", False)),
+            )
+
+            show_min_max = bool(cfg.get("show_primary_min_max", True))
+            if show_min_max:
+                min_surface = aux_font.render(f"{visual_min:.0f}", True, accent_color)
+                max_surface = aux_font.render(f"{visual_max:.0f}", True, accent_color)
+                min_angle = math.radians(self._user_angle_to_math_angle(ring_angle_min))
+                max_angle = math.radians(self._user_angle_to_math_angle(ring_angle_max))
+                label_radius = ring_outer + max(8, int(radius * 0.08))
+                min_pos = (
+                    center_x + int(math.cos(min_angle) * label_radius),
+                    center_y - int(math.sin(min_angle) * label_radius),
+                )
+                max_pos = (
+                    center_x + int(math.cos(max_angle) * label_radius),
+                    center_y - int(math.sin(max_angle) * label_radius),
+                )
+                surface.blit(min_surface, min_surface.get_rect(center=min_pos))
+                surface.blit(max_surface, max_surface.get_rect(center=max_pos))
+
+        self._draw_digital_sub_gauges(
+            surface=surface,
+            values=values,
+            cfg=cfg,
+            accent_color=accent_color,
+            text_color=text_color,
+            fallback_fill=ring_fill,
+            fallback_empty=ring_empty,
+            base_font=aux_font,
+        )
+
+        self._draw_indicator_elements(surface, values)
+        if self._theme_flag("show_odometer", True):
+            self._draw_odometer(surface, spec, values)
+        if status.get("theme_warning"):
+            warning = aux_font.render(status["theme_warning"], True, (255, 200, 0))
+            warning_rect = warning.get_rect(center=(center_x, center_y + int(radius * 0.72)))
+            surface.blit(warning, warning_rect)
+
+    def _draw_digital_sub_gauges(
+        self,
+        surface: pygame.Surface,
+        values: dict[str, float],
+        cfg: dict[str, Any],
+        accent_color: tuple[int, int, int],
+        text_color: tuple[int, int, int],
+        fallback_fill: tuple[int, int, int],
+        fallback_empty: tuple[int, int, int],
+        base_font: pygame.font.Font,
+    ) -> None:
+        gauge_id = self.layout.gauge_id or ""
+        sub_defs = self._theme_data.get("sub_gauges", {}).get(gauge_id, [])
+        if not isinstance(sub_defs, list):
+            return
+        min_dim = min(self.layout.width, self.layout.height)
+        for sub in sub_defs:
+            if not isinstance(sub, dict):
+                continue
+            source = str(sub.get("source", "")).strip()
+            if not source:
+                continue
+            raw_value = float(values.get(source, 0.0))
+            if bool(sub.get("apply_source_calibration", True)):
+                raw_value, unit_override = self._apply_source_calibration(source, raw_value)
+            else:
+                unit_override = None
+            calib = sub.get("calibration", {})
+            scale = float(calib.get("scale", 1.0)) if isinstance(calib, dict) else 1.0
+            offset = float(calib.get("offset", 0.0)) if isinstance(calib, dict) else 0.0
+            value = (raw_value * scale) + offset
+            min_v = float(sub.get("visual_min", 0.0))
+            max_v = float(sub.get("visual_max", 1.0))
+            ratio = 0.0 if max_v <= min_v else (value - min_v) / (max_v - min_v)
+            ratio = max(0.0, min(1.0, ratio))
+            if bool(sub.get("invert_value", False)):
+                ratio = 1.0 - ratio
+
+            center = sub.get("center_ratio", [0.5, 0.5])
+            if not isinstance(center, list) or len(center) != 2:
+                center = [0.5, 0.5]
+            cx = int(self.layout.width * float(center[0]))
+            cy = int(self.layout.height * float(center[1]))
+            offset_x = int(sub.get("offset_x_px", 0))
+            offset_y = int(sub.get("offset_y_px", 0))
+            offset_pair = sub.get("offset_px")
+            if isinstance(offset_pair, list) and len(offset_pair) == 2:
+                offset_x = int(offset_pair[0])
+                offset_y = int(offset_pair[1])
+            cx += offset_x
+            cy += offset_y
+
+            fill_color = self._resolve_rgb(sub.get("color"), fallback_fill)
+            empty_color = self._resolve_rgb(sub.get("empty_color"), fallback_empty)
+            style = str(sub.get("digital_style", cfg.get("sub_default_style", "ring"))).strip().lower()
+
+            if style == "hbar":
+                bar_w = max(8, int(min_dim * float(sub.get("bar_width_ratio", 0.28))))
+                bar_h = max(6, int(min_dim * float(sub.get("bar_height_ratio", 0.05))))
+                rect = pygame.Rect(0, 0, bar_w, bar_h)
+                rect.center = (cx, cy)
+                self._draw_segmented_linear_bar(
+                    surface=surface,
+                    rect=rect,
+                    ratio=ratio,
+                    vertical=False,
+                    segments=max(4, int(sub.get("bar_segments", 10))),
+                    gap_px=max(0, int(sub.get("bar_gap_px", 2))),
+                    fill_color=fill_color,
+                    empty_color=empty_color,
+                    reverse=bool(sub.get("reverse_fill", False)),
+                    rainbow=bool(sub.get("rainbow", False)),
+                    redline_cfg=sub.get("redline", {}),
+                    visual_min=min_v,
+                    visual_max=max_v,
+                    invert_value=bool(sub.get("invert_value", False)),
+                )
+            elif style == "vbar":
+                bar_w = max(6, int(min_dim * float(sub.get("bar_width_ratio", 0.07))))
+                bar_h = max(8, int(min_dim * float(sub.get("bar_height_ratio", 0.30))))
+                rect = pygame.Rect(0, 0, bar_w, bar_h)
+                rect.center = (cx, cy)
+                self._draw_segmented_linear_bar(
+                    surface=surface,
+                    rect=rect,
+                    ratio=ratio,
+                    vertical=True,
+                    segments=max(4, int(sub.get("bar_segments", 12))),
+                    gap_px=max(0, int(sub.get("bar_gap_px", 2))),
+                    fill_color=fill_color,
+                    empty_color=empty_color,
+                    reverse=bool(sub.get("reverse_fill", False)),
+                    rainbow=bool(sub.get("rainbow", False)),
+                    redline_cfg=sub.get("redline", {}),
+                    visual_min=min_v,
+                    visual_max=max_v,
+                    invert_value=bool(sub.get("invert_value", False)),
+                )
+            else:
+                outer = max(8, int(min_dim * float(sub.get("size_ratio", 0.16))))
+                thickness = max(4, int(outer * float(sub.get("ring_thickness_ratio", 0.24))))
+                self._draw_segmented_donut(
+                    surface=surface,
+                    center_x=cx,
+                    center_y=cy,
+                    inner_radius=max(2, outer - thickness),
+                    outer_radius=outer,
+                    ratio=ratio,
+                    segments=max(4, int(sub.get("ring_segments", 14))),
+                    angle_min_deg=float(sub.get("angle_min_deg", 210.0)),
+                    angle_max_deg=float(sub.get("angle_max_deg", -30.0)),
+                    fill_color=fill_color,
+                    empty_color=empty_color,
+                    gap_ratio=float(sub.get("ring_gap_ratio", 0.22)),
+                    reverse=bool(sub.get("reverse_fill", False)),
+                    redline_cfg=sub.get("redline", {}),
+                    visual_min=min_v,
+                    visual_max=max_v,
+                    invert_value=bool(sub.get("invert_value", False)),
+                )
+
+            show_label = bool(sub.get("show_label", True))
+            show_value = bool(sub.get("show_value", False))
+            label_text = str(sub.get("label", sub.get("id", ""))).strip().upper()
+            unit_text = str(sub.get("unit", unit_override or "")).strip()
+            if show_label and label_text:
+                label_surface = base_font.render(label_text, True, accent_color)
+                label_offset_px = sub.get("label_offset_px")
+                if label_offset_px is not None:
+                    label_y = cy + int(label_offset_px)
+                else:
+                    label_y = cy - int(min_dim * float(sub.get("label_offset_ratio", 0.07)))
+                surface.blit(label_surface, label_surface.get_rect(center=(cx, label_y)))
+            if show_value:
+                decimals = int(sub.get("value_decimals", 0))
+                value_text = f"{value:.{max(0, decimals)}f}"
+                if unit_text:
+                    value_text = f"{value_text}{unit_text}"
+                value_surface = base_font.render(value_text, True, text_color)
+                value_offset_px = sub.get("value_offset_px")
+                if value_offset_px is not None:
+                    value_y = cy + int(value_offset_px)
+                else:
+                    value_y = cy + int(min_dim * float(sub.get("value_offset_ratio", 0.07)))
+                surface.blit(value_surface, value_surface.get_rect(center=(cx, value_y)))
+
+    def _resolve_rgb(self, raw: Any, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
+        if isinstance(raw, list) and len(raw) == 3:
+            try:
+                return (int(raw[0]), int(raw[1]), int(raw[2]))
+            except (TypeError, ValueError):
+                return fallback
+        return fallback
+
+    def _render_digital_clock(self, surface: pygame.Surface, status: dict[str, str]) -> None:
+        cfg = self._digital_render_config("clock")
+        palette = self._theme_data.get("digital_palette", {})
+        panel_bg = tuple(palette.get("panel_background", [6, 10, 14]))
+        panel_border = tuple(palette.get("panel_border", [36, 88, 120]))
+        text_color = tuple(palette.get("text", [240, 250, 255]))
+        accent_color = tuple(palette.get("accent", [72, 218, 255]))
+
+        center_x = self.layout.width // 2
+        center_y = self.layout.height // 2
+        radius = int(min(self.layout.width, self.layout.height) * float(cfg.get("panel_radius_ratio", 0.45)))
+        radius = max(20, radius)
+        pygame.draw.circle(surface, panel_bg, (center_x, center_y), radius)
+        pygame.draw.circle(surface, panel_border, (center_x, center_y), radius, width=max(2, radius // 40))
+
+        preferred_font = str(cfg.get("font_name", ""))
+        header_font = self._digital_font(max(12, int(self.layout.height * float(cfg.get("label_scale", 0.10)))), preferred_font)
+        clock_font = self._digital_font(max(18, int(self.layout.height * float(cfg.get("value_scale", 0.34)))), preferred_font)
+        aux_font = self._digital_font(max(12, int(self.layout.height * 0.055)), preferred_font)
+
+        now = datetime.now()
+        use_24h = bool(cfg.get("use_24h", False))
+        time_label = f"{now:%H:%M}" if use_24h else f"{now:%I:%M}"
+        sec_label = f"{now:%S}"
+
+        title = header_font.render("CLOCK", True, accent_color)
+        time_surface = clock_font.render(time_label, True, text_color)
+        sec_surface = aux_font.render(sec_label, True, accent_color)
+        date_surface = aux_font.render(f"{now:%a %b %d}", True, text_color)
+
+        surface.blit(title, title.get_rect(center=(center_x, center_y - int(radius * 0.5))))
+        time_rect = time_surface.get_rect(center=(center_x, center_y - int(radius * 0.02)))
+        surface.blit(time_surface, time_rect)
+        surface.blit(sec_surface, sec_surface.get_rect(midleft=(time_rect.right + 8, time_rect.centery + 6)))
+        surface.blit(date_surface, date_surface.get_rect(center=(center_x, center_y + int(radius * 0.35))))
+
+        if status.get("theme_warning"):
+            warning = aux_font.render(status["theme_warning"], True, (255, 200, 0))
+            warning_rect = warning.get_rect(center=(center_x, center_y + int(radius * 0.75)))
+            surface.blit(warning, warning_rect)
+
+    def _draw_segmented_donut(
+        self,
+        surface: pygame.Surface,
+        center_x: int,
+        center_y: int,
+        inner_radius: int,
+        outer_radius: int,
+        ratio: float,
+        segments: int,
+        angle_min_deg: float,
+        angle_max_deg: float,
+        fill_color: tuple[int, int, int],
+        empty_color: tuple[int, int, int],
+        gap_ratio: float,
+        reverse: bool = False,
+        redline_cfg: Any = None,
+        visual_min: float = 0.0,
+        visual_max: float = 1.0,
+        invert_value: bool = False,
+    ) -> None:
+        if outer_radius <= inner_radius:
+            return
+        gap = max(0.0, min(0.48, gap_ratio))
+        filled = int(round(max(0.0, min(1.0, ratio)) * segments))
+        for idx in range(segments):
+            start_ratio = idx / segments
+            end_ratio = (idx + 1) / segments
+            segment_span = end_ratio - start_ratio
+            trim = segment_span * gap * 0.5
+            start_ratio += trim
+            end_ratio -= trim
+            if end_ratio <= start_ratio:
+                continue
+            logical_idx = (segments - 1 - idx) if reverse else idx
+            segment_ratio = 0.0 if segments <= 1 else (logical_idx / (segments - 1))
+            value_ratio = (1.0 - segment_ratio) if invert_value else segment_ratio
+            tick_value = visual_min + ((visual_max - visual_min) * value_ratio)
+            active_fill = self._tick_color_for_value(fill_color, redline_cfg, tick_value, value_ratio)
+            is_filled = idx >= (segments - filled) if reverse else idx < filled
+            color = active_fill if is_filled else empty_color
+            self._fill_ring_slice(
+                surface=surface,
+                center_x=center_x,
+                center_y=center_y,
+                inner_radius=inner_radius,
+                outer_radius=outer_radius,
+                start_ratio=start_ratio,
+                end_ratio=end_ratio,
+                angle_min_deg=angle_min_deg,
+                angle_max_deg=angle_max_deg,
+                color=color,
+            )
+
+    def _fill_ring_slice(
+        self,
+        surface: pygame.Surface,
+        center_x: int,
+        center_y: int,
+        inner_radius: int,
+        outer_radius: int,
+        start_ratio: float,
+        end_ratio: float,
+        angle_min_deg: float,
+        angle_max_deg: float,
+        color: tuple[int, int, int],
+    ) -> None:
+        steps = 5
+        outer_points: list[tuple[int, int]] = []
+        inner_points: list[tuple[int, int]] = []
+        for step in range(steps + 1):
+            ratio = start_ratio + ((end_ratio - start_ratio) * (step / steps))
+            user_angle = self._map_angle(ratio, angle_min_deg, angle_max_deg)
+            angle = math.radians(self._user_angle_to_math_angle(user_angle))
+            outer_points.append(
+                (
+                    center_x + int(math.cos(angle) * outer_radius),
+                    center_y - int(math.sin(angle) * outer_radius),
+                )
+            )
+            inner_points.append(
+                (
+                    center_x + int(math.cos(angle) * inner_radius),
+                    center_y - int(math.sin(angle) * inner_radius),
+                )
+            )
+        pygame.draw.polygon(surface, color, outer_points + list(reversed(inner_points)))
+
+    def _draw_segmented_linear_bar(
+        self,
+        surface: pygame.Surface,
+        rect: pygame.Rect,
+        ratio: float,
+        vertical: bool,
+        segments: int,
+        gap_px: int,
+        fill_color: tuple[int, int, int],
+        empty_color: tuple[int, int, int],
+        reverse: bool = False,
+        rainbow: bool = False,
+        rainbow_colors: list[tuple[int, int, int]] | None = None,
+        redline_cfg: Any = None,
+        visual_min: float = 0.0,
+        visual_max: float = 1.0,
+        invert_value: bool = False,
+    ) -> None:
+        if rect.width <= 0 or rect.height <= 0:
+            return
+        segments = max(2, segments)
+        gap_px = max(0, gap_px)
+        ratio = max(0.0, min(1.0, ratio))
+        filled = int(round(ratio * segments))
+        if rainbow:
+            palette = rainbow_colors or [
+                (46, 205, 113),
+                (142, 214, 54),
+                (255, 206, 64),
+                (255, 160, 64),
+                (255, 92, 92),
+            ]
+        else:
+            palette = []
+        if vertical:
+            segment_h = max(1, int((rect.height - ((segments - 1) * gap_px)) / segments))
+            for idx in range(segments):
+                draw_idx = (segments - 1 - idx) if reverse else idx
+                seg_y = rect.top + (draw_idx * (segment_h + gap_px))
+                seg_rect = pygame.Rect(rect.left, seg_y, rect.width, segment_h)
+                is_filled = idx < filled
+                logical_idx = (segments - 1 - idx) if reverse else idx
+                segment_ratio = 0.0 if segments <= 1 else (logical_idx / (segments - 1))
+                value_ratio = (1.0 - segment_ratio) if invert_value else segment_ratio
+                tick_value = visual_min + ((visual_max - visual_min) * value_ratio)
+                active_fill = self._tick_color_for_value(fill_color, redline_cfg, tick_value, value_ratio)
+                if is_filled and rainbow:
+                    ratio_idx = logical_idx / max(1, segments - 1)
+                    color_idx = int(ratio_idx * (len(palette) - 1))
+                    seg_color = palette[color_idx]
+                else:
+                    seg_color = active_fill if is_filled else empty_color
+                pygame.draw.rect(surface, seg_color, seg_rect, border_radius=2)
+            return
+        segment_w = max(1, int((rect.width - ((segments - 1) * gap_px)) / segments))
+        for idx in range(segments):
+            draw_idx = (segments - 1 - idx) if reverse else idx
+            seg_x = rect.left + (draw_idx * (segment_w + gap_px))
+            seg_rect = pygame.Rect(seg_x, rect.top, segment_w, rect.height)
+            is_filled = idx < filled
+            logical_idx = (segments - 1 - idx) if reverse else idx
+            segment_ratio = 0.0 if segments <= 1 else (logical_idx / (segments - 1))
+            value_ratio = (1.0 - segment_ratio) if invert_value else segment_ratio
+            tick_value = visual_min + ((visual_max - visual_min) * value_ratio)
+            active_fill = self._tick_color_for_value(fill_color, redline_cfg, tick_value, value_ratio)
+            if is_filled and rainbow:
+                ratio_idx = logical_idx / max(1, segments - 1)
+                color_idx = int(ratio_idx * (len(palette) - 1))
+                seg_color = palette[color_idx]
+            else:
+                seg_color = active_fill if is_filled else empty_color
+            pygame.draw.rect(surface, seg_color, seg_rect, border_radius=2)
 
     def _tick_color_for_value(
         self,

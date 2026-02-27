@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
-from dashboard.app import DashboardApp
 from dashboard.config import ConfigError, load_dashboard_config
 
 
@@ -14,16 +14,69 @@ def parse_args() -> argparse.Namespace:
         default="config/dashboard.yaml",
         help="Path to dashboard YAML config",
     )
+    parser.add_argument(
+        "--display-mode",
+        choices=("auto", "xvfb", "hardware"),
+        help="Display backend mode (defaults to DISPLAY_MODE env var or auto)",
+    )
+    parser.add_argument(
+        "--render-mode",
+        choices=("single_window", "multi_window"),
+        help="Render topology mode (defaults to DISPLAY_RENDER_MODE env var or config)",
+    )
     return parser.parse_args()
+
+
+def _resolve_display_mode(args: argparse.Namespace) -> str:
+    arg_mode = str(args.display_mode or "").strip().lower()
+    env_mode = str(os.environ.get("DISPLAY_MODE", "")).strip().lower()
+    mode = arg_mode or env_mode or "auto"
+    if mode not in {"auto", "xvfb", "hardware"}:
+        raise ValueError(f"Unsupported display mode: {mode!r}")
+    return mode
+
+
+def _prepare_display_environment(mode: str) -> None:
+    display = str(os.environ.get("DISPLAY", "")).strip()
+    is_linux = sys.platform.startswith("linux")
+    if mode == "xvfb":
+        # Default to :99 for virtual framebuffer workflows.
+        os.environ.setdefault("DISPLAY", ":99")
+        return
+    if mode == "hardware":
+        if is_linux and not display:
+            raise RuntimeError("DISPLAY is not set for hardware mode.")
+        return
+    if display:
+        return
+    if not is_linux:
+        # macOS/Windows do not rely on X11 DISPLAY for native pygame windows.
+        return
+    raise RuntimeError(
+        "DISPLAY is not set in auto mode. Use DISPLAY_MODE=xvfb or pass --display-mode xvfb for VM usage."
+    )
 
 
 def main() -> int:
     args = parse_args()
     try:
+        display_mode = _resolve_display_mode(args)
+        _prepare_display_environment(display_mode)
+    except (RuntimeError, ValueError) as exc:
+        print(f"Display setup error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
         cfg = load_dashboard_config(args.config)
     except ConfigError as exc:
         print(f"Config error: {exc}", file=sys.stderr)
         return 2
+    if args.render_mode:
+        os.environ["DISPLAY_RENDER_MODE"] = str(args.render_mode)
+
+    # Import after display mode setup so pygame picks the selected backend.
+    from dashboard.app import DashboardApp
+
     app = DashboardApp(cfg)
     app.run()
     return 0

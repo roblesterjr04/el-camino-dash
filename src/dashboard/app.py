@@ -55,13 +55,15 @@ class DashboardApp:
     def run(self) -> None:
         pygame.init()
         pygame.font.init()
-        try:
-            pygame.mixer.init()
-        except pygame.error:
-            pass
+        media_cfg = self.config["integrations"].get("media", {})
+        if bool(media_cfg.get("enabled", False)):
+            try:
+                pygame.mixer.init()
+            except pygame.error:
+                pass
         self._reset_raw_input_log()
         self.input_manager = InputManager(self.config)
-        self.media = MediaPlayer(self.config["integrations"]["media"])
+        self.media = MediaPlayer(media_cfg)
         command_registry = self._build_command_registry()
         self._command_registry = command_registry
         self.display_manager = DisplayManager(
@@ -77,11 +79,13 @@ class DashboardApp:
         try:
             while self._running:
                 for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
+                    if self.display_manager and self.display_manager.handle_event(event):
                         self._running = False
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                         self._running = False
 
+                if self.input_manager and self.display_manager:
+                    self.input_manager.set_keyboard_active(self.display_manager.keyboard_input_active())
                 self._tick_inputs()
                 self._log_raw_inputs()
                 self._apply_gauge_smoothing()
@@ -166,6 +170,7 @@ class DashboardApp:
             "system_mode": str(self.config["system"].get("mode", "unknown")),
             "theme_active": str(self.config["themes"].get("active", "unknown")),
             "center_dial_mode": self._current_center_dial_mode(),
+            "map_view_visible": "on" if bool(self.config.get("system", {}).get("map_view_visible", False)) else "off",
         }
 
     def _update_runtime_metrics(self) -> None:
@@ -292,6 +297,7 @@ class DashboardApp:
             "media.set_volume": self._cmd_media_set_volume,
             "theme.next": self._cmd_theme_next,
             "center_dial_mode.toggle": self._cmd_center_dial_mode_toggle,
+            "map_view.toggle": self._cmd_map_view_toggle,
             "app.restart": self._cmd_app_restart,
         }
 
@@ -308,8 +314,6 @@ class DashboardApp:
         self._raw_input_log_interval_s = max(0.02, float(self.config["system"].get("raw_input_log_interval_s", 0.2)))
         self._raw_input_log_path = Path(self.config["system"].get("raw_input_log_path", "data/raw_inputs.log"))
         self._last_raw_input_log_s = time.monotonic()
-        self._startup_sweep_started_s = time.monotonic()
-        self._startup_sweep_complete = False
         self._odometer_path = Path(self.config["system"].get("odometer_state_path", "data/odometer_state.json"))
         self._odometer_persist_enabled = bool(self.config["system"].get("odometer_persist_enabled", True))
         self._odometer_write_interval_s = float(self.config["system"].get("odometer_write_interval_s", 2.0))
@@ -459,6 +463,13 @@ class DashboardApp:
             return "Theme save failed"
         self._refresh_runtime_components()
         return f"Center dial: {next_mode}"
+
+    def _cmd_map_view_toggle(self, _: dict[str, Any]) -> str:
+        current = bool(self.config.get("system", {}).get("map_view_visible", False))
+        next_visible = not current
+        self.config.setdefault("system", {})["map_view_visible"] = next_visible
+        self._refresh_runtime_components()
+        return f"Map view: {'on' if next_visible else 'off'}"
 
     def _center_mode_from_theme_data(self, theme_data: dict[str, Any]) -> str:
         mode_cfg = theme_data.get("center_dial_mode", "tach")

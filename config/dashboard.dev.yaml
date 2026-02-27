@@ -3,6 +3,8 @@ system:
   log_level: DEBUG
   target_fps: 30
   window_title: El Camino Dash (Dev)
+  display_render_mode: single_window
+  keyboard_focus_control_only: false
   startup_sweep_enabled: true
   startup_sweep_up_s: 1.1
   startup_sweep_hold_s: 0.12
@@ -14,6 +16,9 @@ system:
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.dev.json
   odometer_write_interval_s: 1.5
+  map_view_visible: false
+  map_display_id: gauge_right
+  simulation_map_image_path: assets/maps/testmap.png
   theme_persist_enabled: true
   theme_state_path: data/theme_state.dev.json
   raw_input_log_enabled: true
@@ -27,6 +32,9 @@ displays:
     width: 540
     height: 540
     position: [0, 0]
+    monitor_index: 0
+    windowed: true
+    fullscreen: false
     fps: 30
     role: gauge
     gauge_id: speedometer
@@ -36,6 +44,9 @@ displays:
     width: 360
     height: 360
     position: [1080, 0]
+    monitor_index: 1
+    windowed: true
+    fullscreen: false
     fps: 30
     role: gauge
     gauge_id: fuel
@@ -45,6 +56,9 @@ displays:
     width: 540
     height: 540
     position: [540, 0]
+    monitor_index: 2
+    windowed: true
+    fullscreen: false
     fps: 30
     role: gauge
     gauge_id: tachometer
@@ -54,6 +68,9 @@ displays:
     width: 700
     height: 400
     position: [0, 540]
+    monitor_index: 3
+    windowed: true
+    fullscreen: false
     fps: 30
     role: control
 

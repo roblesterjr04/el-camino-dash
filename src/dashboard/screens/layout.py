@@ -14,6 +14,9 @@ class DisplayLayout:
     y: int
     fps: int
     gauge_id: str | None = None
+    monitor_index: int | None = None
+    windowed: bool = True
+    fullscreen: bool = False
 
     @property
     def size(self) -> tuple[int, int]:

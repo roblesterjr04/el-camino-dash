@@ -67,7 +67,7 @@ def _expect_type(path: str, value: Any, expected_type: type | tuple[type, ...]) 
 def _validate_display(idx: int, display: dict[str, Any]) -> None:
     path = f"displays[{idx}]"
     required = {"id", "enabled", "shape", "width", "height", "position", "fps", "role"}
-    allowed = required | {"gauge_id"}
+    allowed = required | {"gauge_id", "monitor_index", "windowed", "fullscreen"}
     _expect_keys(path, display, required, allowed)
     _expect_type(f"{path}.id", display["id"], str)
     _expect_type(f"{path}.enabled", display["enabled"], bool)
@@ -85,6 +85,20 @@ def _validate_display(idx: int, display: dict[str, Any]) -> None:
     _expect_type(f"{path}.role", display["role"], str)
     if display["role"] == "gauge" and "gauge_id" not in display:
         _fail(path, "gauge displays require 'gauge_id'")
+    if "monitor_index" in display:
+        _expect_type(f"{path}.monitor_index", display["monitor_index"], int)
+        if int(display["monitor_index"]) < 0:
+            _fail(f"{path}.monitor_index", "must be >= 0")
+    windowed = bool(display.get("windowed", True))
+    fullscreen = bool(display.get("fullscreen", False))
+    if "windowed" in display:
+        _expect_type(f"{path}.windowed", display["windowed"], bool)
+    if "fullscreen" in display:
+        _expect_type(f"{path}.fullscreen", display["fullscreen"], bool)
+    if windowed and fullscreen:
+        _fail(path, "windowed and fullscreen cannot both be true")
+    if not windowed and not fullscreen:
+        _fail(path, "windowed=false requires fullscreen=true")
 
 
 def _validate_gauges(gauges: dict[str, Any]) -> None:

@@ -125,6 +125,14 @@ menu:
           label: Toggle Center Dial
           type: action
           command: center_dial_mode.toggle
+        - id: map_view_state
+          label: Map View
+          type: info
+          status_key: map_view_visible
+        - id: toggle_map_view
+          label: Toggle Map View
+          type: action
+          command: map_view.toggle
         - id: target_fps
           label: Target FPS
           type: range

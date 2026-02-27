@@ -20,6 +20,10 @@ class InputManager:
         self._simulated = SimulatedDataInput(input_cfg["simulated_data"])
         self._keyboard = KeyboardSimInput(input_cfg["keyboard_sim"])
         self._keyboard_enabled = bool(input_cfg["keyboard_sim"].get("enabled", False))
+        self._keyboard_active = True
+
+    def set_keyboard_active(self, active: bool) -> None:
+        self._keyboard_active = bool(active)
 
     def poll(self) -> dict[str, float]:
         values: dict[str, float] = {}
@@ -32,7 +36,7 @@ class InputManager:
         values.update(self._simulated.poll())
 
         pressed = pygame.key.get_pressed()
-        if self._keyboard_enabled:
+        if self._keyboard_enabled and self._keyboard_active:
             values.update(self._keyboard.poll(pressed))
 
         return values
