@@ -151,6 +151,8 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             _expect_type(f"inputs.{section}[{idx}]", item, dict)
             if "id" not in item:
                 _fail(f"inputs.{section}[{idx}]", "missing key 'id'")
+            if section == "rotary_encoders" and "button_debounce_ms" in item:
+                _expect_type(f"inputs.{section}[{idx}].button_debounce_ms", item["button_debounce_ms"], (int, float))
     _expect_type("inputs.keyboard_sim", inputs["keyboard_sim"], dict)
     _expect_keys(
         "inputs.keyboard_sim",
@@ -227,6 +229,10 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             "temp_range",
             "amp_range",
             "oil_range",
+            "turn_signals_enabled",
+            "turn_signal_period_s",
+            "turn_signal_duty_cycle",
+            "turn_signal_mode",
         },
     )
     _expect_type("inputs.simulated_data.enabled", inputs["simulated_data"]["enabled"], bool)
@@ -239,6 +245,18 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
         _expect_type("inputs.simulated_data.amp_period_s", inputs["simulated_data"]["amp_period_s"], (int, float))
     if "oil_period_s" in inputs["simulated_data"]:
         _expect_type("inputs.simulated_data.oil_period_s", inputs["simulated_data"]["oil_period_s"], (int, float))
+    if "turn_signals_enabled" in inputs["simulated_data"]:
+        _expect_type("inputs.simulated_data.turn_signals_enabled", inputs["simulated_data"]["turn_signals_enabled"], bool)
+    if "turn_signal_period_s" in inputs["simulated_data"]:
+        _expect_type("inputs.simulated_data.turn_signal_period_s", inputs["simulated_data"]["turn_signal_period_s"], (int, float))
+    if "turn_signal_duty_cycle" in inputs["simulated_data"]:
+        _expect_type(
+            "inputs.simulated_data.turn_signal_duty_cycle",
+            inputs["simulated_data"]["turn_signal_duty_cycle"],
+            (int, float),
+        )
+    if "turn_signal_mode" in inputs["simulated_data"]:
+        _expect_type("inputs.simulated_data.turn_signal_mode", inputs["simulated_data"]["turn_signal_mode"], str)
     for key in ("speed_range", "rpm_range", "fuel_range"):
         path = f"inputs.simulated_data.{key}"
         _expect_type(path, inputs["simulated_data"][key], list)
@@ -259,12 +277,46 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
 
 def _validate_integrations(integrations: dict[str, Any]) -> None:
     required_sections = {"navit", "media", "bluetooth_metadata"}
-    _expect_keys("integrations", integrations, required_sections, required_sections)
+    allowed_sections = required_sections | {"bluetooth_audio"}
+    _expect_keys("integrations", integrations, required_sections, allowed_sections)
     for section in required_sections:
         _expect_type(f"integrations.{section}", integrations[section], dict)
         if "enabled" not in integrations[section]:
             _fail(f"integrations.{section}", "missing key 'enabled'")
         _expect_type(f"integrations.{section}.enabled", integrations[section]["enabled"], bool)
+    if "bluetooth_audio" in integrations:
+        bt_audio = integrations["bluetooth_audio"]
+        _expect_type("integrations.bluetooth_audio", bt_audio, dict)
+        _expect_keys(
+            "integrations.bluetooth_audio",
+            bt_audio,
+            {"enabled"},
+            {
+                "enabled",
+                "device_mac",
+                "auto_connect",
+                "pair_on_connect",
+                "trust_device",
+                "set_default_sink",
+                "sink_name",
+                "refresh_interval_s",
+            },
+        )
+        _expect_type("integrations.bluetooth_audio.enabled", bt_audio["enabled"], bool)
+        if "device_mac" in bt_audio:
+            _expect_type("integrations.bluetooth_audio.device_mac", bt_audio["device_mac"], str)
+        if "auto_connect" in bt_audio:
+            _expect_type("integrations.bluetooth_audio.auto_connect", bt_audio["auto_connect"], bool)
+        if "pair_on_connect" in bt_audio:
+            _expect_type("integrations.bluetooth_audio.pair_on_connect", bt_audio["pair_on_connect"], bool)
+        if "trust_device" in bt_audio:
+            _expect_type("integrations.bluetooth_audio.trust_device", bt_audio["trust_device"], bool)
+        if "set_default_sink" in bt_audio:
+            _expect_type("integrations.bluetooth_audio.set_default_sink", bt_audio["set_default_sink"], bool)
+        if "sink_name" in bt_audio:
+            _expect_type("integrations.bluetooth_audio.sink_name", bt_audio["sink_name"], str)
+        if "refresh_interval_s" in bt_audio:
+            _expect_type("integrations.bluetooth_audio.refresh_interval_s", bt_audio["refresh_interval_s"], (int, float))
 
 
 def _validate_system(system: dict[str, Any]) -> None:
@@ -316,12 +368,15 @@ def validate_config(raw: dict[str, Any]) -> None:
     for idx, display in enumerate(raw["displays"]):
         _expect_type(f"displays[{idx}]", display, dict)
         _validate_display(idx, display)
-    display_ids = {str(display["id"]) for display in raw["displays"] if bool(display.get("enabled", False))}
-    enabled_display_count = sum(1 for display in raw["displays"] if bool(display.get("enabled", False)))
+    enabled_display_ids = [str(display["id"]) for display in raw["displays"] if bool(display.get("enabled", False))]
+    display_ids = set(enabled_display_ids)
+    enabled_display_count = len(enabled_display_ids)
     menu_display_id = raw["system"].get("menu_display_id", "gauge_right")
     _expect_type("system.menu_display_id", menu_display_id, str)
-    if menu_display_id and menu_display_id not in display_ids:
-        _fail("system.menu_display_id", f"must match an enabled display id: {menu_display_id}")
+    if enabled_display_ids and (not menu_display_id or menu_display_id not in display_ids):
+        # Be resilient across layouts/themes: if configured menu target is not
+        # present, pin it to the first enabled display instead of failing load.
+        raw["system"]["menu_display_id"] = enabled_display_ids[0]
     if "spi_displays" in raw["system"]:
         spi_displays = raw["system"]["spi_displays"]
         if len(spi_displays) < enabled_display_count:

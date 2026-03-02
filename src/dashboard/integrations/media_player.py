@@ -16,6 +16,12 @@ class MediaPlayer:
         startup_volume = float(self._cfg.get("startup_volume", 0.5))
         self.set_volume(startup_volume)
 
+    def _mixer_ready(self) -> bool:
+        try:
+            return pygame.mixer.get_init() is not None
+        except pygame.error:
+            return False
+
     def _scan_tracks(self) -> list[Path]:
         music_root = Path(self._cfg.get("music_root", "media"))
         if not music_root.exists():
@@ -28,11 +34,15 @@ class MediaPlayer:
     def _ensure_loaded(self) -> None:
         if self._loaded or not self._tracks:
             return
+        if not self._mixer_ready():
+            return
         pygame.mixer.music.load(str(self._tracks[self._track_index]))
         self._loaded = True
 
     def play(self) -> None:
         if not self._cfg.get("enabled", False):
+            return
+        if not self._mixer_ready():
             return
         self._ensure_loaded()
         if self._loaded:
@@ -40,15 +50,21 @@ class MediaPlayer:
             self._paused = False
 
     def pause(self) -> None:
+        if not self._mixer_ready():
+            return
         pygame.mixer.music.pause()
         self._paused = True
 
     def stop(self) -> None:
+        if not self._mixer_ready():
+            return
         pygame.mixer.music.stop()
         self._paused = False
 
     def toggle_play_pause(self) -> None:
         if not self._cfg.get("enabled", False):
+            return
+        if not self._mixer_ready():
             return
         if self._paused:
             pygame.mixer.music.unpause()
@@ -67,11 +83,15 @@ class MediaPlayer:
         self.play()
 
     def set_volume(self, volume: float) -> None:
+        if not self._mixer_ready():
+            return
         pygame.mixer.music.set_volume(max(0.0, min(1.0, volume)))
 
     def status(self) -> str:
         if not self._cfg.get("enabled", False):
             return "disabled"
+        if not self._mixer_ready():
+            return "audio-unavailable"
         if self._paused:
             return "paused"
         if pygame.mixer.music.get_busy():

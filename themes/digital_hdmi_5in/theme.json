@@ -1,0 +1,182 @@
+{
+  "name": "digital_hdmi_5in",
+  "gauge_modes": {
+    "_default": "digital"
+  },
+  "show_ticks": {
+    "_default": false
+  },
+  "show_text": {
+    "_default": false
+  },
+  "show_primary_needle": {
+    "_default": false
+  },
+  "show_overlay_fallback": {
+    "_default": false
+  },
+  "show_odometer": true,
+  "screen_background": [8, 6, 2],
+  "digital_palette": {
+    "panel_background": [18, 12, 4],
+    "panel_border": [92, 64, 16],
+    "text": [255, 221, 98],
+    "accent": [255, 186, 62],
+    "bar_fill": [255, 210, 84],
+    "bar_empty": [54, 40, 14]
+  },
+  "digital_render": {
+    "_default": {
+      "font_name": "DSEG14-Modern/DSEG14Modern-Italic.ttf",
+      "panel_radius_ratio": 0.34,
+      "label_scale": 0.06,
+      "value_scale": 0.26,
+      "unit_scale": 0.06,
+      "aux_scale": 0.042,
+      "value_decimals": 0,
+      "show_primary_ring": false,
+      "show_primary_min_max": false,
+      "show_primary_readout": true
+    },
+    "speedometer": {
+      "label_scale": 0.05,
+      "value_scale": 0.30,
+      "aux_scale": 0.035
+    }
+  },
+  "sub_gauges": {
+    "speedometer": [
+      {
+        "id": "left_speed_bar",
+        "label": "",
+        "digital_style": "vbar",
+        "inverse_fill": true,
+        "source": "speed_sensor.vehicle_speed",
+        "visual_min": 0,
+        "visual_max": 120,
+        "center_ratio": [0.12, 0.55],
+        "bar_width_ratio": 0.065,
+        "bar_height_ratio": 0.64,
+        "bar_segments": 18,
+        "bar_gap_px": 2,
+        "rainbow": true,
+        "rainbow_invert": false,
+        "show_label": false,
+        "show_value": false
+      },
+      {
+        "id": "right_rpm_bar",
+        "label": "",
+        "digital_style": "vbar",
+        "invert_value": true,
+        "source": "analog_inputs.engine_rpm",
+        "visual_min": 0,
+        "visual_max": 6000,
+        "center_ratio": [0.88, 0.55],
+        "bar_width_ratio": 0.065,
+        "bar_height_ratio": 0.64,
+        "bar_segments": 18,
+        "bar_gap_px": 2,
+        "rainbow": true,
+        "rainbow_invert": false,
+        "show_label": false,
+        "show_value": false
+      },
+      {
+        "id": "top_temp",
+        "label": "OIL TEMP",
+        "digital_style": "hbar",
+        "source": "analog_inputs.coolant_temp",
+        "visual_min": 120,
+        "visual_max": 260,
+        "center_ratio": [0.40, 0.20],
+        "bar_width_ratio": 0.24,
+        "bar_height_ratio": 0.035,
+        "bar_segments": 11,
+        "bar_gap_px": 2,
+        "show_label": true,
+        "show_value": false,
+        "label_offset_px": 18
+      },
+      {
+        "id": "top_volt",
+        "label": "VOLTAGE",
+        "digital_style": "hbar",
+        "source": "analog_inputs.system_amp",
+        "visual_min": -60,
+        "visual_max": 60,
+        "center_ratio": [0.60, 0.20],
+        "bar_width_ratio": 0.24,
+        "bar_height_ratio": 0.035,
+        "bar_segments": 11,
+        "bar_gap_px": 2,
+        "show_label": true,
+        "show_value": false,
+        "label_offset_px": 18
+      },
+      {
+        "id": "bottom_fuel",
+        "label": "FUEL",
+        "digital_style": "hbar",
+        "source": "analog_inputs.fuel_level",
+        "visual_min": 0,
+        "visual_max": 100,
+        "center_ratio": [0.50, 0.80],
+        "bar_width_ratio": 0.36,
+        "bar_height_ratio": 0.045,
+        "bar_segments": 12,
+        "bar_gap_px": 2,
+        "show_label": true,
+        "show_value": false,
+        "label_offset_px": 20
+      }
+    ]
+  },
+  "indicator_elements": {
+    "speedometer": [
+      {
+        "source": "indicators.turn_left",
+        "on_condition": {
+          "operator": ">=",
+          "value": 0.5
+        },
+        "shape": "arrow_left",
+        "center_ratio": [0.42, 0.50],
+        "size_ratio": 0.045,
+        "on_color": [255, 214, 82],
+        "off_color": [70, 50, 18],
+        "show_when_off": true,
+        "startup_force_on": false
+      },
+      {
+        "source": "indicators.turn_right",
+        "on_condition": {
+          "operator": ">=",
+          "value": 0.5
+        },
+        "shape": "arrow_right",
+        "center_ratio": [0.58, 0.50],
+        "size_ratio": 0.045,
+        "on_color": [255, 214, 82],
+        "off_color": [70, 50, 18],
+        "show_when_off": true,
+        "startup_force_on": false
+      }
+    ]
+  },
+  "odometer_render": {
+    "speedometer": {
+      "font_name": "DSEG14-Modern/DSEG14Modern-Italic.ttf",
+      "font_scale": 0.05,
+      "text_color": [255, 221, 98],
+      "decimal_color": [255, 174, 45],
+      "box_color": [24, 16, 6],
+      "box_border": [92, 64, 16],
+      "y_ratio": 0.91,
+      "include_label": false,
+      "include_unit": true,
+      "show_box": true,
+      "max_width_ratio": 0.48
+    }
+  }
+}

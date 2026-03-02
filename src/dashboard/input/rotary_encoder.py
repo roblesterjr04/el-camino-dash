@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Any
 
 try:
@@ -12,8 +13,10 @@ except ImportError:  # pragma: no cover
 @dataclass
 class RotaryState:
     last_a: int = 0
+    last_button: int = 1
     delta: float = 0.0
     presses: float = 0.0
+    last_press_s: float = 0.0
 
 
 class RotaryEncoderInput:
@@ -31,6 +34,7 @@ class RotaryEncoderInput:
                 pull_up_down=GPIO.PUD_UP if spec.get("pull_up", True) else GPIO.PUD_DOWN,
             )
             self.state.last_a = GPIO.input(spec["pin_a"])
+            self.state.last_button = GPIO.input(spec["pin_button"])
             self._ready = True
 
     def poll(self) -> dict[str, float]:
@@ -49,8 +53,13 @@ class RotaryEncoderInput:
             delta += direction * float(self.spec.get("acceleration", 1.0))
         self.state.last_a = a
         self.state.delta = delta
-        if button == 0:
-            self.state.presses += 1.0
+        debounce_s = max(0.0, float(self.spec.get("button_debounce_ms", 120.0)) / 1000.0)
+        now_s = time.monotonic()
+        if button == 0 and self.state.last_button != 0:
+            if (now_s - self.state.last_press_s) >= debounce_s:
+                self.state.presses += 1.0
+                self.state.last_press_s = now_s
+        self.state.last_button = button
 
         return {
             f"inputs.rotary.{self.spec['id']}.delta": self.state.delta,

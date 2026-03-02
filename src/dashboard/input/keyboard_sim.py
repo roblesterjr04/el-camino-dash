@@ -22,6 +22,8 @@ class KeyboardSimState:
     encoder_presses: float = 0.0
     aux_encoder_delta: float = 0.0
     aux_encoder_presses: float = 0.0
+    turn_left: float = 0.0
+    turn_right: float = 0.0
 
 
 class KeyboardSimInput:
@@ -37,7 +39,13 @@ class KeyboardSimInput:
         self._oil_min = float(config.get("oil_min", 0.0))
         self._oil_max = float(config.get("oil_max", 100.0))
         self._last_emit_s: dict[str, float] = {"menu": 0.0, "aux": 0.0}
-        self._last_pressed: dict[str, bool] = {"menu_press": False, "aux_press": False}
+        self._last_pressed: dict[str, bool] = {
+            "menu_press": False,
+            "aux_press": False,
+            "turn_left_toggle": False,
+            "turn_right_toggle": False,
+            "hazard_toggle": False,
+        }
 
     def _key(self, mapping_name: str) -> int | None:
         key_name = self._cfg["mappings"].get(mapping_name)
@@ -96,6 +104,24 @@ class KeyboardSimInput:
             updates["analog_inputs.system_amp"] = self._state.amp
         if oil_changed:
             updates["indicators.oil"] = self._state.oil
+
+        if self._poll_encoder_press(pressed, "turn_left_toggle", "turn_left_toggle", None):
+            self._state.turn_left = 0.0 if self._state.turn_left > 0.0 else 1.0
+            self._state.turn_right = 0.0
+            updates["indicators.turn_left"] = self._state.turn_left
+            updates["indicators.turn_right"] = self._state.turn_right
+        if self._poll_encoder_press(pressed, "turn_right_toggle", "turn_right_toggle", None):
+            self._state.turn_right = 0.0 if self._state.turn_right > 0.0 else 1.0
+            self._state.turn_left = 0.0
+            updates["indicators.turn_left"] = self._state.turn_left
+            updates["indicators.turn_right"] = self._state.turn_right
+        if self._poll_encoder_press(pressed, "hazard_toggle", "hazard_toggle", None):
+            both_on = self._state.turn_left > 0.0 and self._state.turn_right > 0.0
+            next_value = 0.0 if both_on else 1.0
+            self._state.turn_left = next_value
+            self._state.turn_right = next_value
+            updates["indicators.turn_left"] = self._state.turn_left
+            updates["indicators.turn_right"] = self._state.turn_right
 
         return updates
 

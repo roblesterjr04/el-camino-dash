@@ -29,7 +29,7 @@ system:
       label: Gauge 1
       madctl: 200
       colmod: 85
-      speed_hz: 8000000
+      speed_hz: 64000000
     - spi_bus: 1
       spi_device: 1
       dc_pin: 23
@@ -37,7 +37,7 @@ system:
       label: Gauge 2
       madctl: 200
       colmod: 85
-      speed_hz: 8000000
+      speed_hz: 64000000
     - spi_bus: 1
       spi_device: 2
       dc_pin: 22
@@ -45,7 +45,7 @@ system:
       label: Gauge 3
       madctl: 200
       colmod: 85
-      speed_hz: 8000000
+      speed_hz: 64000000
 
 displays:
   - id: gauge_left

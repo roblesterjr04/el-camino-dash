@@ -15,6 +15,7 @@ from dashboard.config import load_dashboard_config
 from dashboard.display.manager import DisplayManager
 from dashboard.input.manager import InputManager
 from dashboard.integrations.bluetooth_metadata import BluetoothMetadataAdapter
+from dashboard.integrations.bluetooth_audio import BluetoothAudioAdapter
 from dashboard.integrations.media_player import MediaPlayer
 from dashboard.integrations.navit_adapter import NavitAdapter
 
@@ -26,6 +27,7 @@ class DashboardApp:
         self.config = config.raw
         self.navit = NavitAdapter(self.config["integrations"]["navit"])
         self.bluetooth = BluetoothMetadataAdapter(self.config["integrations"]["bluetooth_metadata"])
+        self.bluetooth_audio = BluetoothAudioAdapter(self.config["integrations"].get("bluetooth_audio", {"enabled": False}))
         self.display_manager: DisplayManager | None = None
         self.input_manager: InputManager | None = None
         self.media: MediaPlayer | None = None
@@ -59,6 +61,10 @@ class DashboardApp:
         self._install_signal_handlers()
         pygame.init()
         pygame.font.init()
+        try:
+            pygame.mouse.set_visible(False)
+        except pygame.error:
+            pass
         media_cfg = self.config["integrations"].get("media", {})
         if bool(media_cfg.get("enabled", False)):
             try:
@@ -77,6 +83,7 @@ class DashboardApp:
             on_runtime_refresh=self._refresh_runtime_components,
         )
         self.navit.start()
+        self.bluetooth_audio.start()
         self._running = True
         clock = pygame.time.Clock()
 
@@ -94,6 +101,7 @@ class DashboardApp:
                 self._log_raw_inputs()
                 self._apply_gauge_smoothing()
                 self._update_runtime_metrics()
+                self.bluetooth_audio.poll()
                 self._update_startup_sweep()
                 self._reload_config_if_changed()
                 self._reload_theme_if_changed()
@@ -189,6 +197,7 @@ class DashboardApp:
             "navit": self.navit.status(),
             "media": self.media.status() if self.media else "disabled",
             "bluetooth": self.bluetooth.status(),
+            "bluetooth_audio": self.bluetooth_audio.status(),
             "theme_warning": theme_warning,
             "system_mode": str(self.config["system"].get("mode", "unknown")),
             "theme_active": str(self.config["themes"].get("active", "unknown")),
@@ -318,6 +327,7 @@ class DashboardApp:
             "media.next": self._cmd_media_next,
             "media.stop": self._cmd_media_stop,
             "media.set_volume": self._cmd_media_set_volume,
+            "bluetooth_audio.reconnect": self._cmd_bluetooth_audio_reconnect,
             "theme.next": self._cmd_theme_next,
             "center_dial_mode.toggle": self._cmd_center_dial_mode_toggle,
             "map_view.toggle": self._cmd_map_view_toggle,
@@ -346,6 +356,8 @@ class DashboardApp:
             self.navit.start()
         else:
             self.navit.stop()
+        self.bluetooth_audio = BluetoothAudioAdapter(self.config["integrations"].get("bluetooth_audio", {"enabled": False}))
+        self.bluetooth_audio.start()
         if self.display_manager and self._command_registry:
             self.display_manager.shutdown()
             self.display_manager = DisplayManager(
@@ -432,6 +444,10 @@ class DashboardApp:
         volume = float(payload.get("value", self.config["integrations"]["media"].get("startup_volume", 0.5)))
         self.media.set_volume(volume)
         return f"Volume {volume:.2f}"
+
+    def _cmd_bluetooth_audio_reconnect(self, _: dict[str, Any]) -> str:
+        self.bluetooth_audio.reconnect()
+        return f"Bluetooth audio: {self.bluetooth_audio.status()}"
 
     def _cmd_app_restart(self, _: dict[str, Any]) -> str:
         self._running = False

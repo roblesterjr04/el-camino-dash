@@ -58,5 +58,8 @@ rsync -az --delete \
   --exclude=".DS_Store" \
   "${PROJECT_DIR}/" "${TARGET}:${REMOTE_DIR}/"
 
+echo "Ensuring executable bit on all remote .sh files..."
+ssh "${TARGET}" "bash -lc 'shopt -s globstar nullglob; for script in \"${REMOTE_DIR}\"/**/*.sh; do chmod +x \"\$script\"; done'"
+
 echo "Deploy complete."
 echo "Remote path: ${REMOTE_DIR}"

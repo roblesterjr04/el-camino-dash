@@ -17,30 +17,38 @@ class MenuOverlayScreen:
     def __init__(self, layout: DisplayLayout, config: dict[str, Any]) -> None:
         self.layout = layout
         self.config = config
-        self._font = pygame.font.Font(config["themes"]["font_name"], max(24, layout.height // 13))
-        self._small_font = pygame.font.Font(config["themes"]["font_name"], max(16, layout.height // 28))
-        self._tiny_font = pygame.font.Font(config["themes"]["font_name"], max(14, layout.height // 34))
+        self._compact = min(layout.width, layout.height) <= 260
+        if self._compact:
+            title_size = max(14, layout.height // 18)
+            small_size = max(12, layout.height // 24)
+            tiny_size = max(10, layout.height // 32)
+        else:
+            title_size = max(24, layout.height // 13)
+            small_size = max(16, layout.height // 28)
+            tiny_size = max(14, layout.height // 34)
+        self._font = pygame.font.Font(config["themes"]["font_name"], title_size)
+        self._small_font = pygame.font.Font(config["themes"]["font_name"], small_size)
+        self._tiny_font = pygame.font.Font(config["themes"]["font_name"], tiny_size)
 
     def render(self, surface: pygame.Surface, model: MenuRenderModel) -> None:
         content_rect = self._paint_overlay(surface)
         header = self._font.render(model.title, True, (250, 246, 220))
         surface.blit(header, (content_rect.x, content_rect.y))
-        line_y = content_rect.y + 44
+        line_gap = 4 if self._compact else 8
+        line_y = content_rect.y + header.get_height() + line_gap
         pygame.draw.line(surface, (156, 122, 38), (content_rect.x, line_y), (content_rect.right, line_y), 2)
+        body_top = line_y + (6 if self._compact else 10)
         if model.page_id == "home":
-            self._render_home_carousel(surface, model, content_rect)
+            self._render_home_carousel(surface, model, content_rect, body_top)
         else:
-            self._render_list(surface, model, content_rect)
-        footer = self._tiny_font.render(f"{model.footer}  Double press: Close", True, (218, 196, 136))
-        footer_y = content_rect.bottom - 22
-        if self.layout.shape == "round":
-            footer_y = content_rect.bottom - 34
+            self._render_list(surface, model, content_rect, body_top)
+        close_hint = "x2:Close" if self._compact else "Double press: Close"
+        footer = self._tiny_font.render(f"{model.footer}  {close_hint}", True, (218, 196, 136))
+        footer_y = content_rect.bottom - footer.get_height() - (4 if self._compact else 10)
         surface.blit(footer, (content_rect.x, footer_y))
         if model.message:
             message = self._tiny_font.render(model.message, True, (255, 224, 120))
-            message_y = content_rect.bottom - 48
-            if self.layout.shape == "round":
-                message_y = content_rect.bottom - 60
+            message_y = footer_y - message.get_height() - 4
             surface.blit(message, (content_rect.x, message_y))
 
     def render_error(self, surface: pygame.Surface, message: str) -> None:
@@ -48,7 +56,7 @@ class MenuOverlayScreen:
         header = self._font.render("Menu schema error", True, (255, 180, 160))
         surface.blit(header, (content_rect.x, content_rect.y))
         err = self._tiny_font.render(message[:120], True, (255, 120, 100))
-        surface.blit(err, (content_rect.x, content_rect.y + 54))
+        surface.blit(err, (content_rect.x, content_rect.y + header.get_height() + 8))
 
     def _paint_overlay(self, surface: pygame.Surface) -> pygame.Rect:
         shade = pygame.Surface(self.layout.size, pygame.SRCALPHA)
@@ -75,7 +83,9 @@ class MenuOverlayScreen:
         pygame.draw.rect(surface, (188, 148, 54, 235), panel, width=2, border_radius=18)
         return pygame.Rect(32, 24, self.layout.width - 64, self.layout.height - 60)
 
-    def _render_home_carousel(self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect) -> None:
+    def _render_home_carousel(
+        self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect, body_top: int
+    ) -> None:
         if not model.rows:
             return
         selected_idx = 0
@@ -84,8 +94,10 @@ class MenuOverlayScreen:
                 selected_idx = idx
                 break
         center_x = content_rect.centerx
-        center_y = content_rect.centery + 4
-        slot_width = max(78, content_rect.width // 4)
+        footer_reserve = self._tiny_font.get_height() + (20 if self._compact else 34)
+        body_bottom = max(body_top + 24, content_rect.bottom - footer_reserve)
+        center_y = body_top + ((body_bottom - body_top) // 2)
+        slot_width = max(46 if self._compact else 78, content_rect.width // 4)
         for idx, row in enumerate(model.rows):
             distance = idx - selected_idx
             if abs(distance) > 2:
@@ -93,7 +105,7 @@ class MenuOverlayScreen:
             x = center_x + (distance * slot_width)
             if x < content_rect.left or x > content_rect.right:
                 continue
-            radius = max(24, 52 - (abs(distance) * 10))
+            radius = max(16 if self._compact else 24, (36 if self._compact else 52) - (abs(distance) * 8))
             selected = distance == 0
             fill = (130, 96, 24) if selected else (70, 50, 14)
             border = (255, 215, 96) if selected else (186, 146, 58)
@@ -108,7 +120,8 @@ class MenuOverlayScreen:
                 color=icon_color,
             )
             label = self._small_font.render(row.label, True, (246, 232, 176) if selected else (206, 184, 120))
-            label_rect = label.get_rect(center=(x, center_y + radius + 24))
+            label_offset = 14 if self._compact else 24
+            label_rect = label.get_rect(center=(x, center_y + radius + label_offset))
             surface.blit(label, label_rect)
 
     def _draw_menu_icon(
@@ -165,9 +178,9 @@ class MenuOverlayScreen:
         glyph = self._small_font.render(token, True, color)
         surface.blit(glyph, glyph.get_rect(center=(cx, cy)))
 
-    def _render_list(self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect) -> None:
-        y = content_rect.y + 56
-        row_height = 34
+    def _render_list(self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect, body_top: int) -> None:
+        y = body_top
+        row_height = max(self._small_font.get_height() + (8 if self._compact else 12), 22)
         selected_idx = 0
         for idx, row in enumerate(model.rows):
             if row.selected:
@@ -175,20 +188,23 @@ class MenuOverlayScreen:
                 break
         # Keep the selected entry pinned at the top for small displays.
         ordered_rows = model.rows[selected_idx:] + model.rows[:selected_idx]
+        footer_reserve = self._tiny_font.get_height() + (20 if self._compact else 34)
+        row_gap = 2 if self._compact else 4
         for row in ordered_rows:
-            if y > content_rect.bottom - 30:
+            if y > content_rect.bottom - footer_reserve:
                 break
             row_rect = pygame.Rect(content_rect.x, y - 4, content_rect.width, row_height)
             if row.selected:
                 pygame.draw.rect(surface, (96, 70, 18), row_rect, border_radius=9)
                 pygame.draw.rect(surface, (252, 208, 88), row_rect, width=1, border_radius=9)
             label_text = self._small_font.render(row.label, True, (248, 240, 206))
-            surface.blit(label_text, (content_rect.x + 10, y))
+            label_y = row_rect.centery - (label_text.get_height() // 2)
+            surface.blit(label_text, (content_rect.x + 8, label_y))
             if row.value_text:
                 value_text = self._small_font.render(row.value_text, True, (240, 210, 128))
-                value_rect = value_text.get_rect(midright=(content_rect.right - 10, y + 11))
+                value_rect = value_text.get_rect(midright=(content_rect.right - 8, row_rect.centery))
                 surface.blit(value_text, value_rect)
-            y += row_height + 4
+            y += row_height + row_gap
 
 
 class MenuOverlayController:

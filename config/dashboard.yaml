@@ -237,3 +237,12 @@ integrations:
   bluetooth_metadata:
     enabled: false
     provider: mock
+  bluetooth_audio:
+    enabled: false
+    device_mac: ""
+    auto_connect: true
+    pair_on_connect: false
+    trust_device: true
+    set_default_sink: true
+    sink_name: ""
+    refresh_interval_s: 5.0

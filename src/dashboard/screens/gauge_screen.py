@@ -1457,9 +1457,10 @@ class GaugeScreen:
             if not sprite_name and (not is_on) and not show_when_off:
                 continue
             sprite = self._load_theme_sprite(sprite_name) if sprite_name else None
-            if not sprite:
+            if sprite:
+                self._blit_indicator_sprite(surface, sprite, indicator)
                 continue
-            self._blit_indicator_sprite(surface, sprite, indicator)
+            self._draw_indicator_shape(surface, indicator, is_on)
 
     def _indicator_is_on(self, value: float, indicator: dict[str, Any]) -> bool:
         condition = indicator.get("on_condition", {})
@@ -1509,6 +1510,55 @@ class GaugeScreen:
         cy = int(self.layout.height * float(center[1])) + offset_y
         rect = resized.get_rect(center=(cx, cy))
         surface.blit(resized, rect.topleft)
+
+    def _draw_indicator_shape(self, surface: pygame.Surface, indicator: dict[str, Any], is_on: bool) -> None:
+        shape = str(indicator.get("shape", "")).strip().lower()
+        if shape not in {"arrow_left", "arrow_right"}:
+            return
+        if (not is_on) and (not bool(indicator.get("show_when_off", True))):
+            return
+
+        center = indicator.get("center_ratio", [0.5, 0.5])
+        if not isinstance(center, list) or len(center) != 2:
+            center = [0.5, 0.5]
+        offset_x = int(indicator.get("offset_x_px", 0))
+        offset_y = int(indicator.get("offset_y_px", 0))
+        offset_pair = indicator.get("offset_px")
+        if isinstance(offset_pair, list) and len(offset_pair) == 2:
+            offset_x = int(offset_pair[0])
+            offset_y = int(offset_pair[1])
+        cx = int(self.layout.width * float(center[0])) + offset_x
+        cy = int(self.layout.height * float(center[1])) + offset_y
+
+        indicator_size = max(6, int(min(self.layout.width, self.layout.height) * float(indicator.get("size_ratio", 0.08))))
+        on_color = self._resolve_rgb(indicator.get("on_color"), (255, 208, 64))
+        off_color = self._resolve_rgb(indicator.get("off_color"), (64, 52, 24))
+        color = on_color if is_on else off_color
+
+        half_w = max(4, indicator_size)
+        half_h = max(3, int(indicator_size * 0.5))
+        tail_w = max(2, int(indicator_size * 0.35))
+        if shape == "arrow_left":
+            points = [
+                (cx - half_w, cy),
+                (cx - tail_w, cy - half_h),
+                (cx - tail_w, cy - int(half_h * 0.45)),
+                (cx + half_w, cy - int(half_h * 0.45)),
+                (cx + half_w, cy + int(half_h * 0.45)),
+                (cx - tail_w, cy + int(half_h * 0.45)),
+                (cx - tail_w, cy + half_h),
+            ]
+        else:
+            points = [
+                (cx + half_w, cy),
+                (cx + tail_w, cy - half_h),
+                (cx + tail_w, cy - int(half_h * 0.45)),
+                (cx - half_w, cy - int(half_h * 0.45)),
+                (cx - half_w, cy + int(half_h * 0.45)),
+                (cx + tail_w, cy + int(half_h * 0.45)),
+                (cx + tail_w, cy + half_h),
+            ]
+        pygame.draw.polygon(surface, color, points)
 
     def _load_theme_sprite(self, filename: str) -> pygame.Surface | None:
         if not filename:

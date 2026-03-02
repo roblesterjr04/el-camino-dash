@@ -28,6 +28,7 @@ CMDLINE_TXT="${BOOT_DIR}/cmdline.txt"
 THEME_DIR="/usr/share/plymouth/themes/el-camino"
 PLYMOUTH_DEF="/usr/share/plymouth/themes/el-camino/el-camino.plymouth"
 PLYMOUTH_SCRIPT="/usr/share/plymouth/themes/el-camino/el-camino.script"
+DEFAULT_THEME_LINK="/usr/share/plymouth/themes/default.plymouth"
 BOOT_CHANGED=0
 
 append_line_if_missing() {
@@ -77,7 +78,7 @@ remove_cmdline_prefix() {
 
 echo "[1/6] Installing Plymouth..."
 apt-get update
-apt-get install -y plymouth
+apt-get install -y plymouth plymouth-themes
 
 echo "[2/6] Installing custom Plymouth theme..."
 mkdir -p "${THEME_DIR}"
@@ -115,11 +116,45 @@ Plymouth.SetRefreshFunction(function () { center_image(); });
 EOF
 
 echo "[3/6] Setting default splash theme..."
-if command -v plymouth-set-default-theme >/dev/null 2>&1; then
-  plymouth-set-default-theme el-camino
+# Register and select the custom theme in update-alternatives explicitly.
+# On some Raspberry Pi OS images the alternative exists but is unresolved.
+if command -v update-alternatives >/dev/null 2>&1; then
+  update-alternatives --install "${DEFAULT_THEME_LINK}" default.plymouth "${PLYMOUTH_DEF}" 200 >/dev/null 2>&1 || true
+  update-alternatives --set default.plymouth "${PLYMOUTH_DEF}" >/dev/null 2>&1 || true
 fi
-if command -v update-initramfs >/dev/null 2>&1; then
-  update-initramfs -u
+if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+  plymouth-set-default-theme -R el-camino
+elif command -v update-alternatives >/dev/null 2>&1; then
+  update-alternatives --set default.plymouth "${PLYMOUTH_DEF}" >/dev/null 2>&1 || true
+  if command -v update-initramfs >/dev/null 2>&1; then
+    update-initramfs -u
+  fi
+else
+  echo "Neither plymouth-set-default-theme nor update-alternatives found." >&2
+  exit 1
+fi
+
+ACTIVE_PLYMOUTH="$(readlink -f /etc/alternatives/default.plymouth 2>/dev/null || true)"
+if [[ "${ACTIVE_PLYMOUTH}" != "${PLYMOUTH_DEF}" ]]; then
+  echo "Warning: active plymouth theme is not el-camino (${ACTIVE_PLYMOUTH}). Forcing selection..."
+  if command -v update-alternatives >/dev/null 2>&1; then
+    update-alternatives --install "${DEFAULT_THEME_LINK}" default.plymouth "${PLYMOUTH_DEF}" 200 >/dev/null 2>&1 || true
+    update-alternatives --set default.plymouth "${PLYMOUTH_DEF}" >/dev/null 2>&1 || true
+    if command -v update-initramfs >/dev/null 2>&1; then
+      update-initramfs -u
+    fi
+  fi
+fi
+
+# Force distro fallback path as well; some builds use this link directly.
+ln -sf "${PLYMOUTH_DEF}" "${DEFAULT_THEME_LINK}"
+
+ACTIVE_DEFAULT_LINK="$(readlink -f "${DEFAULT_THEME_LINK}" 2>/dev/null || true)"
+if [[ "${ACTIVE_DEFAULT_LINK}" != "${PLYMOUTH_DEF}" ]]; then
+  echo "Failed to activate el-camino as default plymouth theme." >&2
+  echo "Expected: ${PLYMOUTH_DEF}" >&2
+  echo "Actual:   ${ACTIVE_DEFAULT_LINK}" >&2
+  exit 1
 fi
 
 echo "[4/6] Updating boot config..."

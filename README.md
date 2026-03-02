@@ -72,12 +72,63 @@ All configurable values are externalized in `config/dashboard.yaml`:
   - `inputs.rotary_encoders` supports multiple encoders (menu + aux)
   - `inputs.keyboard_sim.rotate_repeat_ms` controls keyboard rotary sensitivity
 - `integrations`: Navit/media/Bluetooth feature toggles + settings
+  - Optional `integrations.bluetooth_audio` can auto-connect a BT device and route PulseAudio output to it
 
 The app validates config strictly at startup and exits on schema/key/type errors.
 
 `config/dashboard.dev.yaml` keeps `display_render_mode: single_window` for local development.
 `config/dashboard.vehicle.yaml` includes `display_render_mode: multi_window` with explicit `monitor_index` examples.
 `config/dashboard.spi.yaml` targets 3x GC9A01 displays on SPI1 (`display_render_mode: spi`).
+`config/dashboard.hdmi5.yaml` targets a single 5" 800x480 HDMI rectangle display.
+
+## HDMI 5" install/run steps
+
+Use this when you want Pygame output on the Pi HDMI screen instead of SPI.
+
+1. Install base packages and app dependencies:
+
+```bash
+sudo bash scripts/install_pi_base.sh
+bash scripts/install_app.sh
+```
+
+2. Ensure desktop/X11 starts automatically (required for SDL X11 output):
+
+```bash
+sudo raspi-config nonint do_boot_behaviour B4
+```
+
+3. Set HDMI as preferred output in `/boot/firmware/config.txt` (or `/boot/config.txt`):
+
+```ini
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=800 480 60 6 0 0 0
+```
+
+4. Reboot, then launch dashboard on HDMI:
+
+```bash
+DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority bash scripts/run_hw.sh config/dashboard.hdmi5.yaml
+```
+
+5. Optional autostart service for HDMI desktop session:
+
+```bash
+sudo bash scripts/install_service.sh
+sudo systemctl edit el-camino-dash.service
+```
+
+Add:
+
+```ini
+[Service]
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+ExecStart=
+ExecStart=/home/pi/gauge-cluster/.venv/bin/python /home/pi/gauge-cluster/src/main.py --config /home/pi/gauge-cluster/config/dashboard.hdmi5.yaml
+```
 
 ## Knob-driven overlay menu
 
@@ -155,6 +206,8 @@ Each legacy install script supports `--dry-run`.
 - Service status: `systemctl status el-camino-dash.service`
 - Service logs: `journalctl -u el-camino-dash.service -f`
 - Hardware X11 run helper: `bash scripts/run_hw.sh config/dashboard.vehicle.yaml`
+- HDMI 5" run helper:
+  - `DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority bash scripts/run_hw.sh config/dashboard.hdmi5.yaml`
 - SPI config run helper:
   - `HEADLESS=1 SDL_VIDEODRIVER=dummy PYTHONPATH=src .venv/bin/python src/main.py --config config/dashboard.spi.yaml --render-mode spi --headless`
 - SPI service status: `systemctl status gauge-cluster.service`
@@ -163,3 +216,18 @@ Each legacy install script supports `--dry-run`.
   - `bash scripts/verify_install.sh --target pi --display-mode hardware`
 - Validate config manually:
   - `PYTHONPATH=src .venv/bin/python -c "from dashboard.config import load_dashboard_config; load_dashboard_config('config/dashboard.yaml')"`
+
+## Bluetooth audio
+
+Bluetooth audio routing is configured in `integrations.bluetooth_audio`:
+
+- `enabled`: turns Bluetooth audio management on/off
+- `device_mac`: target device MAC (`AA:BB:CC:DD:EE:FF`)
+- `auto_connect`: connect automatically at app start
+- `pair_on_connect`: attempt pairing during connect flow
+- `trust_device`: mark device trusted before connect
+- `set_default_sink`: set PulseAudio default sink to the BT sink
+- `sink_name`: optional explicit PulseAudio sink name (auto-discovered from MAC when empty)
+- `refresh_interval_s`: reconnect/status poll interval
+
+The app also exposes command `bluetooth_audio.reconnect` for manual reconnect from menu actions.

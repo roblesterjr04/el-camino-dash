@@ -20,6 +20,13 @@ class SimulatedDataInput:
         phase = (elapsed / period_s) * (2.0 * math.pi)
         return midpoint + (math.sin(phase) * amplitude)
 
+    def _blink(self, elapsed: float, period_s: float, duty_cycle: float) -> float:
+        if period_s <= 0:
+            return 0.0
+        duty = max(0.01, min(0.99, duty_cycle))
+        phase = (elapsed % period_s) / period_s
+        return 1.0 if phase < duty else 0.0
+
     def poll(self) -> dict[str, float]:
         if not self._spec.get("enabled", False):
             return {}
@@ -42,4 +49,22 @@ class SimulatedDataInput:
         if "oil_range" in self._spec:
             period = float(self._spec.get("oil_period_s", self._spec["fuel_period_s"]))
             updates["indicators.oil"] = self._wave(elapsed, period, self._spec["oil_range"])
+        if bool(self._spec.get("turn_signals_enabled", False)):
+            period = float(self._spec.get("turn_signal_period_s", 0.8))
+            duty = float(self._spec.get("turn_signal_duty_cycle", 0.5))
+            mode = str(self._spec.get("turn_signal_mode", "alternate")).strip().lower()
+            blink_on = self._blink(elapsed, period, duty)
+            if mode == "left":
+                updates["indicators.turn_left"] = blink_on
+                updates["indicators.turn_right"] = 0.0
+            elif mode == "right":
+                updates["indicators.turn_left"] = 0.0
+                updates["indicators.turn_right"] = blink_on
+            elif mode == "hazard":
+                updates["indicators.turn_left"] = blink_on
+                updates["indicators.turn_right"] = blink_on
+            else:
+                # Alternate mode creates visible motion in demo mode.
+                updates["indicators.turn_left"] = blink_on
+                updates["indicators.turn_right"] = 1.0 - blink_on
         return updates

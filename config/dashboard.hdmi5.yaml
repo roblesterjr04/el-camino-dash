@@ -1,0 +1,244 @@
+system:
+  mode: vehicle
+  log_level: INFO
+  target_fps: 30
+  window_title: El Camino Dash (HDMI 5in)
+  display_render_mode: single_window
+  keyboard_focus_control_only: false
+  startup_sweep_enabled: true
+  startup_sweep_up_s: 1.0
+  startup_sweep_hold_s: 0.1
+  startup_sweep_down_s: 0.7
+  left_to_right_preview: false
+  left_to_right_spacing_px: 8
+  menu_schema_path: config/menu_schema.yaml
+  menu_display_id: main_display
+  odometer_start_miles: 12345.0
+  odometer_persist_enabled: true
+  odometer_state_path: data/odometer_state.hdmi5.json
+  odometer_write_interval_s: 1.5
+  map_view_visible: false
+  map_display_id: main_display
+  simulation_map_image_path: assets/maps/testmap.png
+  theme_persist_enabled: true
+  theme_state_path: data/theme_state.hdmi5.json
+  raw_input_log_enabled: false
+  raw_input_log_path: data/raw_inputs.hdmi5.log
+  raw_input_log_interval_s: 0.2
+
+displays:
+  - id: main_display
+    enabled: true
+    shape: rectangle
+    width: 800
+    height: 480
+    position: [0, 0]
+    monitor_index: 0
+    windowed: false
+    fullscreen: true
+    fps: 30
+    role: gauge
+    gauge_id: speedometer
+
+themes:
+  active: digital_hdmi_5in
+  allow_fallback: true
+  theme_root: themes
+  gauge_asset_root: assets/gauges
+  font_name: freesansbold.ttf
+
+gauges:
+  speedometer:
+    label: Speed
+    unit: mph
+    source: speed_sensor.vehicle_speed
+    min_value: 0
+    max_value: 120
+    smoothing_alpha: 0.22
+    secondary_label: RPM
+    secondary_source: analog_inputs.engine_rpm
+    secondary_unit: ""
+    odometer_source: vehicle.odometer_miles
+    odometer_label: ODO
+    odometer_unit: mi
+    odometer_decimals: 1
+  tachometer:
+    label: RPM
+    unit: rpm
+    source: analog_inputs.engine_rpm
+    min_value: 0
+    max_value: 6000
+    smoothing_alpha: 0.2
+  tsps:
+    label: TSPS
+    unit: "%"
+    source: analog_inputs.fuel_level
+    min_value: 0
+    max_value: 100
+    smoothing_alpha: 0.3
+  fuel:
+    label: Fuel
+    unit: "%"
+    source: analog_inputs.fuel_level
+    min_value: 0
+    max_value: 100
+    smoothing_alpha: 0.3
+  temp:
+    label: Temp
+    unit: "F"
+    source: analog_inputs.coolant_temp
+    min_value: 120
+    max_value: 260
+    smoothing_alpha: 0.2
+  amp:
+    label: Amp
+    unit: A
+    source: analog_inputs.system_amp
+    min_value: -60
+    max_value: 60
+    smoothing_alpha: 0.2
+
+inputs:
+  rotary_encoders:
+    - id: menu
+      enabled: true
+      pin_a: 17
+      pin_b: 27
+      pin_button: 22
+      pull_up: true
+      debounce_ms: 3
+      button_debounce_ms: 120
+      invert_direction: false
+      acceleration: 1.0
+    - id: aux
+      enabled: true
+      pin_a: 23
+      pin_b: 24
+      pin_button: 25
+      pull_up: true
+      debounce_ms: 3
+      button_debounce_ms: 120
+      invert_direction: false
+      acceleration: 1.0
+  analog_inputs:
+    - id: engine_rpm
+      enabled: false
+      adc_type: mcp3008
+      spi_bus: 0
+      spi_device: 0
+      channel: 0
+      min_raw: 0
+      max_raw: 1023
+      scale_min: 0
+      scale_max: 6000
+    - id: fuel_level
+      enabled: false
+      adc_type: mcp3008
+      spi_bus: 0
+      spi_device: 0
+      channel: 1
+      min_raw: 0
+      max_raw: 1023
+      scale_min: 0
+      scale_max: 100
+    - id: coolant_temp
+      enabled: false
+      adc_type: mcp3008
+      spi_bus: 0
+      spi_device: 0
+      channel: 2
+      min_raw: 0
+      max_raw: 1023
+      scale_min: 120
+      scale_max: 260
+    - id: system_amp
+      enabled: false
+      adc_type: mcp3008
+      spi_bus: 0
+      spi_device: 0
+      channel: 3
+      min_raw: 0
+      max_raw: 1023
+      scale_min: -60
+      scale_max: 60
+  speed_sensors:
+    - id: vehicle_speed
+      enabled: false
+      gpio_pin: 5
+      pulses_per_revolution: 20
+      wheel_circumference_m: 2.1
+      timeout_ms: 800
+      smoothing_alpha: 0.35
+  simulated_data:
+    enabled: true
+    speed_period_s: 9.0
+    rpm_period_s: 4.2
+    fuel_period_s: 26.0
+    temp_period_s: 16.0
+    amp_period_s: 6.0
+    oil_period_s: 10.0
+    speed_range: [0, 95]
+    rpm_range: [700, 4200]
+    fuel_range: [18, 92]
+    temp_range: [150, 235]
+    amp_range: [-18, 28]
+    oil_range: [8, 60]
+    turn_signals_enabled: true
+    turn_signal_period_s: 0.8
+    turn_signal_duty_cycle: 0.5
+    turn_signal_mode: alternate
+  keyboard_sim:
+    enabled: true
+    rotate_repeat_ms: 130
+    rpm_max: 6000
+    temp_min: 120
+    temp_max: 260
+    amp_min: -60
+    amp_max: 60
+    oil_min: 0
+    oil_max: 80
+    mappings:
+      menu_rotate_left: K_LEFT
+      menu_rotate_right: K_RIGHT
+      menu_press: K_RETURN
+      aux_rotate_left: K_COMMA
+      aux_rotate_right: K_PERIOD
+      aux_press: K_SLASH
+      speed_up: K_w
+      speed_down: K_s
+      rpm_up: K_e
+      rpm_down: K_d
+      fuel_up: K_r
+      fuel_down: K_f
+      temp_up: K_t
+      temp_down: K_g
+      amp_up: K_y
+      amp_down: K_h
+      oil_up: K_u
+      oil_down: K_j
+      turn_left_toggle: K_z
+      turn_right_toggle: K_x
+      hazard_toggle: K_c
+
+integrations:
+  navit:
+    enabled: false
+    executable: navit
+    args: []
+  media:
+    enabled: false
+    music_root: media
+    startup_track: ""
+    startup_volume: 0.5
+  bluetooth_metadata:
+    enabled: false
+    provider: mock
+  bluetooth_audio:
+    enabled: false
+    device_mac: ""
+    auto_connect: true
+    pair_on_connect: false
+    trust_device: true
+    set_default_sink: true
+    sink_name: ""
+    refresh_interval_s: 5.0
