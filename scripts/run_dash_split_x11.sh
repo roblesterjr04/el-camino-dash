@@ -10,10 +10,10 @@ set -euo pipefail
 #   DASH_X11_VT="8"
 #   DASH_X11_PRIMARY_OUTPUT="Virtual-2"
 #   DASH_X11_DISABLE_OUTPUT="Virtual-1"
-#   DASH_CONFIG_PATH="/mnt/shared/config/dashboard.vm.yaml"
+#   DASH_CONFIG_PATH="/mnt/shared/config/dashboard.vehicle.yaml"
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_PATH="${DASH_CONFIG_PATH:-${PROJECT_DIR}/config/dashboard.vm.yaml}"
+CONFIG_PATH="${DASH_CONFIG_PATH:-${PROJECT_DIR}/config/dashboard.vehicle.yaml}"
 X_DISPLAY="${DASH_X11_DISPLAY:-:1}"
 X_VT="${DASH_X11_VT:-8}"
 PRIMARY_OUTPUT="${DASH_X11_PRIMARY_OUTPUT:-Virtual-2}"

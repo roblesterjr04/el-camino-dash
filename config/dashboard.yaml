@@ -10,6 +10,7 @@ system:
   left_to_right_preview: false
   left_to_right_spacing_px: 16
   menu_schema_path: config/menu_schema.yaml
+  menu_display_id: gauge_right
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.json
@@ -51,14 +52,6 @@ displays:
     fps: 30
     role: gauge
     gauge_id: tachometer
-  - id: control_rect
-    enabled: true
-    shape: rectangle
-    width: 1050
-    height: 600
-    position: [0, 1080]
-    fps: 30
-    role: control
 
 themes:
   active: default

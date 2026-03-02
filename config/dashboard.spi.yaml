@@ -1,82 +1,83 @@
 system:
   mode: simulation
-  log_level: DEBUG
+  log_level: INFO
   target_fps: 30
-  window_title: El Camino Dash (VM)
-  display_render_mode: multi_window
-  keyboard_focus_control_only: true
+  window_title: El Camino Dash (SPI)
+  display_render_mode: spi
+  menu_schema_path: config/menu_schema.yaml
+  menu_display_id: gauge_right
   startup_sweep_enabled: true
   startup_sweep_up_s: 1.1
   startup_sweep_hold_s: 0.12
   startup_sweep_down_s: 0.7
-  left_to_right_preview: false
-  left_to_right_spacing_px: 16
-  menu_schema_path: config/menu_schema.yaml
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
-  odometer_state_path: data/odometer_state.vm.json
+  odometer_state_path: data/odometer_state.spi.json
   odometer_write_interval_s: 1.5
   map_view_visible: false
   map_display_id: gauge_right
-  simulation_map_image_path: assets/maps/testmap.png
-  # Keep VM theme pinned unless manually changed in config.
-  theme_persist_enabled: false
-  theme_state_path: data/theme_state.vm.json
-  raw_input_log_enabled: true
-  raw_input_log_path: data/raw_inputs.vm.log
+  theme_persist_enabled: true
+  theme_state_path: data/theme_state.spi.json
+  raw_input_log_enabled: false
+  raw_input_log_path: data/raw_inputs.spi.log
   raw_input_log_interval_s: 0.2
+  spi_displays:
+    - spi_bus: 1
+      spi_device: 0
+      dc_pin: 24
+      rst_pin: 27
+      label: Gauge 1
+      madctl: 200
+      colmod: 85
+      speed_hz: 8000000
+    - spi_bus: 1
+      spi_device: 1
+      dc_pin: 23
+      rst_pin: 26
+      label: Gauge 2
+      madctl: 200
+      colmod: 85
+      speed_hz: 8000000
+    - spi_bus: 1
+      spi_device: 2
+      dc_pin: 22
+      rst_pin: 25
+      label: Gauge 3
+      madctl: 200
+      colmod: 85
+      speed_hz: 8000000
 
 displays:
   - id: gauge_left
     enabled: true
     shape: round
-    width: 1080
-    height: 1080
+    width: 240
+    height: 240
     position: [0, 0]
-    monitor_index: 0
-    windowed: true
-    fullscreen: false
     fps: 30
     role: gauge
     gauge_id: speedometer
   - id: gauge_center
     enabled: true
     shape: round
-    width: 720
-    height: 720
-    position: [1080, 0]
-    monitor_index: 1
-    windowed: true
-    fullscreen: false
+    width: 240
+    height: 240
+    position: [240, 0]
     fps: 30
     role: gauge
     gauge_id: fuel
   - id: gauge_right
     enabled: true
     shape: round
-    width: 1080
-    height: 1080
-    position: [540, 0]
-    monitor_index: 2
-    windowed: true
-    fullscreen: false
+    width: 240
+    height: 240
+    position: [480, 0]
     fps: 30
     role: gauge
     gauge_id: tachometer
-  - id: control_rect
-    enabled: true
-    shape: rectangle
-    width: 1050
-    height: 600
-    position: [0, 540]
-    monitor_index: 3
-    windowed: true
-    fullscreen: false
-    fps: 30
-    role: control
 
 themes:
-  active: default
+  active: sport
   allow_fallback: true
   theme_root: themes
   gauge_asset_root: assets/gauges
@@ -102,8 +103,15 @@ inputs:
     - {id: system_amp, enabled: false, adc_type: mcp3008, spi_bus: 0, spi_device: 0, channel: 3, min_raw: 0, max_raw: 1023, scale_min: -100, scale_max: 100}
   speed_sensors:
     - {id: vehicle_speed, enabled: false, gpio_pin: 5, pulses_per_revolution: 20, wheel_circumference_m: 2.1, timeout_ms: 800, smoothing_alpha: 0.35}
+  gpio_buttons:
+    enabled: true
+    menu_left_pin: 6
+    menu_select_pin: 13
+    pull_up: true
+    left_delta: 1
+    debounce_ms: 60
   simulated_data:
-    enabled: false
+    enabled: true
     speed_period_s: 8.0
     rpm_period_s: 3.0
     fuel_period_s: 24.0

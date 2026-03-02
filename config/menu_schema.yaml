@@ -9,18 +9,22 @@ menu:
           label: Now
           type: submenu
           target_page: now
+          icon: clock
         - id: media_page
           label: Media
           type: submenu
           target_page: media
+          icon: media
         - id: inputs_page
           label: Inputs
           type: submenu
           target_page: inputs
+          icon: inputs
         - id: system_page
           label: System
           type: submenu
           target_page: system
+          icon: gear
 
     - id: now
       title: Now

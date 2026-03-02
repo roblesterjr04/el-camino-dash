@@ -852,6 +852,7 @@ class GaugeScreen:
                     empty_color=empty_color,
                     reverse=bool(sub.get("reverse_fill", False)),
                     rainbow=bool(sub.get("rainbow", False)),
+                    rainbow_invert=bool(sub.get("rainbow_invert", False)),
                     redline_cfg=sub.get("redline", {}),
                     visual_min=min_v,
                     visual_max=max_v,
@@ -873,6 +874,7 @@ class GaugeScreen:
                     empty_color=empty_color,
                     reverse=bool(sub.get("reverse_fill", False)),
                     rainbow=bool(sub.get("rainbow", False)),
+                    rainbow_invert=bool(sub.get("rainbow_invert", False)),
                     redline_cfg=sub.get("redline", {}),
                     visual_min=min_v,
                     visual_max=max_v,
@@ -1074,6 +1076,7 @@ class GaugeScreen:
         empty_color: tuple[int, int, int],
         reverse: bool = False,
         rainbow: bool = False,
+        rainbow_invert: bool = False,
         rainbow_colors: list[tuple[int, int, int]] | None = None,
         redline_cfg: Any = None,
         visual_min: float = 0.0,
@@ -1094,6 +1097,8 @@ class GaugeScreen:
                 (255, 160, 64),
                 (255, 92, 92),
             ]
+            if rainbow_invert:
+                palette = list(reversed(palette))
         else:
             palette = []
         if vertical:
@@ -1656,6 +1661,9 @@ class GaugeScreen:
             draw_x += segment.get_width() + 3
 
     def _odometer_font(self, odometer_cfg: dict[str, Any], size: int) -> pygame.font.Font:
+        font_name = str(odometer_cfg.get("font_name", "")).strip()
+        if font_name:
+            return self._digital_font(size, preferred_font=font_name)
         if bool(odometer_cfg.get("use_sys_font", False)):
             family = str(odometer_cfg.get("font_family", "Arial"))
             return pygame.font.SysFont(family, size, bold=False)

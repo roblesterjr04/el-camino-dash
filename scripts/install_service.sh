@@ -51,9 +51,6 @@ fi
 
 ENV_CONTENT="# Optional runtime overrides for el-camino-dash.service
 # Keep default DISPLAY_MODE=hardware for Raspberry Pi deployments.
-# For VM + Xvfb usage, set:
-# DISPLAY_MODE=xvfb
-# DISPLAY=:99
 "
 
 if [[ "$DRY_RUN" -eq 1 ]]; then

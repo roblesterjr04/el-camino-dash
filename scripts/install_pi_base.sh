@@ -2,14 +2,10 @@
 set -euo pipefail
 
 DRY_RUN=0
-WITH_XVFB=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run)
       DRY_RUN=1
-      ;;
-    --with-xvfb)
-      WITH_XVFB=1
       ;;
   esac
 done
@@ -36,9 +32,6 @@ run_cmd "apt-get install -y python3 python3-venv python3-pip python3-dev build-e
 run_cmd "apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev"
 run_cmd "apt-get install -y navit bluez pulseaudio"
 run_cmd "apt-get install -y raspi-config python3-rpi.gpio python3-spidev"
-if [[ "${WITH_XVFB}" -eq 1 ]]; then
-  run_cmd "apt-get install -y xvfb"
-fi
 
 if [[ -f /boot/firmware/config.txt ]]; then
   cfg="/boot/firmware/config.txt"
@@ -59,6 +52,3 @@ append_if_missing "dtparam=spi=on"
 append_if_missing "dtparam=i2c_arm=on"
 
 echo "Base install complete. Reboot recommended before hardware verification."
-if [[ "${WITH_XVFB}" -eq 1 ]]; then
-  echo "Xvfb support installed for VM/virtual-display runtime."
-fi

@@ -16,13 +16,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--display-mode",
-        choices=("auto", "xvfb", "hardware"),
+        choices=("auto", "hardware"),
         help="Display backend mode (defaults to DISPLAY_MODE env var or auto)",
     )
     parser.add_argument(
         "--render-mode",
-        choices=("single_window", "multi_window"),
+        choices=("single_window", "multi_window", "spi"),
         help="Render topology mode (defaults to DISPLAY_RENDER_MODE env var or config)",
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run pygame in headless mode (no OS window)",
     )
     return parser.parse_args()
 
@@ -31,18 +36,17 @@ def _resolve_display_mode(args: argparse.Namespace) -> str:
     arg_mode = str(args.display_mode or "").strip().lower()
     env_mode = str(os.environ.get("DISPLAY_MODE", "")).strip().lower()
     mode = arg_mode or env_mode or "auto"
-    if mode not in {"auto", "xvfb", "hardware"}:
+    if mode not in {"auto", "hardware"}:
         raise ValueError(f"Unsupported display mode: {mode!r}")
     return mode
 
 
-def _prepare_display_environment(mode: str) -> None:
+def _prepare_display_environment(mode: str, headless: bool) -> None:
+    if headless:
+        os.environ["SDL_VIDEODRIVER"] = "dummy"
+        return
     display = str(os.environ.get("DISPLAY", "")).strip()
     is_linux = sys.platform.startswith("linux")
-    if mode == "xvfb":
-        # Default to :99 for virtual framebuffer workflows.
-        os.environ.setdefault("DISPLAY", ":99")
-        return
     if mode == "hardware":
         if is_linux and not display:
             raise RuntimeError("DISPLAY is not set for hardware mode.")
@@ -52,16 +56,17 @@ def _prepare_display_environment(mode: str) -> None:
     if not is_linux:
         # macOS/Windows do not rely on X11 DISPLAY for native pygame windows.
         return
-    raise RuntimeError(
-        "DISPLAY is not set in auto mode. Use DISPLAY_MODE=xvfb or pass --display-mode xvfb for VM usage."
-    )
+    raise RuntimeError("DISPLAY is not set in auto mode.")
 
 
 def main() -> int:
     args = parse_args()
+    headless = args.headless or str(os.environ.get("HEADLESS", "")).strip() == "1"
+    if headless:
+        os.environ["HEADLESS"] = "1"
     try:
         display_mode = _resolve_display_mode(args)
-        _prepare_display_environment(display_mode)
+        _prepare_display_environment(display_mode, headless=headless)
     except (RuntimeError, ValueError) as exc:
         print(f"Display setup error: {exc}", file=sys.stderr)
         return 2

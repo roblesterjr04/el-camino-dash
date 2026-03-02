@@ -4,10 +4,9 @@ Config-first multi-screen dashboard scaffold for Raspberry Pi.
 
 ## What this scaffold includes
 
-- 4 display definitions driven by external YAML:
+- 3 display definitions driven by external YAML:
   - 2x round `1080x1080`
   - 1x round `720x720`
-  - 1x rectangular control display (default `1050x600`)
 - Marlin-style single master config: `config/dashboard.yaml`
 - Sensor adapters:
   - Rotary encoder (GPIO)
@@ -30,15 +29,6 @@ PYTHONPATH=src DISPLAY_MODE=hardware python src/main.py --config config/dashboar
 Keyboard simulation mappings are defined in `inputs.keyboard_sim.mappings` inside config.
 `bash scripts/run_sim.sh` still defaults to `config/dashboard.dev.yaml` for a single-window local run.
 
-### VM / virtual framebuffer (Xvfb)
-
-```bash
-sudo apt-get install -y xvfb
-bash scripts/run_xvfb.sh
-```
-
-This starts/uses `Xvfb` and runs the app with `DISPLAY_MODE=xvfb` using `config/dashboard.vm.yaml` by default.
-
 ### Hardware X11 launcher
 
 ```bash
@@ -47,37 +37,14 @@ bash scripts/run_hw.sh config/dashboard.vehicle.yaml
 
 This runs through the same environment bootstrap as `run_sim.sh`, but forces `DISPLAY_MODE=hardware` for X11 desktop sessions.
 
-### VM kiosk boot (X11 autologin)
-
-For a VM that should auto-boot to X11 and launch the dashboard:
-
-```bash
-sudo bash scripts/bootstrap_vm_x11_autostart.sh --user="$USER" --project-dir="$(pwd)" --config="$(pwd)/config/dashboard.vm.yaml"
-sudo reboot
-```
-
-Verification and logs after boot:
-
-```bash
-journalctl -u lightdm -b --no-pager
-tail -n 200 ~/.cache/el-camino-dash/bootstrap.log
-tail -n 200 ~/.cache/el-camino-dash/autostart.log
-```
-
-Rollback from tty (disable autologin/autostart):
-
-```bash
-sudo bash scripts/revert_vm_x11_autostart.sh --user="$USER" --set-multi-user
-sudo reboot
-```
-
 ### Display mode selection
 
 `src/main.py` supports these modes via `--display-mode` or `DISPLAY_MODE`:
 
 - `hardware`: requires `DISPLAY` to be present (recommended default on Pi).
-- `xvfb`: defaults `DISPLAY` to `:99` when not set.
 - `auto`: uses `DISPLAY` if present; otherwise exits with guidance.
+
+Headless operation can be forced with `--headless` or `HEADLESS=1` (used for SPI panel output/service mode).
 
 Render topology can be selected via `--render-mode` or `DISPLAY_RENDER_MODE`:
 
@@ -91,7 +58,8 @@ All configurable values are externalized in `config/dashboard.yaml`:
 - `system`: app mode, fps, title
   - `system.left_to_right_preview` places all displays in a single left-to-right row for simulation
   - `system.left_to_right_spacing_px` controls spacing between simulated displays
-  - `system.menu_schema_path` points to menu definition YAML for the rectangular control display
+  - `system.menu_schema_path` points to menu definition YAML for the overlay menu
+  - `system.menu_display_id` selects which display receives knob-driven menu overlays
 - `displays`: shape/resolution/layout/fps/role per screen
   - Optional per-display window mapping keys:
     - `monitor_index` (explicit X11 display index target for multi-window mode)
@@ -109,19 +77,22 @@ The app validates config strictly at startup and exits on schema/key/type errors
 
 `config/dashboard.dev.yaml` keeps `display_render_mode: single_window` for local development.
 `config/dashboard.vehicle.yaml` includes `display_render_mode: multi_window` with explicit `monitor_index` examples.
+`config/dashboard.spi.yaml` targets 3x GC9A01 displays on SPI1 (`display_render_mode: spi`).
 
-## Rectangular control menu
+## Knob-driven overlay menu
 
 - Menu schema file: `config/menu_schema.yaml`
 - Supported row types: `action`, `toggle`, `range`, `submenu`, `info`
+- Home-page submenu items render as icon tokens in a horizontal carousel
 - Rotary behavior:
-  - turn: move through items
+  - first press: open full-screen menu overlay on `system.menu_display_id`
+  - turn: move through carousel items or list rows
   - press on range: enter/exit adjust mode
   - turn in adjust mode: change value
   - press on action: execute command
 - `apply_mode: immediate` applies config changes right away
 - `apply_mode: staged` marks unsaved edits; use **Save Config** menu action to persist
-- UI includes highlighted selections and a card-style graphical home screen
+- UI includes highlighted selections and list rendering for submenu pages
 
 ## Sprite drop-in layout
 
@@ -160,7 +131,15 @@ Theme files can define indicator lights per gauge with on/off sprites:
 
 ## Raspberry Pi scripts
 
-Run in this order:
+For new SPI1 breadboard setups, run the top-level installer:
+
+```bash
+sudo bash install.sh
+```
+
+This configures `dtoverlay=spi1-3cs`, sets `spidev.bufsiz=65536`, installs dependencies, creates `~/gauge-cluster`, and installs/enables `gauge-cluster.service`.
+
+Legacy install scripts are still available and run in this order:
 
 ```bash
 sudo bash scripts/install_pi_base.sh
@@ -169,30 +148,18 @@ sudo bash scripts/install_service.sh
 bash scripts/verify_install.sh
 ```
 
-Each install script supports `--dry-run`. To add VM virtual-display prerequisites during base setup:
-
-```bash
-sudo bash scripts/install_pi_base.sh --with-xvfb
-```
-
-`install_service.sh` installs an override file at `/etc/default/el-camino-dash` (if missing). For VM service mode, set:
-
-```bash
-DISPLAY_MODE=xvfb
-DISPLAY=:99
-```
+Each legacy install script supports `--dry-run`.
 
 ## Troubleshooting
 
 - Service status: `systemctl status el-camino-dash.service`
 - Service logs: `journalctl -u el-camino-dash.service -f`
-- VM run helper: `bash scripts/run_xvfb.sh`
 - Hardware X11 run helper: `bash scripts/run_hw.sh config/dashboard.vehicle.yaml`
-- VM kiosk bootstrap helper: `sudo bash scripts/bootstrap_vm_x11_autostart.sh --user="$USER" --project-dir="$(pwd)" --config="$(pwd)/config/dashboard.vm.yaml`
-- VM kiosk rollback helper: `sudo bash scripts/revert_vm_x11_autostart.sh --user="$USER" --set-multi-user`
+- SPI config run helper:
+  - `HEADLESS=1 SDL_VIDEODRIVER=dummy PYTHONPATH=src .venv/bin/python src/main.py --config config/dashboard.spi.yaml --render-mode spi --headless`
+- SPI service status: `systemctl status gauge-cluster.service`
+- SPI service logs: `journalctl -u gauge-cluster.service -f`
 - Verify install for Pi hardware mode:
   - `bash scripts/verify_install.sh --target pi --display-mode hardware`
-- Verify install for VM Xvfb mode:
-  - `DISPLAY=:99 bash scripts/verify_install.sh --target vm --display-mode xvfb`
 - Validate config manually:
   - `PYTHONPATH=src .venv/bin/python -c "from dashboard.config import load_dashboard_config; load_dashboard_config('config/dashboard.yaml')"`

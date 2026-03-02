@@ -25,6 +25,7 @@ class MenuItem:
     step: float | None = None
     apply_mode: str = "immediate"
     on_change_command: str | None = None
+    icon: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,10 +47,12 @@ class MenuSchemaError(Exception):
 
 @dataclass(frozen=True)
 class MenuRenderRow:
+    item_id: str
     label: str
     value_text: str
     selected: bool
     item_type: str
+    icon: str | None = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +137,7 @@ def load_menu_schema(
                 step=float(item_raw["step"]) if "step" in item_raw else None,
                 apply_mode=str(item_raw.get("apply_mode", "immediate")),
                 on_change_command=item_raw.get("on_change_command"),
+                icon=item_raw.get("icon"),
             )
             if not item.item_id or not item.label:
                 raise MenuSchemaError(f"menu.pages[{page_id}].items[{item_idx}]: id/label required")
@@ -215,15 +219,40 @@ class ControlMenuController:
     def dirty(self) -> bool:
         return bool(self._staged_overrides)
 
+    @property
+    def current_page_id(self) -> str:
+        return self._current_page_id
+
+    @property
+    def editing_range(self) -> bool:
+        return self._editing_range
+
     def process_input(self, values: dict[str, float], status: dict[str, str]) -> None:
         delta = int(values.get("inputs.rotary.menu.delta", 0.0))
         if delta != 0:
-            self._handle_rotate(delta)
+            self.rotate(delta)
         press_count = int(values.get("inputs.rotary.menu.presses", 0.0))
         if press_count > self._last_press_count:
             for _ in range(press_count - self._last_press_count):
-                self._activate_current(status)
+                self.press(status)
         self._last_press_count = press_count
+
+    def rotate(self, delta: int) -> None:
+        if delta == 0:
+            return
+        self._handle_rotate(delta)
+
+    def press(self, status: dict[str, str]) -> None:
+        self._activate_current(status)
+
+    def sync_press_count(self, press_count: int) -> None:
+        self._last_press_count = max(0, int(press_count))
+
+    def reset_view(self) -> None:
+        self._current_page_id = self._schema.home
+        self._cursor = 0
+        self._editing_range = False
+        self._message = ""
 
     def _current_page(self) -> MenuPage:
         return self._schema.pages[self._current_page_id]
@@ -341,10 +370,12 @@ class ControlMenuController:
         for index, item in enumerate(page.items):
             rows.append(
                 MenuRenderRow(
+                    item_id=item.item_id,
                     label=item.label,
                     value_text=self._value_text(item, status),
                     selected=index == self._cursor,
                     item_type=item.item_type,
+                    icon=item.icon,
                 )
             )
 

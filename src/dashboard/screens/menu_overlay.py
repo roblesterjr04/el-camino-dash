@@ -1,0 +1,271 @@
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import Any, Callable
+
+import pygame
+
+from dashboard.screens.control_menu import ControlMenuController
+from dashboard.screens.control_menu import MenuRenderModel
+from dashboard.screens.control_menu import MenuSchemaError
+from dashboard.screens.control_menu import load_menu_schema
+from dashboard.screens.layout import DisplayLayout
+
+
+class MenuOverlayScreen:
+    def __init__(self, layout: DisplayLayout, config: dict[str, Any]) -> None:
+        self.layout = layout
+        self.config = config
+        self._font = pygame.font.Font(config["themes"]["font_name"], max(24, layout.height // 13))
+        self._small_font = pygame.font.Font(config["themes"]["font_name"], max(16, layout.height // 28))
+        self._tiny_font = pygame.font.Font(config["themes"]["font_name"], max(14, layout.height // 34))
+
+    def render(self, surface: pygame.Surface, model: MenuRenderModel) -> None:
+        content_rect = self._paint_overlay(surface)
+        header = self._font.render(model.title, True, (250, 246, 220))
+        surface.blit(header, (content_rect.x, content_rect.y))
+        line_y = content_rect.y + 44
+        pygame.draw.line(surface, (156, 122, 38), (content_rect.x, line_y), (content_rect.right, line_y), 2)
+        if model.page_id == "home":
+            self._render_home_carousel(surface, model, content_rect)
+        else:
+            self._render_list(surface, model, content_rect)
+        footer = self._tiny_font.render(f"{model.footer}  Double press: Close", True, (218, 196, 136))
+        footer_y = content_rect.bottom - 22
+        if self.layout.shape == "round":
+            footer_y = content_rect.bottom - 34
+        surface.blit(footer, (content_rect.x, footer_y))
+        if model.message:
+            message = self._tiny_font.render(model.message, True, (255, 224, 120))
+            message_y = content_rect.bottom - 48
+            if self.layout.shape == "round":
+                message_y = content_rect.bottom - 60
+            surface.blit(message, (content_rect.x, message_y))
+
+    def render_error(self, surface: pygame.Surface, message: str) -> None:
+        content_rect = self._paint_overlay(surface)
+        header = self._font.render("Menu schema error", True, (255, 180, 160))
+        surface.blit(header, (content_rect.x, content_rect.y))
+        err = self._tiny_font.render(message[:120], True, (255, 120, 100))
+        surface.blit(err, (content_rect.x, content_rect.y + 54))
+
+    def _paint_overlay(self, surface: pygame.Surface) -> pygame.Rect:
+        shade = pygame.Surface(self.layout.size, pygame.SRCALPHA)
+        if self.layout.shape == "round":
+            center = (self.layout.width // 2, self.layout.height // 2)
+            radius = max(1, (min(self.layout.width, self.layout.height) // 2) - 2)
+            pygame.draw.circle(shade, (14, 10, 4, 195), center, radius)
+            surface.blit(shade, (0, 0))
+            panel_radius = max(1, radius - 12)
+            pygame.draw.circle(surface, (40, 30, 12, 225), center, panel_radius)
+            pygame.draw.circle(surface, (188, 148, 54, 235), center, panel_radius, width=2)
+            # Use a conservative inscribed square so text stays inside circular bounds.
+            safe_radius = max(1, int((panel_radius / math.sqrt(2)) * 0.86))
+            return pygame.Rect(
+                center[0] - safe_radius,
+                center[1] - safe_radius,
+                safe_radius * 2,
+                safe_radius * 2,
+            )
+        shade.fill((14, 10, 4, 195))
+        surface.blit(shade, (0, 0))
+        panel = pygame.Rect(12, 12, self.layout.width - 24, self.layout.height - 24)
+        pygame.draw.rect(surface, (40, 30, 12, 225), panel, border_radius=18)
+        pygame.draw.rect(surface, (188, 148, 54, 235), panel, width=2, border_radius=18)
+        return pygame.Rect(32, 24, self.layout.width - 64, self.layout.height - 60)
+
+    def _render_home_carousel(self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect) -> None:
+        if not model.rows:
+            return
+        selected_idx = 0
+        for idx, row in enumerate(model.rows):
+            if row.selected:
+                selected_idx = idx
+                break
+        center_x = content_rect.centerx
+        center_y = content_rect.centery + 4
+        slot_width = max(78, content_rect.width // 4)
+        for idx, row in enumerate(model.rows):
+            distance = idx - selected_idx
+            if abs(distance) > 2:
+                continue
+            x = center_x + (distance * slot_width)
+            if x < content_rect.left or x > content_rect.right:
+                continue
+            radius = max(24, 52 - (abs(distance) * 10))
+            selected = distance == 0
+            fill = (130, 96, 24) if selected else (70, 50, 14)
+            border = (255, 215, 96) if selected else (186, 146, 58)
+            pygame.draw.circle(surface, fill, (x, center_y), radius)
+            pygame.draw.circle(surface, border, (x, center_y), radius, width=3 if selected else 2)
+            icon_color = (250, 246, 220) if selected else (236, 216, 162)
+            self._draw_menu_icon(
+                surface=surface,
+                center=(x, center_y),
+                radius=max(14, radius - 10),
+                icon_id=str(row.icon or row.item_id or row.label).strip().lower(),
+                color=icon_color,
+            )
+            label = self._small_font.render(row.label, True, (246, 232, 176) if selected else (206, 184, 120))
+            label_rect = label.get_rect(center=(x, center_y + radius + 24))
+            surface.blit(label, label_rect)
+
+    def _draw_menu_icon(
+        self,
+        surface: pygame.Surface,
+        center: tuple[int, int],
+        radius: int,
+        icon_id: str,
+        color: tuple[int, int, int],
+    ) -> None:
+        cx, cy = center
+        icon = icon_id.lower()
+        width = max(2, radius // 8)
+        if icon in {"clock", "now", "now_page"}:
+            pygame.draw.circle(surface, color, (cx, cy), radius, width=width)
+            pygame.draw.line(surface, color, (cx, cy), (cx, cy - int(radius * 0.5)), width=max(2, width - 1))
+            pygame.draw.line(surface, color, (cx, cy), (cx + int(radius * 0.45), cy), width=max(2, width - 1))
+            return
+        if icon in {"media", "music", "med", "media_page"}:
+            stem_h = int(radius * 1.1)
+            stem_x = cx + int(radius * 0.15)
+            stem_top = cy - int(radius * 0.9)
+            stem_bottom = stem_top + stem_h
+            pygame.draw.line(surface, color, (stem_x, stem_top), (stem_x, stem_bottom), width=width)
+            pygame.draw.line(
+                surface,
+                color,
+                (stem_x, stem_top),
+                (stem_x + int(radius * 0.6), stem_top + int(radius * 0.2)),
+                width=width,
+            )
+            pygame.draw.circle(surface, color, (cx - int(radius * 0.35), cy + int(radius * 0.45)), int(radius * 0.28), width=0)
+            pygame.draw.circle(surface, color, (cx + int(radius * 0.25), cy + int(radius * 0.55)), int(radius * 0.28), width=0)
+            return
+        if icon in {"inputs", "in", "inputs_page"}:
+            for idx, y_off in enumerate((-int(radius * 0.45), 0, int(radius * 0.45))):
+                y = cy + y_off
+                pygame.draw.line(surface, color, (cx - int(radius * 0.9), y), (cx + int(radius * 0.9), y), width=max(2, width - 1))
+                knob_x = cx + (int(radius * 0.3) if idx % 2 == 0 else -int(radius * 0.3))
+                pygame.draw.circle(surface, color, (knob_x, y), max(3, radius // 4), width=0)
+            return
+        if icon in {"system", "sys", "settings", "gear", "system_page"}:
+            core_r = max(4, int(radius * 0.28))
+            gear_r = max(core_r + 2, int(radius * 0.68))
+            pygame.draw.circle(surface, color, (cx, cy), gear_r, width=width)
+            pygame.draw.circle(surface, color, (cx, cy), core_r, width=width)
+            for i in range(8):
+                angle = (math.pi * 2.0 * i) / 8.0
+                inner = (cx + int(math.cos(angle) * (gear_r - width)), cy + int(math.sin(angle) * (gear_r - width)))
+                outer = (cx + int(math.cos(angle) * (gear_r + int(radius * 0.18))), cy + int(math.sin(angle) * (gear_r + int(radius * 0.18))))
+                pygame.draw.line(surface, color, inner, outer, width=max(2, width - 1))
+            return
+        token = (icon_id or "?").strip().upper()[:3] or "?"
+        glyph = self._small_font.render(token, True, color)
+        surface.blit(glyph, glyph.get_rect(center=(cx, cy)))
+
+    def _render_list(self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect) -> None:
+        y = content_rect.y + 56
+        row_height = 34
+        selected_idx = 0
+        for idx, row in enumerate(model.rows):
+            if row.selected:
+                selected_idx = idx
+                break
+        # Keep the selected entry pinned at the top for small displays.
+        ordered_rows = model.rows[selected_idx:] + model.rows[:selected_idx]
+        for row in ordered_rows:
+            if y > content_rect.bottom - 30:
+                break
+            row_rect = pygame.Rect(content_rect.x, y - 4, content_rect.width, row_height)
+            if row.selected:
+                pygame.draw.rect(surface, (96, 70, 18), row_rect, border_radius=9)
+                pygame.draw.rect(surface, (252, 208, 88), row_rect, width=1, border_radius=9)
+            label_text = self._small_font.render(row.label, True, (248, 240, 206))
+            surface.blit(label_text, (content_rect.x + 10, y))
+            if row.value_text:
+                value_text = self._small_font.render(row.value_text, True, (240, 210, 128))
+                value_rect = value_text.get_rect(midright=(content_rect.right - 10, y + 11))
+                surface.blit(value_text, value_rect)
+            y += row_height + 4
+
+
+class MenuOverlayController:
+    def __init__(
+        self,
+        layout: DisplayLayout,
+        config: dict[str, Any],
+        config_path: Path,
+        command_registry: dict[str, Callable[[dict[str, Any]], str | None]],
+        on_runtime_refresh: Callable[[], None] | None = None,
+    ) -> None:
+        self._visible = False
+        self._input_initialized = False
+        self._last_press_count = 0
+        self._last_press_tick_ms = -1000
+        self._close_double_press_ms = 450
+        self._menu_error = ""
+        self._menu: ControlMenuController | None = None
+        self._screen = MenuOverlayScreen(layout=layout, config=config)
+        schema_path = config["system"].get("menu_schema_path", "config/menu_schema.yaml")
+        try:
+            schema = load_menu_schema(
+                schema_path=schema_path,
+                config=config,
+                command_ids={"config.save", "config.reload", *command_registry.keys()},
+            )
+            self._menu = ControlMenuController(
+                schema=schema,
+                config=config,
+                config_path=config_path,
+                command_registry=command_registry,
+                on_runtime_refresh=on_runtime_refresh,
+            )
+        except (MenuSchemaError, OSError) as exc:
+            self._menu_error = str(exc)
+
+    @property
+    def visible(self) -> bool:
+        return self._visible
+
+    def process_input(self, values: dict[str, float], status: dict[str, str]) -> None:
+        delta = int(values.get("inputs.rotary.menu.delta", 0.0))
+        press_count = int(values.get("inputs.rotary.menu.presses", 0.0))
+        if not self._input_initialized:
+            # Hot-reload/re-render can recreate this controller while input counters
+            # stay cumulative; baseline them so overlay never auto-opens.
+            self._last_press_count = press_count
+            self._input_initialized = True
+            return
+        if press_count < self._last_press_count:
+            self._last_press_count = press_count
+        new_presses = max(0, press_count - self._last_press_count)
+        if self._visible and self._menu and delta != 0:
+            self._menu.rotate(delta)
+        for _ in range(new_presses):
+            if not self._visible:
+                self._visible = True
+                self._last_press_tick_ms = pygame.time.get_ticks()
+                continue
+            now_ms = pygame.time.get_ticks()
+            if now_ms - self._last_press_tick_ms <= self._close_double_press_ms:
+                self._hide_overlay()
+            elif self._menu:
+                self._menu.press(status)
+            self._last_press_tick_ms = now_ms
+        self._last_press_count = press_count
+
+    def _hide_overlay(self) -> None:
+        self._visible = False
+        if self._menu:
+            self._menu.reset_view()
+
+    def render(self, surface: pygame.Surface, status: dict[str, str]) -> None:
+        if not self._visible:
+            return
+        if not self._menu:
+            self._screen.render_error(surface=surface, message=self._menu_error)
+            return
+        model = self._menu.render_model(status=status)
+        self._screen.render(surface=surface, model=model)

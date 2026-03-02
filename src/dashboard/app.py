@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import signal
 import time
 from typing import Any
 from typing import Callable
@@ -51,8 +52,11 @@ class DashboardApp:
         self._last_raw_input_log_s = time.monotonic()
         self._startup_sweep_started_s = time.monotonic()
         self._startup_sweep_complete = False
+        self._previous_sigint_handler = None
+        self._previous_sigterm_handler = None
 
     def run(self) -> None:
+        self._install_signal_handlers()
         pygame.init()
         pygame.font.init()
         media_cfg = self.config["integrations"].get("media", {})
@@ -101,7 +105,26 @@ class DashboardApp:
             self._persist_odometer(force=True)
             self._persist_theme()
             self.navit.stop()
+            if self.display_manager:
+                self.display_manager.shutdown()
+            self._restore_signal_handlers()
             pygame.quit()
+
+    def _install_signal_handlers(self) -> None:
+        self._previous_sigint_handler = signal.getsignal(signal.SIGINT)
+        self._previous_sigterm_handler = signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGINT, self._handle_shutdown_signal)
+        signal.signal(signal.SIGTERM, self._handle_shutdown_signal)
+
+    def _restore_signal_handlers(self) -> None:
+        if self._previous_sigint_handler is not None:
+            signal.signal(signal.SIGINT, self._previous_sigint_handler)
+        if self._previous_sigterm_handler is not None:
+            signal.signal(signal.SIGTERM, self._previous_sigterm_handler)
+
+    def _handle_shutdown_signal(self, signum: int, _frame: Any) -> None:
+        print(f"Shutdown signal received ({signum}), exiting main loop")
+        self._running = False
 
     def _tick_inputs(self) -> None:
         if not self.input_manager:
@@ -324,6 +347,7 @@ class DashboardApp:
         else:
             self.navit.stop()
         if self.display_manager and self._command_registry:
+            self.display_manager.shutdown()
             self.display_manager = DisplayManager(
                 config=self.config,
                 config_path=self.config_path,

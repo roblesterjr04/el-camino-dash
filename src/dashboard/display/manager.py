@@ -9,16 +9,16 @@ from typing import Callable
 
 import pygame
 
-from dashboard.screens.control_screen import ControlScreen
 from dashboard.screens.gauge_screen import GaugeScreen
 from dashboard.screens.layout import DisplayLayout
 from dashboard.screens.map_screen import MapScreen
+from dashboard.screens.menu_overlay import MenuOverlayController
 
 
 @dataclass
 class ScreenBinding:
     layout: DisplayLayout
-    renderer: GaugeScreen | ControlScreen
+    renderer: GaugeScreen
 
 
 @dataclass
@@ -44,19 +44,31 @@ class DisplayManager:
         self._on_runtime_refresh = on_runtime_refresh
         self._theme_data = self._load_theme_data()
         self._layouts = self._build_layouts()
+        self._menu_display_id = self._resolve_menu_display_id()
+        self._menu_layout = self._resolve_menu_layout()
+        self._menu_overlay = MenuOverlayController(
+            layout=self._menu_layout,
+            config=self._config,
+            config_path=self._config_path,
+            command_registry=self._command_registry,
+            on_runtime_refresh=self._on_runtime_refresh,
+        )
         self._bindings = self._build_bindings()
         self._map_overlays = self._build_map_overlays()
         self._render_mode = self._resolve_render_mode()
         self._window_bindings: dict[str, WindowBinding] = {}
         self._window_ids: set[int] = set()
-        self._control_window_ids: set[int] = set()
+        self._interaction_window_ids: set[int] = set()
         self._focused_window_id: int | None = None
         self._root_surface: pygame.Surface | None = None
         self._sdl2_video: Any | None = None
         self._sdl2_texture: Any | None = None
+        self._spi_display_manager: Any | None = None
 
         if self._render_mode == "multi_window" and not self._init_multi_window_mode():
             self._render_mode = "single_window"
+        if self._render_mode == "spi":
+            self._init_spi_mode()
         if self._render_mode == "single_window":
             self._init_single_window_mode()
 
@@ -76,11 +88,84 @@ class DisplayManager:
         env_mode = str(os.environ.get("DISPLAY_RENDER_MODE", "")).strip().lower()
         cfg_mode = str(system_cfg.get("display_render_mode", "single_window")).strip().lower()
         mode = env_mode or cfg_mode or "single_window"
-        if mode not in {"single_window", "multi_window"}:
+        if mode not in {"single_window", "multi_window", "spi"}:
             return "single_window"
         return mode
 
+    def _resolve_spi_displays(self) -> list[dict[str, Any]]:
+        system_cfg = self._config.get("system", {})
+        raw = system_cfg.get("spi_displays", [])
+        if not isinstance(raw, list):
+            return []
+        resolved: list[dict[str, Any]] = []
+        for idx, layout in enumerate(self._layouts):
+            if idx >= len(raw):
+                break
+            spec = raw[idx]
+            if not isinstance(spec, dict):
+                continue
+            dc_pin = spec.get("dc_pin", spec.get("dc"))
+            rst_pin = spec.get("rst_pin", spec.get("rst"))
+            if dc_pin is None or rst_pin is None:
+                continue
+            resolved.append(
+                {
+                    "label": spec.get("label", layout.display_id),
+                    "shape": layout.shape,
+                    "width": layout.width,
+                    "height": layout.height,
+                    "spi_bus": int(spec.get("spi_bus", 1)),
+                    "spi_device": int(spec.get("spi_device", idx)),
+                    "dc_pin": int(dc_pin),
+                    "rst_pin": int(rst_pin),
+                    "rotation": int(spec.get("rotation", 0)),
+                    "madctl": spec.get("madctl"),
+                    "colmod": int(spec.get("colmod", 0x55)),
+                    "speed_hz": int(spec.get("speed_hz", 8_000_000)),
+                }
+            )
+        return resolved
+
+    def _init_spi_mode(self) -> None:
+        from dashboard.display.spi_display_manager import SPIDisplayManager
+
+        displays = self._resolve_spi_displays()
+        if not displays:
+            print("[display] spi mode requested, but no valid system.spi_displays entries found")
+            return
+        if str(os.environ.get("HEADLESS", "")).strip() != "1":
+            self._root_surface = pygame.display.set_mode(self._window_size())
+            pygame.display.set_caption(self._config["system"]["window_title"])
+        try:
+            self._spi_display_manager = SPIDisplayManager(displays=displays)
+        except Exception as exc:
+            print(f"[display] failed to initialize spi mode: {exc}")
+            self._spi_display_manager = None
+
+    def _compose_child_surface(
+        self,
+        layout: DisplayLayout,
+        renderer: GaugeScreen,
+        map_overlay: MapScreen,
+        values: dict[str, float],
+        status: dict[str, str],
+    ) -> pygame.Surface:
+        child = pygame.Surface(layout.size, pygame.SRCALPHA)
+        renderer.render(child, values=values, status=status)
+        if self._map_overlay_visible(layout):
+            overlay = pygame.Surface(layout.size, pygame.SRCALPHA)
+            map_overlay.render(overlay, values=values, status=status)
+            child.blit(overlay, (0, 0))
+        if self._menu_overlay_visible(layout):
+            overlay = pygame.Surface(layout.size, pygame.SRCALPHA)
+            self._menu_overlay.render(overlay, status=status)
+            child.blit(overlay, (0, 0))
+        return child
+
     def _init_single_window_mode(self) -> None:
+        if str(os.environ.get("HEADLESS", "")).strip() == "1":
+            self._root_surface = pygame.Surface(self._window_size(), pygame.SRCALPHA)
+            return
         self._root_surface = pygame.display.set_mode(self._window_size())
         pygame.display.set_caption(self._config["system"]["window_title"])
 
@@ -137,7 +222,7 @@ class DisplayManager:
                 print(f"[display] multi_window init failed on {binding.layout.display_id}: {exc}")
                 self._window_bindings.clear()
                 self._window_ids.clear()
-                self._control_window_ids.clear()
+                self._interaction_window_ids.clear()
                 self._focused_window_id = None
                 return False
             wb = WindowBinding(
@@ -149,8 +234,8 @@ class DisplayManager:
             )
             self._window_bindings[layout.display_id] = wb
             self._window_ids.add(int(window.id))
-            if layout.role == "control":
-                self._control_window_ids.add(int(window.id))
+            if layout.display_id == self._menu_display_id:
+                self._interaction_window_ids.add(int(window.id))
         self._focused_window_id = next(iter(self._window_ids), None)
         return bool(self._window_bindings)
 
@@ -220,18 +305,38 @@ class DisplayManager:
     def _build_bindings(self) -> list[ScreenBinding]:
         bindings: list[ScreenBinding] = []
         for layout in self._layouts:
-            if layout.role == "control":
-                renderer = ControlScreen(
-                    layout=layout,
-                    config=self._config,
-                    config_path=self._config_path,
-                    command_registry=self._command_registry,
-                    on_runtime_refresh=self._on_runtime_refresh,
-                )
-            else:
-                renderer = GaugeScreen(layout=layout, config=self._config)
+            renderer = GaugeScreen(layout=layout, config=self._config)
             bindings.append(ScreenBinding(layout=layout, renderer=renderer))
         return bindings
+
+    def _resolve_menu_display_id(self) -> str:
+        configured = str(self._config.get("system", {}).get("menu_display_id", "gauge_right"))
+        known_ids = {layout.display_id for layout in self._layouts}
+        if configured in known_ids:
+            return configured
+        if "gauge_right" in known_ids:
+            return "gauge_right"
+        if self._layouts:
+            return self._layouts[0].display_id
+        return configured
+
+    def _resolve_menu_layout(self) -> DisplayLayout:
+        for layout in self._layouts:
+            if layout.display_id == self._menu_display_id:
+                return layout
+        if self._layouts:
+            return self._layouts[0]
+        return DisplayLayout(
+            display_id=self._menu_display_id,
+            role="gauge",
+            shape="round",
+            width=640,
+            height=480,
+            x=0,
+            y=0,
+            fps=30,
+            gauge_id=None,
+        )
 
     def _build_map_overlays(self) -> dict[str, MapScreen]:
         overlays: dict[str, MapScreen] = {}
@@ -247,6 +352,9 @@ class DisplayManager:
         target_display = str(system_cfg.get("map_display_id", "gauge_right"))
         return layout.display_id == target_display
 
+    def _menu_overlay_visible(self, layout: DisplayLayout) -> bool:
+        return self._menu_overlay.visible and layout.display_id == self._menu_display_id
+
     def _window_size(self) -> tuple[int, int]:
         if not self._layouts:
             return (640, 480)
@@ -259,30 +367,52 @@ class DisplayManager:
             return
         self._root_surface.fill((12, 12, 12))
         for binding in self._bindings:
-            child = pygame.Surface(binding.layout.size, pygame.SRCALPHA)
-            binding.renderer.render(child, values=values, status=status)
-            if self._map_overlay_visible(binding.layout):
-                overlay = pygame.Surface(binding.layout.size, pygame.SRCALPHA)
-                self._map_overlays[binding.layout.display_id].render(overlay, values=values, status=status)
-                child.blit(overlay, (0, 0))
+            child = self._compose_child_surface(
+                layout=binding.layout,
+                renderer=binding.renderer,
+                map_overlay=self._map_overlays[binding.layout.display_id],
+                values=values,
+                status=status,
+            )
             self._root_surface.blit(child, (binding.layout.x, binding.layout.y))
-        pygame.display.flip()
+        if str(os.environ.get("HEADLESS", "")).strip() != "1":
+            pygame.display.flip()
 
     def _render_multi_window(self, values: dict[str, float], status: dict[str, str]) -> None:
         if self._sdl2_texture is None:
             return
         for binding in self._window_bindings.values():
-            child = pygame.Surface(binding.layout.size, pygame.SRCALPHA)
-            binding.binding.renderer.render(child, values=values, status=status)
-            if self._map_overlay_visible(binding.layout):
-                overlay = pygame.Surface(binding.layout.size, pygame.SRCALPHA)
-                binding.map_overlay.render(overlay, values=values, status=status)
-                child.blit(overlay, (0, 0))
+            child = self._compose_child_surface(
+                layout=binding.layout,
+                renderer=binding.binding.renderer,
+                map_overlay=binding.map_overlay,
+                values=values,
+                status=status,
+            )
             texture = self._sdl2_texture.from_surface(binding.renderer, child)
             binding.renderer.draw_color = (12, 12, 12, 255)
             binding.renderer.clear()
             binding.renderer.blit(texture)
             binding.renderer.present()
+
+    def _render_spi(self, values: dict[str, float], status: dict[str, str]) -> None:
+        if self._spi_display_manager is None:
+            return
+        if self._root_surface is not None:
+            self._root_surface.fill((12, 12, 12))
+        for idx, binding in enumerate(self._bindings):
+            child = self._compose_child_surface(
+                layout=binding.layout,
+                renderer=binding.renderer,
+                map_overlay=self._map_overlays[binding.layout.display_id],
+                values=values,
+                status=status,
+            )
+            self._spi_display_manager.update(idx, child)
+            if self._root_surface is not None:
+                self._root_surface.blit(child, (binding.layout.x, binding.layout.y))
+        if self._root_surface is not None:
+            pygame.display.flip()
 
     def _event_window_id(self, event: pygame.event.Event) -> int | None:
         raw = getattr(event, "window", None)
@@ -314,7 +444,7 @@ class DisplayManager:
             win_id = self._event_window_id(event)
             if win_id is not None:
                 self._window_ids.discard(win_id)
-                self._control_window_ids.discard(win_id)
+                self._interaction_window_ids.discard(win_id)
                 if win_id == self._focused_window_id:
                     self._focused_window_id = None
             if not self._window_ids:
@@ -327,12 +457,21 @@ class DisplayManager:
             return True
         if self._render_mode != "multi_window":
             return True
-        if not self._control_window_ids:
+        if not self._interaction_window_ids:
             return True
-        return self._focused_window_id in self._control_window_ids
+        return self._focused_window_id in self._interaction_window_ids
 
     def render(self, values: dict[str, float], status: dict[str, str]) -> None:
+        self._menu_overlay.process_input(values=values, status=status)
         if self._render_mode == "multi_window":
             self._render_multi_window(values, status)
             return
+        if self._render_mode == "spi":
+            self._render_spi(values, status)
+            return
         self._render_single_window(values, status)
+
+    def shutdown(self) -> None:
+        if self._spi_display_manager is not None:
+            self._spi_display_manager.shutdown()
+            self._spi_display_manager = None

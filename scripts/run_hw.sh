@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_PATH="${1:-${PROJECT_DIR}/config/dashboard.vm.yaml}"
+CONFIG_PATH="${1:-${PROJECT_DIR}/config/dashboard.vehicle.yaml}"
 
 echo "Hardware run config: ${CONFIG_PATH}"
 echo "DISPLAY=${DISPLAY:-<unset>} SDL_VIDEODRIVER=${SDL_VIDEODRIVER:-<unset>}"

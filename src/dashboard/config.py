@@ -83,6 +83,8 @@ def _validate_display(idx: int, display: dict[str, Any]) -> None:
     _expect_type(f"{path}.position[1]", display["position"][1], int)
     _expect_type(f"{path}.fps", display["fps"], int)
     _expect_type(f"{path}.role", display["role"], str)
+    if display["role"] != "gauge":
+        _fail(f"{path}.role", "must be 'gauge'")
     if display["role"] == "gauge" and "gauge_id" not in display:
         _fail(path, "gauge displays require 'gauge_id'")
     if "monitor_index" in display:
@@ -141,7 +143,8 @@ def _validate_gauges(gauges: dict[str, Any]) -> None:
 
 def _validate_inputs(inputs: dict[str, Any]) -> None:
     required_sections = {"rotary_encoders", "analog_inputs", "speed_sensors", "simulated_data", "keyboard_sim"}
-    _expect_keys("inputs", inputs, required_sections, required_sections)
+    allowed_sections = required_sections | {"gpio_buttons"}
+    _expect_keys("inputs", inputs, required_sections, allowed_sections)
     for section in ("rotary_encoders", "analog_inputs", "speed_sensors"):
         _expect_type(f"inputs.{section}", inputs[section], list)
         for idx, item in enumerate(inputs[section]):
@@ -184,6 +187,26 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
         _expect_type("inputs.keyboard_sim.oil_min", inputs["keyboard_sim"]["oil_min"], (int, float))
     if "oil_max" in inputs["keyboard_sim"]:
         _expect_type("inputs.keyboard_sim.oil_max", inputs["keyboard_sim"]["oil_max"], (int, float))
+
+    if "gpio_buttons" in inputs:
+        _expect_type("inputs.gpio_buttons", inputs["gpio_buttons"], dict)
+        _expect_keys(
+            "inputs.gpio_buttons",
+            inputs["gpio_buttons"],
+            {"enabled"},
+            {"enabled", "menu_left_pin", "menu_select_pin", "pull_up", "left_delta", "debounce_ms"},
+        )
+        _expect_type("inputs.gpio_buttons.enabled", inputs["gpio_buttons"]["enabled"], bool)
+        if "menu_left_pin" in inputs["gpio_buttons"]:
+            _expect_type("inputs.gpio_buttons.menu_left_pin", inputs["gpio_buttons"]["menu_left_pin"], int)
+        if "menu_select_pin" in inputs["gpio_buttons"]:
+            _expect_type("inputs.gpio_buttons.menu_select_pin", inputs["gpio_buttons"]["menu_select_pin"], int)
+        if "pull_up" in inputs["gpio_buttons"]:
+            _expect_type("inputs.gpio_buttons.pull_up", inputs["gpio_buttons"]["pull_up"], bool)
+        if "left_delta" in inputs["gpio_buttons"]:
+            _expect_type("inputs.gpio_buttons.left_delta", inputs["gpio_buttons"]["left_delta"], (int, float))
+        if "debounce_ms" in inputs["gpio_buttons"]:
+            _expect_type("inputs.gpio_buttons.debounce_ms", inputs["gpio_buttons"]["debounce_ms"], (int, float))
 
     _expect_type("inputs.simulated_data", inputs["simulated_data"], dict)
     _expect_keys(
@@ -244,6 +267,42 @@ def _validate_integrations(integrations: dict[str, Any]) -> None:
         _expect_type(f"integrations.{section}.enabled", integrations[section]["enabled"], bool)
 
 
+def _validate_system(system: dict[str, Any]) -> None:
+    _expect_type("system", system, dict)
+    if "spi_displays" not in system:
+        return
+    _expect_type("system.spi_displays", system["spi_displays"], list)
+    for idx, display in enumerate(system["spi_displays"]):
+        path = f"system.spi_displays[{idx}]"
+        _expect_type(path, display, dict)
+        required = {"spi_bus", "spi_device", "label"}
+        allowed = required | {"dc", "rst", "dc_pin", "rst_pin", "rotation", "speed_hz", "madctl", "colmod"}
+        _expect_keys(path, display, required, allowed)
+        _expect_type(f"{path}.spi_bus", display["spi_bus"], int)
+        _expect_type(f"{path}.spi_device", display["spi_device"], int)
+        _expect_type(f"{path}.label", display["label"], str)
+        if "dc_pin" in display:
+            _expect_type(f"{path}.dc_pin", display["dc_pin"], int)
+        if "rst_pin" in display:
+            _expect_type(f"{path}.rst_pin", display["rst_pin"], int)
+        if "dc" in display:
+            _expect_type(f"{path}.dc", display["dc"], int)
+        if "rst" in display:
+            _expect_type(f"{path}.rst", display["rst"], int)
+        if "dc_pin" not in display and "dc" not in display:
+            _fail(path, "requires either 'dc_pin' or 'dc'")
+        if "rst_pin" not in display and "rst" not in display:
+            _fail(path, "requires either 'rst_pin' or 'rst'")
+        if "rotation" in display:
+            _expect_type(f"{path}.rotation", display["rotation"], int)
+        if "speed_hz" in display:
+            _expect_type(f"{path}.speed_hz", display["speed_hz"], int)
+        if "madctl" in display:
+            _expect_type(f"{path}.madctl", display["madctl"], int)
+        if "colmod" in display:
+            _expect_type(f"{path}.colmod", display["colmod"], int)
+
+
 def validate_config(raw: dict[str, Any]) -> None:
     _expect_keys("root", raw, REQUIRED_TOP_LEVEL, ALLOWED_TOP_LEVEL)
     _expect_type("system", raw["system"], dict)
@@ -252,10 +311,24 @@ def validate_config(raw: dict[str, Any]) -> None:
     _expect_type("gauges", raw["gauges"], dict)
     _expect_type("inputs", raw["inputs"], dict)
     _expect_type("integrations", raw["integrations"], dict)
+    _validate_system(raw["system"])
 
     for idx, display in enumerate(raw["displays"]):
         _expect_type(f"displays[{idx}]", display, dict)
         _validate_display(idx, display)
+    display_ids = {str(display["id"]) for display in raw["displays"] if bool(display.get("enabled", False))}
+    enabled_display_count = sum(1 for display in raw["displays"] if bool(display.get("enabled", False)))
+    menu_display_id = raw["system"].get("menu_display_id", "gauge_right")
+    _expect_type("system.menu_display_id", menu_display_id, str)
+    if menu_display_id and menu_display_id not in display_ids:
+        _fail("system.menu_display_id", f"must match an enabled display id: {menu_display_id}")
+    if "spi_displays" in raw["system"]:
+        spi_displays = raw["system"]["spi_displays"]
+        if len(spi_displays) < enabled_display_count:
+            _fail(
+                "system.spi_displays",
+                f"must include at least {enabled_display_count} entries for enabled displays",
+            )
 
     _validate_gauges(raw["gauges"])
     _validate_inputs(raw["inputs"])

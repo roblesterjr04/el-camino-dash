@@ -178,6 +178,7 @@
         "bar_segments": 10,
         "bar_gap_px": 2,
         "rainbow": true,
+        "rainbow_invert": true,
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
@@ -201,6 +202,7 @@
         "bar_segments": 10,
         "bar_gap_px": 2,
         "rainbow": true,
+        "rainbow_invert": false,
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
@@ -224,6 +226,7 @@
         "bar_segments": 10,
         "bar_gap_px": 2,
         "rainbow": true,
+        "rainbow_invert": true,
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
@@ -247,6 +250,7 @@
         "bar_segments": 10,
         "bar_gap_px": 2,
         "rainbow": true,
+        "rainbow_invert": true,
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
@@ -265,6 +269,21 @@
     },    
     "gauge_right": {
       "gauge_id": "tsps"
+    }
+  },
+  "odometer_render": {
+    "speedometer": {
+      "font_name": "DSEG14-Modern/DSEG14Modern-Italic.ttf",
+      "font_scale": 0.042,
+      "text_color": [236, 251, 255],
+      "decimal_color": [120, 246, 255],
+      "box_color": [6, 12, 18],
+      "box_border": [22, 108, 146],
+      "y_ratio": 0.75,
+      "include_label": false,
+      "include_unit": false,
+      "show_box": false,
+      "max_width_ratio": 0.55
     }
   },
   "source_calibration": {

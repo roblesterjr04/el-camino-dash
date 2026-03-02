@@ -58,13 +58,13 @@ check_file "${PROJECT_DIR}/config/dashboard.dev.yaml"
 check_file "${PROJECT_DIR}/themes/default/theme.json"
 check_file "${PROJECT_DIR}/src/main.py"
 
-if [[ "${TARGET}" == "pi" || "${TARGET}" == "vm" ]]; then
+if [[ "${TARGET}" == "pi" ]]; then
   pass "Verification target: ${TARGET}"
 else
-  fail "Unsupported --target value: ${TARGET} (expected pi or vm)"
+  fail "Unsupported --target value: ${TARGET} (expected pi)"
 fi
 
-if [[ "${DISPLAY_MODE}" == "auto" || "${DISPLAY_MODE}" == "xvfb" || "${DISPLAY_MODE}" == "hardware" ]]; then
+if [[ "${DISPLAY_MODE}" == "auto" || "${DISPLAY_MODE}" == "hardware" ]]; then
   pass "Display mode: ${DISPLAY_MODE}"
 else
   fail "Unsupported --display-mode value: ${DISPLAY_MODE}"
@@ -76,28 +76,16 @@ else
   fail "Virtualenv python missing; run scripts/install_app.sh"
 fi
 
-if [[ "${TARGET}" == "pi" ]]; then
-  if [[ -c /dev/spidev0.0 || -c /dev/spidev0.1 ]]; then
-    pass "SPI device present"
-  else
-    fail "SPI device not found (check dtparam=spi=on and reboot)"
-  fi
-
-  if command -v raspi-gpio >/dev/null 2>&1; then
-    pass "GPIO tooling available"
-  else
-    fail "raspi-gpio missing"
-  fi
+if [[ -c /dev/spidev0.0 || -c /dev/spidev0.1 || -c /dev/spidev1.0 ]]; then
+  pass "SPI device present"
 else
-  pass "Skipping SPI/GPIO checks for VM target"
+  fail "SPI device not found (check SPI overlay settings and reboot)"
 fi
 
-if [[ "${TARGET}" == "vm" ]]; then
-  if command -v Xvfb >/dev/null 2>&1; then
-    pass "Xvfb binary available"
-  else
-    fail "Xvfb not found (install with apt-get install -y xvfb)"
-  fi
+if command -v raspi-gpio >/dev/null 2>&1; then
+  pass "GPIO tooling available"
+else
+  fail "raspi-gpio missing"
 fi
 
 if [[ -x "${VENV_PY}" ]]; then
@@ -110,13 +98,10 @@ fi
 
 if [[ -x "${VENV_PY}" ]]; then
   DISPLAY_FOR_TEST="${DISPLAY:-}"
-  if [[ "${DISPLAY_MODE}" == "xvfb" && -z "${DISPLAY_FOR_TEST}" ]]; then
-    DISPLAY_FOR_TEST=":99"
-  fi
   if DISPLAY_MODE="${DISPLAY_MODE}" DISPLAY="${DISPLAY_FOR_TEST}" PYTHONPATH="${PROJECT_DIR}/src" "${VENV_PY}" -c "import pygame; pygame.display.init(); pygame.display.set_mode((64, 64)); pygame.display.quit()" >/dev/null 2>&1; then
     pass "Pygame display smoke test passed (${DISPLAY_MODE})"
   else
-    fail "Pygame display smoke test failed (${DISPLAY_MODE}); check DISPLAY/Xvfb setup"
+    fail "Pygame display smoke test failed (${DISPLAY_MODE}); check DISPLAY setup"
   fi
 fi
 
