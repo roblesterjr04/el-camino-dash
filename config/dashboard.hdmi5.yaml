@@ -13,12 +13,16 @@ system:
   left_to_right_spacing_px: 8
   menu_schema_path: config/menu_schema.yaml
   menu_display_id: main_display
+  alert_display_id: main_display
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.hdmi5.json
   odometer_write_interval_s: 1.5
   map_view_visible: false
   map_display_id: main_display
+  low_oil_pressure_alert_enabled: true
+  low_oil_pressure_source: indicators.oil
+  low_oil_pressure_threshold: 20
   simulation_map_image_path: assets/maps/testmap.png
   theme_persist_enabled: true
   theme_state_path: data/theme_state.hdmi5.json
@@ -169,8 +173,19 @@ inputs:
       wheel_circumference_m: 2.1
       timeout_ms: 800
       smoothing_alpha: 0.35
+  arduino_serial:
+    enabled: false
+    port: /dev/ttyAMA0
+    baudrate: 115200
+    timeout_s: 0.0
+    wheel_circumference_m: 2.1
+    speed_pulses_per_rev: 1
+    fuel_range: [0, 100]
+    temp_range: [120, 260]
+    oil_range: [0, 80]
+    voltage_range: [10, 16]
   simulated_data:
-    enabled: true
+    enabled: false
     speed_period_s: 9.0
     rpm_period_s: 4.2
     fuel_period_s: 26.0
@@ -187,6 +202,9 @@ inputs:
     turn_signal_period_s: 0.8
     turn_signal_duty_cycle: 0.5
     turn_signal_mode: alternate
+    fault_sim_enabled: true
+    fault_cycle_period_s: 5.0
+    fault_codes: [1, 4, 16, 128, 256, 1024]
   keyboard_sim:
     enabled: true
     rotate_repeat_ms: 130
@@ -242,3 +260,13 @@ integrations:
     set_default_sink: true
     sink_name: ""
     refresh_interval_s: 5.0
+  fm_radio:
+    enabled: false
+    i2c_bus: 1
+    address: 17
+    rst_pin: 17
+    startup_mode: fm
+    startup_freq_mhz: 101.3
+    wb_channel: 1
+    startup_volume: 45
+    fm_step_mhz: 0.1

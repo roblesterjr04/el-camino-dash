@@ -8,7 +8,50 @@ if [[ "${PROJECT_DIR}" == /mnt/shared* ]]; then
 fi
 VENV_DIR="${EL_CAMINO_VENV_DIR:-${DEFAULT_VENV_DIR}}"
 PYTHON_BIN="${VENV_DIR}/bin/python"
-CONFIG_PATH="${1:-${PROJECT_DIR}/config/dashboard.dev.yaml}"
+CONFIG_ARG="dev.yaml"
+
+usage() {
+  echo "Usage: $0 [-c|--config <config-file>]"
+  echo "  config-file can be:"
+  echo "    - an absolute or relative path"
+  echo "    - a file in config/ (for example: dashboard.dev.yaml)"
+  echo "    - a short name resolved as config/dashboard.<name> (for example: dev.yaml)"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c|--config)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for $1" >&2
+        usage
+        exit 1
+      fi
+      CONFIG_ARG="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      # Backward-compatible positional config argument.
+      CONFIG_ARG="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -f "${CONFIG_ARG}" ]]; then
+  CONFIG_PATH="${CONFIG_ARG}"
+elif [[ -f "${PROJECT_DIR}/config/${CONFIG_ARG}" ]]; then
+  CONFIG_PATH="${PROJECT_DIR}/config/${CONFIG_ARG}"
+elif [[ -f "${PROJECT_DIR}/config/dashboard.${CONFIG_ARG}" ]]; then
+  CONFIG_PATH="${PROJECT_DIR}/config/dashboard.${CONFIG_ARG}"
+else
+  echo "Config file not found for argument: ${CONFIG_ARG}" >&2
+  usage
+  exit 1
+fi
 
 cd "${PROJECT_DIR}"
 

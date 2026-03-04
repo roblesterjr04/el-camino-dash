@@ -13,6 +13,7 @@ system:
   left_to_right_spacing_px: 16
   menu_schema_path: config/menu_schema.yaml
   menu_display_id: gauge_right
+  alert_display_id: gauge_center
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.vehicle.json
@@ -57,6 +58,17 @@ inputs:
     - {id: system_amp, enabled: true, adc_type: mcp3008, spi_bus: 0, spi_device: 0, channel: 3, min_raw: 0, max_raw: 1023, scale_min: -100, scale_max: 100}
   speed_sensors:
     - {id: vehicle_speed, enabled: true, gpio_pin: 5, pulses_per_revolution: 20, wheel_circumference_m: 2.1, timeout_ms: 800, smoothing_alpha: 0.35}
+  arduino_serial:
+    enabled: false
+    port: /dev/ttyAMA0
+    baudrate: 115200
+    timeout_s: 0.0
+    wheel_circumference_m: 2.1
+    speed_pulses_per_rev: 1
+    fuel_range: [0, 100]
+    temp_range: [100, 260]
+    oil_range: [0, 100]
+    voltage_range: [10, 16]
   simulated_data:
     enabled: false
     speed_period_s: 8.0
@@ -71,6 +83,9 @@ inputs:
     temp_range: [160, 230]
     amp_range: [-35, 60]
     oil_range: [8, 62]
+    fault_sim_enabled: false
+    fault_cycle_period_s: 5.0
+    fault_codes: [1, 4, 16, 128, 256, 1024]
   keyboard_sim:
     enabled: true
     rotate_repeat_ms: 130
@@ -105,3 +120,4 @@ integrations:
   navit: {enabled: true, executable: navit, args: []}
   media: {enabled: true, music_root: media, startup_track: "", startup_volume: 0.5}
   bluetooth_metadata: {enabled: false, provider: mock}
+  fm_radio: {enabled: false, i2c_bus: 1, address: 17, rst_pin: 17, startup_mode: fm, startup_freq_mhz: 101.3, wb_channel: 1, startup_volume: 45, fm_step_mhz: 0.1}

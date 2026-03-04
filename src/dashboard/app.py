@@ -16,8 +16,24 @@ from dashboard.display.manager import DisplayManager
 from dashboard.input.manager import InputManager
 from dashboard.integrations.bluetooth_metadata import BluetoothMetadataAdapter
 from dashboard.integrations.bluetooth_audio import BluetoothAudioAdapter
+from dashboard.integrations.fm_radio import Si4737RadioAdapter
 from dashboard.integrations.media_player import MediaPlayer
 from dashboard.integrations.navit_adapter import NavitAdapter
+
+
+ARDUINO_FAULT_LABELS: list[tuple[int, str]] = [
+    (1 << 0, "POT OPEN"),
+    (1 << 1, "POT SHORT"),
+    (1 << 2, "TEMP OPEN"),
+    (1 << 3, "TEMP SHORT"),
+    (1 << 4, "PRESS OPEN"),
+    (1 << 5, "PRESS SHORT"),
+    (1 << 6, "VOLT OPEN"),
+    (1 << 7, "VOLT HIGH"),
+    (1 << 8, "HALL MISSING"),
+    (1 << 9, "COIL MISSING"),
+    (1 << 10, "ALT STUCK"),
+]
 
 
 class DashboardApp:
@@ -31,6 +47,7 @@ class DashboardApp:
         self.display_manager: DisplayManager | None = None
         self.input_manager: InputManager | None = None
         self.media: MediaPlayer | None = None
+        self.radio: Si4737RadioAdapter | None = None
         self._values: dict[str, float] = {}
         self._running = False
         self._command_registry: dict[str, Callable[[dict[str, Any]], str | None]] = {}
@@ -54,6 +71,8 @@ class DashboardApp:
         self._last_raw_input_log_s = time.monotonic()
         self._startup_sweep_started_s = time.monotonic()
         self._startup_sweep_complete = False
+        self._fault_latched_word = 0
+        self._fault_last_word = 0
         self._previous_sigint_handler = None
         self._previous_sigterm_handler = None
 
@@ -74,6 +93,8 @@ class DashboardApp:
         self._reset_raw_input_log()
         self.input_manager = InputManager(self.config)
         self.media = MediaPlayer(media_cfg)
+        self.radio = Si4737RadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
+        self.radio.start()
         command_registry = self._build_command_registry()
         self._command_registry = command_registry
         self.display_manager = DisplayManager(
@@ -101,6 +122,8 @@ class DashboardApp:
                 self._log_raw_inputs()
                 self._apply_gauge_smoothing()
                 self._update_runtime_metrics()
+                self._update_alert_states()
+                self._update_fault_registry()
                 self.bluetooth_audio.poll()
                 self._update_startup_sweep()
                 self._reload_config_if_changed()
@@ -113,6 +136,8 @@ class DashboardApp:
             self._persist_odometer(force=True)
             self._persist_theme()
             self.navit.stop()
+            if self.radio:
+                self.radio.stop()
             if self.display_manager:
                 self.display_manager.shutdown()
             self._restore_signal_handlers()
@@ -193,16 +218,31 @@ class DashboardApp:
             if not theme_file.exists():
                 theme_warning = "Theme missing: using fallback"
 
+        active_word = int(self._values.get("arduino.fault_word", 0.0))
+        latched_word = int(self._values.get("arduino.fault_latched_word", 0.0))
+        active_faults = self._fault_labels_for_word(active_word)
+        latched_faults = self._fault_labels_for_word(latched_word)
+        lines = (active_faults or latched_faults)[:3]
+        while len(lines) < 3:
+            lines.append("-")
         return {
             "navit": self.navit.status(),
             "media": self.media.status() if self.media else "disabled",
             "bluetooth": self.bluetooth.status(),
             "bluetooth_audio": self.bluetooth_audio.status(),
+            "fm_radio": self.radio.status() if self.radio else "disabled",
             "theme_warning": theme_warning,
             "system_mode": str(self.config["system"].get("mode", "unknown")),
             "theme_active": str(self.config["themes"].get("active", "unknown")),
             "center_dial_mode": self._current_center_dial_mode(),
             "map_view_visible": "on" if bool(self.config.get("system", {}).get("map_view_visible", False)) else "off",
+            "fault_status": "ACTIVE" if active_faults else ("LATCHED" if latched_faults else "CLEAR"),
+            "fault_active_count": str(len(active_faults)),
+            "fault_latched_count": str(len(latched_faults)),
+            "fault_code_1": lines[0],
+            "fault_code_2": lines[1],
+            "fault_code_3": lines[2],
+            "fault_headline": lines[0] if lines[0] != "-" else "Fault detected",
         }
 
     def _update_runtime_metrics(self) -> None:
@@ -213,6 +253,34 @@ class DashboardApp:
         miles_delta = speed_mph * (dt / 3600.0)
         self._values["vehicle.odometer_miles"] = float(self._values.get("vehicle.odometer_miles", 0.0)) + miles_delta
         self._persist_odometer(force=False)
+
+    def _update_alert_states(self) -> None:
+        system_cfg = self.config.get("system", {})
+        enabled = bool(system_cfg.get("low_oil_pressure_alert_enabled", True))
+        source = str(system_cfg.get("low_oil_pressure_source", "analog_inputs.oil_pressure")).strip()
+        threshold = float(system_cfg.get("low_oil_pressure_threshold", 20.0))
+        if (not enabled) or (not source):
+            self._values["alerts.low_oil_pressure"] = 0.0
+            return
+        pressure = float(self._values.get(source, 0.0))
+        self._values["alerts.low_oil_pressure"] = 1.0 if pressure < threshold else 0.0
+
+    def _update_fault_registry(self) -> None:
+        active_word = int(self._values.get("arduino.fault_word", 0.0))
+        self._fault_last_word = active_word
+        if active_word != 0:
+            self._fault_latched_word |= active_word
+        self._values["arduino.fault_active_word"] = float(active_word)
+        self._values["arduino.fault_latched_word"] = float(self._fault_latched_word)
+        self._values["arduino.fault_active_count"] = float(len(self._fault_labels_for_word(active_word)))
+        self._values["arduino.fault_latched_count"] = float(len(self._fault_labels_for_word(self._fault_latched_word)))
+
+    def _fault_labels_for_word(self, word: int) -> list[str]:
+        labels = [label for bit, label in ARDUINO_FAULT_LABELS if word & bit]
+        unknown_bits = word & (~sum(bit for bit, _ in ARDUINO_FAULT_LABELS))
+        if unknown_bits:
+            labels.append(f"UNKNOWN 0x{unknown_bits:X}")
+        return labels
 
     def _update_startup_sweep(self) -> None:
         if self._startup_sweep_complete:
@@ -327,10 +395,19 @@ class DashboardApp:
             "media.next": self._cmd_media_next,
             "media.stop": self._cmd_media_stop,
             "media.set_volume": self._cmd_media_set_volume,
+            "radio.fm_mode": self._cmd_radio_fm_mode,
+            "radio.wb_mode": self._cmd_radio_wb_mode,
+            "radio.seek_up": self._cmd_radio_seek_up,
+            "radio.seek_down": self._cmd_radio_seek_down,
+            "radio.tune_up": self._cmd_radio_tune_up,
+            "radio.tune_down": self._cmd_radio_tune_down,
+            "radio.set_volume": self._cmd_radio_set_volume,
+            "radio.mute_toggle": self._cmd_radio_mute_toggle,
             "bluetooth_audio.reconnect": self._cmd_bluetooth_audio_reconnect,
             "theme.next": self._cmd_theme_next,
             "center_dial_mode.toggle": self._cmd_center_dial_mode_toggle,
             "map_view.toggle": self._cmd_map_view_toggle,
+            "faults.clear": self._cmd_faults_clear,
             "app.restart": self._cmd_app_restart,
         }
 
@@ -358,6 +435,10 @@ class DashboardApp:
             self.navit.stop()
         self.bluetooth_audio = BluetoothAudioAdapter(self.config["integrations"].get("bluetooth_audio", {"enabled": False}))
         self.bluetooth_audio.start()
+        if self.radio:
+            self.radio.stop()
+        self.radio = Si4737RadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
+        self.radio.start()
         if self.display_manager and self._command_registry:
             self.display_manager.shutdown()
             self.display_manager = DisplayManager(
@@ -449,6 +530,58 @@ class DashboardApp:
         self.bluetooth_audio.reconnect()
         return f"Bluetooth audio: {self.bluetooth_audio.status()}"
 
+    def _cmd_radio_fm_mode(self, _: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        return f"Radio: {self.radio.fm_mode()}"
+
+    def _cmd_radio_wb_mode(self, payload: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        channel = payload.get("value")
+        try:
+            parsed_channel = int(channel) if channel is not None else None
+        except (TypeError, ValueError):
+            parsed_channel = None
+        return f"Radio: {self.radio.wb_mode(parsed_channel)}"
+
+    def _cmd_radio_seek_up(self, _: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        return f"Radio: {self.radio.seek_up()}"
+
+    def _cmd_radio_seek_down(self, _: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        return f"Radio: {self.radio.seek_down()}"
+
+    def _cmd_radio_tune_up(self, _: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        step = float(self.config["integrations"].get("fm_radio", {}).get("fm_step_mhz", 0.1))
+        return f"Radio: {self.radio.tune_step(abs(step))}"
+
+    def _cmd_radio_tune_down(self, _: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        step = float(self.config["integrations"].get("fm_radio", {}).get("fm_step_mhz", 0.1))
+        return f"Radio: {self.radio.tune_step(-abs(step))}"
+
+    def _cmd_radio_set_volume(self, payload: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        default_volume = self.config["integrations"].get("fm_radio", {}).get("startup_volume", 45)
+        try:
+            volume = int(float(payload.get("value", default_volume)))
+        except (TypeError, ValueError):
+            volume = int(default_volume)
+        return f"Radio: {self.radio.set_volume(volume)}"
+
+    def _cmd_radio_mute_toggle(self, _: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        return f"Radio: {self.radio.toggle_mute()}"
+
     def _cmd_app_restart(self, _: dict[str, Any]) -> str:
         self._running = False
         return "Stopping app (restart requested)"
@@ -510,6 +643,15 @@ class DashboardApp:
         self.config.setdefault("system", {})["map_view_visible"] = next_visible
         self._refresh_runtime_components()
         return f"Map view: {'on' if next_visible else 'off'}"
+
+    def _cmd_faults_clear(self, _: dict[str, Any]) -> str:
+        self._fault_latched_word = 0
+        self._values["arduino.fault_latched_word"] = 0.0
+        self._values["arduino.fault_latched_count"] = 0.0
+        active_word = int(self._values.get("arduino.fault_word", 0.0))
+        if active_word != 0:
+            return "Faults cleared (active fault still present)"
+        return "Faults cleared"
 
     def _center_mode_from_theme_data(self, theme_data: dict[str, Any]) -> str:
         mode_cfg = theme_data.get("center_dial_mode", "tach")

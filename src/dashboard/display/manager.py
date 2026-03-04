@@ -13,6 +13,7 @@ from dashboard.screens.gauge_screen import GaugeScreen
 from dashboard.screens.layout import DisplayLayout
 from dashboard.screens.map_screen import MapScreen
 from dashboard.screens.menu_overlay import MenuOverlayController
+from dashboard.screens.warning_overlay import WarningOverlayScreen
 
 
 @dataclass
@@ -46,6 +47,8 @@ class DisplayManager:
         self._layouts = self._build_layouts()
         self._menu_display_id = self._resolve_menu_display_id()
         self._menu_layout = self._resolve_menu_layout()
+        self._alert_display_id = self._resolve_alert_display_id()
+        self._alert_layout = self._resolve_alert_layout()
         self._menu_overlay = MenuOverlayController(
             layout=self._menu_layout,
             config=self._config,
@@ -53,6 +56,7 @@ class DisplayManager:
             command_registry=self._command_registry,
             on_runtime_refresh=self._on_runtime_refresh,
         )
+        self._warning_overlay = WarningOverlayScreen(layout=self._alert_layout, config=self._config)
         self._bindings = self._build_bindings()
         self._map_overlays = self._build_map_overlays()
         self._render_mode = self._resolve_render_mode()
@@ -159,6 +163,12 @@ class DisplayManager:
         if self._menu_overlay_visible(layout):
             overlay = pygame.Surface(layout.size, pygame.SRCALPHA)
             self._menu_overlay.render(overlay, status=status)
+            child.blit(overlay, (0, 0))
+        if self._warning_overlay_visible(layout, values):
+            overlay = pygame.Surface(layout.size, pygame.SRCALPHA)
+            active_count = int(values.get("arduino.fault_latched_count", values.get("arduino.fault_active_count", 0.0)))
+            headline = str(status.get("fault_headline", "Fault detected"))
+            self._warning_overlay.render(overlay, active_count=active_count, headline=headline)
             child.blit(overlay, (0, 0))
         return child
 
@@ -338,6 +348,35 @@ class DisplayManager:
             gauge_id=None,
         )
 
+    def _resolve_alert_display_id(self) -> str:
+        configured = str(self._config.get("system", {}).get("alert_display_id", "gauge_center"))
+        known_ids = {layout.display_id for layout in self._layouts}
+        if configured in known_ids:
+            return configured
+        if "gauge_center" in known_ids:
+            return "gauge_center"
+        if self._layouts:
+            return self._layouts[0].display_id
+        return configured
+
+    def _resolve_alert_layout(self) -> DisplayLayout:
+        for layout in self._layouts:
+            if layout.display_id == self._alert_display_id:
+                return layout
+        if self._layouts:
+            return self._layouts[0]
+        return DisplayLayout(
+            display_id=self._alert_display_id,
+            role="gauge",
+            shape="round",
+            width=640,
+            height=480,
+            x=0,
+            y=0,
+            fps=30,
+            gauge_id=None,
+        )
+
     def _build_map_overlays(self) -> dict[str, MapScreen]:
         overlays: dict[str, MapScreen] = {}
         for layout in self._layouts:
@@ -354,6 +393,12 @@ class DisplayManager:
 
     def _menu_overlay_visible(self, layout: DisplayLayout) -> bool:
         return self._menu_overlay.visible and layout.display_id == self._menu_display_id
+
+    def _warning_overlay_visible(self, layout: DisplayLayout, values: dict[str, float]) -> bool:
+        if layout.display_id != self._alert_display_id:
+            return False
+        active_count = int(values.get("arduino.fault_latched_count", values.get("arduino.fault_active_count", 0.0)))
+        return active_count > 0
 
     def _window_size(self) -> tuple[int, int]:
         if not self._layouts:

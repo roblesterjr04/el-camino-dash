@@ -67,4 +67,12 @@ class SimulatedDataInput:
                 # Alternate mode creates visible motion in demo mode.
                 updates["indicators.turn_left"] = blink_on
                 updates["indicators.turn_right"] = 1.0 - blink_on
+        if bool(self._spec.get("fault_sim_enabled", False)):
+            codes_raw = self._spec.get("fault_codes", [1, 4, 16, 128, 256, 1024])
+            codes = [int(code) for code in codes_raw if int(code) >= 0]
+            if codes:
+                cycle_period = max(0.2, float(self._spec.get("fault_cycle_period_s", 5.0)))
+                phase = int(elapsed / cycle_period) % (len(codes) + 1)
+                fault_word = 0 if phase == len(codes) else int(codes[phase])
+                updates["arduino.fault_word"] = float(fault_word)
         return updates

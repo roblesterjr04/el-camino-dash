@@ -201,6 +201,24 @@ bash scripts/verify_install.sh
 
 Each legacy install script supports `--dry-run`.
 
+## Arduino sketches and flashing
+
+Arduino firmware and helper tooling now live under `arduino/`.
+
+- Entry point docs: `arduino/README.md`
+- First sketch: `arduino/sketches/sensor_pack/sensor_pack.ino`
+- CLI setup script (Homebrew): `arduino/scripts/install_arduino_cli.sh`
+- Compile helper: `arduino/scripts/compile_sensor_pack.sh`
+- Upload helper: `arduino/scripts/upload_sensor_pack.sh`
+
+Quick start:
+
+```bash
+bash arduino/scripts/install_arduino_cli.sh
+bash arduino/scripts/compile_sensor_pack.sh
+bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
+```
+
 ## Troubleshooting
 
 - Service status: `systemctl status el-camino-dash.service`

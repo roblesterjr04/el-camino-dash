@@ -675,8 +675,12 @@ class GaugeScreen:
         center_y = self.layout.height // 2
         radius = int(min(self.layout.width, self.layout.height) * float(cfg.get("panel_radius_ratio", 0.45)))
         radius = max(24, radius)
-        pygame.draw.circle(surface, panel_bg, (center_x, center_y), radius)
-        pygame.draw.circle(surface, panel_border, (center_x, center_y), radius, width=max(2, radius // 40))
+        show_panel = bool(cfg.get("show_panel", True))
+        show_panel_border = bool(cfg.get("show_panel_border", True))
+        if show_panel:
+            pygame.draw.circle(surface, panel_bg, (center_x, center_y), radius)
+        if show_panel_border:
+            pygame.draw.circle(surface, panel_border, (center_x, center_y), radius, width=max(2, radius // 40))
 
         preferred_font = str(cfg.get("font_name", ""))
         label_font = self._digital_font(max(14, int(self.layout.height * float(cfg.get("label_scale", 0.08)))), preferred_font)
@@ -709,7 +713,8 @@ class GaugeScreen:
             surface.blit(unit_surface, unit_rect)
 
         secondary = self._secondary_label(spec, values_source_map=values)
-        if secondary and show_primary_readout:
+        show_secondary_readout = bool(cfg.get("show_secondary_readout", True))
+        if secondary and show_primary_readout and show_secondary_readout:
             secondary_surface = aux_font.render(secondary, True, text_color)
             secondary_rect = secondary_surface.get_rect(midtop=(center_x, unit_rect.bottom + 4))
             surface.blit(secondary_surface, secondary_rect)
@@ -873,6 +878,7 @@ class GaugeScreen:
                     fill_color=fill_color,
                     empty_color=empty_color,
                     reverse=bool(sub.get("reverse_fill", False)),
+                    slant_px=int(min_dim * float(sub.get("bar_slant_ratio", 0.0))),
                     rainbow=bool(sub.get("rainbow", False)),
                     rainbow_invert=bool(sub.get("rainbow_invert", False)),
                     redline_cfg=sub.get("redline", {}),
@@ -1075,6 +1081,7 @@ class GaugeScreen:
         fill_color: tuple[int, int, int],
         empty_color: tuple[int, int, int],
         reverse: bool = False,
+        slant_px: int = 0,
         rainbow: bool = False,
         rainbow_invert: bool = False,
         rainbow_colors: list[tuple[int, int, int]] | None = None,
@@ -1103,10 +1110,15 @@ class GaugeScreen:
             palette = []
         if vertical:
             segment_h = max(1, int((rect.height - ((segments - 1) * gap_px)) / segments))
+            slant_px = int(slant_px)
+            usable_w = max(1, rect.width - abs(slant_px))
+            slant_base_x = rect.left + max(0, -slant_px)
             for idx in range(segments):
                 draw_idx = (segments - 1 - idx) if reverse else idx
                 seg_y = rect.top + (draw_idx * (segment_h + gap_px))
-                seg_rect = pygame.Rect(rect.left, seg_y, rect.width, segment_h)
+                row_ratio = 0.0 if segments <= 1 else (draw_idx / (segments - 1))
+                x_offset = int(round((1.0 - row_ratio) * slant_px))
+                seg_rect = pygame.Rect(slant_base_x + x_offset, seg_y, usable_w, segment_h)
                 is_filled = idx < filled
                 logical_idx = (segments - 1 - idx) if reverse else idx
                 segment_ratio = 0.0 if segments <= 1 else (logical_idx / (segments - 1))

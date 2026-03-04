@@ -5,6 +5,7 @@ from typing import Any
 import pygame
 
 from dashboard.input.analog_adc import AnalogAdcInput
+from dashboard.input.arduino_serial import ArduinoSerialInput
 from dashboard.input.gpio_buttons import GpioButtonInput
 from dashboard.input.keyboard_sim import KeyboardSimInput
 from dashboard.input.rotary_encoder import RotaryEncoderInput
@@ -19,6 +20,7 @@ class InputManager:
         self._gpio_buttons = GpioButtonInput(input_cfg.get("gpio_buttons", {"enabled": False}))
         self._analog = [AnalogAdcInput(spec) for spec in input_cfg["analog_inputs"] if spec.get("enabled", False)]
         self._speed = [SpeedSensorInput(spec) for spec in input_cfg["speed_sensors"] if spec.get("enabled", False)]
+        self._arduino_serial = ArduinoSerialInput(input_cfg.get("arduino_serial", {"enabled": False}))
         self._simulated = SimulatedDataInput(input_cfg["simulated_data"])
         self._keyboard = KeyboardSimInput(input_cfg["keyboard_sim"])
         self._keyboard_enabled = bool(input_cfg["keyboard_sim"].get("enabled", False))
@@ -36,6 +38,7 @@ class InputManager:
         for source in self._speed:
             values.update(source.poll())
         values.update(self._simulated.poll())
+        values.update(self._arduino_serial.poll())
 
         pressed = pygame.key.get_pressed()
         if self._keyboard_enabled and self._keyboard_active:

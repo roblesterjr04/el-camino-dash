@@ -15,6 +15,11 @@ menu:
           type: submenu
           target_page: media
           icon: media
+        - id: radio_page
+          label: Radio
+          type: submenu
+          target_page: radio
+          icon: media
         - id: inputs_page
           label: Inputs
           type: submenu
@@ -25,6 +30,11 @@ menu:
           type: submenu
           target_page: system
           icon: gear
+        - id: alerts_page
+          label: Alerts
+          type: submenu
+          target_page: alerts
+          icon: alert
 
     - id: now
       title: Now
@@ -87,6 +97,66 @@ menu:
           step: 0.05
           apply_mode: immediate
           on_change_command: media.set_volume
+
+    - id: radio
+      title: Radio
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: radio_status
+          label: Status
+          type: info
+          status_key: fm_radio
+        - id: radio_fm_mode
+          label: FM Mode
+          type: action
+          command: radio.fm_mode
+        - id: radio_wb_mode
+          label: Weather Mode
+          type: action
+          command: radio.wb_mode
+        - id: radio_seek_up
+          label: Seek Up
+          type: action
+          command: radio.seek_up
+        - id: radio_seek_down
+          label: Seek Down
+          type: action
+          command: radio.seek_down
+        - id: radio_tune_up
+          label: Tune +Step
+          type: action
+          command: radio.tune_up
+        - id: radio_tune_down
+          label: Tune -Step
+          type: action
+          command: radio.tune_down
+        - id: radio_mute_toggle
+          label: Mute Toggle
+          type: action
+          command: radio.mute_toggle
+        - id: radio_volume
+          label: Volume
+          type: range
+          config_path: integrations.fm_radio.startup_volume
+          value_type: int
+          min: 0
+          max: 63
+          step: 1
+          apply_mode: immediate
+          on_change_command: radio.set_volume
+        - id: radio_wb_channel
+          label: WB Channel
+          type: range
+          config_path: integrations.fm_radio.wb_channel
+          value_type: int
+          min: 1
+          max: 7
+          step: 1
+          apply_mode: immediate
+          on_change_command: radio.wb_mode
 
     - id: inputs
       title: Inputs
@@ -158,3 +228,39 @@ menu:
           label: Restart App
           type: action
           command: app.restart
+
+    - id: alerts
+      title: Alerts
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: fault_status
+          label: Status
+          type: info
+          status_key: fault_status
+        - id: fault_active_count
+          label: Active
+          type: info
+          status_key: fault_active_count
+        - id: fault_latched_count
+          label: Latched
+          type: info
+          status_key: fault_latched_count
+        - id: fault_code_1
+          label: Fault 1
+          type: info
+          status_key: fault_code_1
+        - id: fault_code_2
+          label: Fault 2
+          type: info
+          status_key: fault_code_2
+        - id: fault_code_3
+          label: Fault 3
+          type: info
+          status_key: fault_code_3
+        - id: fault_clear
+          label: Clear Faults
+          type: action
+          command: faults.clear

@@ -14,9 +14,10 @@ from dashboard.screens.layout import DisplayLayout
 
 
 class MenuOverlayScreen:
-    def __init__(self, layout: DisplayLayout, config: dict[str, Any]) -> None:
+    def __init__(self, layout: DisplayLayout, config: dict[str, Any], close_enabled: bool) -> None:
         self.layout = layout
         self.config = config
+        self._close_enabled = close_enabled
         self._compact = min(layout.width, layout.height) <= 260
         if self._compact:
             title_size = max(14, layout.height // 18)
@@ -42,8 +43,11 @@ class MenuOverlayScreen:
             self._render_home_carousel(surface, model, content_rect, body_top)
         else:
             self._render_list(surface, model, content_rect, body_top)
-        close_hint = "x2:Close" if self._compact else "Double press: Close"
-        footer = self._tiny_font.render(f"{model.footer}  {close_hint}", True, (218, 196, 136))
+        close_hint = ""
+        if self._close_enabled:
+            close_hint = "x2:Close" if self._compact else "Double press: Close"
+        footer_text = f"{model.footer}  {close_hint}".strip()
+        footer = self._tiny_font.render(footer_text, True, (218, 196, 136))
         footer_y = content_rect.bottom - footer.get_height() - (4 if self._compact else 10)
         surface.blit(footer, (content_rect.x, footer_y))
         if model.message:
@@ -174,6 +178,22 @@ class MenuOverlayScreen:
                 outer = (cx + int(math.cos(angle) * (gear_r + int(radius * 0.18))), cy + int(math.sin(angle) * (gear_r + int(radius * 0.18))))
                 pygame.draw.line(surface, color, inner, outer, width=max(2, width - 1))
             return
+        if icon in {"alert", "alerts", "warning", "fault", "alerts_page"}:
+            tri = [
+                (cx, cy - int(radius * 0.9)),
+                (cx - int(radius * 0.9), cy + int(radius * 0.8)),
+                (cx + int(radius * 0.9), cy + int(radius * 0.8)),
+            ]
+            pygame.draw.polygon(surface, color, tri, width=max(2, width))
+            pygame.draw.line(
+                surface,
+                color,
+                (cx, cy - int(radius * 0.25)),
+                (cx, cy + int(radius * 0.3)),
+                width=max(2, width - 1),
+            )
+            pygame.draw.circle(surface, color, (cx, cy + int(radius * 0.55)), max(2, radius // 8), width=0)
+            return
         token = (icon_id or "?").strip().upper()[:3] or "?"
         glyph = self._small_font.render(token, True, color)
         surface.blit(glyph, glyph.get_rect(center=(cx, cy)))
@@ -216,14 +236,23 @@ class MenuOverlayController:
         command_registry: dict[str, Callable[[dict[str, Any]], str | None]],
         on_runtime_refresh: Callable[[], None] | None = None,
     ) -> None:
+        system_cfg = config.get("system", {})
+        keyboard_sim_cfg = config.get("inputs", {}).get("keyboard_sim", {})
+        keyboard_sim_active = bool(keyboard_sim_cfg.get("enabled", False))
+        simulation_mode = str(system_cfg.get("mode", "")).strip().lower() == "simulation"
+        default_close_ms = 0 if (simulation_mode and keyboard_sim_active) else 450
         self._visible = False
         self._input_initialized = False
         self._last_press_count = 0
         self._last_press_tick_ms = -1000
-        self._close_double_press_ms = 450
+        self._close_double_press_ms = max(0, int(system_cfg.get("menu_close_double_press_ms", default_close_ms)))
         self._menu_error = ""
         self._menu: ControlMenuController | None = None
-        self._screen = MenuOverlayScreen(layout=layout, config=config)
+        self._screen = MenuOverlayScreen(
+            layout=layout,
+            config=config,
+            close_enabled=self._close_double_press_ms > 0,
+        )
         schema_path = config["system"].get("menu_schema_path", "config/menu_schema.yaml")
         try:
             schema = load_menu_schema(
@@ -257,15 +286,22 @@ class MenuOverlayController:
         if press_count < self._last_press_count:
             self._last_press_count = press_count
         new_presses = max(0, press_count - self._last_press_count)
-        if self._visible and self._menu and delta != 0:
+        if new_presses > 0:
+            # Treat select as edge-triggered once per frame. This prevents a
+            # single key press from being interpreted as multiple activations.
+            new_presses = 1
+        # Prioritize press events over rotate in the same frame so a lingering
+        # rotate input (e.g. keyboard key release timing) does not shift the
+        # highlighted item just before activation.
+        if self._visible and self._menu and delta != 0 and new_presses == 0:
             self._menu.rotate(delta)
-        for _ in range(new_presses):
-            if not self._visible:
-                self._visible = True
-                self._last_press_tick_ms = pygame.time.get_ticks()
-                continue
+        if new_presses > 0 and not self._visible:
+            # Opening the overlay should never cascade into immediate selection.
+            self._visible = True
+            self._last_press_tick_ms = pygame.time.get_ticks()
+        elif new_presses > 0:
             now_ms = pygame.time.get_ticks()
-            if now_ms - self._last_press_tick_ms <= self._close_double_press_ms:
+            if self._close_double_press_ms > 0 and now_ms - self._last_press_tick_ms <= self._close_double_press_ms:
                 self._hide_overlay()
             elif self._menu:
                 self._menu.press(status)

@@ -143,7 +143,7 @@ def _validate_gauges(gauges: dict[str, Any]) -> None:
 
 def _validate_inputs(inputs: dict[str, Any]) -> None:
     required_sections = {"rotary_encoders", "analog_inputs", "speed_sensors", "simulated_data", "keyboard_sim"}
-    allowed_sections = required_sections | {"gpio_buttons"}
+    allowed_sections = required_sections | {"gpio_buttons", "arduino_serial"}
     _expect_keys("inputs", inputs, required_sections, allowed_sections)
     for section in ("rotary_encoders", "analog_inputs", "speed_sensors"):
         _expect_type(f"inputs.{section}", inputs[section], list)
@@ -153,6 +153,53 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 _fail(f"inputs.{section}[{idx}]", "missing key 'id'")
             if section == "rotary_encoders" and "button_debounce_ms" in item:
                 _expect_type(f"inputs.{section}[{idx}].button_debounce_ms", item["button_debounce_ms"], (int, float))
+    if "arduino_serial" in inputs:
+        _expect_type("inputs.arduino_serial", inputs["arduino_serial"], dict)
+        _expect_keys(
+            "inputs.arduino_serial",
+            inputs["arduino_serial"],
+            {"enabled"},
+            {
+                "enabled",
+                "port",
+                "baudrate",
+                "timeout_s",
+                "wheel_circumference_m",
+                "speed_pulses_per_rev",
+                "fuel_range",
+                "temp_range",
+                "oil_range",
+                "voltage_range",
+            },
+        )
+        _expect_type("inputs.arduino_serial.enabled", inputs["arduino_serial"]["enabled"], bool)
+        if "port" in inputs["arduino_serial"]:
+            _expect_type("inputs.arduino_serial.port", inputs["arduino_serial"]["port"], str)
+        if "baudrate" in inputs["arduino_serial"]:
+            _expect_type("inputs.arduino_serial.baudrate", inputs["arduino_serial"]["baudrate"], int)
+        if "timeout_s" in inputs["arduino_serial"]:
+            _expect_type("inputs.arduino_serial.timeout_s", inputs["arduino_serial"]["timeout_s"], (int, float))
+        if "wheel_circumference_m" in inputs["arduino_serial"]:
+            _expect_type(
+                "inputs.arduino_serial.wheel_circumference_m",
+                inputs["arduino_serial"]["wheel_circumference_m"],
+                (int, float),
+            )
+        if "speed_pulses_per_rev" in inputs["arduino_serial"]:
+            _expect_type(
+                "inputs.arduino_serial.speed_pulses_per_rev",
+                inputs["arduino_serial"]["speed_pulses_per_rev"],
+                (int, float),
+            )
+        for key in ("fuel_range", "temp_range", "oil_range", "voltage_range"):
+            if key not in inputs["arduino_serial"]:
+                continue
+            path = f"inputs.arduino_serial.{key}"
+            _expect_type(path, inputs["arduino_serial"][key], list)
+            if len(inputs["arduino_serial"][key]) != 2:
+                _fail(path, "must contain [min, max]")
+            _expect_type(f"{path}[0]", inputs["arduino_serial"][key][0], (int, float))
+            _expect_type(f"{path}[1]", inputs["arduino_serial"][key][1], (int, float))
     _expect_type("inputs.keyboard_sim", inputs["keyboard_sim"], dict)
     _expect_keys(
         "inputs.keyboard_sim",
@@ -233,6 +280,9 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             "turn_signal_period_s",
             "turn_signal_duty_cycle",
             "turn_signal_mode",
+            "fault_sim_enabled",
+            "fault_cycle_period_s",
+            "fault_codes",
         },
     )
     _expect_type("inputs.simulated_data.enabled", inputs["simulated_data"]["enabled"], bool)
@@ -257,6 +307,14 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
         )
     if "turn_signal_mode" in inputs["simulated_data"]:
         _expect_type("inputs.simulated_data.turn_signal_mode", inputs["simulated_data"]["turn_signal_mode"], str)
+    if "fault_sim_enabled" in inputs["simulated_data"]:
+        _expect_type("inputs.simulated_data.fault_sim_enabled", inputs["simulated_data"]["fault_sim_enabled"], bool)
+    if "fault_cycle_period_s" in inputs["simulated_data"]:
+        _expect_type("inputs.simulated_data.fault_cycle_period_s", inputs["simulated_data"]["fault_cycle_period_s"], (int, float))
+    if "fault_codes" in inputs["simulated_data"]:
+        _expect_type("inputs.simulated_data.fault_codes", inputs["simulated_data"]["fault_codes"], list)
+        for idx, code in enumerate(inputs["simulated_data"]["fault_codes"]):
+            _expect_type(f"inputs.simulated_data.fault_codes[{idx}]", code, int)
     for key in ("speed_range", "rpm_range", "fuel_range"):
         path = f"inputs.simulated_data.{key}"
         _expect_type(path, inputs["simulated_data"][key], list)
@@ -277,7 +335,7 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
 
 def _validate_integrations(integrations: dict[str, Any]) -> None:
     required_sections = {"navit", "media", "bluetooth_metadata"}
-    allowed_sections = required_sections | {"bluetooth_audio"}
+    allowed_sections = required_sections | {"bluetooth_audio", "fm_radio"}
     _expect_keys("integrations", integrations, required_sections, allowed_sections)
     for section in required_sections:
         _expect_type(f"integrations.{section}", integrations[section], dict)
@@ -317,6 +375,42 @@ def _validate_integrations(integrations: dict[str, Any]) -> None:
             _expect_type("integrations.bluetooth_audio.sink_name", bt_audio["sink_name"], str)
         if "refresh_interval_s" in bt_audio:
             _expect_type("integrations.bluetooth_audio.refresh_interval_s", bt_audio["refresh_interval_s"], (int, float))
+    if "fm_radio" in integrations:
+        fm_radio = integrations["fm_radio"]
+        _expect_type("integrations.fm_radio", fm_radio, dict)
+        _expect_keys(
+            "integrations.fm_radio",
+            fm_radio,
+            {"enabled"},
+            {
+                "enabled",
+                "i2c_bus",
+                "address",
+                "rst_pin",
+                "startup_mode",
+                "startup_freq_mhz",
+                "wb_channel",
+                "startup_volume",
+                "fm_step_mhz",
+            },
+        )
+        _expect_type("integrations.fm_radio.enabled", fm_radio["enabled"], bool)
+        if "i2c_bus" in fm_radio:
+            _expect_type("integrations.fm_radio.i2c_bus", fm_radio["i2c_bus"], int)
+        if "address" in fm_radio:
+            _expect_type("integrations.fm_radio.address", fm_radio["address"], int)
+        if "rst_pin" in fm_radio:
+            _expect_type("integrations.fm_radio.rst_pin", fm_radio["rst_pin"], int)
+        if "startup_mode" in fm_radio:
+            _expect_type("integrations.fm_radio.startup_mode", fm_radio["startup_mode"], str)
+        if "startup_freq_mhz" in fm_radio:
+            _expect_type("integrations.fm_radio.startup_freq_mhz", fm_radio["startup_freq_mhz"], (int, float))
+        if "wb_channel" in fm_radio:
+            _expect_type("integrations.fm_radio.wb_channel", fm_radio["wb_channel"], int)
+        if "startup_volume" in fm_radio:
+            _expect_type("integrations.fm_radio.startup_volume", fm_radio["startup_volume"], (int, float))
+        if "fm_step_mhz" in fm_radio:
+            _expect_type("integrations.fm_radio.fm_step_mhz", fm_radio["fm_step_mhz"], (int, float))
 
 
 def _validate_system(system: dict[str, Any]) -> None:
