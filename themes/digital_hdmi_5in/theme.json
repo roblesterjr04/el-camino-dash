@@ -78,7 +78,7 @@
         "center_ratio": [0.80, 0.56],
         "bar_width_ratio": 0.20,
         "bar_height_ratio": 0.62,
-        "bar_slant_ratio": 0.09,
+        "bar_slant_ratio": -0.09,
         "bar_segments": 18,
         "bar_gap_px": 2,
         "show_label": false,

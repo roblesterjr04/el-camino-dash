@@ -143,7 +143,7 @@ def _validate_gauges(gauges: dict[str, Any]) -> None:
 
 def _validate_inputs(inputs: dict[str, Any]) -> None:
     required_sections = {"rotary_encoders", "analog_inputs", "speed_sensors", "simulated_data", "keyboard_sim"}
-    allowed_sections = required_sections | {"gpio_buttons", "arduino_serial"}
+    allowed_sections = required_sections | {"gpio_buttons", "mcp23017_controls", "arduino_serial", "ir_remote"}
     _expect_keys("inputs", inputs, required_sections, allowed_sections)
     for section in ("rotary_encoders", "analog_inputs", "speed_sensors"):
         _expect_type(f"inputs.{section}", inputs[section], list)
@@ -170,6 +170,10 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 "temp_range",
                 "oil_range",
                 "voltage_range",
+                "fuel_raw_range",
+                "temp_raw_range",
+                "oil_raw_range",
+                "voltage_raw_range",
             },
         )
         _expect_type("inputs.arduino_serial.enabled", inputs["arduino_serial"]["enabled"], bool)
@@ -191,7 +195,16 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 inputs["arduino_serial"]["speed_pulses_per_rev"],
                 (int, float),
             )
-        for key in ("fuel_range", "temp_range", "oil_range", "voltage_range"):
+        for key in (
+            "fuel_range",
+            "temp_range",
+            "oil_range",
+            "voltage_range",
+            "fuel_raw_range",
+            "temp_raw_range",
+            "oil_raw_range",
+            "voltage_raw_range",
+        ):
             if key not in inputs["arduino_serial"]:
                 continue
             path = f"inputs.arduino_serial.{key}"
@@ -256,6 +269,103 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             _expect_type("inputs.gpio_buttons.left_delta", inputs["gpio_buttons"]["left_delta"], (int, float))
         if "debounce_ms" in inputs["gpio_buttons"]:
             _expect_type("inputs.gpio_buttons.debounce_ms", inputs["gpio_buttons"]["debounce_ms"], (int, float))
+
+    if "mcp23017_controls" in inputs:
+        _expect_type("inputs.mcp23017_controls", inputs["mcp23017_controls"], dict)
+        _expect_keys(
+            "inputs.mcp23017_controls",
+            inputs["mcp23017_controls"],
+            {"enabled"},
+            {
+                "enabled",
+                "i2c_bus",
+                "address",
+                "pull_up",
+                "debounce_ms",
+                "rotary_debounce_ms",
+                "rotary_counts_per_step",
+                "button_debounce_ms",
+                "left_delta",
+                "menu_pin_a",
+                "menu_pin_b",
+                "menu_pin_button",
+                "aux_pin_a",
+                "aux_pin_b",
+                "aux_pin_button",
+                "menu_left_pin",
+                "menu_select_pin",
+                "menu_acceleration",
+                "aux_acceleration",
+                "invert_menu_direction",
+                "invert_aux_direction",
+            },
+        )
+        _expect_type("inputs.mcp23017_controls.enabled", inputs["mcp23017_controls"]["enabled"], bool)
+        for key in (
+            "i2c_bus",
+            "address",
+            "menu_pin_a",
+            "menu_pin_b",
+            "menu_pin_button",
+            "aux_pin_a",
+            "aux_pin_b",
+            "aux_pin_button",
+            "menu_left_pin",
+            "menu_select_pin",
+        ):
+            if key in inputs["mcp23017_controls"]:
+                _expect_type(f"inputs.mcp23017_controls.{key}", inputs["mcp23017_controls"][key], int)
+        for key in ("pull_up", "invert_menu_direction", "invert_aux_direction"):
+            if key in inputs["mcp23017_controls"]:
+                _expect_type(f"inputs.mcp23017_controls.{key}", inputs["mcp23017_controls"][key], bool)
+        for key in (
+            "debounce_ms",
+            "rotary_debounce_ms",
+            "button_debounce_ms",
+            "rotary_counts_per_step",
+            "left_delta",
+            "menu_acceleration",
+            "aux_acceleration",
+        ):
+            if key in inputs["mcp23017_controls"]:
+                _expect_type(f"inputs.mcp23017_controls.{key}", inputs["mcp23017_controls"][key], (int, float))
+
+    if "ir_remote" in inputs:
+        _expect_type("inputs.ir_remote", inputs["ir_remote"], dict)
+        _expect_keys(
+            "inputs.ir_remote",
+            inputs["ir_remote"],
+            {"enabled"},
+            {
+                "enabled",
+                "profile_path",
+                "device_path",
+                "device_name",
+                "allow_repeats",
+                "diagnostics_pulse_count",
+                "diagnostics_window_ms",
+                "diagnostics_max_gap_ms",
+            },
+        )
+        _expect_type("inputs.ir_remote.enabled", inputs["ir_remote"]["enabled"], bool)
+        if "profile_path" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.profile_path", inputs["ir_remote"]["profile_path"], str)
+        if "device_path" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.device_path", inputs["ir_remote"]["device_path"], str)
+        if "device_name" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.device_name", inputs["ir_remote"]["device_name"], str)
+        if "allow_repeats" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.allow_repeats", inputs["ir_remote"]["allow_repeats"], bool)
+        if "diagnostics_pulse_count" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.diagnostics_pulse_count", inputs["ir_remote"]["diagnostics_pulse_count"], int)
+        if "diagnostics_window_ms" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.diagnostics_window_ms", inputs["ir_remote"]["diagnostics_window_ms"], (int, float))
+        if "diagnostics_max_gap_ms" in inputs["ir_remote"]:
+            _expect_type(
+                "inputs.ir_remote.diagnostics_max_gap_ms",
+                inputs["ir_remote"]["diagnostics_max_gap_ms"],
+                (int, float),
+            )
 
     _expect_type("inputs.simulated_data", inputs["simulated_data"], dict)
     _expect_keys(
@@ -335,7 +445,7 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
 
 def _validate_integrations(integrations: dict[str, Any]) -> None:
     required_sections = {"navit", "media", "bluetooth_metadata"}
-    allowed_sections = required_sections | {"bluetooth_audio", "fm_radio"}
+    allowed_sections = required_sections | {"bluetooth_audio", "fm_radio", "audio_router"}
     _expect_keys("integrations", integrations, required_sections, allowed_sections)
     for section in required_sections:
         _expect_type(f"integrations.{section}", integrations[section], dict)
@@ -384,6 +494,7 @@ def _validate_integrations(integrations: dict[str, Any]) -> None:
             {"enabled"},
             {
                 "enabled",
+                "chip",
                 "i2c_bus",
                 "address",
                 "rst_pin",
@@ -395,6 +506,8 @@ def _validate_integrations(integrations: dict[str, Any]) -> None:
             },
         )
         _expect_type("integrations.fm_radio.enabled", fm_radio["enabled"], bool)
+        if "chip" in fm_radio:
+            _expect_type("integrations.fm_radio.chip", fm_radio["chip"], str)
         if "i2c_bus" in fm_radio:
             _expect_type("integrations.fm_radio.i2c_bus", fm_radio["i2c_bus"], int)
         if "address" in fm_radio:
@@ -411,6 +524,53 @@ def _validate_integrations(integrations: dict[str, Any]) -> None:
             _expect_type("integrations.fm_radio.startup_volume", fm_radio["startup_volume"], (int, float))
         if "fm_step_mhz" in fm_radio:
             _expect_type("integrations.fm_radio.fm_step_mhz", fm_radio["fm_step_mhz"], (int, float))
+    if "audio_router" in integrations:
+        audio_router = integrations["audio_router"]
+        _expect_type("integrations.audio_router", audio_router, dict)
+        _expect_keys(
+            "integrations.audio_router",
+            audio_router,
+            {"enabled"},
+            {
+                "enabled",
+                "chip",
+                "protocol",
+                "i2c_bus",
+                "address",
+                "default_source",
+                "inter_command_delay_s",
+                "settle_ms",
+                "sources",
+            },
+        )
+        _expect_type("integrations.audio_router.enabled", audio_router["enabled"], bool)
+        if "chip" in audio_router:
+            _expect_type("integrations.audio_router.chip", audio_router["chip"], str)
+        if "protocol" in audio_router:
+            _expect_type("integrations.audio_router.protocol", audio_router["protocol"], str)
+        if "i2c_bus" in audio_router:
+            _expect_type("integrations.audio_router.i2c_bus", audio_router["i2c_bus"], int)
+        if "address" in audio_router:
+            _expect_type("integrations.audio_router.address", audio_router["address"], int)
+        if "default_source" in audio_router:
+            _expect_type("integrations.audio_router.default_source", audio_router["default_source"], str)
+        if "inter_command_delay_s" in audio_router:
+            _expect_type(
+                "integrations.audio_router.inter_command_delay_s",
+                audio_router["inter_command_delay_s"],
+                (int, float),
+            )
+        if "settle_ms" in audio_router:
+            _expect_type("integrations.audio_router.settle_ms", audio_router["settle_ms"], (int, float))
+        if "sources" in audio_router:
+            _expect_type("integrations.audio_router.sources", audio_router["sources"], dict)
+            for source_id, source_spec in audio_router["sources"].items():
+                base = f"integrations.audio_router.sources.{source_id}"
+                _expect_type(base, source_spec, dict)
+                _expect_keys(base, source_spec, {"command_bytes"}, {"command_bytes"})
+                _expect_type(f"{base}.command_bytes", source_spec["command_bytes"], list)
+                for idx, command_value in enumerate(source_spec["command_bytes"]):
+                    _expect_type(f"{base}.command_bytes[{idx}]", command_value, (int, str))
 
 
 def _validate_system(system: dict[str, Any]) -> None:

@@ -9,6 +9,7 @@ Arduino assets and tooling for the El Camino Dash project live here.
 - `arduino/scripts/compile_sensor_pack.sh` - compile the first sketch.
 - `arduino/scripts/upload_sensor_pack.sh` - compile + upload to a board.
 - `arduino/scripts/monitor_sensor_pack.py` - decode binary packets into readable text.
+- `arduino/scripts/program_power_control_attiny.sh` - compile + flash ATtiny power controller over ISP.
 
 ## Quick Start (macOS + Homebrew)
 
@@ -28,6 +29,18 @@ Upload sketch (example for an Uno on `/dev/cu.usbmodem101`):
 
 ```bash
 bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
+```
+
+Program ATtiny power-control sketch (USBasp default):
+
+```bash
+bash arduino/scripts/program_power_control_attiny.sh
+```
+
+Print ATtiny ISP + project pin wiring:
+
+```bash
+bash arduino/scripts/program_power_control_attiny.sh --wiring
 ```
 
 Monitor decoded packets (instead of garbled binary characters):

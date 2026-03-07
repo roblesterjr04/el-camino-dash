@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from dashboard.integrations.si4737 import FUNC_FM
@@ -7,23 +8,34 @@ from dashboard.integrations.si4737 import FUNC_WB
 from dashboard.integrations.si4737 import Si4737
 
 
-class Si4737RadioAdapter:
+class FmRadioAdapter:
     def __init__(self, config: dict[str, Any]) -> None:
         self._cfg = config
         self._radio: Si4737 | None = None
         self._status = "disabled"
         self._mode = "fm"
+        self._chip = str(self._cfg.get("chip", "si4737")).strip().lower()
         self._muted = False
+        self._scan_active = False
+        self._scan_freq_mhz = 88.1
+        self._scan_next_step_s = 0.0
+        self._scan_step_mhz = 0.2
+        self._scan_dwell_s = 0.5
+        self._scan_min_mhz = 88.1
+        self._scan_max_mhz = 107.9
 
     def start(self) -> None:
         if not bool(self._cfg.get("enabled", False)):
             self._status = "disabled"
             return
+        if self._chip == "si4703":
+            self._status = "si4703:driver-pending"
+            return
         try:
             self._radio = Si4737(
                 i2c_bus=int(self._cfg.get("i2c_bus", 1)),
                 address=int(self._cfg.get("address", 0x11)),
-                rst_pin=int(self._cfg.get("rst_pin", 17)),
+                rst_pin=int(self._cfg.get("rst_pin", 10)),
             )
             startup_mode = str(self._cfg.get("startup_mode", "fm")).strip().lower()
             startup_volume = int(float(self._cfg.get("startup_volume", 45)))
@@ -52,6 +64,7 @@ class Si4737RadioAdapter:
             self._radio = None
 
     def stop(self) -> None:
+        self._scan_active = False
         if self._radio is not None:
             try:
                 self._radio.close()
@@ -69,6 +82,7 @@ class Si4737RadioAdapter:
         return self._status
 
     def fm_mode(self) -> str:
+        self._scan_active = False
         radio = self._require_radio()
         if not radio:
             return self._status
@@ -83,6 +97,10 @@ class Si4737RadioAdapter:
         return self._status
 
     def wb_mode(self, channel: int | None = None) -> str:
+        if self._chip == "si4703":
+            self._status = "si4703:no-weather-band"
+            return self._status
+        self._scan_active = False
         radio = self._require_radio()
         if not radio:
             return self._status
@@ -99,6 +117,7 @@ class Si4737RadioAdapter:
         return self._status
 
     def seek_up(self) -> str:
+        self._scan_active = False
         radio = self._require_radio()
         if not radio:
             return self._status
@@ -112,6 +131,7 @@ class Si4737RadioAdapter:
         return self._status
 
     def seek_down(self) -> str:
+        self._scan_active = False
         radio = self._require_radio()
         if not radio:
             return self._status
@@ -125,6 +145,7 @@ class Si4737RadioAdapter:
         return self._status
 
     def tune_step(self, delta_mhz: float) -> str:
+        self._scan_active = False
         radio = self._require_radio()
         if not radio:
             return self._status
@@ -132,7 +153,7 @@ class Si4737RadioAdapter:
             if self._mode != "fm":
                 self.fm_mode()
             current = radio.get_freq_mhz()
-            next_freq = max(76.0, min(108.0, current + float(delta_mhz)))
+            next_freq = max(88.1, min(107.9, current + float(delta_mhz)))
             radio.fm_tune(next_freq)
             self._status = f"fm:{radio.get_freq_mhz():.1f}"
         except Exception as exc:
@@ -168,9 +189,60 @@ class Si4737RadioAdapter:
             self._status = f"error:{exc}"
         return self._status
 
+    def toggle_scan_cycle(self) -> str:
+        radio = self._require_radio()
+        if not radio:
+            return self._status
+        if self._scan_active:
+            self._scan_active = False
+            self._status = "fm:scan off"
+            return self._status
+        try:
+            if self._mode != "fm":
+                radio.power_up_fm()
+                self._mode = "fm"
+            self._scan_freq_mhz = self._scan_min_mhz
+            self._scan_active = True
+            self._scan_next_step_s = 0.0
+            self.tick()
+            self._status = f"fm:scan on {self._scan_freq_mhz:.1f}"
+        except Exception as exc:
+            self._scan_active = False
+            self._status = f"error:{exc}"
+        return self._status
+
+    def tick(self) -> None:
+        if not self._scan_active:
+            return
+        radio = self._require_radio()
+        if not radio:
+            self._scan_active = False
+            return
+        now_s = time.monotonic()
+        if now_s < self._scan_next_step_s:
+            return
+        try:
+            if self._mode != "fm":
+                radio.power_up_fm()
+                self._mode = "fm"
+            tune_freq = float(self._scan_freq_mhz)
+            radio.fm_tune_no_stc(tune_freq)
+            self._status = f"fm:scan {tune_freq:.1f}"
+            next_freq = round(tune_freq + self._scan_step_mhz, 1)
+            if next_freq > self._scan_max_mhz:
+                next_freq = self._scan_min_mhz
+            self._scan_freq_mhz = next_freq
+            self._scan_next_step_s = now_s + self._scan_dwell_s
+        except Exception as exc:
+            self._scan_active = False
+            self._status = f"error:{exc}"
+
     def _require_radio(self) -> Si4737 | None:
         if not bool(self._cfg.get("enabled", False)):
             self._status = "disabled"
+            return None
+        if self._chip == "si4703":
+            self._status = "si4703:driver-pending"
             return None
         if self._radio is None:
             self._status = "not-started"
@@ -180,3 +252,7 @@ class Si4737RadioAdapter:
         elif self._radio.current_func == FUNC_FM:
             self._mode = "fm"
         return self._radio
+
+
+# Backward-compatible import name.
+Si4737RadioAdapter = FmRadioAdapter

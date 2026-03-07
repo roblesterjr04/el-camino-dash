@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
+import subprocess
 import sys
 import time
 
@@ -28,7 +31,24 @@ FAULT_BITS: list[tuple[int, str]] = [
     (8, "HALL_MISSING"),
     (9, "COIL_MISSING"),
     (10, "ALT_STUCK"),
+    (11, "POT_POWER"),
+    (12, "TEMP_POWER"),
+    (13, "PRESS_POWER"),
+    (14, "VOLT_POWER"),
 ]
+
+APP_SERVICE_UNITS: tuple[str, ...] = (
+    "gauge-cluster.service",
+    "gauge-cluster-spi.service",
+    "gauge-cluster-hdmi.service",
+    "gauge-hide-cursor.service",
+)
+
+APP_PROCESS_PATTERNS: tuple[str, ...] = (
+    "src/main.py",
+    "scripts/run_hw.sh",
+    "scripts/run_sim.sh",
+)
 
 
 def parse_frame(payload: bytes) -> dict[str, int]:
@@ -58,6 +78,28 @@ def decode_faults(fault_word: int) -> list[str]:
         if fault_word & (1 << bit):
             active.append(name)
     return active
+
+
+def stop_app_services() -> None:
+    if not sys.platform.startswith("linux"):
+        return
+
+    if shutil.which("systemctl"):
+        use_sudo = os.geteuid() != 0 and shutil.which("sudo") is not None
+        for unit in APP_SERVICE_UNITS:
+            cmd = ["systemctl", "stop", unit]
+            if use_sudo:
+                cmd = ["sudo", "-n"] + cmd
+            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    if shutil.which("pkill"):
+        for pattern in APP_PROCESS_PATTERNS:
+            subprocess.run(
+                ["pkill", "-f", pattern],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
 
 
 def render_dashboard(fields: dict[str, int]) -> None:
@@ -113,7 +155,17 @@ def main() -> int:
         default=10.0,
         help="Dashboard refresh rate in Hz (default: 10)",
     )
+    parser.add_argument(
+        "--no-stop-services",
+        action="store_true",
+        help="Do not stop dashboard services/processes before opening serial",
+    )
     args = parser.parse_args()
+
+    if not args.no_stop_services:
+        stop_app_services()
+        # Give systemd/process teardown a brief moment to release serial handles.
+        time.sleep(0.5)
 
     try:
         ser = serial.Serial(args.port, baudrate=args.baud, timeout=args.timeout)

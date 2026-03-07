@@ -14,9 +14,10 @@ from dashboard.config import ConfigError
 from dashboard.config import load_dashboard_config
 from dashboard.display.manager import DisplayManager
 from dashboard.input.manager import InputManager
+from dashboard.integrations.audio_router import AudioRouterAdapter
 from dashboard.integrations.bluetooth_metadata import BluetoothMetadataAdapter
 from dashboard.integrations.bluetooth_audio import BluetoothAudioAdapter
-from dashboard.integrations.fm_radio import Si4737RadioAdapter
+from dashboard.integrations.fm_radio import FmRadioAdapter
 from dashboard.integrations.media_player import MediaPlayer
 from dashboard.integrations.navit_adapter import NavitAdapter
 
@@ -33,6 +34,10 @@ ARDUINO_FAULT_LABELS: list[tuple[int, str]] = [
     (1 << 8, "HALL MISSING"),
     (1 << 9, "COIL MISSING"),
     (1 << 10, "ALT STUCK"),
+    (1 << 11, "POT POWER"),
+    (1 << 12, "TEMP POWER"),
+    (1 << 13, "PRESS POWER"),
+    (1 << 14, "VOLT POWER"),
 ]
 
 
@@ -44,10 +49,11 @@ class DashboardApp:
         self.navit = NavitAdapter(self.config["integrations"]["navit"])
         self.bluetooth = BluetoothMetadataAdapter(self.config["integrations"]["bluetooth_metadata"])
         self.bluetooth_audio = BluetoothAudioAdapter(self.config["integrations"].get("bluetooth_audio", {"enabled": False}))
+        self.audio_router = AudioRouterAdapter(self.config["integrations"].get("audio_router", {"enabled": False}))
         self.display_manager: DisplayManager | None = None
         self.input_manager: InputManager | None = None
         self.media: MediaPlayer | None = None
-        self.radio: Si4737RadioAdapter | None = None
+        self.radio: FmRadioAdapter | None = None
         self._values: dict[str, float] = {}
         self._running = False
         self._command_registry: dict[str, Callable[[dict[str, Any]], str | None]] = {}
@@ -75,6 +81,17 @@ class DashboardApp:
         self._fault_last_word = 0
         self._previous_sigint_handler = None
         self._previous_sigterm_handler = None
+        self._ir_last_counts: dict[str, int] = {
+            "volume_up": 0,
+            "volume_down": 0,
+            "theme_next": 0,
+            "map_toggle": 0,
+            "center_toggle": 0,
+            "tune_up": 0,
+            "tune_down": 0,
+            "diagnostics_open": 0,
+        }
+        self._ir_last_code = "-"
 
     def run(self) -> None:
         self._install_signal_handlers()
@@ -93,8 +110,9 @@ class DashboardApp:
         self._reset_raw_input_log()
         self.input_manager = InputManager(self.config)
         self.media = MediaPlayer(media_cfg)
-        self.radio = Si4737RadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
+        self.radio = FmRadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
         self.radio.start()
+        self.audio_router.start()
         command_registry = self._build_command_registry()
         self._command_registry = command_registry
         self.display_manager = DisplayManager(
@@ -104,6 +122,7 @@ class DashboardApp:
             on_runtime_refresh=self._refresh_runtime_components,
         )
         self.navit.start()
+        self.bluetooth.start()
         self.bluetooth_audio.start()
         self._running = True
         clock = pygame.time.Clock()
@@ -124,7 +143,10 @@ class DashboardApp:
                 self._update_runtime_metrics()
                 self._update_alert_states()
                 self._update_fault_registry()
+                self.bluetooth.poll()
                 self.bluetooth_audio.poll()
+                if self.radio:
+                    self.radio.tick()
                 self._update_startup_sweep()
                 self._reload_config_if_changed()
                 self._reload_theme_if_changed()
@@ -138,6 +160,7 @@ class DashboardApp:
             self.navit.stop()
             if self.radio:
                 self.radio.stop()
+            self.audio_router.stop()
             if self.display_manager:
                 self.display_manager.shutdown()
             self._restore_signal_handlers()
@@ -164,6 +187,57 @@ class DashboardApp:
             return
         current = self.input_manager.poll()
         self._values.update(current)
+        self._ir_last_code = self.input_manager.ir_last_code() or "-"
+        self._apply_ir_commands(current)
+
+    def _apply_ir_commands(self, current: dict[str, float]) -> None:
+        command_map = {
+            "theme_next": ("inputs.ir.command.theme_next_count", "theme.next"),
+            "map_toggle": ("inputs.ir.command.map_toggle_count", "map_view.toggle"),
+            "center_toggle": ("inputs.ir.command.center_toggle_count", "center_dial_mode.toggle"),
+            "tune_up": ("inputs.ir.command.tune_up_count", "radio.tune_up"),
+            "tune_down": ("inputs.ir.command.tune_down_count", "radio.tune_down"),
+        }
+        for state_key, (value_key, command_id) in command_map.items():
+            count = int(current.get(value_key, 0.0))
+            last = int(self._ir_last_counts.get(state_key, 0))
+            if count < last:
+                self._ir_last_counts[state_key] = count
+                continue
+            repeats = count - last
+            if repeats > 0:
+                handler = self._command_registry.get(command_id)
+                if handler is not None:
+                    for _ in range(repeats):
+                        handler({})
+            self._ir_last_counts[state_key] = count
+
+        volume_up = int(current.get("inputs.ir.command.volume_up_count", 0.0))
+        volume_down = int(current.get("inputs.ir.command.volume_down_count", 0.0))
+        self._apply_ir_volume_steps(up_steps=volume_up, down_steps=volume_down)
+        diagnostics_open = int(current.get("inputs.ir.command.diagnostics_open_count", 0.0))
+        self._ir_last_counts["diagnostics_open"] = max(0, diagnostics_open)
+
+    def _apply_ir_volume_steps(self, up_steps: int, down_steps: int) -> None:
+        prev_up = int(self._ir_last_counts.get("volume_up", 0))
+        prev_down = int(self._ir_last_counts.get("volume_down", 0))
+        if up_steps < prev_up:
+            prev_up = up_steps
+        if down_steps < prev_down:
+            prev_down = down_steps
+        delta_steps = (up_steps - prev_up) - (down_steps - prev_down)
+        self._ir_last_counts["volume_up"] = up_steps
+        self._ir_last_counts["volume_down"] = down_steps
+        if delta_steps == 0:
+            return
+        media_cfg = self.config.get("integrations", {}).get("media", {})
+        if not isinstance(media_cfg, dict):
+            return
+        current_volume = float(media_cfg.get("startup_volume", 0.5))
+        next_volume = max(0.0, min(1.0, current_volume + (0.05 * float(delta_steps))))
+        media_cfg["startup_volume"] = next_volume
+        if self.media:
+            self.media.set_volume(next_volume)
 
     def _log_raw_inputs(self) -> None:
         if not self._raw_input_log_enabled:
@@ -225,17 +299,30 @@ class DashboardApp:
         lines = (active_faults or latched_faults)[:3]
         while len(lines) < 3:
             lines.append("-")
+        bt_audio_cfg = self.config.get("integrations", {}).get("bluetooth_audio", {})
+        bt_audio_enabled = isinstance(bt_audio_cfg, dict) and bool(bt_audio_cfg.get("enabled", False))
+        media_status = self.media.status() if self.media else "disabled"
+        media_track = "-"
+        if bt_audio_enabled:
+            media_status = self.bluetooth_audio.media_status()
+            media_track = self.bluetooth_audio.media_track()
+
         return {
             "navit": self.navit.status(),
-            "media": self.media.status() if self.media else "disabled",
+            "media": media_status,
+            "media_track": media_track,
             "bluetooth": self.bluetooth.status(),
             "bluetooth_audio": self.bluetooth_audio.status(),
             "fm_radio": self.radio.status() if self.radio else "disabled",
+            "audio_source": self.audio_router.active_source(),
+            "audio_router": self.audio_router.status(),
             "theme_warning": theme_warning,
             "system_mode": str(self.config["system"].get("mode", "unknown")),
             "theme_active": str(self.config["themes"].get("active", "unknown")),
             "center_dial_mode": self._current_center_dial_mode(),
             "map_view_visible": "on" if bool(self.config.get("system", {}).get("map_view_visible", False)) else "off",
+            "ir_last_code": self._ir_last_code,
+            "ir_diag_state": f"open x{int(self._ir_last_counts.get('diagnostics_open', 0))}",
             "fault_status": "ACTIVE" if active_faults else ("LATCHED" if latched_faults else "CLEAR"),
             "fault_active_count": str(len(active_faults)),
             "fault_latched_count": str(len(latched_faults)),
@@ -401,8 +488,12 @@ class DashboardApp:
             "radio.seek_down": self._cmd_radio_seek_down,
             "radio.tune_up": self._cmd_radio_tune_up,
             "radio.tune_down": self._cmd_radio_tune_down,
+            "radio.scan_cycle": self._cmd_radio_scan_cycle,
             "radio.set_volume": self._cmd_radio_set_volume,
             "radio.mute_toggle": self._cmd_radio_mute_toggle,
+            "audio.source_pi": self._cmd_audio_source_pi,
+            "audio.source_fm": self._cmd_audio_source_fm,
+            "audio.select_source": self._cmd_audio_select_source,
             "bluetooth_audio.reconnect": self._cmd_bluetooth_audio_reconnect,
             "theme.next": self._cmd_theme_next,
             "center_dial_mode.toggle": self._cmd_center_dial_mode_toggle,
@@ -433,12 +524,17 @@ class DashboardApp:
             self.navit.start()
         else:
             self.navit.stop()
+        self.bluetooth = BluetoothMetadataAdapter(self.config["integrations"]["bluetooth_metadata"])
+        self.bluetooth.start()
         self.bluetooth_audio = BluetoothAudioAdapter(self.config["integrations"].get("bluetooth_audio", {"enabled": False}))
         self.bluetooth_audio.start()
         if self.radio:
             self.radio.stop()
-        self.radio = Si4737RadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
+        self.radio = FmRadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
         self.radio.start()
+        self.audio_router.stop()
+        self.audio_router = AudioRouterAdapter(self.config["integrations"].get("audio_router", {"enabled": False}))
+        self.audio_router.start()
         if self.display_manager and self._command_registry:
             self.display_manager.shutdown()
             self.display_manager = DisplayManager(
@@ -502,27 +598,46 @@ class DashboardApp:
         return "Navit stop requested"
 
     def _cmd_media_play_pause(self, _: dict[str, Any]) -> str:
+        self.audio_router.select_source("pi_dac")
+        bt_cfg = self.config.get("integrations", {}).get("bluetooth_audio", {})
+        if isinstance(bt_cfg, dict) and bool(bt_cfg.get("enabled", False)):
+            return f"Bluetooth audio: {self.bluetooth_audio.media_play_pause()}"
         if not self.media:
             return "Media unavailable"
         self.media.toggle_play_pause()
         return "Media toggled"
 
     def _cmd_media_next(self, _: dict[str, Any]) -> str:
+        self.audio_router.select_source("pi_dac")
+        bt_cfg = self.config.get("integrations", {}).get("bluetooth_audio", {})
+        if isinstance(bt_cfg, dict) and bool(bt_cfg.get("enabled", False)):
+            return f"Bluetooth audio: {self.bluetooth_audio.media_next()}"
         if not self.media:
             return "Media unavailable"
         self.media.next_track()
         return "Next track"
 
     def _cmd_media_stop(self, _: dict[str, Any]) -> str:
+        self.audio_router.select_source("pi_dac")
+        bt_cfg = self.config.get("integrations", {}).get("bluetooth_audio", {})
+        if isinstance(bt_cfg, dict) and bool(bt_cfg.get("enabled", False)):
+            return f"Bluetooth audio: {self.bluetooth_audio.media_stop()}"
         if not self.media:
             return "Media unavailable"
         self.media.stop()
         return "Media stopped"
 
     def _cmd_media_set_volume(self, payload: dict[str, Any]) -> str:
+        self.audio_router.select_source("pi_dac")
+        volume = float(payload.get("value", self.config["integrations"]["media"].get("startup_volume", 0.5)))
+        bt_cfg = self.config.get("integrations", {}).get("bluetooth_audio", {})
+        if isinstance(bt_cfg, dict) and bool(bt_cfg.get("enabled", False)):
+            self.config["integrations"]["media"]["startup_volume"] = volume
+            if self.media:
+                self.media.set_volume(volume)
+            return f"Bluetooth audio: {self.bluetooth_audio.set_media_volume(volume)}"
         if not self.media:
             return "Media unavailable"
-        volume = float(payload.get("value", self.config["integrations"]["media"].get("startup_volume", 0.5)))
         self.media.set_volume(volume)
         return f"Volume {volume:.2f}"
 
@@ -533,11 +648,13 @@ class DashboardApp:
     def _cmd_radio_fm_mode(self, _: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         return f"Radio: {self.radio.fm_mode()}"
 
     def _cmd_radio_wb_mode(self, payload: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         channel = payload.get("value")
         try:
             parsed_channel = int(channel) if channel is not None else None
@@ -548,28 +665,39 @@ class DashboardApp:
     def _cmd_radio_seek_up(self, _: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         return f"Radio: {self.radio.seek_up()}"
 
     def _cmd_radio_seek_down(self, _: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         return f"Radio: {self.radio.seek_down()}"
 
     def _cmd_radio_tune_up(self, _: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         step = float(self.config["integrations"].get("fm_radio", {}).get("fm_step_mhz", 0.1))
         return f"Radio: {self.radio.tune_step(abs(step))}"
 
     def _cmd_radio_tune_down(self, _: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         step = float(self.config["integrations"].get("fm_radio", {}).get("fm_step_mhz", 0.1))
         return f"Radio: {self.radio.tune_step(-abs(step))}"
+
+    def _cmd_radio_scan_cycle(self, _: dict[str, Any]) -> str:
+        if not self.radio:
+            return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
+        return f"Radio: {self.radio.toggle_scan_cycle()}"
 
     def _cmd_radio_set_volume(self, payload: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         default_volume = self.config["integrations"].get("fm_radio", {}).get("startup_volume", 45)
         try:
             volume = int(float(payload.get("value", default_volume)))
@@ -580,7 +708,20 @@ class DashboardApp:
     def _cmd_radio_mute_toggle(self, _: dict[str, Any]) -> str:
         if not self.radio:
             return "Radio unavailable"
+        self.audio_router.select_source("fm_radio")
         return f"Radio: {self.radio.toggle_mute()}"
+
+    def _cmd_audio_source_pi(self, _: dict[str, Any]) -> str:
+        return f"Audio: {self.audio_router.select_source('pi_dac')}"
+
+    def _cmd_audio_source_fm(self, _: dict[str, Any]) -> str:
+        return f"Audio: {self.audio_router.select_source('fm_radio')}"
+
+    def _cmd_audio_select_source(self, payload: dict[str, Any]) -> str:
+        source = str(payload.get("value", "")).strip()
+        if not source:
+            source = str(self.config.get("integrations", {}).get("audio_router", {}).get("default_source", "pi_dac"))
+        return f"Audio: {self.audio_router.select_source(source)}"
 
     def _cmd_app_restart(self, _: dict[str, Any]) -> str:
         self._running = False

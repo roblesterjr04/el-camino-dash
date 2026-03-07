@@ -32,17 +32,20 @@ PROP_FM_RDS_INT_FIFO_CNT = 0x1501
 PROP_FM_RDS_CONFIG = 0x1502
 
 WB_CHANNELS = {
-    1: 162400,
-    2: 162425,
-    3: 162450,
-    4: 162475,
-    5: 162500,
-    6: 162525,
-    7: 162550,
+    # WB tune frequency uses 2.5 kHz units on Si47xx.
+    # NOAA channels 1-7: 162.400 .. 162.550 MHz -> 64960 .. 65020.
+    1: 64960,
+    2: 64970,
+    3: 64980,
+    4: 64990,
+    5: 65000,
+    6: 65010,
+    7: 65020,
 }
 
 FUNC_FM = 0
 FUNC_WB = 3
+STC_WAIT_QUICK_S = 0.25
 
 
 class Si4737:
@@ -80,6 +83,8 @@ class Si4737:
         start = time.time()
         while time.time() - start < timeout:
             status = self._read_response(1)
+            if status[0] & 0x40:
+                raise RuntimeError("Si4737 command error (ERR set)")
             if status[0] & 0x80:
                 return status[0]
             time.sleep(0.005)
@@ -89,6 +94,8 @@ class Si4737:
         start = time.time()
         while time.time() - start < timeout:
             status = self._read_response(1)
+            if status[0] & 0x40:
+                raise RuntimeError("Si4737 command error (ERR set)")
             if status[0] & 0x01:
                 return
             time.sleep(0.05)
@@ -143,19 +150,47 @@ class Si4737:
             0x00,
         )
         self._wait_cts()
-        self._wait_stc()
+        # Some boards/firmware combinations do not reliably surface STC on the
+        # status byte even though tuning succeeds; avoid hard-failing startup.
+        try:
+            self._wait_stc(timeout=STC_WAIT_QUICK_S)
+        except TimeoutError:
+            pass
+        self.current_freq = freq
+        try:
+            self._update_freq()
+        except Exception:
+            pass
+
+    def fm_tune_no_stc(self, freq_mhz: float) -> None:
+        """Tune quickly without waiting for STC completion."""
+        freq = int(freq_mhz * 100)
+        self._send_command(
+            CMD_FM_TUNE_FREQ,
+            0x00,
+            (freq >> 8) & 0xFF,
+            freq & 0xFF,
+            0x00,
+        )
+        self._wait_cts()
         self.current_freq = freq
 
     def fm_seek_up(self) -> None:
         self._send_command(CMD_FM_SEEK_START, 0x0C)
         self._wait_cts()
-        self._wait_stc(timeout=5.0)
+        try:
+            self._wait_stc(timeout=STC_WAIT_QUICK_S)
+        except TimeoutError:
+            pass
         self._update_freq()
 
     def fm_seek_down(self) -> None:
         self._send_command(CMD_FM_SEEK_START, 0x04)
         self._wait_cts()
-        self._wait_stc(timeout=5.0)
+        try:
+            self._wait_stc(timeout=STC_WAIT_QUICK_S)
+        except TimeoutError:
+            pass
         self._update_freq()
 
     def _update_freq(self) -> None:
@@ -168,7 +203,10 @@ class Si4737:
         freq = WB_CHANNELS.get(channel, WB_CHANNELS[1])
         self._send_command(CMD_WB_TUNE_FREQ, 0x00, (freq >> 8) & 0xFF, freq & 0xFF)
         self._wait_cts()
-        self._wait_stc()
+        try:
+            self._wait_stc(timeout=STC_WAIT_QUICK_S)
+        except TimeoutError:
+            pass
 
     def set_volume(self, vol: int) -> None:
         self.volume = max(0, min(63, int(vol)))

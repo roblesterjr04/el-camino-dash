@@ -10,16 +10,11 @@ menu:
           type: submenu
           target_page: now
           icon: clock
-        - id: media_page
-          label: Media
+        - id: audio_page
+          label: Audio
           type: submenu
-          target_page: media
-          icon: media
-        - id: radio_page
-          label: Radio
-          type: submenu
-          target_page: radio
-          icon: media
+          target_page: audio
+          icon: audio
         - id: inputs_page
           label: Inputs
           type: submenu
@@ -64,6 +59,29 @@ menu:
           type: action
           command: navit.stop
 
+    - id: audio
+      title: Audio
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: media_page
+          label: Media
+          type: submenu
+          target_page: media
+          icon: audio
+        - id: radio_page
+          label: Radio
+          type: submenu
+          target_page: radio
+          icon: audio
+        - id: audio_route_page
+          label: Source Route
+          type: submenu
+          target_page: audio_route
+          icon: audio
+
     - id: media
       title: Media
       items:
@@ -75,6 +93,10 @@ menu:
           label: Status
           type: info
           status_key: media
+        - id: media_track
+          label: Now Playing
+          type: info
+          status_key: media_track
         - id: media_play_pause
           label: Play/Pause
           type: action
@@ -114,7 +136,7 @@ menu:
           type: action
           command: radio.fm_mode
         - id: radio_wb_mode
-          label: Weather Mode
+          label: Weather Mode (SI4737 only)
           type: action
           command: radio.wb_mode
         - id: radio_seek_up
@@ -133,6 +155,10 @@ menu:
           label: Tune -Step
           type: action
           command: radio.tune_down
+        - id: radio_scan_cycle
+          label: Scan 88.1 +0.2
+          type: action
+          command: radio.scan_cycle
         - id: radio_mute_toggle
           label: Mute Toggle
           type: action
@@ -148,7 +174,7 @@ menu:
           apply_mode: immediate
           on_change_command: radio.set_volume
         - id: radio_wb_channel
-          label: WB Channel
+          label: WB Channel (SI4737 only)
           type: range
           config_path: integrations.fm_radio.wb_channel
           value_type: int
@@ -157,6 +183,30 @@ menu:
           step: 1
           apply_mode: immediate
           on_change_command: radio.wb_mode
+
+    - id: audio_route
+      title: Audio Source
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: audio_router_status
+          label: Router
+          type: info
+          status_key: audio_router
+        - id: audio_source_status
+          label: Active Source
+          type: info
+          status_key: audio_source
+        - id: audio_source_pi
+          label: Select Pi DAC
+          type: action
+          command: audio.source_pi
+        - id: audio_source_fm
+          label: Select FM Radio
+          type: action
+          command: audio.source_fm
 
     - id: inputs
       title: Inputs
@@ -203,6 +253,10 @@ menu:
           label: Map View
           type: info
           status_key: map_view_visible
+        - id: ir_diag_page
+          label: IR Diagnostics
+          type: submenu
+          target_page: ir_diagnostics
         - id: toggle_map_view
           label: Toggle Map View
           type: action
@@ -228,6 +282,22 @@ menu:
           label: Restart App
           type: action
           command: app.restart
+
+    - id: ir_diagnostics
+      title: IR Diagnostics
+      items:
+        - id: back_system
+          label: Back
+          type: submenu
+          target_page: system
+        - id: ir_diag_state
+          label: Monitor
+          type: info
+          status_key: ir_diag_state
+        - id: ir_last_code
+          label: Last Code
+          type: info
+          status_key: ir_last_code
 
     - id: alerts
       title: Alerts

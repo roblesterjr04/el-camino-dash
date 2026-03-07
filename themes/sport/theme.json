@@ -176,6 +176,6 @@
     ]
   },
   "center_dial_mode": {
-    "gauge_center": "clock"
+    "gauge_center": "tach"
   }
 }

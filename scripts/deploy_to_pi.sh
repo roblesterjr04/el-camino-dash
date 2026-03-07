@@ -13,6 +13,7 @@ Examples:
 Notes:
   - Uses rsync over SSH to mirror files to the Pi.
   - Default remote_dir is $HOME/gauge-cluster for the remote user.
+  - Uses checksum-based sync for reliability (content changes always copied).
 EOF
 }
 
@@ -40,21 +41,27 @@ if ! command -v ssh >/dev/null 2>&1; then
   exit 1
 fi
 
+REMOTE_HOME="$(ssh "${TARGET}" 'printf "%s" "$HOME"')"
 if [[ -z "${REMOTE_DIR}" ]]; then
-  REMOTE_HOME="$(ssh "${TARGET}" 'printf "%s" "$HOME"')"
   REMOTE_DIR="${REMOTE_HOME}/gauge-cluster"
+elif [[ "${REMOTE_DIR}" == "~" ]]; then
+  REMOTE_DIR="${REMOTE_HOME}"
+elif [[ "${REMOTE_DIR}" == ~/* ]]; then
+  REMOTE_DIR="${REMOTE_HOME}/${REMOTE_DIR#~/}"
 fi
 
+echo "Source directory: ${PROJECT_DIR}"
 echo "Ensuring remote directory exists: ${REMOTE_DIR}"
 ssh "${TARGET}" "mkdir -p '${REMOTE_DIR}'"
 
 echo "Mirroring project to ${TARGET}:${REMOTE_DIR} (with deletions)..."
-rsync -az --delete \
+rsync -az --checksum --itemize-changes --delete \
   --exclude=".git/" \
   --exclude=".venv/" \
   --exclude=".cursor/" \
   --exclude="__pycache__/" \
   --exclude="*.pyc" \
+  --exclude="arduino/build/" \
   --exclude=".DS_Store" \
   "${PROJECT_DIR}/" "${TARGET}:${REMOTE_DIR}/"
 

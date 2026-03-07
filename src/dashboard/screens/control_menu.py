@@ -254,6 +254,17 @@ class ControlMenuController:
         self._editing_range = False
         self._message = ""
 
+    def open_page(self, page_id: str) -> bool:
+        if page_id not in self._schema.pages:
+            return False
+        self._current_page_id = page_id
+        self._cursor = 0
+        self._editing_range = False
+        return True
+
+    def set_message(self, message: str) -> None:
+        self._message = str(message)
+
     def _current_page(self) -> MenuPage:
         return self._schema.pages[self._current_page_id]
 
@@ -325,7 +336,9 @@ class ControlMenuController:
         if item.on_change_command:
             self._execute_command(item.on_change_command, {"value": value})
         self._message = f"Updated {item.label}"
-        if self._on_runtime_refresh:
+        # Avoid tearing down/recreating UI components for settings that already
+        # apply via explicit on_change_command handlers (e.g. media volume).
+        if self._on_runtime_refresh and not item.on_change_command:
             self._on_runtime_refresh()
 
     def _execute_command(self, command_id: str, payload: dict[str, Any]) -> str | None:

@@ -29,6 +29,10 @@ THEME_DIR="/usr/share/plymouth/themes/el-camino"
 PLYMOUTH_DEF="/usr/share/plymouth/themes/el-camino/el-camino.plymouth"
 PLYMOUTH_SCRIPT="/usr/share/plymouth/themes/el-camino/el-camino.script"
 DEFAULT_THEME_LINK="/usr/share/plymouth/themes/default.plymouth"
+THEME_IMAGE="${THEME_DIR}/boot_hdmi.png"
+TARGET_W=800
+TARGET_H=480
+PLYMOUTH_CONF="/etc/plymouth/plymouthd.conf"
 BOOT_CHANGED=0
 
 append_line_if_missing() {
@@ -82,7 +86,53 @@ apt-get install -y plymouth plymouth-themes
 
 echo "[2/6] Installing custom Plymouth theme..."
 mkdir -p "${THEME_DIR}"
-cp "${SOURCE_IMAGE}" "${THEME_DIR}/boot.png"
+if command -v python3 >/dev/null 2>&1; then
+  # Normalize to a full-frame HDMI splash image so Plymouth does not render
+  # a tiny centered logo on a black screen.
+  python3 - "${SOURCE_IMAGE}" "${THEME_IMAGE}" "${TARGET_W}" "${TARGET_H}" <<'PY'
+import sys
+from PIL import Image
+from PIL import ImageDraw
+
+src = sys.argv[1]
+dst = sys.argv[2]
+target_w = int(sys.argv[3])
+target_h = int(sys.argv[4])
+
+img = Image.open(src).convert("RGB")
+iw, ih = img.size
+if iw <= 0 or ih <= 0:
+    raise SystemExit("invalid source image size")
+
+# Aspect-preserving "contain" into target frame.
+scale = min(target_w / iw, target_h / ih)
+new_w = max(1, int(iw * scale))
+new_h = max(1, int(ih * scale))
+resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+canvas = Image.new("RGB", (target_w, target_h), (64, 64, 64))
+paste_x = (target_w - new_w) // 2
+paste_y = (target_h - new_h) // 2
+canvas.paste(resized, (paste_x, paste_y))
+
+# Add a bright frame so the splash is clearly visible on very dark panels.
+draw = ImageDraw.Draw(canvas)
+frame_pad = 3
+draw.rectangle(
+    (
+        max(0, paste_x - frame_pad),
+        max(0, paste_y - frame_pad),
+        min(target_w - 1, paste_x + new_w + frame_pad),
+        min(target_h - 1, paste_y + new_h + frame_pad),
+    ),
+    outline=(230, 230, 230),
+    width=3,
+)
+canvas.save(dst, format="PNG")
+PY
+else
+  cp "${SOURCE_IMAGE}" "${THEME_IMAGE}"
+fi
 
 cat > "${PLYMOUTH_DEF}" <<'EOF'
 [Plymouth Theme]
@@ -96,23 +146,15 @@ ScriptFile=/usr/share/plymouth/themes/el-camino/el-camino.script
 EOF
 
 cat > "${PLYMOUTH_SCRIPT}" <<'EOF'
-img = Image("boot.png");
+img = Image("boot_hdmi.png");
 sprite = Sprite(img);
 sprite.SetZ(10000);
 
-fun center_image () {
-  w = Window.GetWidth();
-  h = Window.GetHeight();
-  iw = img.GetWidth();
-  ih = img.GetHeight();
-  sprite.SetX((w - iw) / 2);
-  sprite.SetY((h - ih) / 2);
-}
-
-center_image();
+sprite.SetX(0);
+sprite.SetY(0);
 
 Plymouth.SetBootProgressFunction(function () {});
-Plymouth.SetRefreshFunction(function () { center_image(); });
+Plymouth.SetRefreshFunction(function () {});
 EOF
 
 echo "[3/6] Setting default splash theme..."
@@ -174,9 +216,19 @@ set_cmdline "${CMDLINE_TXT}" \
   "systemd.show_status=false" \
   "udev.log_priority=0"
 
-echo "[6/6] Disabling visible TTY1 login prompt..."
+echo "[6/6] Configuring Plymouth daemon + TTY visibility..."
+cat > "${PLYMOUTH_CONF}" <<'EOF'
+[Daemon]
+ShowDelay=0
+UseSimpledrm=1
+DeviceScale=1
+EOF
 systemctl disable getty@tty1.service >/dev/null 2>&1 || true
 systemctl mask getty@tty1.service >/dev/null 2>&1 || true
+
+if command -v update-initramfs >/dev/null 2>&1; then
+  update-initramfs -u
+fi
 
 echo
 echo "Boot splash setup complete."

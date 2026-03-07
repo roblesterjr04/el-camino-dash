@@ -71,15 +71,32 @@ All configurable values are externalized in `config/dashboard.yaml`:
   - `inputs.simulated_data.enabled` toggles continuous synthetic telemetry for gauge motion
   - `inputs.rotary_encoders` supports multiple encoders (menu + aux)
   - `inputs.keyboard_sim.rotate_repeat_ms` controls keyboard rotary sensitivity
+  - `inputs.ir_remote` supports Linux IR key events via `evdev` with profile mappings in `config/remotes/*.yaml`
 - `integrations`: Navit/media/Bluetooth feature toggles + settings
   - Optional `integrations.bluetooth_audio` can auto-connect a BT device and route PulseAudio output to it
+  - `integrations.fm_radio.chip` selects FM frontend (`si4703` current strategy, `si4737` legacy)
+  - `integrations.audio_router` controls PT2314 source selection between Pi DAC and FM feed
 
 The app validates config strictly at startup and exits on schema/key/type errors.
 
+### IR remote profiles
+
+- Profile file example: `config/remotes/remote_1.yaml`
+- Select profile in dashboard config:
+  - `inputs.ir_remote.profile_path: config/remotes/remote_1.yaml`
+- Set either `inputs.ir_remote.device_path` (for example `/dev/input/event2`) or `inputs.ir_remote.device_name`
+- Preferred profile format uses `remote.controls` (action -> `KEY_*`), with empty values for unmapped controls
+- Diagnostics monitor trigger:
+  - 10 quick identical pulses opens IR diagnostics (`inputs.ir_remote.diagnostics_*` controls threshold/timing)
+- Action names supported in profile mappings:
+  - `menu_left`, `menu_right`, `menu_press`, `aux_left`, `aux_right`, `aux_press`
+  - `volume_up`, `volume_down`, `theme_next`, `map_toggle`, `center_toggle`, `tune_up`, `tune_down`
+
 `config/dashboard.dev.yaml` keeps `display_render_mode: single_window` for local development.
 `config/dashboard.vehicle.yaml` includes `display_render_mode: multi_window` with explicit `monitor_index` examples.
-`config/dashboard.spi.yaml` targets 3x GC9A01 displays on SPI1 (`display_render_mode: spi`).
+`config/dashboard.spi.yaml` is kept for legacy/reference SPI setups (currently dormant in installer flow).
 `config/dashboard.hdmi5.yaml` targets a single 5" 800x480 HDMI rectangle display.
+`WIRING_PINOUT.md` documents current Pi/Arduino/MCP23017/ATtiny pin assignments.
 
 ## HDMI 5" install/run steps
 
@@ -182,13 +199,26 @@ Theme files can define indicator lights per gauge with on/off sprites:
 
 ## Raspberry Pi scripts
 
-For new SPI1 breadboard setups, run the top-level installer:
+For Raspberry Pi installs, run the top-level installer:
 
 ```bash
 sudo bash install.sh
 ```
 
-This configures `dtoverlay=spi1-3cs`, sets `spidev.bufsiz=65536`, installs dependencies, creates `~/gauge-cluster`, and installs/enables `gauge-cluster.service`.
+This configures HDMI-focused boot/runtime settings, installs dependencies, creates `~/gauge-cluster`, masks SPI service paths, and enables the HDMI service.
+It also enables I2S for PCM5102A (`dtoverlay=hifiberry-dac`, `dtparam=i2s=on`) and disables onboard analog audio.
+
+For day-to-day code updates on the Pi (without full reinstall), use:
+
+```bash
+bash scripts/update_pi.sh
+```
+
+Optional dependency refresh:
+
+```bash
+bash scripts/update_pi.sh --with-pip
+```
 
 Legacy install scripts are still available and run in this order:
 
@@ -226,10 +256,10 @@ bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
 - Hardware X11 run helper: `bash scripts/run_hw.sh config/dashboard.vehicle.yaml`
 - HDMI 5" run helper:
   - `DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority bash scripts/run_hw.sh config/dashboard.hdmi5.yaml`
-- SPI config run helper:
+- Legacy SPI config run helper (dormant path):
   - `HEADLESS=1 SDL_VIDEODRIVER=dummy PYTHONPATH=src .venv/bin/python src/main.py --config config/dashboard.spi.yaml --render-mode spi --headless`
-- SPI service status: `systemctl status gauge-cluster.service`
-- SPI service logs: `journalctl -u gauge-cluster.service -f`
+- HDMI service status: `systemctl status gauge-cluster-hdmi.service`
+- HDMI service logs: `journalctl -u gauge-cluster-hdmi.service -f`
 - Verify install for Pi hardware mode:
   - `bash scripts/verify_install.sh --target pi --display-mode hardware`
 - Validate config manually:

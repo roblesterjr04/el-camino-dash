@@ -20,6 +20,10 @@ class _SerialRanges:
     temp: tuple[float, float]
     oil: tuple[float, float]
     voltage: tuple[float, float]
+    fuel_raw: tuple[float, float]
+    temp_raw: tuple[float, float]
+    oil_raw: tuple[float, float]
+    voltage_raw: tuple[float, float]
 
 
 class ArduinoSerialInput:
@@ -35,6 +39,10 @@ class ArduinoSerialInput:
             temp=self._parse_range(spec.get("temp_range"), (100.0, 260.0)),
             oil=self._parse_range(spec.get("oil_range"), (0.0, 100.0)),
             voltage=self._parse_range(spec.get("voltage_range"), (10.0, 16.0)),
+            fuel_raw=self._parse_range(spec.get("fuel_raw_range"), (0.0, 1023.0)),
+            temp_raw=self._parse_range(spec.get("temp_raw_range"), (0.0, 1023.0)),
+            oil_raw=self._parse_range(spec.get("oil_raw_range"), (0.0, 1023.0)),
+            voltage_raw=self._parse_range(spec.get("voltage_raw_range"), (0.0, 1023.0)),
         )
         if not self._enabled:
             return
@@ -59,8 +67,10 @@ class ArduinoSerialInput:
             return fallback
         return (lo, hi)
 
-    def _map_adc(self, raw: int, out_range: tuple[float, float]) -> float:
-        ratio = max(0.0, min(1.0, float(raw) / 1023.0))
+    def _map_adc(self, raw: int, in_range: tuple[float, float], out_range: tuple[float, float]) -> float:
+        in_min, in_max = in_range
+        ratio = 0.0 if in_max <= in_min else (float(raw) - in_min) / (in_max - in_min)
+        ratio = max(0.0, min(1.0, ratio))
         return out_range[0] + ((out_range[1] - out_range[0]) * ratio)
 
     def _parse_frame(self, payload: bytes) -> dict[str, float]:
@@ -80,11 +90,11 @@ class ArduinoSerialInput:
         return {
             "speed_sensor.vehicle_speed": speed_mph,
             "analog_inputs.engine_rpm": float(engine_rpm),
-            "analog_inputs.fuel_level": self._map_adc(pot, self._ranges.fuel),
-            "analog_inputs.coolant_temp": self._map_adc(therm, self._ranges.temp),
-            "analog_inputs.oil_pressure": self._map_adc(pressure, self._ranges.oil),
-            "indicators.oil": self._map_adc(pressure, self._ranges.oil),
-            "analog_inputs.system_voltage": self._map_adc(voltage, self._ranges.voltage),
+            "analog_inputs.fuel_level": self._map_adc(pot, self._ranges.fuel_raw, self._ranges.fuel),
+            "analog_inputs.coolant_temp": self._map_adc(therm, self._ranges.temp_raw, self._ranges.temp),
+            "analog_inputs.oil_pressure": self._map_adc(pressure, self._ranges.oil_raw, self._ranges.oil),
+            "indicators.oil": self._map_adc(pressure, self._ranges.oil_raw, self._ranges.oil),
+            "analog_inputs.system_voltage": self._map_adc(voltage, self._ranges.voltage_raw, self._ranges.voltage),
             "indicators.alt_ok": 1.0 if (flags & 0x01) else 0.0,
             "indicators.ign_on": 1.0 if (flags & 0x02) else 0.0,
             "arduino.fault_word": float(faults),

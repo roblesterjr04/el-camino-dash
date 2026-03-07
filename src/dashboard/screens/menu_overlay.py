@@ -30,6 +30,8 @@ class MenuOverlayScreen:
         self._font = pygame.font.Font(config["themes"]["font_name"], title_size)
         self._small_font = pygame.font.Font(config["themes"]["font_name"], small_size)
         self._tiny_font = pygame.font.Font(config["themes"]["font_name"], tiny_size)
+        self._audio_icon_base: pygame.Surface | None = None
+        self._audio_icon_path = Path("assets/icons/audio_menu.png")
 
     def render(self, surface: pygame.Surface, model: MenuRenderModel) -> None:
         content_rect = self._paint_overlay(surface)
@@ -160,6 +162,9 @@ class MenuOverlayScreen:
             pygame.draw.circle(surface, color, (cx - int(radius * 0.35), cy + int(radius * 0.45)), int(radius * 0.28), width=0)
             pygame.draw.circle(surface, color, (cx + int(radius * 0.25), cy + int(radius * 0.55)), int(radius * 0.28), width=0)
             return
+        if icon in {"audio", "audio_page"}:
+            self._draw_audio_icon(surface=surface, center=center, radius=radius, color=color)
+            return
         if icon in {"inputs", "in", "inputs_page"}:
             for idx, y_off in enumerate((-int(radius * 0.45), 0, int(radius * 0.45))):
                 y = cy + y_off
@@ -197,6 +202,62 @@ class MenuOverlayScreen:
         token = (icon_id or "?").strip().upper()[:3] or "?"
         glyph = self._small_font.render(token, True, color)
         surface.blit(glyph, glyph.get_rect(center=(cx, cy)))
+
+    def _draw_audio_icon(
+        self,
+        surface: pygame.Surface,
+        center: tuple[int, int],
+        radius: int,
+        color: tuple[int, int, int],
+    ) -> None:
+        icon = self._load_audio_icon_surface()
+        if icon is None:
+            # Fallback to vector icon if asset is missing.
+            cx, cy = center
+            width = max(2, radius // 8)
+            body_w = int(radius * 0.75)
+            body_h = int(radius * 0.72)
+            body = pygame.Rect(cx - int(radius * 0.9), cy - (body_h // 2), body_w, body_h)
+            pygame.draw.rect(surface, color, body, width=0, border_radius=max(2, width))
+            tip = [
+                (body.right - int(radius * 0.08), cy - int(radius * 0.55)),
+                (cx + int(radius * 0.5), cy - int(radius * 0.85)),
+                (cx + int(radius * 0.5), cy + int(radius * 0.85)),
+                (body.right - int(radius * 0.08), cy + int(radius * 0.55)),
+            ]
+            pygame.draw.polygon(surface, color, tip)
+            for scale in (0.42, 0.68):
+                pygame.draw.arc(
+                    surface,
+                    color,
+                    pygame.Rect(
+                        cx + int(radius * 0.25),
+                        cy - int(radius * scale),
+                        int(radius * scale * 1.2),
+                        int(radius * scale * 2.0),
+                    ),
+                    -0.95,
+                    0.95,
+                    width=max(2, width - 1),
+                )
+            return
+
+        target = max(10, int(radius * 2.2))
+        scaled = pygame.transform.smoothscale(icon, (target, target))
+        icon_mask = pygame.mask.from_surface(scaled)
+        tinted = icon_mask.to_surface(setcolor=(*color, 255), unsetcolor=(0, 0, 0, 0))
+        surface.blit(tinted, tinted.get_rect(center=center))
+
+    def _load_audio_icon_surface(self) -> pygame.Surface | None:
+        if self._audio_icon_base is not None:
+            return self._audio_icon_base
+        if not self._audio_icon_path.exists():
+            return None
+        try:
+            self._audio_icon_base = pygame.image.load(str(self._audio_icon_path)).convert_alpha()
+        except pygame.error:
+            self._audio_icon_base = None
+        return self._audio_icon_base
 
     def _render_list(self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect, body_top: int) -> None:
         y = body_top
@@ -244,6 +305,7 @@ class MenuOverlayController:
         self._visible = False
         self._input_initialized = False
         self._last_press_count = 0
+        self._last_diag_open_count = 0
         self._last_press_tick_ms = -1000
         self._close_double_press_ms = max(0, int(system_cfg.get("menu_close_double_press_ms", default_close_ms)))
         self._menu_error = ""
@@ -277,12 +339,23 @@ class MenuOverlayController:
     def process_input(self, values: dict[str, float], status: dict[str, str]) -> None:
         delta = int(values.get("inputs.rotary.menu.delta", 0.0))
         press_count = int(values.get("inputs.rotary.menu.presses", 0.0))
+        diag_open_count = int(values.get("inputs.ir.command.diagnostics_open_count", 0.0))
         if not self._input_initialized:
             # Hot-reload/re-render can recreate this controller while input counters
             # stay cumulative; baseline them so overlay never auto-opens.
             self._last_press_count = press_count
+            self._last_diag_open_count = diag_open_count
             self._input_initialized = True
             return
+        if diag_open_count < self._last_diag_open_count:
+            self._last_diag_open_count = diag_open_count
+        if diag_open_count > self._last_diag_open_count:
+            self._visible = True
+            if self._menu:
+                if not self._menu.open_page("ir_diagnostics"):
+                    self._menu.open_page("system")
+                self._menu.set_message("IR diagnostics active")
+            self._last_diag_open_count = diag_open_count
         if press_count < self._last_press_count:
             self._last_press_count = press_count
         new_presses = max(0, press_count - self._last_press_count)

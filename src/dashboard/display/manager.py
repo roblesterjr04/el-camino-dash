@@ -176,7 +176,12 @@ class DisplayManager:
         if str(os.environ.get("HEADLESS", "")).strip() == "1":
             self._root_surface = pygame.Surface(self._window_size(), pygame.SRCALPHA)
             return
-        self._root_surface = pygame.display.set_mode(self._window_size())
+        flags = 0
+        # In single-window hardware mode, respect display fullscreen intent to
+        # avoid a decorated desktop window/titlebar on the dash screen.
+        if len(self._layouts) == 1 and self._layouts[0].fullscreen:
+            flags |= pygame.FULLSCREEN
+        self._root_surface = pygame.display.set_mode(self._window_size(), flags)
         pygame.display.set_caption(self._config["system"]["window_title"])
 
     def _init_multi_window_mode(self) -> bool:

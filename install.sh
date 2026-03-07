@@ -10,12 +10,14 @@ APT_INSTALL_ARGS=(-y --no-install-recommends -o Dpkg::Use-Pty=0)
 SKIP_PACKAGES=0
 SKIP_SYNC=0
 SKIP_ARDUINO=0
-MODE="spi"
+MODE="hdmi"
 BOOT_SPLASH="auto"
 ARDUINO_PORT="auto"
 ARDUINO_FQBN="arduino:avr:uno"
 ARDUINO_RESET_GPIO=4
 ARDUINO_BAUD=115200
+ARDUINO_FW_STATUS="skipped"
+IR_GPIO_PIN=26
 
 usage() {
   cat <<'USAGE'
@@ -25,8 +27,8 @@ Options:
   --skip-packages        Skip apt-get update/install
   --skip-sync            Skip rsync copy to ~/gauge-cluster
   --skip-arduino         Skip Arduino firmware compile/upload over UART
-  --mode <value>         spi | hdmi | both (default: spi)
-  --boot-splash <value>  auto | none | spi | hdmi | both (default: auto)
+  --mode <value>         hdmi (default); spi/both accepted but coerced to hdmi
+  --boot-splash <value>  auto | none | hdmi (spi/both accepted but disabled)
   --arduino-port <path>  Serial port for upload (default: auto: /dev/serial0, then USB)
   --arduino-fqbn <value> Arduino FQBN (default: arduino:avr:uno)
   --arduino-reset-gpio   GPIO for ATmega reset pulse (default: 4)
@@ -134,14 +136,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 MODE="$(printf "%s" "${MODE}" | tr '[:upper:]' '[:lower:]')"
-if [[ "${MODE}" != "spi" && "${MODE}" != "hdmi" && "${MODE}" != "both" ]]; then
-  echo "Invalid --mode: ${MODE}. Expected spi, hdmi, both." >&2
+if [[ "${MODE}" == "spi" || "${MODE}" == "both" ]]; then
+  echo "WARNING: SPI mode is dormant; forcing --mode hdmi."
+  MODE="hdmi"
+fi
+if [[ "${MODE}" != "hdmi" ]]; then
+  echo "Invalid --mode: ${MODE}. Expected hdmi." >&2
   exit 2
 fi
 
 BOOT_SPLASH="$(printf "%s" "${BOOT_SPLASH}" | tr '[:upper:]' '[:lower:]')"
-if [[ "${BOOT_SPLASH}" != "auto" && "${BOOT_SPLASH}" != "none" && "${BOOT_SPLASH}" != "spi" && "${BOOT_SPLASH}" != "hdmi" && "${BOOT_SPLASH}" != "both" ]]; then
-  echo "Invalid --boot-splash: ${BOOT_SPLASH}. Expected auto, none, spi, hdmi, both." >&2
+if [[ "${BOOT_SPLASH}" == "spi" || "${BOOT_SPLASH}" == "both" ]]; then
+  echo "WARNING: SPI boot splash is dormant; disabling boot splash."
+  BOOT_SPLASH="none"
+fi
+if [[ "${BOOT_SPLASH}" != "auto" && "${BOOT_SPLASH}" != "none" && "${BOOT_SPLASH}" != "hdmi" ]]; then
+  echo "Invalid --boot-splash: ${BOOT_SPLASH}. Expected auto, none, hdmi." >&2
   exit 2
 fi
 if [[ "${BOOT_SPLASH}" == "auto" ]]; then
@@ -195,7 +205,9 @@ VENV_DIR="${PROJECT_DIR}/.venv"
 SPI_SERVICE_FILE="/etc/systemd/system/gauge-cluster-spi.service"
 HDMI_SERVICE_FILE="/etc/systemd/system/gauge-cluster-hdmi.service"
 CURSOR_SERVICE_FILE="/etc/systemd/system/gauge-hide-cursor.service"
+POWER_SERVICE_FILE="/etc/systemd/system/gauge-power-control.service"
 LEGACY_SERVICE_FILE="/etc/systemd/system/gauge-cluster.service"
+LIGHTDM_AUTOLOGIN_CONF="/etc/lightdm/lightdm.conf.d/99-gauge-autologin.conf"
 
 if [[ -f /boot/firmware/config.txt ]]; then
   BOOT_DIR="/boot/firmware"
@@ -216,6 +228,110 @@ append_line_if_missing() {
   fi
 }
 
+remove_config_lines_matching() {
+  local file="$1"
+  local pattern="$2"
+  local tmp
+  tmp="$(mktemp)"
+  awk -v pat="${pattern}" '$0 !~ pat' "${file}" > "${tmp}"
+  cat "${tmp}" > "${file}"
+  rm -f "${tmp}"
+}
+
+set_config_line_enabled() {
+  local file="$1"
+  local line="$2"
+  local key="${line%%=*}"
+  # Remove any existing active or commented assignment for this key,
+  # then write exactly one enabled line.
+  remove_config_lines_matching "${file}" "^[[:space:]]*#?[[:space:]]*${key}="
+  append_line_if_missing "${file}" "${line}"
+}
+
+stop_runtime_services_for_arduino() {
+  # Stop dashboard/runtime services before flashing so app processes
+  # release serial0.
+  local unit
+  for unit in \
+    gauge-cluster.service \
+    gauge-cluster-spi.service \
+    gauge-cluster-hdmi.service \
+    gauge-hide-cursor.service \
+    gauge-power-control.service; do
+    systemctl stop "${unit}" >/dev/null 2>&1 || true
+  done
+  # Also stop any manually launched dashboard process not tracked by systemd.
+  pkill -f "${PROJECT_DIR}/src/main.py" >/dev/null 2>&1 || true
+  pkill -f "${PROJECT_DIR}/scripts/run_hw.sh" >/dev/null 2>&1 || true
+  pkill -f "${PROJECT_DIR}/scripts/run_sim.sh" >/dev/null 2>&1 || true
+}
+
+wait_for_serial_port_free() {
+  local port="$1"
+  local timeout_s="${2:-20}"
+  local waited=0
+  if [[ -z "${port}" || ! -e "${port}" ]]; then
+    return 0
+  fi
+  if ! command -v fuser >/dev/null 2>&1; then
+    return 0
+  fi
+  while fuser "${port}" >/dev/null 2>&1; do
+    if [[ "${waited}" -eq 0 ]]; then
+      echo "Waiting for ${port} to be released..."
+    fi
+    sleep 1
+    waited=$((waited + 1))
+    if [[ "${waited}" -ge "${timeout_s}" ]]; then
+      echo "WARNING: ${port} is still busy after ${timeout_s}s; flashing may fail." >&2
+      fuser -v "${port}" || true
+      break
+    fi
+  done
+}
+
+remove_cmdline_token_prefix() {
+  local file="$1"
+  local prefix="$2"
+  local current updated
+  current="$(<"${file}")"
+  updated="$(printf "%s\n" "${current}" | sed -E "s/(^| )${prefix}[^ ]*//g; s/  +/ /g; s/^ //; s/ $//")"
+  printf "%s\n" "${updated}" > "${file}"
+}
+
+disable_serial_login_console() {
+  # Keep UART hardware enabled for Arduino comms, but disable serial login/console.
+  remove_cmdline_token_prefix "${CMDLINE_TXT}" "console=serial0"
+  remove_cmdline_token_prefix "${CMDLINE_TXT}" "console=ttyAMA0"
+  remove_cmdline_token_prefix "${CMDLINE_TXT}" "console=ttyS0"
+
+  local unit
+  for unit in \
+    serial-getty@serial0.service \
+    serial-getty@ttyAMA0.service \
+    serial-getty@ttyS0.service; do
+    systemctl stop "${unit}" >/dev/null 2>&1 || true
+    systemctl disable "${unit}" >/dev/null 2>&1 || true
+    systemctl mask "${unit}" >/dev/null 2>&1 || true
+  done
+}
+
+detect_hdmi_boot_connector() {
+  local status_file
+  for status_file in /sys/class/drm/card*-HDMI-A-*/status; do
+    [[ -e "${status_file}" ]] || continue
+    if [[ "$(<"${status_file}")" == "connected" ]]; then
+      local node
+      node="$(basename "$(dirname "${status_file}")")"
+      # Convert "card1-HDMI-A-2" -> "HDMI-A-2" for kernel video= token.
+      echo "${node#*-}"
+      return 0
+    fi
+  done
+  # Most Raspberry Pi 4/5 kiosk wiring uses HDMI-2.
+  echo "HDMI-A-2"
+}
+
 ensure_cmdline_token() {
   local file="$1"
   local token="$2"
@@ -226,6 +342,41 @@ ensure_cmdline_token() {
   fi
 }
 
+bootstrap_bluetooth_adapter() {
+  if ! command -v bluetoothctl >/dev/null 2>&1; then
+    echo "  WARNING: bluetoothctl not found; skipping adapter bootstrap."
+    return 0
+  fi
+
+  systemctl unmask bluetooth.service >/dev/null 2>&1 || true
+  systemctl enable bluetooth.service >/dev/null 2>&1 || true
+  systemctl restart bluetooth.service >/dev/null 2>&1 || true
+
+  if command -v rfkill >/dev/null 2>&1; then
+    rfkill unblock bluetooth >/dev/null 2>&1 || true
+  fi
+
+  # Some images boot with hci down; this is best-effort and harmless if absent.
+  if command -v hciconfig >/dev/null 2>&1; then
+    hciconfig hci0 up >/dev/null 2>&1 || true
+  fi
+
+  if ! bluetoothctl show | rg -q "Controller "; then
+    echo "  WARNING: No Bluetooth controller detected by bluez."
+    return 0
+  fi
+
+  bluetoothctl <<'EOF' >/dev/null 2>&1 || true
+power on
+agent NoInputNoOutput
+default-agent
+pairable on
+pairable-timeout 0
+discoverable-timeout 0
+discoverable on
+EOF
+}
+
 echo "[1/10] Installing system packages..."
 if [[ "${SKIP_PACKAGES}" -eq 1 ]]; then
   echo "Skipping package install (--skip-packages)"
@@ -233,32 +384,109 @@ else
   apt-get update
   apt-get install "${APT_INSTALL_ARGS[@]}" \
     python3-pip python3-venv \
-    python3-pygame python3-pil python3-spidev python3-rpi.gpio \
-    rsync x11-utils \
+    python3-pygame python3-pil python3-spidev python3-rpi.gpio python3-evdev \
+    ir-keytable i2c-tools alsa-utils raspi-config \
+    gcc-avr binutils-avr avr-libc \
+    rsync x11-utils x11-xserver-utils xinit xserver-xorg lightdm openbox xterm \
     bluez pulseaudio pulseaudio-module-bluetooth \
     navit gpsd gpsd-clients \
     plymouth plymouth-themes unclutter \
     curl ca-certificates avrdude
-  systemctl enable bluetooth.service >/dev/null 2>&1 || true
-  systemctl restart bluetooth.service >/dev/null 2>&1 || true
+  systemctl enable lightdm.service >/dev/null 2>&1 || true
+  bootstrap_bluetooth_adapter
 fi
 
 echo "[2/10] Configuring boot settings..."
 if [[ "${SKIP_ARDUINO}" -eq 0 ]]; then
-  append_line_if_missing "${CONFIG_TXT}" "enable_uart=1"
+  set_config_line_enabled "${CONFIG_TXT}" "enable_uart=1"
 fi
-if [[ "${MODE}" == "spi" || "${MODE}" == "both" || "${BOOT_SPLASH}" == "spi" || "${BOOT_SPLASH}" == "both" ]]; then
-  append_line_if_missing "${CONFIG_TXT}" "dtparam=spi=on"
-  append_line_if_missing "${CONFIG_TXT}" "dtoverlay=spi1-3cs"
-  ensure_cmdline_token "${CMDLINE_TXT}" "spidev.bufsiz=65536"
+# FM radio (Si4737) rides I2C bus 1; ensure it's enabled for all install modes.
+set_config_line_enabled "${CONFIG_TXT}" "dtparam=i2c_arm=on"
+# Ensure KMS graphics stack is enabled so LightDM can create X display :0.
+remove_config_lines_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=vc4-fkms-v3d.*$"
+set_config_line_enabled "${CONFIG_TXT}" "dtoverlay=vc4-kms-v3d"
+if command -v raspi-config >/dev/null 2>&1; then
+  # Keep firmware-managed I2C state in sync with config.txt.
+  raspi-config nonint do_i2c 0 >/dev/null 2>&1 || true
 fi
+# Best-effort immediate availability without reboot; boot-time enable still
+# requires reboot for persistence.
+modprobe i2c-dev >/dev/null 2>&1 || true
+modprobe i2c-bcm2835 >/dev/null 2>&1 || modprobe i2c_bcm2835 >/dev/null 2>&1 || true
+if [[ ! -e /dev/i2c-1 ]]; then
+  echo "WARNING: /dev/i2c-1 not present yet. Reboot after install to apply i2c_arm changes." >&2
+fi
+if [[ ! -e /dev/dri/card0 ]]; then
+  echo "WARNING: /dev/dri/card0 not present yet. Reboot after install to apply KMS graphics changes." >&2
+fi
+# Use Raspberry Pi onboard analog audio jack by default.
+# Remove external I2S DAC overlays if present.
+remove_config_lines_matching "${CONFIG_TXT}" "^[[:space:]]*dtparam=i2s=on[[:space:]]*$"
+remove_config_lines_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=hifiberry-dacplus.*$"
+remove_config_lines_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=rpi-dac.*$"
+remove_config_lines_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=hifiberry-dac[[:space:]]*$"
+set_config_line_enabled "${CONFIG_TXT}" "dtparam=audio=on"
+disable_serial_login_console
+# Keep SPI0 enabled for ATtiny ISP programming, even in HDMI deployments.
+set_config_line_enabled "${CONFIG_TXT}" "dtparam=spi=on"
+# SPI display mode is intentionally dormant in HDMI-only deployments.
+# Avoid reserving SPI1 display pins/buffers in config/cmdline.
+remove_config_lines_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=spi1-3cs[[:space:]]*$"
+remove_cmdline_token_prefix "${CMDLINE_TXT}" "spidev.bufsiz="
+# Force 3.5mm analog jack output path (disable HDMI PCM endpoint in snd_bcm2835).
+remove_cmdline_token_prefix "${CMDLINE_TXT}" "snd_bcm2835.enable_headphones="
+remove_cmdline_token_prefix "${CMDLINE_TXT}" "snd_bcm2835.enable_hdmi="
+ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_headphones=1"
+ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_hdmi=0"
+# Enable GPIO IR receiver for dashboard remote input.
+remove_config_lines_matching "${CONFIG_TXT}" "^dtoverlay=gpio-ir,gpio_pin="
+append_line_if_missing "${CONFIG_TXT}" "dtoverlay=gpio-ir,gpio_pin=${IR_GPIO_PIN}"
 
-if [[ "${MODE}" == "hdmi" || "${MODE}" == "both" || "${BOOT_SPLASH}" == "hdmi" || "${BOOT_SPLASH}" == "both" ]]; then
+if [[ "${MODE}" == "hdmi" || "${BOOT_SPLASH}" == "hdmi" ]]; then
+  HDMI_BOOT_CONNECTOR="$(detect_hdmi_boot_connector)"
   append_line_if_missing "${CONFIG_TXT}" "hdmi_force_hotplug=1"
   append_line_if_missing "${CONFIG_TXT}" "hdmi_group=2"
   append_line_if_missing "${CONFIG_TXT}" "hdmi_mode=87"
   append_line_if_missing "${CONFIG_TXT}" "hdmi_cvt=800 480 60 6 0 0 0"
   append_line_if_missing "${CONFIG_TXT}" "disable_overscan=1"
+  # Force early-kernel HDMI mode on the physically connected panel so
+  # Plymouth does not render to the wrong output.
+  remove_cmdline_token_prefix "${CMDLINE_TXT}" "video="
+  remove_cmdline_token_prefix "${CMDLINE_TXT}" "video=HDMI-A-1:"
+  remove_cmdline_token_prefix "${CMDLINE_TXT}" "video=HDMI-A-2:"
+  ensure_cmdline_token "${CMDLINE_TXT}" "video=${HDMI_BOOT_CONNECTOR}:800x480M@60D"
+fi
+
+if [[ "${MODE}" == "hdmi" ]]; then
+  install -d /etc/lightdm/lightdm.conf.d
+  cat > "${LIGHTDM_AUTOLOGIN_CONF}" <<LIGHTDMCONF
+[Seat:*]
+autologin-user=${TARGET_USER}
+autologin-user-timeout=0
+user-session=lightdm-xsession
+autologin-session=lightdm-xsession
+LIGHTDMCONF
+
+  cat > "${TARGET_HOME}/.xsession" <<'XSESSION'
+#!/usr/bin/env sh
+set -eu
+
+if command -v openbox-session >/dev/null 2>&1; then
+  exec openbox-session
+fi
+if command -v openbox >/dev/null 2>&1; then
+  exec openbox
+fi
+if command -v x-session-manager >/dev/null 2>&1; then
+  exec x-session-manager
+fi
+if command -v x-window-manager >/dev/null 2>&1; then
+  exec x-window-manager
+fi
+exec x-terminal-emulator
+XSESSION
+  chown "${TARGET_USER}:${TARGET_USER}" "${TARGET_HOME}/.xsession"
+  chmod 755 "${TARGET_HOME}/.xsession"
 fi
 
 echo "[3/10] Syncing project..."
@@ -291,33 +519,53 @@ echo "[5/10] Installing Arduino CLI and flashing firmware..."
 if [[ "${SKIP_ARDUINO}" -eq 1 ]]; then
   echo "Skipping Arduino update (--skip-arduino)"
 else
+  ARDUINO_FW_STATUS="updated"
+  ARDUINO_FW_FAILED=0
+  stop_runtime_services_for_arduino
   if ! command -v arduino-cli >/dev/null 2>&1; then
     echo "Installing arduino-cli (official installer)..."
-    curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
+    if ! curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh; then
+      echo "WARNING: Failed to install arduino-cli." >&2
+      ARDUINO_FW_FAILED=1
+    fi
   else
     echo "arduino-cli already installed."
   fi
 
-  echo "Updating Arduino board index..."
-  arduino-cli core update-index
-  if ! arduino-cli core list | awk '{print $1}' | rg "^arduino:avr$" >/dev/null 2>&1; then
-    echo "Installing Arduino core: arduino:avr"
-    arduino-cli core install arduino:avr
-  else
-    echo "Arduino core already installed: arduino:avr"
+  if [[ "${ARDUINO_FW_FAILED}" -eq 0 ]]; then
+    echo "Updating Arduino board index..."
+    if ! arduino-cli core update-index; then
+      echo "WARNING: Failed to update Arduino board index." >&2
+      ARDUINO_FW_FAILED=1
+    fi
+  fi
+  if [[ "${ARDUINO_FW_FAILED}" -eq 0 ]]; then
+    if ! arduino-cli core list | awk '{print $1}' | rg "^arduino:avr$" >/dev/null 2>&1; then
+      echo "Installing Arduino core: arduino:avr"
+      if ! arduino-cli core install arduino:avr; then
+        echo "WARNING: Failed to install Arduino core arduino:avr." >&2
+        ARDUINO_FW_FAILED=1
+      fi
+    else
+      echo "Arduino core already installed: arduino:avr"
+    fi
   fi
 
   UPLOAD_PORT="${ARDUINO_PORT}"
-  if [[ "${UPLOAD_PORT}" == "auto" ]]; then
+  if [[ "${ARDUINO_FW_FAILED}" -eq 0 && "${UPLOAD_PORT}" == "auto" ]]; then
     if ! UPLOAD_PORT="$(detect_arduino_port)"; then
-      echo "No Arduino serial port found at /dev/serial0, /dev/ttyACM*, or /dev/ttyUSB*." >&2
-      echo "Reconnect board and rerun, or specify --arduino-port /dev/serial0 (UART) or /dev/ttyACM0 (USB)." >&2
-      exit 1
+      echo "WARNING: No Arduino serial port found at /dev/serial0, /dev/ttyACM*, or /dev/ttyUSB*." >&2
+      echo "         Reconnect board and rerun, or specify --arduino-port /dev/serial0 (UART) or /dev/ttyACM0 (USB)." >&2
+      ARDUINO_FW_FAILED=1
+    else
+      echo "Auto-detected Arduino port: ${UPLOAD_PORT}"
     fi
-    echo "Auto-detected Arduino port: ${UPLOAD_PORT}"
   fi
   ARDUINO_PORT="${UPLOAD_PORT}"
-  if [[ "${UPLOAD_PORT}" == "/dev/serial0" || "${UPLOAD_PORT}" == "/dev/ttyAMA0" || "${UPLOAD_PORT}" == "/dev/ttyS0" ]]; then
+  if [[ "${ARDUINO_FW_FAILED}" -eq 0 ]]; then
+    wait_for_serial_port_free "${ARDUINO_PORT}" 20
+  fi
+  if [[ "${ARDUINO_FW_FAILED}" -eq 0 && ( "${UPLOAD_PORT}" == "/dev/serial0" || "${UPLOAD_PORT}" == "/dev/ttyAMA0" || "${UPLOAD_PORT}" == "/dev/ttyS0" ) ]]; then
     SKETCH_DIR="${PROJECT_DIR}/arduino/sketches/sensor_pack"
     BUILD_DIR="${PROJECT_DIR}/arduino/build/sensor_pack"
     HEX_FILE="${BUILD_DIR}/sensor_pack.ino.hex"
@@ -325,31 +573,38 @@ else
 
     mkdir -p "${BUILD_DIR}"
     echo "Compiling sensor_pack for ${ARDUINO_FQBN}..."
-    arduino-cli compile \
+    if ! arduino-cli compile \
       --fqbn "${ARDUINO_FQBN}" \
       --build-path "${BUILD_DIR}" \
-      "${SKETCH_DIR}"
+      "${SKETCH_DIR}"; then
+      echo "WARNING: Arduino compile failed." >&2
+      ARDUINO_FW_FAILED=1
+    fi
 
-    if [[ ! -f "${HEX_FILE}" ]]; then
+    if [[ "${ARDUINO_FW_FAILED}" -eq 0 && ! -f "${HEX_FILE}" ]]; then
       shopt -s nullglob
       HEX_CANDIDATES=("${BUILD_DIR}"/*.ino.hex)
       shopt -u nullglob
       if [[ "${#HEX_CANDIDATES[@]}" -lt 1 ]]; then
-        echo "Failed to locate compiled hex in ${BUILD_DIR}" >&2
-        exit 1
+        echo "WARNING: Failed to locate compiled hex in ${BUILD_DIR}" >&2
+        ARDUINO_FW_FAILED=1
+      else
+        HEX_FILE="${HEX_CANDIDATES[0]}"
       fi
-      HEX_FILE="${HEX_CANDIDATES[0]}"
     fi
 
-    echo "Pulsing GPIO ${ARDUINO_RESET_GPIO} to reset ATmega bootloader..."
-    if [[ -f "${CMDLINE_TXT}" ]]; then
+    if [[ "${ARDUINO_FW_FAILED}" -eq 0 ]]; then
+      echo "Pulsing GPIO ${ARDUINO_RESET_GPIO} to reset ATmega bootloader..."
+    fi
+    if [[ "${ARDUINO_FW_FAILED}" -eq 0 && -f "${CMDLINE_TXT}" ]]; then
       CURRENT_CMDLINE="$(<"${CMDLINE_TXT}")"
       if [[ "${CURRENT_CMDLINE}" == *"console=serial0,"* || "${CURRENT_CMDLINE}" == *"console=ttyAMA0,"* ]]; then
         echo "WARNING: Serial console appears enabled in ${CMDLINE_TXT}."
         echo "         Disable login shell over serial in raspi-config for reliable UART flashing."
       fi
     fi
-    python3 - "${ARDUINO_RESET_GPIO}" <<'PY'
+    if [[ "${ARDUINO_FW_FAILED}" -eq 0 ]]; then
+      python3 - "${ARDUINO_RESET_GPIO}" <<'PY'
 import sys
 import time
 import RPi.GPIO as GPIO
@@ -364,17 +619,31 @@ GPIO.output(pin, GPIO.HIGH)
 time.sleep(0.1)
 GPIO.cleanup(pin)
 PY
+    fi
 
-    echo "Flashing ${HEX_FILE} to ${UPLOAD_PORT} (${MCU} @ ${ARDUINO_BAUD})..."
-    avrdude -v \
-      -p "${MCU}" \
-      -c arduino \
-      -P "${UPLOAD_PORT}" \
-      -b "${ARDUINO_BAUD}" \
-      -D \
-      -U "flash:w:${HEX_FILE}:i"
-  else
-    bash "${PROJECT_DIR}/arduino/scripts/upload_sensor_pack.sh" "${UPLOAD_PORT}" "${ARDUINO_FQBN}"
+    if [[ "${ARDUINO_FW_FAILED}" -eq 0 ]]; then
+      echo "Flashing ${HEX_FILE} to ${UPLOAD_PORT} (${MCU} @ ${ARDUINO_BAUD})..."
+      if ! avrdude -v \
+        -p "${MCU}" \
+        -c arduino \
+        -P "${UPLOAD_PORT}" \
+        -b "${ARDUINO_BAUD}" \
+        -D \
+        -U "flash:w:${HEX_FILE}:i"; then
+        echo "WARNING: Arduino flash failed on ${UPLOAD_PORT}." >&2
+        ARDUINO_FW_FAILED=1
+      fi
+    fi
+  elif [[ "${ARDUINO_FW_FAILED}" -eq 0 ]]; then
+    if ! bash "${PROJECT_DIR}/arduino/scripts/upload_sensor_pack.sh" "${UPLOAD_PORT}" "${ARDUINO_FQBN}"; then
+      echo "WARNING: Arduino upload script failed." >&2
+      ARDUINO_FW_FAILED=1
+    fi
+  fi
+
+  if [[ "${ARDUINO_FW_FAILED}" -ne 0 ]]; then
+    ARDUINO_FW_STATUS="failed"
+    echo "WARNING: Arduino firmware update failed; continuing install." >&2
   fi
 fi
 
@@ -411,15 +680,16 @@ User=${TARGET_USER}
 WorkingDirectory=${PROJECT_DIR}
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=${TARGET_HOME}/.Xauthority
+Environment=XDG_RUNTIME_DIR=/run/user/$(id -u "${TARGET_USER}")
 Environment=DISPLAY_MODE=hardware
+Environment=SDL_VIDEODRIVER=x11
 Environment=PYTHONPATH=${PROJECT_DIR}/src
-ExecStart=/bin/bash -lc 'export DISPLAY=:0; export XAUTHORITY=${TARGET_HOME}/.Xauthority; until [ -S /tmp/.X11-unix/X0 ]; do sleep 1; done; cd ${PROJECT_DIR}; exec bash scripts/run_hw.sh config/dashboard.hdmi5.yaml'
+ExecStart=/bin/bash -lc 'export DISPLAY=:0; export XAUTHORITY=${TARGET_HOME}/.Xauthority; export XDG_RUNTIME_DIR=/run/user/$(id -u "${TARGET_USER}"); export SDL_VIDEODRIVER=x11; until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ]; do sleep 1; done; cd ${PROJECT_DIR}; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/src/main.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml'
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=graphical.target
-WantedBy=multi-user.target
 SERVICEHDMI
 
 cat > "${CURSOR_SERVICE_FILE}" <<SERVICECURSOR
@@ -433,14 +703,33 @@ Type=simple
 User=${TARGET_USER}
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=${TARGET_HOME}/.Xauthority
-ExecStart=/bin/bash -lc 'until [ -S /tmp/.X11-unix/X0 ]; do sleep 1; done; exec /usr/bin/unclutter -display :0 -idle 0 -root -grab'
+ExecStart=/bin/bash -lc 'until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ]; do sleep 1; done; exec /usr/bin/unclutter -display :0 -idle 0 -root -grab'
 Restart=always
 RestartSec=2
 
 [Install]
 WantedBy=graphical.target
-WantedBy=multi-user.target
 SERVICECURSOR
+
+cat > "${POWER_SERVICE_FILE}" <<SERVICEPOWER
+[Unit]
+Description=Gauge Power Control Listener
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${PROJECT_DIR}
+ExecStart=${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/power_control_listener.py --signal-pin 16 --confirm-pin 12 --debounce-ms 80 --poll-interval-ms 20
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICEPOWER
 
 rm -f "${LEGACY_SERVICE_FILE}" || true
 systemctl daemon-reload
@@ -448,50 +737,29 @@ systemctl daemon-reload
 echo "[7/10] Applying mode selection..."
 systemctl disable gauge-cluster.service >/dev/null 2>&1 || true
 systemctl stop gauge-cluster.service >/dev/null 2>&1 || true
+# Clear stale target links from previous unit install sections.
+systemctl disable gauge-cluster-spi.service >/dev/null 2>&1 || true
+systemctl disable gauge-cluster-hdmi.service >/dev/null 2>&1 || true
+systemctl disable gauge-hide-cursor.service >/dev/null 2>&1 || true
+systemctl disable gauge-power-control.service >/dev/null 2>&1 || true
 
-case "${MODE}" in
-  spi)
-    systemctl unmask gauge-cluster-spi.service >/dev/null 2>&1 || true
-    systemctl enable gauge-cluster-spi.service
-    systemctl restart gauge-cluster-spi.service || true
-    systemctl disable gauge-cluster-hdmi.service >/dev/null 2>&1 || true
-    systemctl disable gauge-hide-cursor.service >/dev/null 2>&1 || true
-    systemctl stop gauge-cluster-hdmi.service >/dev/null 2>&1 || true
-    systemctl stop gauge-hide-cursor.service >/dev/null 2>&1 || true
-    ;;
-  hdmi)
-    systemctl set-default graphical.target || true
-    systemctl mask gauge-cluster-spi.service >/dev/null 2>&1 || true
-    systemctl disable gauge-cluster-spi.service >/dev/null 2>&1 || true
-    systemctl stop gauge-cluster-spi.service >/dev/null 2>&1 || true
-    systemctl enable gauge-cluster-hdmi.service
-    systemctl enable gauge-hide-cursor.service
-    systemctl restart gauge-cluster-hdmi.service || true
-    systemctl restart gauge-hide-cursor.service || true
-    ;;
-  both)
-    systemctl set-default graphical.target || true
-    systemctl unmask gauge-cluster-spi.service >/dev/null 2>&1 || true
-    systemctl enable gauge-cluster-spi.service
-    systemctl enable gauge-cluster-hdmi.service
-    systemctl enable gauge-hide-cursor.service
-    systemctl restart gauge-cluster-spi.service || true
-    systemctl restart gauge-cluster-hdmi.service || true
-    systemctl restart gauge-hide-cursor.service || true
-    ;;
-esac
+systemctl set-default graphical.target || true
+systemctl mask gauge-cluster-spi.service >/dev/null 2>&1 || true
+systemctl disable gauge-cluster-spi.service >/dev/null 2>&1 || true
+systemctl stop gauge-cluster-spi.service >/dev/null 2>&1 || true
+systemctl enable gauge-cluster-hdmi.service
+systemctl enable gauge-hide-cursor.service
+systemctl enable gauge-power-control.service
+systemctl restart gauge-cluster-hdmi.service || true
+systemctl restart gauge-hide-cursor.service || true
+systemctl restart gauge-power-control.service || true
 
 echo "[8/10] Applying boot splash selection..."
-if [[ "${BOOT_SPLASH}" == "spi" || "${BOOT_SPLASH}" == "both" ]]; then
-  systemctl unmask gauge-boot-splash.service >/dev/null 2>&1 || true
-  bash "${PROJECT_DIR}/scripts/install_early_boot_splash_service.sh"
-else
-  systemctl mask gauge-boot-splash.service >/dev/null 2>&1 || true
-  systemctl disable gauge-boot-splash.service >/dev/null 2>&1 || true
-  systemctl stop gauge-boot-splash.service >/dev/null 2>&1 || true
-fi
+systemctl mask gauge-boot-splash.service >/dev/null 2>&1 || true
+systemctl disable gauge-boot-splash.service >/dev/null 2>&1 || true
+systemctl stop gauge-boot-splash.service >/dev/null 2>&1 || true
 
-if [[ "${BOOT_SPLASH}" == "hdmi" || "${BOOT_SPLASH}" == "both" ]]; then
+if [[ "${MODE}" == "hdmi" || "${BOOT_SPLASH}" == "hdmi" ]]; then
   bash "${PROJECT_DIR}/scripts/setup_boot_image.sh"
 fi
 
@@ -504,6 +772,12 @@ fi
 
 if command -v bluetoothctl >/dev/null 2>&1; then
   echo "  bluetoothctl found."
+  echo "  Bootstrapping adapter (power/pairable/discoverable)..."
+  bootstrap_bluetooth_adapter
+  BT_SHOW_OUTPUT="$(bluetoothctl show 2>/dev/null || true)"
+  if [[ -n "${BT_SHOW_OUTPUT}" ]]; then
+    echo "${BT_SHOW_OUTPUT}" | rg "Controller|Powered:|Discoverable:|Pairable:" || true
+  fi
 else
   echo "  WARNING: bluetoothctl not found. Install package 'bluez'."
 fi
@@ -516,6 +790,8 @@ fi
 
 usermod -aG bluetooth "${TARGET_USER}" >/dev/null 2>&1 || true
 usermod -aG audio "${TARGET_USER}" >/dev/null 2>&1 || true
+usermod -aG i2c "${TARGET_USER}" >/dev/null 2>&1 || true
+usermod -aG gpio "${TARGET_USER}" >/dev/null 2>&1 || true
 
 echo "[10/10] Final apt cache cleanup..."
 cleanup_space
@@ -525,7 +801,7 @@ echo "Fresh install complete."
 echo "Mode: ${MODE}"
 echo "Boot splash: ${BOOT_SPLASH}"
 echo "Project: ${PROJECT_DIR}"
-echo "Arduino firmware: $([[ "${SKIP_ARDUINO}" -eq 1 ]] && echo "skipped" || echo "updated")"
+echo "Arduino firmware: ${ARDUINO_FW_STATUS}"
 if [[ "${SKIP_ARDUINO}" -eq 0 ]]; then
   echo "Arduino FQBN: ${ARDUINO_FQBN}"
   echo "Arduino port: ${ARDUINO_PORT}"
@@ -542,9 +818,16 @@ echo "  - Reboot recommended so audio/bluetooth group changes fully apply"
 echo
 echo "Quick checks:"
 echo "  systemctl status gauge-cluster-hdmi.service -l --no-pager"
-echo "  systemctl status gauge-cluster-spi.service -l --no-pager"
+echo "  systemctl status gauge-power-control.service -l --no-pager"
+echo "  systemctl is-enabled gauge-cluster-spi.service"
 echo "  bluetoothctl show"
 echo "  navit --version"
+echo "  ir-keytable"
+echo "  ir-keytable -t"
+echo "  aplay -l"
+echo "  ls -l /dev/spidev*"
+echo "  ls -l /dev/i2c*"
+echo "  i2cdetect -y 1"
 echo
 echo "Reboot recommended:"
 echo "  sudo reboot"

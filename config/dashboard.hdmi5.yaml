@@ -14,6 +14,7 @@ system:
   menu_schema_path: config/menu_schema.yaml
   menu_display_id: main_display
   alert_display_id: main_display
+  alert_overlay_mode: lower_third
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.hdmi5.json
@@ -105,7 +106,7 @@ gauges:
 inputs:
   rotary_encoders:
     - id: menu
-      enabled: true
+      enabled: false
       pin_a: 17
       pin_b: 27
       pin_button: 22
@@ -115,7 +116,7 @@ inputs:
       invert_direction: false
       acceleration: 1.0
     - id: aux
-      enabled: true
+      enabled: false
       pin_a: 23
       pin_b: 24
       pin_button: 25
@@ -173,9 +174,34 @@ inputs:
       wheel_circumference_m: 2.1
       timeout_ms: 800
       smoothing_alpha: 0.35
-  arduino_serial:
+  gpio_buttons:
     enabled: false
-    port: /dev/ttyAMA0
+    menu_left_pin: 6
+    menu_select_pin: 13
+    pull_up: true
+    left_delta: 1
+    debounce_ms: 60
+  mcp23017_controls:
+    enabled: true
+    i2c_bus: 1
+    address: 32
+    pull_up: true
+    debounce_ms: 60
+    rotary_debounce_ms: 4
+    rotary_counts_per_step: 2
+    button_debounce_ms: 120
+    menu_pin_a: 0
+    menu_pin_b: 1
+    menu_pin_button: 2
+    aux_pin_a: 3
+    aux_pin_b: 4
+    aux_pin_button: 5
+    menu_left_pin: 6
+    menu_select_pin: 7
+    left_delta: 1
+  arduino_serial:
+    enabled: true
+    port: /dev/serial0
     baudrate: 115200
     timeout_s: 0.0
     wheel_circumference_m: 2.1
@@ -237,6 +263,17 @@ inputs:
       turn_left_toggle: K_z
       turn_right_toggle: K_x
       hazard_toggle: K_c
+  ir_remote:
+    enabled: true
+    profile_path: config/remotes/remote_1.yaml
+    # Example: /dev/input/event2
+    device_path: ""
+    # Example: gpio_ir_recv
+    device_name: "gpio_ir_recv"
+    allow_repeats: false
+    diagnostics_pulse_count: 10
+    diagnostics_window_ms: 5000
+    diagnostics_max_gap_ms: 450
 
 integrations:
   navit:
@@ -244,29 +281,47 @@ integrations:
     executable: navit
     args: []
   media:
-    enabled: false
+    enabled: true
     music_root: media
     startup_track: ""
     startup_volume: 0.5
+    output_backend: pcm5102a
   bluetooth_metadata:
-    enabled: false
-    provider: mock
+    enabled: true
+    provider: bluez
+    device_mac: "70:22:FE:0E:0A:32"
+    refresh_interval_s: 2.0
   bluetooth_audio:
-    enabled: false
-    device_mac: ""
+    enabled: true
+    device_mac: "70:22:FE:0E:0A:32"
     auto_connect: true
     pair_on_connect: false
     trust_device: true
     set_default_sink: true
-    sink_name: ""
+    sink_name: "alsa_output.platform-fe00b840.mailbox.stereo-fallback"
     refresh_interval_s: 5.0
   fm_radio:
-    enabled: false
+    enabled: true
+    chip: si4703
     i2c_bus: 1
     address: 17
-    rst_pin: 17
+    rst_pin: 5
     startup_mode: fm
-    startup_freq_mhz: 101.3
+    startup_freq_mhz: 87.5
     wb_channel: 1
     startup_volume: 45
-    fm_step_mhz: 0.1
+    fm_step_mhz: 0.2
+  audio_router:
+    enabled: true
+    chip: pt2314
+    protocol: i2c
+    i2c_bus: 1
+    address: 68
+    default_source: pi_dac
+    inter_command_delay_s: 0.003
+    settle_ms: 8
+    sources:
+      pi_dac:
+        command_bytes: [192]
+      fm_radio:
+        command_bytes: [193]

@@ -1,0 +1,16 @@
+remote:
+  id: remote_1
+  name: IR Remote Template
+  # Fill each control with the KEY_* code shown by diagnostics monitor.
+  # Example: menu_left: KEY_LEFT
+  controls:
+    menu_left: ""
+    menu_right: ""
+    menu_press: ""
+    volume_up: ""
+    volume_down: ""
+    tune_up: ""
+    tune_down: ""
+    theme_next: ""
+    center_toggle: ""
+    map_toggle: ""

@@ -7,6 +7,7 @@ system:
   menu_schema_path: config/menu_schema.yaml
   menu_display_id: gauge_right
   alert_display_id: gauge_center
+  alert_overlay_mode: full
   startup_sweep_enabled: true
   startup_sweep_up_s: 1.1
   startup_sweep_hold_s: 0.12
@@ -168,9 +169,34 @@ inputs:
       amp_down: K_h
       oil_up: K_u
       oil_down: K_j
+  ir_remote:
+    enabled: false
+    profile_path: config/remotes/remote_1.yaml
+    # Example: /dev/input/event2
+    device_path: ""
+    # Example: gpio_ir_recv
+    device_name: ""
+    allow_repeats: false
+    diagnostics_pulse_count: 10
+    diagnostics_window_ms: 1500
+    diagnostics_max_gap_ms: 180
 
 integrations:
   navit: {enabled: false, executable: navit, args: []}
   media: {enabled: false, music_root: media, startup_track: "", startup_volume: 0.5}
   bluetooth_metadata: {enabled: false, provider: mock}
-  fm_radio: {enabled: false, i2c_bus: 1, address: 17, rst_pin: 17, startup_mode: fm, startup_freq_mhz: 101.3, wb_channel: 1, startup_volume: 45, fm_step_mhz: 0.1}
+  fm_radio: {enabled: false, chip: si4703, i2c_bus: 1, address: 17, rst_pin: 17, startup_mode: fm, startup_freq_mhz: 101.3, wb_channel: 1, startup_volume: 45, fm_step_mhz: 0.1}
+  audio_router:
+    enabled: false
+    chip: pt2314
+    protocol: i2c
+    i2c_bus: 1
+    address: 68
+    default_source: pi_dac
+    inter_command_delay_s: 0.003
+    settle_ms: 8
+    sources:
+      pi_dac:
+        command_bytes: [192]
+      fm_radio:
+        command_bytes: [193]

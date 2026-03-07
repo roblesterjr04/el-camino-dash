@@ -31,6 +31,11 @@
  *   D3 - Ignition coil tach signal (engine RPM)
  *   D4 - Alternator "L" terminal (charge indicator)
  *   D6 - Ignition sense (12V switched through voltage divider)
+ *   D7 - Pot power monitor (sensor side of PTC fuse)
+ *   D8 - Thermistor power monitor (sensor side of PTC fuse)
+ *   D9 - Pressure power monitor (sensor side of PTC fuse)
+ *   D10 - Voltage sense power monitor (sensor side of PTC fuse)
+ *   D11 - Fault logging disable (HIGH = suppress fault reporting)
  *
  * Packet format (binary, big-endian), 22 bytes:
  *   [0xAA] [0x55]          - sync header (2)
@@ -58,6 +63,11 @@
 #define PIN_COIL       3
 #define PIN_ALT_L      4
 #define PIN_IGN_SENSE  6   // ignition on/off (through voltage divider)
+#define PIN_POT_PWR_MON   7
+#define PIN_TEMP_PWR_MON  8
+#define PIN_PRESS_PWR_MON 9
+#define PIN_VOLT_PWR_MON  10
+#define PIN_FAULT_DISABLE  11
 
 // Config
 #define SERIAL_BAUD    115200
@@ -77,6 +87,11 @@
 #define HALL_MISSING_THRESH 100   // 5 seconds at 20 Hz
 #define COIL_MISSING_THRESH 100
 
+// Fuel sender (A0) smoothing/debounce. This is intentionally conservative
+// to suppress tank slosh noise in the gauge display.
+#define POT_FILTER_ALPHA_DIV  32   // higher = slower response
+#define POT_OUTPUT_DEADBAND   2    // ignore tiny output jitter
+
 // Fault Bit Definitions
 #define FAULT_POT_OPEN      (1 << 0)   // A0 below threshold
 #define FAULT_POT_SHORT     (1 << 1)   // A0 above threshold
@@ -89,6 +104,10 @@
 #define FAULT_HALL_MISSING  (1 << 8)   // no speed pulses while engine running
 #define FAULT_COIL_MISSING  (1 << 9)   // no coil pulses while ignition on
 #define FAULT_ALT_STUCK     (1 << 10)  // alternator L never changed state
+#define FAULT_POT_POWER     (1 << 11)  // A0 sensor-side fuse monitor low
+#define FAULT_TEMP_POWER    (1 << 12)  // A1 sensor-side fuse monitor low
+#define FAULT_PRESS_POWER   (1 << 13)  // A2 sensor-side fuse monitor low
+#define FAULT_VOLT_POWER    (1 << 14)  // A3 sensor-side fuse monitor low
 
 // Voltage Divider Scaling
 #define VDIV_R1        27000.0
@@ -135,14 +154,16 @@ void coilISR() {
 struct AnalogFault {
   uint8_t lowCount;
   uint8_t highCount;
+  uint8_t powerBadCount;
   bool faultLow;
   bool faultHigh;
+  bool powerOk;
 };
 
-AnalogFault potFault   = {0, 0, false, false};
-AnalogFault tempFault  = {0, 0, false, false};
-AnalogFault pressFault = {0, 0, false, false};
-AnalogFault voltFault  = {0, 0, false, false};
+AnalogFault potFault   = {0, 0, 0, false, false, true};
+AnalogFault tempFault  = {0, 0, 0, false, false, true};
+AnalogFault pressFault = {0, 0, 0, false, false, true};
+AnalogFault voltFault  = {0, 0, 0, false, false, true};
 
 uint16_t hallMissingCount = 0;
 uint16_t coilMissingCount = 0;
@@ -152,7 +173,28 @@ bool altEverLow = false;
 uint16_t altStuckCount = 0;
 #define ALT_STUCK_THRESH 600  // 30 seconds at 20 Hz
 
-void checkAnalogFault(AnalogFault &f, uint16_t raw) {
+bool potFilterInit = false;
+uint32_t potFilteredQ8 = 0;    // fixed-point (raw ADC << 8)
+uint16_t potOutputRaw = 0;
+
+void checkAnalogFault(AnalogFault &f, uint16_t raw, bool powerPinHigh) {
+  // Power monitor debounce: LOW means sensor-side fuse likely tripped.
+  if (!powerPinHigh) {
+    if (f.powerBadCount < 255) f.powerBadCount++;
+  } else {
+    f.powerBadCount = 0;
+  }
+  f.powerOk = (f.powerBadCount < FAULT_COUNT_THRESH);
+
+  // If power is bad, do not classify signal-wire faults.
+  if (!f.powerOk) {
+    f.lowCount = 0;
+    f.highCount = 0;
+    f.faultLow = false;
+    f.faultHigh = false;
+    return;
+  }
+
   if (raw < ADC_LOW_THRESH) {
     if (f.lowCount < 255) f.lowCount++;
   } else {
@@ -168,6 +210,27 @@ void checkAnalogFault(AnalogFault &f, uint16_t raw) {
   f.faultHigh = (f.highCount >= FAULT_COUNT_THRESH);
 }
 
+uint16_t filterPotRaw(uint16_t raw) {
+  if (!potFilterInit) {
+    potFilteredQ8 = ((uint32_t)raw) << 8;
+    potOutputRaw = raw;
+    potFilterInit = true;
+    return raw;
+  }
+
+  uint32_t targetQ8 = ((uint32_t)raw) << 8;
+  int32_t deltaQ8 = (int32_t)targetQ8 - (int32_t)potFilteredQ8;
+  potFilteredQ8 += (uint32_t)(deltaQ8 / POT_FILTER_ALPHA_DIV);
+
+  uint16_t emaRaw = (uint16_t)((potFilteredQ8 + 128UL) >> 8);
+  int16_t diff = (int16_t)emaRaw - (int16_t)potOutputRaw;
+  if (diff < 0) diff = -diff;
+  if (diff > POT_OUTPUT_DEADBAND) {
+    potOutputRaw = emaRaw;
+  }
+  return potOutputRaw;
+}
+
 uint16_t buildFaultWord(bool ignOn, uint32_t engineRpm, uint32_t speedRpm) {
   uint16_t faults = 0;
 
@@ -179,6 +242,10 @@ uint16_t buildFaultWord(bool ignOn, uint32_t engineRpm, uint32_t speedRpm) {
   if (pressFault.faultHigh) faults |= FAULT_PRESS_SHORT;
   if (voltFault.faultLow) faults |= FAULT_VOLT_OPEN;
   if (voltFault.faultHigh) faults |= FAULT_VOLT_HIGH;
+  if (!potFault.powerOk) faults |= FAULT_POT_POWER;
+  if (!tempFault.powerOk) faults |= FAULT_TEMP_POWER;
+  if (!pressFault.powerOk) faults |= FAULT_PRESS_POWER;
+  if (!voltFault.powerOk) faults |= FAULT_VOLT_POWER;
 
   if (ignOn && engineRpm > 500 && speedRpm == 0) {
     if (hallMissingCount < 0xFFFF) hallMissingCount++;
@@ -273,6 +340,11 @@ void setup() {
   pinMode(PIN_COIL, INPUT_PULLUP);
   pinMode(PIN_ALT_L, INPUT_PULLUP);
   pinMode(PIN_IGN_SENSE, INPUT);
+  pinMode(PIN_POT_PWR_MON, INPUT);
+  pinMode(PIN_TEMP_PWR_MON, INPUT);
+  pinMode(PIN_PRESS_PWR_MON, INPUT);
+  pinMode(PIN_VOLT_PWR_MON, INPUT);
+  pinMode(PIN_FAULT_DISABLE, INPUT);
 
   attachInterrupt(digitalPinToInterrupt(PIN_HALL), hallISR, FALLING);
   attachInterrupt(digitalPinToInterrupt(PIN_COIL), coilISR, FALLING);
@@ -299,11 +371,17 @@ void loop() {
   uint16_t thermRaw = thermSum >> 2;
   uint16_t presRaw = presSum >> 2;
   uint16_t voltRaw = voltSum >> 2;
+  uint16_t potGaugeRaw = filterPotRaw(potRaw);
 
-  checkAnalogFault(potFault, potRaw);
-  checkAnalogFault(tempFault, thermRaw);
-  checkAnalogFault(pressFault, presRaw);
-  checkAnalogFault(voltFault, voltRaw);
+  bool potPowerHigh = (digitalRead(PIN_POT_PWR_MON) == HIGH);
+  bool tempPowerHigh = (digitalRead(PIN_TEMP_PWR_MON) == HIGH);
+  bool pressPowerHigh = (digitalRead(PIN_PRESS_PWR_MON) == HIGH);
+  bool voltPowerHigh = (digitalRead(PIN_VOLT_PWR_MON) == HIGH);
+
+  checkAnalogFault(potFault, potRaw, potPowerHigh);
+  checkAnalogFault(tempFault, thermRaw, tempPowerHigh);
+  checkAnalogFault(pressFault, presRaw, pressPowerHigh);
+  checkAnalogFault(voltFault, voltRaw, voltPowerHigh);
 
   noInterrupts();
   unsigned long hPeriod = hallPeriodUs;
@@ -327,7 +405,8 @@ void loop() {
   }
   if (ignOn) flags |= FLAG_IGN_ON;
 
-  uint16_t faults = buildFaultWord(ignOn, engineRpm, speedRpm);
+  bool faultLoggingDisabled = (digitalRead(PIN_FAULT_DISABLE) == HIGH);
+  uint16_t faults = faultLoggingDisabled ? 0 : buildFaultWord(ignOn, engineRpm, speedRpm);
 
-  sendPacket(potRaw, thermRaw, presRaw, voltRaw, speedRpm, engineRpm, flags, faults);
+  sendPacket(potGaugeRaw, thermRaw, presRaw, voltRaw, speedRpm, engineRpm, flags, faults);
 }
