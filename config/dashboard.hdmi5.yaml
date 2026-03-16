@@ -1,7 +1,7 @@
 system:
   mode: vehicle
   log_level: INFO
-  target_fps: 30
+  target_fps: 60
   window_title: El Camino Dash (HDMI 5in)
   display_render_mode: single_window
   keyboard_focus_control_only: false
@@ -187,9 +187,9 @@ inputs:
     address: 32
     pull_up: true
     debounce_ms: 60
-    rotary_debounce_ms: 4
+    rotary_debounce_ms: 0
     rotary_counts_per_step: 2
-    button_debounce_ms: 120
+    button_debounce_ms: 80
     menu_pin_a: 0
     menu_pin_b: 1
     menu_pin_button: 2
@@ -270,7 +270,11 @@ inputs:
     device_path: ""
     # Example: gpio_ir_recv
     device_name: "gpio_ir_recv"
-    allow_repeats: false
+    # IR decoder protocols applied via `ir-keytable`.
+    protocols: [nec, rc-5, rc-6, jvc, sony, sanyo, sharp, xmp, imon, mce_kbd]
+    rc_device: rc0
+    apply_protocol: true
+    allow_repeats: true
     diagnostics_pulse_count: 10
     diagnostics_window_ms: 5000
     diagnostics_max_gap_ms: 450

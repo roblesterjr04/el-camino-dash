@@ -122,13 +122,17 @@ class BluetoothMetadataAdapter:
         allow_fail: bool = False,
         timeout_s: float = 10.0,
     ) -> subprocess.CompletedProcess[str]:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
+        effective_timeout = max(0.2, float(self._cfg.get("command_timeout_s", timeout_s)))
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=effective_timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            proc = subprocess.CompletedProcess(cmd, 124, "", "timeout")
         if (not allow_fail) and proc.returncode != 0:
             raise RuntimeError(f"command failed: {' '.join(cmd)}: {proc.stderr.strip()}")
         return proc

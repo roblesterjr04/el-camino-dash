@@ -1,0 +1,17 @@
+[Unit]
+Description=Gauge Cluster Dashboard (SPI)
+After=multi-user.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/el-camino-dash
+Environment=SDL_VIDEODRIVER=dummy
+Environment=HEADLESS=1
+Environment=PYTHONPATH=/opt/el-camino-dash/src
+ExecStart=/opt/el-camino-dash/.venv/bin/python /opt/el-camino-dash/src/main.py --config /opt/el-camino-dash/config/dashboard.spi.yaml --render-mode spi --headless
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

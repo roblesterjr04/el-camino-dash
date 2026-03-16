@@ -341,6 +341,10 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 "profile_path",
                 "device_path",
                 "device_name",
+                "protocol",
+                "protocols",
+                "rc_device",
+                "apply_protocol",
                 "allow_repeats",
                 "diagnostics_pulse_count",
                 "diagnostics_window_ms",
@@ -354,6 +358,21 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             _expect_type("inputs.ir_remote.device_path", inputs["ir_remote"]["device_path"], str)
         if "device_name" in inputs["ir_remote"]:
             _expect_type("inputs.ir_remote.device_name", inputs["ir_remote"]["device_name"], str)
+        if "protocol" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.protocol", inputs["ir_remote"]["protocol"], str)
+        if "protocols" in inputs["ir_remote"]:
+            protocols = inputs["ir_remote"]["protocols"]
+            if isinstance(protocols, str):
+                pass
+            elif isinstance(protocols, list):
+                for idx, protocol in enumerate(protocols):
+                    _expect_type(f"inputs.ir_remote.protocols[{idx}]", protocol, str)
+            else:
+                _fail("inputs.ir_remote.protocols", "expected str or list[str]")
+        if "rc_device" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.rc_device", inputs["ir_remote"]["rc_device"], str)
+        if "apply_protocol" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.apply_protocol", inputs["ir_remote"]["apply_protocol"], bool)
         if "allow_repeats" in inputs["ir_remote"]:
             _expect_type("inputs.ir_remote.allow_repeats", inputs["ir_remote"]["allow_repeats"], bool)
         if "diagnostics_pulse_count" in inputs["ir_remote"]:

@@ -58,6 +58,8 @@ class Mcp23017ControlsInput:
         self._menu_accel = float(spec.get("menu_acceleration", 1.0))
         self._aux_accel = float(spec.get("aux_acceleration", 1.0))
         self._counts_per_step = max(1, int(spec.get("rotary_counts_per_step", 2)))
+        self._i2c_read_retries = max(1, int(spec.get("i2c_read_retries", 5)))
+        self._i2c_retry_delay_s = max(0.0, float(spec.get("i2c_retry_delay_ms", 1.0)) / 1000.0)
         self._invert_menu = bool(spec.get("invert_menu_direction", False))
         self._invert_aux = bool(spec.get("invert_aux_direction", False))
 
@@ -128,9 +130,26 @@ class Mcp23017ControlsInput:
         return int(self._bus.read_byte_data(self._address, reg)) & 0xFF
 
     def _read_gpio_word(self) -> int:
-        gpio_a = self._read_reg(GPIOA)
-        gpio_b = self._read_reg(GPIOB)
-        return gpio_a | (gpio_b << 8)
+        assert self._bus is not None
+        last_error: Exception | None = None
+        for _ in range(self._i2c_read_retries):
+            try:
+                # Prefer a contiguous two-byte read to reduce bus transactions.
+                block = self._bus.read_i2c_block_data(self._address, GPIOA, 2)
+                if len(block) >= 2:
+                    gpio_a = int(block[0]) & 0xFF
+                    gpio_b = int(block[1]) & 0xFF
+                    return gpio_a | (gpio_b << 8)
+                gpio_a = self._read_reg(GPIOA)
+                gpio_b = self._read_reg(GPIOB)
+                return gpio_a | (gpio_b << 8)
+            except Exception as exc:
+                last_error = exc
+                if self._i2c_retry_delay_s > 0.0:
+                    time.sleep(self._i2c_retry_delay_s)
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("MCP23017 GPIO read failed without exception")
 
     @staticmethod
     def _pin_level(sample: int, pin: int) -> int:

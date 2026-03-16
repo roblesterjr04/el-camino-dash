@@ -92,17 +92,23 @@ class DashboardApp:
             "diagnostics_open": 0,
         }
         self._ir_last_code = "-"
+        self._last_aux_press_count = 0
 
     def run(self) -> None:
         self._install_signal_handlers()
-        pygame.init()
+        # Avoid global pygame.init() because it can initialize mixer/audio
+        # backends that are unstable on some Pi Pulse/ALSA stacks.
+        pygame.display.init()
         pygame.font.init()
         try:
             pygame.mouse.set_visible(False)
         except pygame.error:
             pass
         media_cfg = self.config["integrations"].get("media", {})
-        if bool(media_cfg.get("enabled", False)):
+        bt_audio_cfg = self.config["integrations"].get("bluetooth_audio", {})
+        bt_audio_enabled = isinstance(bt_audio_cfg, dict) and bool(bt_audio_cfg.get("enabled", False))
+        use_local_mixer = bool(media_cfg.get("enabled", False)) and (not bt_audio_enabled)
+        if use_local_mixer:
             try:
                 pygame.mixer.init()
             except pygame.error:
@@ -186,6 +192,21 @@ class DashboardApp:
         if not self.input_manager:
             return
         current = self.input_manager.poll()
+        aux_presses = int(current.get("inputs.rotary.aux.presses", 0.0))
+        if aux_presses < self._last_aux_press_count:
+            self._last_aux_press_count = aux_presses
+        aux_press_delta = max(0, aux_presses - self._last_aux_press_count)
+        if aux_press_delta > 0:
+            # Route AUX press through the same edge-triggered diagnostics
+            # counter consumed by the menu overlay controller.
+            diag_count = int(
+                current.get(
+                    "inputs.ir.command.diagnostics_open_count",
+                    self._values.get("inputs.ir.command.diagnostics_open_count", 0.0),
+                )
+            )
+            current["inputs.ir.command.diagnostics_open_count"] = float(diag_count + aux_press_delta)
+        self._last_aux_press_count = aux_presses
         self._values.update(current)
         self._ir_last_code = self.input_manager.ir_last_code() or "-"
         self._apply_ir_commands(current)

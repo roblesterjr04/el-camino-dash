@@ -1,0 +1,9 @@
+src
+config
+themes
+assets
+requirements.txt
+scripts/power_control_listener.py
+scripts/apply_ir_protocols.py
+scripts/mcp23017_monitor.py
+scripts/gauge-mcp-monitor

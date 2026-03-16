@@ -1,0 +1,11 @@
+device:
+  layer: rpi5
+
+image:
+  layer: image-rpios
+  name: el-camino-dash
+  boot_part_size: 200%
+  root_part_size: 300%
+
+layer:
+  base: bookworm-minbase

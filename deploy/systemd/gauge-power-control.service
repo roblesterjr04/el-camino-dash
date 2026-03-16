@@ -1,0 +1,17 @@
+[Unit]
+Description=Gauge Power Control Listener
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/el-camino-dash
+ExecStart=/opt/el-camino-dash/.venv/bin/python /opt/el-camino-dash/scripts/power_control_listener.py --signal-pin 16 --confirm-pin 12 --debounce-ms 80 --poll-interval-ms 20
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

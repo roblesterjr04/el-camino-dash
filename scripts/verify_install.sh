@@ -1,39 +1,52 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VENV_PY="${PROJECT_DIR}/.venv/bin/python"
-TARGET="pi"
-DISPLAY_MODE="${DISPLAY_MODE:-hardware}"
+RUNTIME_DIR="/opt/el-camino-dash"
+CONFIG_PATH="/opt/el-camino-dash/config/dashboard.hdmi5.yaml"
 PASS_COUNT=0
 FAIL_COUNT=0
 
+usage() {
+  cat <<'EOF'
+Usage:
+  bash scripts/verify_install.sh [options]
+
+Options:
+  --runtime-dir <path>   Runtime directory to validate (default: /opt/el-camino-dash)
+  --config <path>        Config file to validate (default: /opt/el-camino-dash/config/dashboard.hdmi5.yaml)
+  -h, --help             Show this help
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target=*)
-      TARGET="${1#*=}"
-      shift
-      ;;
-    --target)
-      TARGET="${2:-pi}"
+    --runtime-dir)
+      RUNTIME_DIR="${2:-}"
       shift 2
       ;;
-    --display-mode=*)
-      DISPLAY_MODE="${1#*=}"
+    --runtime-dir=*)
+      RUNTIME_DIR="${1#*=}"
       shift
       ;;
-    --display-mode)
-      DISPLAY_MODE="${2:-hardware}"
+    --config)
+      CONFIG_PATH="${2:-}"
       shift 2
+      ;;
+    --config=*)
+      CONFIG_PATH="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
       ;;
     *)
-      shift
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
       ;;
   esac
 done
-
-TARGET="$(printf "%s" "${TARGET}" | tr '[:upper:]' '[:lower:]')"
-DISPLAY_MODE="$(printf "%s" "${DISPLAY_MODE}" | tr '[:upper:]' '[:lower:]')"
 
 pass() {
   echo "[PASS] $1"
@@ -53,61 +66,72 @@ check_file() {
   fi
 }
 
-check_file "${PROJECT_DIR}/config/dashboard.yaml"
-check_file "${PROJECT_DIR}/config/dashboard.dev.yaml"
-check_file "${PROJECT_DIR}/themes/default/theme.json"
-check_file "${PROJECT_DIR}/src/main.py"
-
-if [[ "${TARGET}" == "pi" ]]; then
-  pass "Verification target: ${TARGET}"
-else
-  fail "Unsupported --target value: ${TARGET} (expected pi)"
-fi
-
-if [[ "${DISPLAY_MODE}" == "auto" || "${DISPLAY_MODE}" == "hardware" ]]; then
-  pass "Display mode: ${DISPLAY_MODE}"
-else
-  fail "Unsupported --display-mode value: ${DISPLAY_MODE}"
-fi
-
-if [[ -x "${VENV_PY}" ]]; then
-  pass "Virtualenv python found"
-else
-  fail "Virtualenv python missing; run scripts/install_app.sh"
-fi
-
-if [[ -c /dev/spidev0.0 || -c /dev/spidev0.1 || -c /dev/spidev1.0 ]]; then
-  pass "SPI device present"
-else
-  fail "SPI device not found (check SPI overlay settings and reboot)"
-fi
-
-if command -v raspi-gpio >/dev/null 2>&1; then
-  pass "GPIO tooling available"
-else
-  fail "raspi-gpio missing"
-fi
-
-if [[ -x "${VENV_PY}" ]]; then
-  if PYTHONPATH="${PROJECT_DIR}/src" "${VENV_PY}" -c "from dashboard.config import load_dashboard_config; load_dashboard_config('${PROJECT_DIR}/config/dashboard.yaml')" >/dev/null 2>&1; then
-    pass "Primary config validates"
+check_dir() {
+  if [[ -d "$1" ]]; then
+    pass "Directory exists: $1"
   else
-    fail "Primary config validation failed"
+    fail "Missing directory: $1"
+  fi
+}
+
+VENV_PY="${RUNTIME_DIR}/.venv/bin/python"
+
+check_dir "${RUNTIME_DIR}"
+check_dir "${RUNTIME_DIR}/src"
+check_dir "${RUNTIME_DIR}/config"
+check_dir "${RUNTIME_DIR}/themes"
+check_dir "${RUNTIME_DIR}/assets"
+check_file "${RUNTIME_DIR}/requirements.txt"
+check_file "${CONFIG_PATH}"
+
+if [[ -x "${VENV_PY}" ]]; then
+  pass "Virtualenv python found: ${VENV_PY}"
+else
+  fail "Virtualenv python missing: ${VENV_PY}"
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  for svc in gauge-cluster-hdmi.service gauge-hide-cursor.service gauge-power-control.service gauge-ir-protocol.service; do
+    if systemctl is-enabled "${svc}" >/dev/null 2>&1; then
+      pass "Service enabled: ${svc}"
+    else
+      fail "Service not enabled: ${svc}"
+    fi
+  done
+else
+  fail "systemctl not available"
+fi
+
+if command -v ir-keytable >/dev/null 2>&1; then
+  pass "IR tooling available (ir-keytable)"
+else
+  fail "ir-keytable missing"
+fi
+
+if [[ -x "${VENV_PY}" ]]; then
+  if PYTHONPATH="${RUNTIME_DIR}/src" "${VENV_PY}" -c "from dashboard.config import load_dashboard_config; load_dashboard_config('${CONFIG_PATH}')" >/dev/null 2>&1; then
+    pass "Runtime config validates"
+  else
+    fail "Runtime config validation failed"
   fi
 fi
 
-if [[ -x "${VENV_PY}" ]]; then
-  DISPLAY_FOR_TEST="${DISPLAY:-}"
-  if DISPLAY_MODE="${DISPLAY_MODE}" DISPLAY="${DISPLAY_FOR_TEST}" PYTHONPATH="${PROJECT_DIR}/src" "${VENV_PY}" -c "import pygame; pygame.display.init(); pygame.display.set_mode((64, 64)); pygame.display.quit()" >/dev/null 2>&1; then
-    pass "Pygame display smoke test passed (${DISPLAY_MODE})"
+if [[ -f /boot/firmware/config.txt || -f /boot/config.txt ]]; then
+  boot_cfg="/boot/firmware/config.txt"
+  [[ -f "${boot_cfg}" ]] || boot_cfg="/boot/config.txt"
+  if rg -q "^dtparam=i2c_arm=on$" "${boot_cfg}"; then
+    pass "Boot I2C enabled"
   else
-    fail "Pygame display smoke test failed (${DISPLAY_MODE}); check DISPLAY setup"
+    fail "Boot I2C not enabled"
   fi
-fi
-
-if [[ "${FAIL_COUNT}" -gt 0 ]]; then
-  echo "Verification result: ${PASS_COUNT} passed, ${FAIL_COUNT} failed"
-  exit 1
+  if rg -q "^dtoverlay=vc4-kms-v3d$" "${boot_cfg}"; then
+    pass "Boot KMS enabled"
+  else
+    fail "Boot KMS not enabled"
+  fi
 fi
 
 echo "Verification result: ${PASS_COUNT} passed, ${FAIL_COUNT} failed"
+if [[ "${FAIL_COUNT}" -gt 0 ]]; then
+  exit 1
+fi

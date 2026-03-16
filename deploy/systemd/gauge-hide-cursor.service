@@ -1,0 +1,16 @@
+[Unit]
+Description=Hide X11 Mouse Cursor
+After=graphical.target display-manager.service
+Wants=graphical.target display-manager.service
+
+[Service]
+Type=simple
+User=pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+ExecStart=/bin/bash -lc 'export DISPLAY=:0; export XAUTHORITY=/home/pi/.Xauthority; until [ -S /tmp/.X11-unix/X0 ] && [ -f /home/pi/.Xauthority ] && xset q >/dev/null 2>&1; do sleep 1; done; exec /usr/bin/unclutter -display :0 -idle 0 -root -grab'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

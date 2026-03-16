@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
 import yaml
@@ -54,6 +56,10 @@ _ACTION_ALIASES = {
     "radio_tune_down": _ACTION_TUNE_DOWN,
 }
 
+_PROTOCOL_ALIASES = {
+    "ned": "nec",
+}
+
 
 @dataclass
 class IrRemoteState:
@@ -78,6 +84,12 @@ class IrRemoteInput:
         self._ready = False
         self._allow_repeats = bool(spec.get("allow_repeats", False))
         self._event_devices: list[Any] = []
+        self._device_path = ""
+        self._device_name = ""
+        self._last_reopen_attempt_s = 0.0
+        self._reopen_interval_s = max(0.5, float(spec.get("reopen_interval_s", 2.0)))
+        self._last_event_seen_s = 0.0
+        self._stale_reopen_s = max(2.0, float(spec.get("stale_reopen_s", 8.0)))
         self._key_action_map: dict[str, str] = {}
         self._last_code: str = ""
         self._diag_target_key = ""
@@ -90,22 +102,64 @@ class IrRemoteInput:
 
         if not bool(spec.get("enabled", False)):
             return
+        self._configure_kernel_protocols()
         if InputDevice is None or ecodes is None:
             return
 
         profile_path_raw = str(spec.get("profile_path", "")).strip()
-        if not profile_path_raw:
-            return
-        self._key_action_map = self._load_profile(profile_path_raw)
-        if not self._key_action_map:
-            return
+        if profile_path_raw:
+            self._key_action_map = self._load_profile(profile_path_raw)
 
-        device_path = str(spec.get("device_path", "")).strip()
-        device_name = str(spec.get("device_name", "")).strip()
-        self._event_devices = self._open_devices(device_path=device_path, device_name=device_name)
+        self._device_path = str(spec.get("device_path", "")).strip()
+        self._device_name = str(spec.get("device_name", "")).strip()
+        self._event_devices = self._open_devices(device_path=self._device_path, device_name=self._device_name)
         if not self._event_devices:
             return
         self._ready = True
+        import time
+        self._last_event_seen_s = time.monotonic()
+
+    def _normalize_protocol_name(self, raw: Any) -> str:
+        text = str(raw).strip().lower()
+        if not text:
+            return ""
+        return _PROTOCOL_ALIASES.get(text, text)
+
+    def _requested_protocols(self) -> list[str]:
+        # Support both single `protocol` and list-based `protocols` config.
+        raw_protocols = self._spec.get("protocols")
+        values: list[str]
+        if isinstance(raw_protocols, str):
+            values = [raw_protocols]
+        elif isinstance(raw_protocols, list):
+            values = [str(item) for item in raw_protocols]
+        else:
+            single = self._spec.get("protocol", "")
+            values = [str(single)] if single else []
+        protocols: list[str] = []
+        for candidate in values:
+            normalized = self._normalize_protocol_name(candidate)
+            if normalized and normalized not in protocols:
+                protocols.append(normalized)
+        return protocols
+
+    def _configure_kernel_protocols(self) -> None:
+        if not bool(self._spec.get("apply_protocol", True)):
+            return
+        protocols = self._requested_protocols()
+        if not protocols:
+            return
+        cmd = ["ir-keytable"]
+        rc_device = str(self._spec.get("rc_device", "")).strip()
+        if rc_device:
+            cmd.extend(["-s", rc_device])
+        for protocol in protocols:
+            cmd.extend(["-p", protocol])
+        try:
+            subprocess.run(cmd, check=False, capture_output=True, text=True)
+        except OSError:
+            # Continue without hard-failing if ir-keytable is unavailable.
+            return
 
     def poll(self) -> dict[str, float]:
         updates = {
@@ -123,6 +177,7 @@ class IrRemoteInput:
             "inputs.ir.command.diagnostics_open_count": self._state.diagnostics_open_count,
         }
         if not self._ready or not self._event_devices or categorize is None or ecodes is None:
+            self._maybe_reopen_devices()
             return updates
 
         live_devices: list[Any] = []
@@ -136,32 +191,61 @@ class IrRemoteInput:
             except OSError:
                 continue
             live_devices.append(device)
-            for event in events:
-                if event.type != ecodes.EV_KEY:
-                    continue
-                saw_event = True
-                key_event = categorize(event)
-                key_name = str(key_event.keycode)
-                pulse = key_event.keystate == key_event.key_down or (
-                    self._allow_repeats and key_event.keystate == key_event.key_hold
-                )
-                if pulse:
-                    self._last_code = key_name
-                    self._track_diagnostics_pulse(key_name)
-                action = self._key_action_map.get(key_name)
-                if not action:
-                    continue
-                if key_event.keystate == key_event.key_down:
-                    self._apply_action(action, updates)
-                elif self._allow_repeats and key_event.keystate == key_event.key_hold:
-                    self._apply_action(action, updates)
+            try:
+                for event in events:
+                    if event.type != ecodes.EV_KEY:
+                        continue
+                    saw_event = True
+                    key_event = categorize(event)
+                    key_name = str(key_event.keycode)
+                    pulse = key_event.keystate in (key_event.key_down, key_event.key_hold)
+                    if pulse:
+                        self._last_code = key_name
+                        self._track_diagnostics_pulse(key_name)
+                    action = self._key_action_map.get(key_name)
+                    if not action:
+                        continue
+                    if key_event.keystate == key_event.key_down:
+                        self._apply_action(action, updates)
+                    elif self._allow_repeats and key_event.keystate == key_event.key_hold:
+                        self._apply_action(action, updates)
+            except BlockingIOError:
+                # Some evdev versions raise while consuming the iterator itself.
+                pass
         self._event_devices = live_devices
         if not self._event_devices:
             self._ready = False
+            self._maybe_reopen_devices()
+        else:
+            import time
+            now_s = time.monotonic()
+            if (now_s - self._last_event_seen_s) >= self._stale_reopen_s:
+                self._ready = False
+                self._event_devices = []
+                self._maybe_reopen_devices()
         if not saw_event:
             return updates
 
+        import time
+        self._last_event_seen_s = time.monotonic()
         return updates
+
+    def _maybe_reopen_devices(self) -> None:
+        import time
+
+        if InputDevice is None or ecodes is None:
+            return
+        if self._ready and self._event_devices:
+            return
+        now_s = time.monotonic()
+        if (now_s - self._last_reopen_attempt_s) < self._reopen_interval_s:
+            return
+        self._last_reopen_attempt_s = now_s
+        reopened = self._open_devices(device_path=self._device_path, device_name=self._device_name)
+        if reopened:
+            self._event_devices = reopened
+            self._ready = True
+            self._last_event_seen_s = now_s
 
     def _apply_action(self, action: str, updates: dict[str, float]) -> None:
         if action == _ACTION_MENU_LEFT:
@@ -220,6 +304,8 @@ class IrRemoteInput:
         import time
 
         now_s = time.monotonic()
+        # Treat diagnostics counter as a live pulse activity indicator.
+        self._state.diagnostics_open_count += 1.0
         if (
             key_name == self._diag_target_key
             and (now_s - self._diag_start_s) <= self._diag_window_s
@@ -233,7 +319,6 @@ class IrRemoteInput:
         self._diag_last_s = now_s
 
         if self._diag_count >= self._diag_threshold:
-            self._state.diagnostics_open_count += 1.0
             self._diag_target_key = ""
             self._diag_count = 0
             self._diag_start_s = 0.0
@@ -291,7 +376,7 @@ class IrRemoteInput:
         if device_path:
             try:
                 device = InputDevice(device_path)
-                device.set_blocking(False)
+                self._set_device_nonblocking(device)
                 return [device]
             except OSError:
                 return []
@@ -309,7 +394,7 @@ class IrRemoteInput:
             except OSError:
                 continue
             if str(candidate.name).strip() == device_name:
-                candidate.set_blocking(False)
+                self._set_device_nonblocking(candidate)
                 matches.append(candidate)
                 continue
             try:
@@ -317,3 +402,12 @@ class IrRemoteInput:
             except OSError:
                 pass
         return matches
+
+    def _set_device_nonblocking(self, device: Any) -> None:
+        """Handle evdev API differences across distro versions."""
+        if hasattr(device, "set_blocking"):
+            device.set_blocking(False)
+            return
+        fd = getattr(device, "fd", None)
+        if isinstance(fd, int):
+            os.set_blocking(fd, False)

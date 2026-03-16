@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+TARGET_USER="${SUDO_USER:-$(id -un)}"
+TARGET_HOME="$(getent passwd "${TARGET_USER}" | cut -d: -f6 || true)"
+if [[ -z "${TARGET_HOME}" || ! -d "${TARGET_HOME}" ]]; then
+  TARGET_HOME="${HOME}"
+fi
+PROJECT_DIR="${TARGET_HOME}/gauge-cluster"
+SCRIPT_PATH="${PROJECT_DIR}/scripts/mcp23017_monitor.py"
+
+if [[ ! -f "${SCRIPT_PATH}" ]]; then
+  echo "ERROR: ${SCRIPT_PATH} not found." >&2
+  echo "Run install.sh without --skip-sync to deploy scripts." >&2
+  exit 1
+fi
+
+if [[ -x "${PROJECT_DIR}/.venv/bin/python" ]]; then
+  exec "${PROJECT_DIR}/.venv/bin/python" "${SCRIPT_PATH}" "$@"
+fi
+
+exec python3 "${SCRIPT_PATH}" "$@"

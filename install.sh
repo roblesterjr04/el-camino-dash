@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cat <<'EOF'
+install.sh has been archived.
+
+This project now uses an image-first workflow based on rpi-image-gen:
+
+  1) Build a provision image:
+     bash scripts/build_image.sh
+
+  2) For day-to-day development updates on a provisioned Pi:
+     bash scripts/deploy_to_pi.sh <user@host>
+
+Legacy install logic has been removed from this entrypoint.
+Use git history if you need to inspect the old monolithic installer.
+EOF
+
+exit 1
+#!/usr/bin/env bash
+set -euo pipefail
+
 export DEBIAN_FRONTEND=noninteractive
 export PIP_NO_CACHE_DIR=1
 export PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -206,6 +225,7 @@ SPI_SERVICE_FILE="/etc/systemd/system/gauge-cluster-spi.service"
 HDMI_SERVICE_FILE="/etc/systemd/system/gauge-cluster-hdmi.service"
 CURSOR_SERVICE_FILE="/etc/systemd/system/gauge-hide-cursor.service"
 POWER_SERVICE_FILE="/etc/systemd/system/gauge-power-control.service"
+IR_PROTOCOL_SERVICE_FILE="/etc/systemd/system/gauge-ir-protocol.service"
 LEGACY_SERVICE_FILE="/etc/systemd/system/gauge-cluster.service"
 LIGHTDM_AUTOLOGIN_CONF="/etc/lightdm/lightdm.conf.d/99-gauge-autologin.conf"
 
@@ -241,7 +261,11 @@ remove_config_lines_matching() {
 set_config_line_enabled() {
   local file="$1"
   local line="$2"
-  local key="${line%%=*}"
+  # Some config directives include an extra "=" in the key portion
+  # (for example "dtparam=i2c_arm=on" or "dtoverlay=gpio-ir,gpio_pin=26").
+  # Match on everything before the final "=" so only the intended setting
+  # is replaced.
+  local key="${line%=*}"
   # Remove any existing active or commented assignment for this key,
   # then write exactly one enabled line.
   remove_config_lines_matching "${file}" "^[[:space:]]*#?[[:space:]]*${key}="
@@ -683,8 +707,9 @@ Environment=XAUTHORITY=${TARGET_HOME}/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/$(id -u "${TARGET_USER}")
 Environment=DISPLAY_MODE=hardware
 Environment=SDL_VIDEODRIVER=x11
+Environment=SDL_AUDIODRIVER=alsa
 Environment=PYTHONPATH=${PROJECT_DIR}/src
-ExecStart=/bin/bash -lc 'export DISPLAY=:0; export XAUTHORITY=${TARGET_HOME}/.Xauthority; export XDG_RUNTIME_DIR=/run/user/$(id -u "${TARGET_USER}"); export SDL_VIDEODRIVER=x11; until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ]; do sleep 1; done; cd ${PROJECT_DIR}; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/src/main.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml'
+ExecStart=/bin/bash -lc 'export DISPLAY=:0; export XAUTHORITY=${TARGET_HOME}/.Xauthority; export XDG_RUNTIME_DIR=/run/user/$(id -u "${TARGET_USER}"); export SDL_VIDEODRIVER=x11; export SDL_AUDIODRIVER=alsa; until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ] && xset q >/dev/null 2>&1; do sleep 1; done; cd ${PROJECT_DIR}; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/src/main.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml'
 Restart=always
 RestartSec=5
 
@@ -703,7 +728,7 @@ Type=simple
 User=${TARGET_USER}
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=${TARGET_HOME}/.Xauthority
-ExecStart=/bin/bash -lc 'until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ]; do sleep 1; done; exec /usr/bin/unclutter -display :0 -idle 0 -root -grab'
+ExecStart=/bin/bash -lc 'export DISPLAY=:0; export XAUTHORITY=${TARGET_HOME}/.Xauthority; until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ] && xset q >/dev/null 2>&1; do sleep 1; done; exec /usr/bin/unclutter -display :0 -idle 0 -root -grab'
 Restart=always
 RestartSec=2
 
@@ -731,7 +756,28 @@ TimeoutStopSec=5
 WantedBy=multi-user.target
 SERVICEPOWER
 
+cat > "${IR_PROTOCOL_SERVICE_FILE}" <<SERVICEIR
+[Unit]
+Description=Apply IR decoder protocols for gpio_ir_recv
+After=multi-user.target
+Before=gauge-cluster-hdmi.service
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=${PROJECT_DIR}
+ExecStart=${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/apply_ir_protocols.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SERVICEIR
+
 rm -f "${LEGACY_SERVICE_FILE}" || true
+
+echo "[6.5/10] Installing MCP diagnostics helper..."
+install -m 755 "${PROJECT_DIR}/scripts/gauge-mcp-monitor" /usr/local/bin/gauge-mcp-monitor
 systemctl daemon-reload
 
 echo "[7/10] Applying mode selection..."
@@ -742,6 +788,7 @@ systemctl disable gauge-cluster-spi.service >/dev/null 2>&1 || true
 systemctl disable gauge-cluster-hdmi.service >/dev/null 2>&1 || true
 systemctl disable gauge-hide-cursor.service >/dev/null 2>&1 || true
 systemctl disable gauge-power-control.service >/dev/null 2>&1 || true
+systemctl disable gauge-ir-protocol.service >/dev/null 2>&1 || true
 
 systemctl set-default graphical.target || true
 systemctl mask gauge-cluster-spi.service >/dev/null 2>&1 || true
@@ -750,6 +797,8 @@ systemctl stop gauge-cluster-spi.service >/dev/null 2>&1 || true
 systemctl enable gauge-cluster-hdmi.service
 systemctl enable gauge-hide-cursor.service
 systemctl enable gauge-power-control.service
+systemctl enable gauge-ir-protocol.service
+systemctl restart gauge-ir-protocol.service || true
 systemctl restart gauge-cluster-hdmi.service || true
 systemctl restart gauge-hide-cursor.service || true
 systemctl restart gauge-power-control.service || true
@@ -828,6 +877,7 @@ echo "  aplay -l"
 echo "  ls -l /dev/spidev*"
 echo "  ls -l /dev/i2c*"
 echo "  i2cdetect -y 1"
+echo "  systemctl stop gauge-cluster-hdmi.service && gauge-mcp-monitor --samples 250"
 echo
 echo "Reboot recommended:"
 echo "  sudo reboot"

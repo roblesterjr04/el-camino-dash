@@ -15,7 +15,7 @@ Config-first multi-screen dashboard scaffold for Raspberry Pi.
   - Keyboard simulation controls for development
 - Theme and gauge sprite support with procedural fallback rendering
 - Navit/media/Bluetooth metadata integration adapters
-- Raspberry Pi install scripts + `systemd` service script
+- Image-first Raspberry Pi provisioning with `rpi-image-gen` + fast deploy sync script
 
 ## Run locally (dev simulation)
 
@@ -85,6 +85,10 @@ The app validates config strictly at startup and exits on schema/key/type errors
 - Select profile in dashboard config:
   - `inputs.ir_remote.profile_path: config/remotes/remote_1.yaml`
 - Set either `inputs.ir_remote.device_path` (for example `/dev/input/event2`) or `inputs.ir_remote.device_name`
+- Optional protocol lock (recommended for NEC remotes on Pi):
+  - `inputs.ir_remote.protocol: nec`
+  - `inputs.ir_remote.rc_device: rc0`
+  - `inputs.ir_remote.apply_protocol: true`
 - Preferred profile format uses `remote.controls` (action -> `KEY_*`), with empty values for unmapped controls
 - Diagnostics monitor trigger:
   - 10 quick identical pulses opens IR diagnostics (`inputs.ir_remote.diagnostics_*` controls threshold/timing)
@@ -98,53 +102,12 @@ The app validates config strictly at startup and exits on schema/key/type errors
 `config/dashboard.hdmi5.yaml` targets a single 5" 800x480 HDMI rectangle display.
 `WIRING_PINOUT.md` documents current Pi/Arduino/MCP23017/ATtiny pin assignments.
 
-## HDMI 5" install/run steps
+## HDMI 5" run helper
 
-Use this when you want Pygame output on the Pi HDMI screen instead of SPI.
-
-1. Install base packages and app dependencies:
-
-```bash
-sudo bash scripts/install_pi_base.sh
-bash scripts/install_app.sh
-```
-
-2. Ensure desktop/X11 starts automatically (required for SDL X11 output):
-
-```bash
-sudo raspi-config nonint do_boot_behaviour B4
-```
-
-3. Set HDMI as preferred output in `/boot/firmware/config.txt` (or `/boot/config.txt`):
-
-```ini
-hdmi_force_hotplug=1
-hdmi_group=2
-hdmi_mode=87
-hdmi_cvt=800 480 60 6 0 0 0
-```
-
-4. Reboot, then launch dashboard on HDMI:
+For manual testing in an interactive Pi desktop session:
 
 ```bash
 DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority bash scripts/run_hw.sh config/dashboard.hdmi5.yaml
-```
-
-5. Optional autostart service for HDMI desktop session:
-
-```bash
-sudo bash scripts/install_service.sh
-sudo systemctl edit el-camino-dash.service
-```
-
-Add:
-
-```ini
-[Service]
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/pi/.Xauthority
-ExecStart=
-ExecStart=/home/pi/gauge-cluster/.venv/bin/python /home/pi/gauge-cluster/src/main.py --config /home/pi/gauge-cluster/config/dashboard.hdmi5.yaml
 ```
 
 ## Knob-driven overlay menu
@@ -199,37 +162,38 @@ Theme files can define indicator lights per gauge with on/off sprites:
 
 ## Raspberry Pi scripts
 
-For Raspberry Pi installs, run the top-level installer:
+Provisioning is image-first. Build an image using the in-repo image project:
 
 ```bash
-sudo bash install.sh
+bash scripts/build_image.sh --docker
 ```
 
-This configures HDMI-focused boot/runtime settings, installs dependencies, creates `~/gauge-cluster`, masks SPI service paths, and enables the HDMI service.
-It also enables I2S for PCM5102A (`dtoverlay=hifiberry-dac`, `dtparam=i2s=on`) and disables onboard analog audio.
+Image config and hooks live under `image/el-camino-dash/`.
+`scripts/build_image.sh` supports Docker, remote SSH builder, and local Linux modes.
 
-For day-to-day code updates on the Pi (without full reinstall), use:
+For day-to-day code updates on a provisioned Pi, deploy directly to `/opt/el-camino-dash`:
 
 ```bash
-bash scripts/update_pi.sh
+bash scripts/deploy_to_pi.sh pi@<host>
 ```
 
 Optional dependency refresh:
 
 ```bash
-bash scripts/update_pi.sh --with-pip
+bash scripts/deploy_to_pi.sh pi@<host> --with-pip
 ```
 
-Legacy install scripts are still available and run in this order:
+Install or refresh tracked runtime services when needed:
 
 ```bash
-sudo bash scripts/install_pi_base.sh
-bash scripts/install_app.sh
-sudo bash scripts/install_service.sh
-bash scripts/verify_install.sh
+sudo bash scripts/install_runtime_services.sh
 ```
 
-Each legacy install script supports `--dry-run`.
+Image-era verification:
+
+```bash
+bash scripts/verify_install.sh
+```
 
 ## Arduino sketches and flashing
 
@@ -251,8 +215,8 @@ bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
 
 ## Troubleshooting
 
-- Service status: `systemctl status el-camino-dash.service`
-- Service logs: `journalctl -u el-camino-dash.service -f`
+- Service status: `systemctl status gauge-cluster-hdmi.service`
+- Service logs: `journalctl -u gauge-cluster-hdmi.service -f`
 - Hardware X11 run helper: `bash scripts/run_hw.sh config/dashboard.vehicle.yaml`
 - HDMI 5" run helper:
   - `DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority bash scripts/run_hw.sh config/dashboard.hdmi5.yaml`
@@ -260,6 +224,8 @@ bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
   - `HEADLESS=1 SDL_VIDEODRIVER=dummy PYTHONPATH=src .venv/bin/python src/main.py --config config/dashboard.spi.yaml --render-mode spi --headless`
 - HDMI service status: `systemctl status gauge-cluster-hdmi.service`
 - HDMI service logs: `journalctl -u gauge-cluster-hdmi.service -f`
+- IR raw pulse monitor: `sudo mode2 -d /dev/lirc0`
+- IR decode monitor: `sudo ir-keytable -s rc0 -p nec -t`
 - Verify install for Pi hardware mode:
   - `bash scripts/verify_install.sh --target pi --display-mode hardware`
 - Validate config manually:

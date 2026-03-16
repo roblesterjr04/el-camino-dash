@@ -1,0 +1,15 @@
+[Unit]
+Description=Apply IR decoder protocols for gpio_ir_recv
+After=multi-user.target
+Before=gauge-cluster-hdmi.service
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/el-camino-dash
+ExecStart=/opt/el-camino-dash/.venv/bin/python /opt/el-camino-dash/scripts/apply_ir_protocols.py --config /opt/el-camino-dash/config/dashboard.hdmi5.yaml
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -145,10 +145,12 @@ class GaugeScreen:
                     redline_cfg=visuals.get("redline", {}),
                     invert_value=bool(visuals.get("invert_value", False)),
                 )
+            self._draw_corner_clock(surface)
             return
 
         if self._is_center_clock_mode():
             self._render_center_clock(surface, values, status, spec, cx, cy, radius)
+            self._draw_corner_clock(surface)
             return
 
         draw_under_dial = self._theme_flag_for_gauge("needle_under_dial", False)
@@ -184,6 +186,83 @@ class GaugeScreen:
             self._draw_text(surface, spec, value, values, status, unit_override)
         if self._theme_flag("show_odometer", True):
             self._draw_odometer(surface, spec, values)
+        self._draw_corner_clock(surface)
+
+    def _corner_clock_config(self) -> dict[str, Any]:
+        cfg = self._theme_data.get("corner_clock", {})
+        if isinstance(cfg, bool):
+            return {"enabled": cfg}
+        if not isinstance(cfg, dict):
+            return {}
+        merged: dict[str, Any] = {}
+        base_cfg = cfg.get("_default", {})
+        if isinstance(base_cfg, dict):
+            merged.update(base_cfg)
+        display_cfg = cfg.get(self.layout.display_id, {})
+        if isinstance(display_cfg, dict):
+            merged.update(display_cfg)
+        gauge_id = self.layout.gauge_id or ""
+        gauge_cfg = cfg.get(gauge_id, {})
+        if isinstance(gauge_cfg, dict):
+            merged.update(gauge_cfg)
+        for key, value in cfg.items():
+            if key in {"_default", self.layout.display_id, gauge_id}:
+                continue
+            if not isinstance(value, dict):
+                merged[key] = value
+        return merged
+
+    def _draw_corner_clock(self, surface: pygame.Surface) -> None:
+        # Rectangle layouts benefit from a persistent corner clock; round layouts
+        # keep existing gauge-centric clock behavior.
+        if self.layout.shape.strip().lower() != "rectangle":
+            return
+        cfg = self._corner_clock_config()
+        enabled = bool(cfg.get("enabled", True))
+        if not enabled:
+            return
+        if self._is_center_clock_mode() and not bool(cfg.get("show_with_center_clock", False)):
+            return
+
+        now = datetime.now()
+        use_24h = bool(cfg.get("use_24h", False))
+        include_seconds = bool(cfg.get("include_seconds", False))
+        time_fmt = "%H:%M:%S" if (use_24h and include_seconds) else (
+            "%H:%M" if use_24h else ("%I:%M:%S" if include_seconds else "%I:%M")
+        )
+        time_label = now.strftime(time_fmt)
+        if not use_24h:
+            time_label = time_label.lstrip("0")
+
+        preferred_font = str(cfg.get("font_name", "")).strip()
+        font_scale = float(cfg.get("font_scale", 0.06))
+        font_size = max(12, int(self.layout.height * max(0.02, font_scale)))
+        clock_font = self._digital_font(font_size, preferred_font=preferred_font)
+
+        digital_palette = self._theme_data.get("digital_palette", {})
+        default_color = tuple(digital_palette.get("text", [240, 250, 255]))
+        text_color = self._resolve_rgb(cfg.get("text_color"), default_color)
+        box_color = self._resolve_rgb(cfg.get("box_color"), (0, 0, 0))
+        box_alpha = max(0, min(255, int(cfg.get("box_alpha", 120))))
+        show_box = bool(cfg.get("show_box", True))
+
+        margin_x = int(cfg.get("margin_x_px", max(8, int(self.layout.width * 0.02))))
+        margin_y = int(cfg.get("margin_y_px", max(8, int(self.layout.height * 0.025))))
+        text_surface = clock_font.render(time_label, True, text_color)
+        text_rect = text_surface.get_rect(topleft=(margin_x, margin_y))
+        if show_box:
+            pad_x = max(4, int(font_size * 0.18))
+            pad_y = max(2, int(font_size * 0.12))
+            box_rect = pygame.Rect(
+                text_rect.left - pad_x,
+                text_rect.top - pad_y,
+                text_rect.width + (pad_x * 2),
+                text_rect.height + (pad_y * 2),
+            )
+            box_surface = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
+            box_surface.fill((box_color[0], box_color[1], box_color[2], box_alpha))
+            surface.blit(box_surface, box_rect.topleft)
+        surface.blit(text_surface, text_rect.topleft)
 
     def _is_center_clock_mode(self) -> bool:
         if self.layout.display_id != "gauge_center":

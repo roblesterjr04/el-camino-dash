@@ -153,11 +153,15 @@ class BluetoothAudioAdapter:
             self._track_title = ""
             self._track_artist = ""
             return
+        was_connected = self._status.startswith("connected")
         self._active_device_mac = device_mac
         self._status = "connected"
-        self._ensure_a2dp_profile(device_mac)
-        if bool(self._cfg.get("set_default_sink", True)):
-            self._set_default_sink_for_device(device_mac)
+        if (not was_connected) or (not self._cached_sink):
+            # Profile/sink routing calls can be expensive; avoid repeating
+            # them on every poll once already connected.
+            self._ensure_a2dp_profile(device_mac)
+            if bool(self._cfg.get("set_default_sink", True)):
+                self._set_default_sink_for_device(device_mac)
         self._refresh_player_metadata()
 
     def _set_default_sink_for_device(self, device_mac: str) -> None:
@@ -444,14 +448,18 @@ class BluetoothAudioAdapter:
         timeout_s: float = 10.0,
         stdin_data: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        proc = subprocess.run(
-            cmd,
-            input=stdin_data,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
+        effective_timeout = max(0.2, float(self._cfg.get("command_timeout_s", timeout_s)))
+        try:
+            proc = subprocess.run(
+                cmd,
+                input=stdin_data,
+                capture_output=True,
+                text=True,
+                timeout=effective_timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            proc = subprocess.CompletedProcess(cmd, 124, "", "timeout")
         if (not allow_fail) and proc.returncode != 0:
             raise RuntimeError(f"command failed: {' '.join(cmd)}: {proc.stderr.strip()}")
         return proc
