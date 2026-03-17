@@ -1,0 +1,10 @@
+include:
+  file: el-camino-dash.yaml
+
+fs:
+  vfat_mkfs_args: -F 32
+
+layer:
+  base: bookworm-minbase
+  boot_debug: elc-boot-debug
+  boot_fw_compat: elc-boot-fw-compat

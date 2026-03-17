@@ -27,6 +27,7 @@
  *   A1 - Thermistor (engine temperature)
  *   A2 - Pressure sensor (oil pressure)
  *   A3 - System voltage (via voltage divider)
+ *   A4 - Thermistor (ambient/outside temperature)
  *   D2 - Hall effect sensor (vehicle speed)
  *   D3 - Ignition coil tach signal (engine RPM)
  *   D4 - Alternator "L" terminal (charge indicator)
@@ -59,6 +60,7 @@
 #define PIN_THERMISTOR A1
 #define PIN_PRESSURE   A2
 #define PIN_VOLTAGE    A3
+#define PIN_AMBIENT_THERMISTOR A4
 #define PIN_HALL       2
 #define PIN_COIL       3
 #define PIN_ALT_L      4
@@ -68,13 +70,16 @@
 #define PIN_PRESS_PWR_MON 9
 #define PIN_VOLT_PWR_MON  10
 #define PIN_FAULT_DISABLE  11
+#define PIN_HANDSHAKE_LED  13
 
 // Config
 #define SERIAL_BAUD    115200
 #define SEND_INTERVAL  50
+#define PI_HANDSHAKE_BYTE       0xA5
+#define PI_HANDSHAKE_TIMEOUT_MS 1000UL
 
 #define HALL_PULSES_PER_REV   1
-#define COIL_PULSES_PER_REV   4   // V8
+#define COIL_PULSES_PER_REV_DEFAULT 8
 
 #define PULSE_TIMEOUT_US  2000000UL
 
@@ -167,6 +172,7 @@ AnalogFault voltFault  = {0, 0, 0, false, false, true};
 
 uint16_t hallMissingCount = 0;
 uint16_t coilMissingCount = 0;
+unsigned long lastPiHandshakeMs = 0;
 
 bool altEverHigh = false;
 bool altEverLow = false;
@@ -176,6 +182,20 @@ uint16_t altStuckCount = 0;
 bool potFilterInit = false;
 uint32_t potFilteredQ8 = 0;    // fixed-point (raw ADC << 8)
 uint16_t potOutputRaw = 0;
+uint8_t coilPulsesPerRev = COIL_PULSES_PER_REV_DEFAULT;
+
+uint8_t readCoilPulsesPerRevFromPins() {
+  // Selector uses pull-ups: grounded pin reads LOW.
+  bool pin2Low = (digitalRead(PIN_HALL) == LOW);
+  bool pin3Low = (digitalRead(PIN_COIL) == LOW);
+
+  if (pin2Low && !pin3Low) return 4;   // 2 low, 3 high
+  if (!pin2Low && pin3Low) return 6;   // 2 high, 3 low
+  if (!pin2Low && !pin3Low) return 8;  // 2 high, 3 high
+
+  // Both grounded is not a valid requested combo; fall back to default.
+  return COIL_PULSES_PER_REV_DEFAULT;
+}
 
 void checkAnalogFault(AnalogFault &f, uint16_t raw, bool powerPinHigh) {
   // Power monitor debounce: LOW means sensor-side fuse likely tripped.
@@ -275,6 +295,18 @@ uint16_t buildFaultWord(bool ignOn, uint32_t engineRpm, uint32_t speedRpm) {
 
 static const uint8_t SYNC[] = { 0xAA, 0x55 };
 
+void updatePiHandshakeStatus() {
+  while (Serial.available() > 0) {
+    int incoming = Serial.read();
+    if (incoming == PI_HANDSHAKE_BYTE) {
+      lastPiHandshakeMs = millis();
+    }
+  }
+
+  bool handshakeAlive = (millis() - lastPiHandshakeMs) <= PI_HANDSHAKE_TIMEOUT_MS;
+  digitalWrite(PIN_HANDSHAKE_LED, handshakeAlive ? HIGH : LOW);
+}
+
 void sendPacket(uint16_t pot, uint16_t therm, uint16_t pressure,
                 uint16_t voltage, uint32_t speedRpm, uint32_t engineRpm,
                 uint8_t flags, uint16_t faults) {
@@ -336,6 +368,7 @@ void setup() {
   pinMode(PIN_THERMISTOR, INPUT);
   pinMode(PIN_PRESSURE, INPUT);
   pinMode(PIN_VOLTAGE, INPUT);
+  pinMode(PIN_AMBIENT_THERMISTOR, INPUT);
   pinMode(PIN_HALL, INPUT_PULLUP);
   pinMode(PIN_COIL, INPUT_PULLUP);
   pinMode(PIN_ALT_L, INPUT_PULLUP);
@@ -345,6 +378,9 @@ void setup() {
   pinMode(PIN_PRESS_PWR_MON, INPUT);
   pinMode(PIN_VOLT_PWR_MON, INPUT);
   pinMode(PIN_FAULT_DISABLE, INPUT);
+  pinMode(PIN_HANDSHAKE_LED, OUTPUT);
+  digitalWrite(PIN_HANDSHAKE_LED, LOW);
+  coilPulsesPerRev = readCoilPulsesPerRevFromPins();
 
   attachInterrupt(digitalPinToInterrupt(PIN_HALL), hallISR, FALLING);
   attachInterrupt(digitalPinToInterrupt(PIN_COIL), coilISR, FALLING);
@@ -353,6 +389,7 @@ void setup() {
 void loop() {
   static unsigned long lastSend = 0;
   unsigned long now = millis();
+  updatePiHandshakeStatus();
 
   if (now - lastSend < SEND_INTERVAL) return;
   lastSend = now;
@@ -361,17 +398,21 @@ void loop() {
   uint32_t thermSum = 0;
   uint32_t presSum = 0;
   uint32_t voltSum = 0;
+  uint32_t ambientThermSum = 0;
   for (uint8_t i = 0; i < 4; i++) {
     potSum += analogRead(PIN_POT);
     thermSum += analogRead(PIN_THERMISTOR);
     presSum += analogRead(PIN_PRESSURE);
     voltSum += analogRead(PIN_VOLTAGE);
+    ambientThermSum += analogRead(PIN_AMBIENT_THERMISTOR);
   }
   uint16_t potRaw = potSum >> 2;
   uint16_t thermRaw = thermSum >> 2;
   uint16_t presRaw = presSum >> 2;
   uint16_t voltRaw = voltSum >> 2;
+  uint16_t ambientThermRaw = ambientThermSum >> 2;
   uint16_t potGaugeRaw = filterPotRaw(potRaw);
+  (void)ambientThermRaw;  // sampled for ambient/outside thermistor bring-up on A4
 
   bool potPowerHigh = (digitalRead(PIN_POT_PWR_MON) == HIGH);
   bool tempPowerHigh = (digitalRead(PIN_TEMP_PWR_MON) == HIGH);
@@ -390,8 +431,9 @@ void loop() {
   unsigned long cLast = coilLastPulseUs;
   interrupts();
 
+  coilPulsesPerRev = readCoilPulsesPerRevFromPins();
   uint32_t speedRpm = calcRpm(hPeriod, hLast, HALL_PULSES_PER_REV);
-  uint32_t engineRpm = calcRpm(cPeriod, cLast, COIL_PULSES_PER_REV);
+  uint32_t engineRpm = calcRpm(cPeriod, cLast, coilPulsesPerRev);
 
   uint8_t flags = 0;
   bool altState = (digitalRead(PIN_ALT_L) == HIGH);

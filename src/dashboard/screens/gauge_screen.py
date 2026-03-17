@@ -9,6 +9,7 @@ from typing import Any
 import pygame
 
 from dashboard.screens.layout import DisplayLayout
+from dashboard.theme_loader import load_theme_data
 
 
 class GaugeScreen:
@@ -24,13 +25,7 @@ class GaugeScreen:
     def _load_theme_data(self) -> dict[str, Any]:
         theme_root = Path(self.config["themes"]["theme_root"])
         theme_name = self.config["themes"]["active"]
-        theme_path = theme_root / theme_name / "theme.json"
-        if not theme_path.exists():
-            return {}
-        try:
-            return json.loads(theme_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {}
+        return load_theme_data(theme_root=theme_root, theme_name=theme_name)
 
     def _load_sprites(self) -> dict[str, pygame.Surface]:
         sprite_key = self._active_sprite_key()
@@ -130,7 +125,7 @@ class GaugeScreen:
         mode_key = "clock" if self._is_center_clock_mode() else (self.layout.gauge_id or "")
         if self._gauge_mode_for_key(mode_key) == "digital":
             if mode_key == "clock":
-                self._render_digital_clock(surface, status=status)
+                self._render_digital_clock(surface, values=values, status=status)
             else:
                 self._render_digital_gauge(
                     surface=surface,
@@ -145,12 +140,12 @@ class GaugeScreen:
                     redline_cfg=visuals.get("redline", {}),
                     invert_value=bool(visuals.get("invert_value", False)),
                 )
-            self._draw_corner_clock(surface)
+            self._draw_corner_clock(surface, values)
             return
 
         if self._is_center_clock_mode():
             self._render_center_clock(surface, values, status, spec, cx, cy, radius)
-            self._draw_corner_clock(surface)
+            self._draw_corner_clock(surface, values)
             return
 
         draw_under_dial = self._theme_flag_for_gauge("needle_under_dial", False)
@@ -186,7 +181,7 @@ class GaugeScreen:
             self._draw_text(surface, spec, value, values, status, unit_override)
         if self._theme_flag("show_odometer", True):
             self._draw_odometer(surface, spec, values)
-        self._draw_corner_clock(surface)
+        self._draw_corner_clock(surface, values)
 
     def _corner_clock_config(self) -> dict[str, Any]:
         cfg = self._theme_data.get("corner_clock", {})
@@ -212,7 +207,7 @@ class GaugeScreen:
                 merged[key] = value
         return merged
 
-    def _draw_corner_clock(self, surface: pygame.Surface) -> None:
+    def _draw_corner_clock(self, surface: pygame.Surface, values: dict[str, float]) -> None:
         # Rectangle layouts benefit from a persistent corner clock; round layouts
         # keep existing gauge-centric clock behavior.
         if self.layout.shape.strip().lower() != "rectangle":
@@ -250,19 +245,23 @@ class GaugeScreen:
         margin_y = int(cfg.get("margin_y_px", max(8, int(self.layout.height * 0.025))))
         text_surface = clock_font.render(time_label, True, text_color)
         text_rect = text_surface.get_rect(topleft=(margin_x, margin_y))
+        temp_font = self._digital_font(max(10, int(font_size * 0.62)), preferred_font=preferred_font)
+        temp_surface = temp_font.render(self._clock_temperature_label(values), True, text_color)
+        temp_rect = temp_surface.get_rect(topleft=(margin_x, text_rect.bottom + max(2, int(font_size * 0.12))))
         if show_box:
             pad_x = max(4, int(font_size * 0.18))
             pad_y = max(2, int(font_size * 0.12))
             box_rect = pygame.Rect(
                 text_rect.left - pad_x,
                 text_rect.top - pad_y,
-                text_rect.width + (pad_x * 2),
-                text_rect.height + (pad_y * 2),
+                max(text_rect.width, temp_rect.width) + (pad_x * 2),
+                (temp_rect.bottom - text_rect.top) + (pad_y * 2),
             )
             box_surface = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
             box_surface.fill((box_color[0], box_color[1], box_color[2], box_alpha))
             surface.blit(box_surface, box_rect.topleft)
         surface.blit(text_surface, text_rect.topleft)
+        surface.blit(temp_surface, temp_rect.topleft)
 
     def _is_center_clock_mode(self) -> bool:
         if self.layout.display_id != "gauge_center":
@@ -326,6 +325,10 @@ class GaugeScreen:
         self._draw_indicator_elements(surface, values)
         if show_ticks and debug_ticks_on_top:
             self._draw_ticks(surface, cx, cy, radius, spec=spec, visuals=clock_visuals, tick_key="clock")
+        temp_font = pygame.font.Font(self.config["themes"]["font_name"], max(12, self.layout.height // 30))
+        temp_text = temp_font.render(self._clock_temperature_label(values), True, (190, 214, 236))
+        temp_rect = temp_text.get_rect(center=(self.layout.width // 2, int(self.layout.height * 0.86)))
+        surface.blit(temp_text, temp_rect)
         if self._theme_flag_for_gauge("show_text", True):
             now = datetime.now()
             clock_label = f"{now:%I:%M}"
@@ -1021,7 +1024,16 @@ class GaugeScreen:
                 return fallback
         return fallback
 
-    def _render_digital_clock(self, surface: pygame.Surface, status: dict[str, str]) -> None:
+    def _clock_temperature_label(self, values: dict[str, float]) -> str:
+        source = "analog_inputs.coolant_temp"
+        raw_temp = float(values.get(source, 0.0))
+        calibrated_temp, unit_override = self._apply_source_calibration(source, raw_temp)
+        temp_unit = unit_override or str(self.config.get("gauges", {}).get("temp", {}).get("unit", "")).strip()
+        if temp_unit:
+            return f"TEMP {calibrated_temp:.0f}{temp_unit}"
+        return f"TEMP {calibrated_temp:.0f}"
+
+    def _render_digital_clock(self, surface: pygame.Surface, values: dict[str, float], status: dict[str, str]) -> None:
         cfg = self._digital_render_config("clock")
         palette = self._theme_data.get("digital_palette", {})
         panel_bg = tuple(palette.get("panel_background", [6, 10, 14]))
@@ -1050,12 +1062,14 @@ class GaugeScreen:
         time_surface = clock_font.render(time_label, True, text_color)
         sec_surface = aux_font.render(sec_label, True, accent_color)
         date_surface = aux_font.render(f"{now:%a %b %d}", True, text_color)
+        temp_surface = aux_font.render(self._clock_temperature_label(values), True, accent_color)
 
         surface.blit(title, title.get_rect(center=(center_x, center_y - int(radius * 0.5))))
         time_rect = time_surface.get_rect(center=(center_x, center_y - int(radius * 0.02)))
         surface.blit(time_surface, time_rect)
         surface.blit(sec_surface, sec_surface.get_rect(midleft=(time_rect.right + 8, time_rect.centery + 6)))
         surface.blit(date_surface, date_surface.get_rect(center=(center_x, center_y + int(radius * 0.35))))
+        surface.blit(temp_surface, temp_surface.get_rect(center=(center_x, center_y + int(radius * 0.56))))
 
         if status.get("theme_warning"):
             warning = aux_font.render(status["theme_warning"], True, (255, 200, 0))

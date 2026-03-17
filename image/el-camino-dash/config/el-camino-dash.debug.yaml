@@ -1,0 +1,6 @@
+include:
+  file: el-camino-dash.yaml
+
+layer:
+  base: bookworm-minbase
+  boot_debug: elc-boot-debug

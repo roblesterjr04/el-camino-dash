@@ -20,6 +20,7 @@ from dashboard.integrations.bluetooth_audio import BluetoothAudioAdapter
 from dashboard.integrations.fm_radio import FmRadioAdapter
 from dashboard.integrations.media_player import MediaPlayer
 from dashboard.integrations.navit_adapter import NavitAdapter
+from dashboard.theme_loader import load_theme_data
 
 
 ARDUINO_FAULT_LABELS: list[tuple[int, str]] = [
@@ -93,6 +94,9 @@ class DashboardApp:
         }
         self._ir_last_code = "-"
         self._last_aux_press_count = 0
+        self._connectivity_started = False
+        self._connectivity_start_delay_s = max(0.0, float(self.config["system"].get("connectivity_start_delay_s", 8.0)))
+        self._app_started_s = time.monotonic()
 
     def run(self) -> None:
         self._install_signal_handlers()
@@ -128,8 +132,7 @@ class DashboardApp:
             on_runtime_refresh=self._refresh_runtime_components,
         )
         self.navit.start()
-        self.bluetooth.start()
-        self.bluetooth_audio.start()
+        self._app_started_s = time.monotonic()
         self._running = True
         clock = pygame.time.Clock()
 
@@ -149,8 +152,10 @@ class DashboardApp:
                 self._update_runtime_metrics()
                 self._update_alert_states()
                 self._update_fault_registry()
-                self.bluetooth.poll()
-                self.bluetooth_audio.poll()
+                self._maybe_start_connectivity()
+                if self._connectivity_started:
+                    self.bluetooth.poll()
+                    self.bluetooth_audio.poll()
                 if self.radio:
                     self.radio.tick()
                 self._update_startup_sweep()
@@ -171,6 +176,15 @@ class DashboardApp:
                 self.display_manager.shutdown()
             self._restore_signal_handlers()
             pygame.quit()
+
+    def _maybe_start_connectivity(self) -> None:
+        if self._connectivity_started:
+            return
+        if (time.monotonic() - self._app_started_s) < self._connectivity_start_delay_s:
+            return
+        self.bluetooth.start()
+        self.bluetooth_audio.start()
+        self._connectivity_started = True
 
     def _install_signal_handlers(self) -> None:
         self._previous_sigint_handler = signal.getsignal(signal.SIGINT)
@@ -782,7 +796,8 @@ class DashboardApp:
         if not isinstance(raw, dict):
             return "Theme format invalid"
         mode_cfg = raw.get("center_dial_mode", {})
-        current_mode = self._center_mode_from_theme_data(raw)
+        resolved_theme = load_theme_data(theme_root=theme_root, theme_name=theme_name)
+        current_mode = self._center_mode_from_theme_data(resolved_theme)
         next_mode = "clock" if current_mode == "tach" else "tach"
         if isinstance(mode_cfg, str):
             raw["center_dial_mode"] = {"_default": mode_cfg, "gauge_center": next_mode}
@@ -836,16 +851,10 @@ class DashboardApp:
         theme_name = str(self.config["themes"].get("active", "")).strip()
         if not theme_name:
             return "tach"
-        theme_path = theme_root / theme_name / "theme.json"
-        if not theme_path.exists():
+        resolved_theme = load_theme_data(theme_root=theme_root, theme_name=theme_name)
+        if not resolved_theme:
             return "tach"
-        try:
-            raw = json.loads(theme_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, json.JSONDecodeError):
-            return "tach"
-        if not isinstance(raw, dict):
-            return "tach"
-        return self._center_mode_from_theme_data(raw)
+        return self._center_mode_from_theme_data(resolved_theme)
 
     def _load_persisted_theme(self) -> None:
         if not self._theme_persist_enabled:

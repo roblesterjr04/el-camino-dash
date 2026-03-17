@@ -29,21 +29,25 @@ class PowerControlListener:
         confirm_pin: int,
         debounce_ms: int,
         poll_interval_s: float,
+        startup_ignore_s: float,
     ) -> None:
         self.signal_pin = signal_pin
         self.confirm_pin = confirm_pin
         self.debounce_ms = debounce_ms
         self.poll_interval_s = poll_interval_s
+        self.startup_ignore_s = startup_ignore_s
         self._stopping = False
         self._shutdown_requested = False
         self._last_signal_state = 0
         self._last_event_monotonic = 0.0
+        self._startup_monotonic = 0.0
 
     def setup_gpio(self) -> None:
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.signal_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         GPIO.setup(self.confirm_pin, GPIO.OUT, initial=GPIO.HIGH)
+        self._startup_monotonic = time.monotonic()
         self._last_signal_state = int(GPIO.input(self.signal_pin))
         print(
             f"[power-control] listening on GPIO{self.signal_pin}, "
@@ -85,6 +89,10 @@ class PowerControlListener:
     def _poll_signal(self) -> None:
         current = int(GPIO.input(self.signal_pin))
         now = time.monotonic()
+        # Ignore early boot transients from attached controller circuitry.
+        if now - self._startup_monotonic < self.startup_ignore_s:
+            self._last_signal_state = current
+            return
         if (
             self._last_signal_state == 0
             and current == 1
@@ -113,6 +121,12 @@ def parse_args() -> argparse.Namespace:
         default=20,
         help="Main loop sleep in ms (must be well below ATtiny pulse width)",
     )
+    parser.add_argument(
+        "--startup-ignore-ms",
+        type=int,
+        default=45000,
+        help="Ignore shutdown signal edges for N ms after service start",
+    )
     return parser.parse_args()
 
 
@@ -123,6 +137,7 @@ def main() -> int:
         confirm_pin=args.confirm_pin,
         debounce_ms=args.debounce_ms,
         poll_interval_s=max(0.02, args.poll_interval_ms / 1000.0),
+        startup_ignore_s=max(0.0, args.startup_ignore_ms / 1000.0),
     )
 
     def _handle_stop(_signum: int, _frame: object) -> None:

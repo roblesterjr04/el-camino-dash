@@ -1,0 +1,33 @@
+{
+  "name": "classic 1 rect",
+  "extends": "classic_1",
+  "display_overrides": {
+    "_all": {
+      "shape": "round"
+    },
+    "gauge_left": {
+      "width": 480,
+      "height": 480,
+      "position": [
+        0,
+        0
+      ]
+    },
+    "gauge_center": {
+      "width": 240,
+      "height": 240,
+      "position": [
+        480,
+        0
+      ]
+    },
+    "gauge_right": {
+      "width": 240,
+      "height": 240,
+      "position": [
+        480,
+        240
+      ]
+    }
+  }
+}

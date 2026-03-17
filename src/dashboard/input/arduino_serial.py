@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
+import time
 from typing import Any
 
 try:
@@ -12,6 +14,8 @@ except ImportError:  # pragma: no cover
 SYNC = b"\xAA\x55"
 PAYLOAD_LEN = 19
 FRAME_LEN = 2 + PAYLOAD_LEN + 1
+PI_HANDSHAKE_BYTE = b"\xA5"
+PI_HANDSHAKE_INTERVAL_S = 0.25
 
 
 @dataclass
@@ -32,6 +36,12 @@ class ArduinoSerialInput:
         self._enabled = bool(spec.get("enabled", False))
         self._buffer = bytearray()
         self._port: Any | None = None
+        self._baudrate = int(spec.get("baudrate", 115200))
+        self._timeout_s = float(spec.get("timeout_s", 0.0))
+        self._port_candidates: list[str] = []
+        self._last_open_attempt_monotonic = 0.0
+        self._open_retry_interval_s = 1.0
+        self._last_handshake_sent_monotonic = 0.0
         self._wheel_circumference_m = max(0.01, float(spec.get("wheel_circumference_m", 2.1)))
         self._speed_pulses_per_rev = max(1.0, float(spec.get("speed_pulses_per_rev", 1.0)))
         self._ranges = _SerialRanges(
@@ -49,14 +59,47 @@ class ArduinoSerialInput:
         if serial is None:
             self._enabled = False
             return
-        port_name = str(spec.get("port", "/dev/ttyAMA0"))
-        baudrate = int(spec.get("baudrate", 115200))
-        timeout_s = float(spec.get("timeout_s", 0.0))
+        requested_port = str(spec.get("port", "/dev/serial0")).strip()
+        for candidate in (
+            requested_port,
+            "/dev/serial0",
+            "/dev/ttyAMA0",
+            "/dev/ttyS0",
+            "/dev/ttyUSB0",
+            "/dev/ttyACM0",
+        ):
+            if candidate and candidate not in self._port_candidates:
+                self._port_candidates.append(candidate)
+
+        self._try_open_port(force=True)
+
+    def _try_open_port(self, *, force: bool) -> None:
+        if self._port is not None or not self._enabled:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last_open_attempt_monotonic) < self._open_retry_interval_s:
+            return
+        self._last_open_attempt_monotonic = now
+
+        for port_name in self._port_candidates:
+            if not os.path.exists(port_name):
+                continue
+            try:
+                self._port = serial.Serial(port_name, baudrate=self._baudrate, timeout=self._timeout_s)
+                self._buffer.clear()
+                self._last_handshake_sent_monotonic = 0.0
+                return
+            except Exception:
+                self._port = None
+
+    def _drop_port(self) -> None:
+        if self._port is None:
+            return
         try:
-            self._port = serial.Serial(port_name, baudrate=baudrate, timeout=timeout_s)
+            self._port.close()
         except Exception:
-            self._port = None
-            self._enabled = False
+            pass
+        self._port = None
 
     def _parse_range(self, raw: Any, fallback: tuple[float, float]) -> tuple[float, float]:
         if not isinstance(raw, list) or len(raw) != 2:
@@ -100,12 +143,27 @@ class ArduinoSerialInput:
             "arduino.fault_word": float(faults),
         }
 
+    def _send_handshake(self, *, force: bool) -> None:
+        if self._port is None:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last_handshake_sent_monotonic) < PI_HANDSHAKE_INTERVAL_S:
+            return
+        try:
+            self._port.write(PI_HANDSHAKE_BYTE)
+            self._last_handshake_sent_monotonic = now
+        except Exception:
+            # Drop dead serial handles so a later poll can re-open.
+            self._drop_port()
+            return
+
     def _extract_latest_packet(self) -> dict[str, float]:
         if self._port is None:
             return {}
         try:
             chunk = self._port.read(256)
         except Exception:
+            self._drop_port()
             return {}
         if chunk:
             self._buffer.extend(chunk)
@@ -128,9 +186,12 @@ class ArduinoSerialInput:
             if recv_crc != calc_crc:
                 continue
             latest = self._parse_frame(payload)
+            self._send_handshake(force=True)
+        self._send_handshake(force=False)
         return latest
 
     def poll(self) -> dict[str, float]:
         if not self._enabled:
             return {}
+        self._try_open_port(force=False)
         return self._extract_latest_packet()

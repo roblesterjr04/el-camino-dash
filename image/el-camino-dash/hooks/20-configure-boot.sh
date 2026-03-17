@@ -4,6 +4,16 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 require_rootfs
 
+# Force deterministic hostname for deployed dashboard images.
+echo "digidash" > "$(in_rootfs /etc/hostname)"
+if [[ -f "$(in_rootfs /etc/hosts)" ]]; then
+  if grep -Eq '^[[:space:]]*127\.0\.1\.1[[:space:]]+' "$(in_rootfs /etc/hosts)"; then
+    sed -i -E 's/^[[:space:]]*127\.0\.1\.1[[:space:]]+.*/127.0.1.1\tdigidash/' "$(in_rootfs /etc/hosts)"
+  else
+    printf "127.0.1.1\tdigidash\n" >> "$(in_rootfs /etc/hosts)"
+  fi
+fi
+
 BOOT_DIR=""
 if [[ -f "$(in_rootfs /boot/firmware/config.txt)" ]]; then
   BOOT_DIR="$(in_rootfs /boot/firmware)"
@@ -54,8 +64,21 @@ ensure_cmdline_token() {
   fi
 }
 
+mask_unit_in_rootfs() {
+  local unit="$1"
+  local unit_path
+  unit_path="$(in_rootfs "/etc/systemd/system/${unit}")"
+  mkdir -p "$(dirname "${unit_path}")"
+  ln -sf /dev/null "${unit_path}"
+}
+
 append_line_if_missing "${CONFIG_TXT}" "enable_uart=1"
+# Keep mini-UART clocking fixed when Bluetooth is moved to ttyS0.
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*core_freq_min=250[[:space:]]*$"
+append_line_if_missing "${CONFIG_TXT}" "core_freq=250"
 append_line_if_missing "${CONFIG_TXT}" "dtparam=i2c_arm=on"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=disable-bt[[:space:]]*$"
+append_line_if_missing "${CONFIG_TXT}" "dtoverlay=miniuart-bt"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=vc4-fkms-v3d.*$"
 append_line_if_missing "${CONFIG_TXT}" "dtoverlay=vc4-kms-v3d"
 append_line_if_missing "${CONFIG_TXT}" "dtparam=audio=on"
@@ -80,3 +103,8 @@ remove_cmdline_token_prefix "${CMDLINE_TXT}" "video="
 ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_headphones=1"
 ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_hdmi=0"
 ensure_cmdline_token "${CMDLINE_TXT}" "video=HDMI-A-2:800x480M@60D"
+
+# Keep UART enabled but guarantee Linux login consoles do not bind serial ports.
+mask_unit_in_rootfs "serial-getty@serial0.service"
+mask_unit_in_rootfs "serial-getty@ttyAMA0.service"
+mask_unit_in_rootfs "serial-getty@ttyS0.service"

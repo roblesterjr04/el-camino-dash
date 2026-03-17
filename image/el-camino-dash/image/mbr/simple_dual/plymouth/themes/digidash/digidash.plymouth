@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=digidash
+Description=El Camino DigiDash boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/digidash
+ScriptFile=/usr/share/plymouth/themes/digidash/digidash.script

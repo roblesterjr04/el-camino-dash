@@ -31,6 +31,7 @@ while IFS= read -r entry; do
 done < "${manifest}"
 
 install -m 0755 "${SOURCE_DIR}/scripts/gauge-mcp-monitor" "$(in_rootfs /usr/local/bin/gauge-mcp-monitor)"
+install -m 0755 "${SOURCE_DIR}/scripts/start-gauge-hdmi-x11.sh" "$(in_rootfs /usr/local/bin/start-gauge-hdmi-x11)"
 
 # Build runtime venv in image for first boot readiness.
 if [[ -f "${target_runtime}/requirements.txt" ]]; then

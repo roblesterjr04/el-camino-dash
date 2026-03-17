@@ -4,9 +4,20 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 require_rootfs
 
+THEME_NAME="digidash"
 SOURCE_IMAGE="${SOURCE_DIR}/assets/bootscreen/boot.png"
+SOURCE_THEMES_DIR="${SOURCE_DIR}/image/el-camino-dash/image/mbr/simple_dual/plymouth/themes"
+SOURCE_THEME_DIR="${SOURCE_THEMES_DIR}/${THEME_NAME}"
+if [[ ! -d "${SOURCE_THEME_DIR}" ]]; then
+  echo "Skipping boot splash hook: theme directory missing (${SOURCE_THEME_DIR})." >&2
+  exit 0
+fi
 if [[ ! -f "${SOURCE_IMAGE}" ]]; then
   echo "Skipping boot splash hook: source image missing (${SOURCE_IMAGE})." >&2
+  exit 0
+fi
+if [[ ! -f "${SOURCE_THEME_DIR}/${THEME_NAME}.plymouth" || ! -f "${SOURCE_THEME_DIR}/${THEME_NAME}.script" ]]; then
+  echo "Skipping boot splash hook: missing ${THEME_NAME}.plymouth or ${THEME_NAME}.script." >&2
   exit 0
 fi
 
@@ -22,12 +33,7 @@ fi
 
 CONFIG_TXT="${BOOT_DIR}/config.txt"
 CMDLINE_TXT="${BOOT_DIR}/cmdline.txt"
-THEME_DIR="$(in_rootfs /usr/share/plymouth/themes/el-camino)"
-PLYMOUTH_DEF="${THEME_DIR}/el-camino.plymouth"
-PLYMOUTH_SCRIPT="${THEME_DIR}/el-camino.script"
-THEME_IMAGE="${THEME_DIR}/boot_hdmi.png"
-DEFAULT_THEME_LINK="$(in_rootfs /usr/share/plymouth/themes/default.plymouth)"
-PLYMOUTH_CONF="$(in_rootfs /etc/plymouth/plymouthd.conf)"
+THEMES_ROOT="$(in_rootfs /usr/share/plymouth/themes)"
 
 append_line_if_missing() {
   local file="$1"
@@ -57,40 +63,27 @@ ensure_cmdline_token() {
 }
 
 echo "Installing Plymouth theme payload in rootfs..."
-mkdir -p "${THEME_DIR}"
-install -m 0644 "${SOURCE_IMAGE}" "${THEME_IMAGE}"
+mkdir -p "${THEMES_ROOT}"
+rsync -a --exclude ".DS_Store" "${SOURCE_THEMES_DIR}/" "${THEMES_ROOT}/"
+install -m 0644 "${SOURCE_IMAGE}" "${THEMES_ROOT}/${THEME_NAME}/boot.png"
 
-cat > "${PLYMOUTH_DEF}" <<'EOF'
-[Plymouth Theme]
-Name=El Camino Boot Splash
-Description=Static El Camino boot image
-ModuleName=script
+# Activate script splash via plymouth tooling (same pattern as reference repo).
+chroot "${ROOTFS_DIR}" /usr/sbin/plymouth-set-default-theme "${THEME_NAME}" || true
 
-[script]
-ImageDir=/usr/share/plymouth/themes/el-camino
-ScriptFile=/usr/share/plymouth/themes/el-camino/el-camino.script
-EOF
-
-cat > "${PLYMOUTH_SCRIPT}" <<'EOF'
-img = Image("boot_hdmi.png");
-sprite = Sprite(img);
-sprite.SetZ(10000);
-sprite.SetX(0);
-sprite.SetY(0);
-Plymouth.SetBootProgressFunction(function () {});
-Plymouth.SetRefreshFunction(function () {});
-EOF
-
-mkdir -p "$(dirname "${DEFAULT_THEME_LINK}")"
-ln -sf "${PLYMOUTH_DEF}" "${DEFAULT_THEME_LINK}"
-
+PLYMOUTH_CONF="$(in_rootfs /etc/plymouth/plymouthd.conf)"
 mkdir -p "$(dirname "${PLYMOUTH_CONF}")"
-cat > "${PLYMOUTH_CONF}" <<'EOF'
+if [[ -f "${PLYMOUTH_CONF}" ]]; then
+  if grep -Eq '^[[:space:]]*Theme=' "${PLYMOUTH_CONF}"; then
+    sed -i -E "s|^[[:space:]]*Theme=.*$|Theme=${THEME_NAME}|" "${PLYMOUTH_CONF}"
+  else
+    printf "\nTheme=%s\n" "${THEME_NAME}" >> "${PLYMOUTH_CONF}"
+  fi
+else
+  cat > "${PLYMOUTH_CONF}" <<EOF
 [Daemon]
-ShowDelay=0
-UseSimpledrm=1
-DeviceScale=1
+Theme=${THEME_NAME}
 EOF
+fi
 
 append_line_if_missing "${CONFIG_TXT}" "disable_splash=1"
 append_line_if_missing "${CONFIG_TXT}" "avoid_warnings=1"

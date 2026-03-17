@@ -14,6 +14,7 @@ from dashboard.screens.layout import DisplayLayout
 from dashboard.screens.map_screen import MapScreen
 from dashboard.screens.menu_overlay import MenuOverlayController
 from dashboard.screens.warning_overlay import WarningOverlayScreen
+from dashboard.theme_loader import load_theme_data
 
 
 @dataclass
@@ -79,13 +80,7 @@ class DisplayManager:
     def _load_theme_data(self) -> dict[str, Any]:
         theme_root = Path(self._config["themes"]["theme_root"])
         theme_name = self._config["themes"]["active"]
-        theme_path = theme_root / theme_name / "theme.json"
-        if not theme_path.exists():
-            return {}
-        try:
-            return json.loads(theme_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {}
+        return load_theme_data(theme_root=theme_root, theme_name=theme_name)
 
     def _resolve_render_mode(self) -> str:
         system_cfg = self._config.get("system", {})

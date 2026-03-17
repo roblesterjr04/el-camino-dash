@@ -271,7 +271,7 @@ inputs:
     # Example: gpio_ir_recv
     device_name: "gpio_ir_recv"
     # IR decoder protocols applied via `ir-keytable`.
-    protocols: [nec, rc-5, rc-6, jvc, sony, sanyo, sharp, xmp, imon, mce_kbd]
+    protocol: nec
     rc_device: rc0
     apply_protocol: true
     allow_repeats: true

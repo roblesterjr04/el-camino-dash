@@ -1,5 +1,8 @@
 device:
-  layer: rpi5
+  layer: rpi4
+  user1: pi
+  user1sudo: nopasswd
+  
 
 image:
   layer: image-rpios

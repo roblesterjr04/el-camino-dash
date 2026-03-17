@@ -1,2 +1,4 @@
 /work
 /build-artifacts
+/keys/pi_authorized_key.pub
+/tmp

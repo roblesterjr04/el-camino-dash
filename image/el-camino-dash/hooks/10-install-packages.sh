@@ -9,10 +9,10 @@ PACKAGES=(
   python3-pygame python3-pil python3-spidev python3-rpi.gpio python3-evdev
   ir-keytable i2c-tools alsa-utils raspi-config
   gcc-avr binutils-avr avr-libc
-  rsync x11-utils x11-xserver-utils xinit xserver-xorg lightdm openbox xterm
+  rsync xinit xserver-xorg xauth
   bluez pulseaudio pulseaudio-module-bluetooth
   navit gpsd gpsd-clients
-  plymouth plymouth-themes unclutter
+  plymouth plymouth-themes
   curl ca-certificates avrdude
 )
 
@@ -25,10 +25,13 @@ printf "%s\n" "${PACKAGES[@]}" > "${manifest}"
 # optionally install if a helper command is exposed.
 if command -v mmdebstrap-install >/dev/null 2>&1; then
   mmdebstrap-install "${PACKAGES[@]}"
+else
+  chroot "${ROOTFS_DIR}" /usr/bin/apt-get update
+  chroot "${ROOTFS_DIR}" /usr/bin/apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 fi
 
 # Ensure runtime user group memberships are present in image state.
-for grp in bluetooth audio i2c gpio; do
+for grp in bluetooth audio i2c gpio dialout; do
   if chroot "${ROOTFS_DIR}" getent group "${grp}" >/dev/null 2>&1; then
     chroot "${ROOTFS_DIR}" usermod -aG "${grp}" "${TARGET_USER}" >/dev/null 2>&1 || true
   fi

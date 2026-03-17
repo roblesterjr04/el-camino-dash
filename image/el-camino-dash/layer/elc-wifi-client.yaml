@@ -1,0 +1,100 @@
+# METABEGIN
+# X-Env-Layer-Name: elc-wifi-client
+# X-Env-Layer-Desc: Configure Wi-Fi client using wpa_supplicant and systemd-networkd.
+# X-Env-Layer-Category: device
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Requires: systemd-net-min
+#
+# X-Env-VarPrefix: wifi
+#
+# X-Env-Var-iface: wlan0
+# X-Env-Var-iface-Desc: Wireless interface name to configure.
+# X-Env-Var-iface-Required: n
+# X-Env-Var-iface-Valid: string
+# X-Env-Var-iface-Set: y
+#
+# X-Env-Var-country: US
+# X-Env-Var-country-Desc: Two-letter Wi-Fi regulatory country code.
+# X-Env-Var-country-Required: n
+# X-Env-Var-country-Valid: regex:^[A-Z]{2}$
+# X-Env-Var-country-Set: y
+#
+# X-Env-Var-ssid:
+# X-Env-Var-ssid-Desc: Wi-Fi SSID for station mode.
+# X-Env-Var-ssid-Required: y
+# X-Env-Var-ssid-Valid: string
+# X-Env-Var-ssid-Set: y
+#
+# X-Env-Var-psk:
+# X-Env-Var-psk-Desc: Wi-Fi passphrase for WPA/WPA2.
+# X-Env-Var-psk-Required: y
+# X-Env-Var-psk-Valid: string
+# X-Env-Var-psk-Set: y
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - wpasupplicant
+    - wireless-regdb
+    - iw
+    - rfkill
+  customize-hooks:
+    - |-
+      set -eu
+      iface="${IGconf_wifi_iface}"
+      install -d "$1/etc/wpa_supplicant"
+      cat > "$1/etc/wpa_supplicant/wpa_supplicant-${iface}.conf" <<EOF
+      country=${IGconf_wifi_country}
+      ctrl_interface=DIR=/run/wpa_supplicant GROUP=netdev
+      update_config=1
+
+      network={
+          ssid="${IGconf_wifi_ssid}"
+          psk="${IGconf_wifi_psk}"
+          scan_ssid=1
+          key_mgmt=WPA-PSK
+      }
+      EOF
+      chmod 600 "$1/etc/wpa_supplicant/wpa_supplicant-${iface}.conf"
+      cp "$1/etc/wpa_supplicant/wpa_supplicant-${iface}.conf" "$1/etc/wpa_supplicant/wpa_supplicant.conf"
+      chmod 600 "$1/etc/wpa_supplicant/wpa_supplicant.conf"
+    - |-
+      set -eu
+      iface="${IGconf_wifi_iface}"
+      install -d "$1/etc/systemd/network"
+      cat > "$1/etc/systemd/network/30-${iface}.network" <<EOF
+      [Match]
+      Name=${iface}
+
+      [Network]
+      DHCP=yes
+      EOF
+    - |-
+      set -eu
+      iface="${IGconf_wifi_iface}"
+      service_unit_path() {
+        local root="$1" unit="$2"
+        if [ -f "${root}/usr/lib/systemd/system/${unit}" ]; then
+          printf "/usr/lib/systemd/system/%s" "${unit}"
+        else
+          printf "/lib/systemd/system/%s" "${unit}"
+        fi
+      }
+      install -d "$1/etc/systemd/system/multi-user.target.wants"
+      install -d "$1/etc/systemd/system/gauge-connectivity-late.service.d"
+      install -d "$1/etc/systemd/system/wpa_supplicant.service.d"
+      cat > "$1/etc/systemd/system/wpa_supplicant.service.d/10-elc-unblock.conf" <<EOF
+      [Service]
+      ExecStartPre=/usr/sbin/rfkill unblock wifi
+      EOF
+      cat > "$1/etc/systemd/system/gauge-connectivity-late.service.d/10-start-connectivity.conf" <<EOF
+      [Service]
+      ExecStart=
+      ExecStart=/bin/bash -lc 'sleep 8; systemctl start bluetooth.service systemd-resolved.service systemd-networkd.service wpa_supplicant.service || true'
+      EOF
+      rm -f "$1/etc/systemd/system/multi-user.target.wants/wpa_supplicant.service"
+      rm -f "$1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
+      rm -f "$1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
+      rm -f "$1/etc/systemd/system/network-online.target.wants/systemd-networkd-wait-online.service"
+      rm -f "$1/etc/resolv.conf"
+      ln -sf /run/systemd/resolve/stub-resolv.conf "$1/etc/resolv.conf"

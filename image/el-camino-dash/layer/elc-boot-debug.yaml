@@ -1,0 +1,76 @@
+# METABEGIN
+# X-Env-Layer-Name: elc-boot-debug
+# X-Env-Layer-Desc: Temporary debug boot profile for early boot visibility.
+# X-Env-Layer-Category: device
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Requires: rpi-boot-firmware
+# METAEND
+---
+mmdebstrap:
+  customize-hooks:
+    - |-
+      set -eu
+
+      BOOT_DIR="$1/boot/firmware"
+      if [ ! -d "$BOOT_DIR" ]; then
+        BOOT_DIR="$1/boot"
+      fi
+
+      CONFIG_TXT="$BOOT_DIR/config.txt"
+      CMDLINE_TXT="$BOOT_DIR/cmdline.txt"
+
+      if [ ! -f "$CONFIG_TXT" ] || [ ! -f "$CMDLINE_TXT" ]; then
+        echo "Boot debug layer: boot config files not found, skipping." >&2
+        exit 0
+      fi
+
+      append_line_if_missing() {
+        file="$1"
+        line="$2"
+        if ! grep -Fqx "$line" "$file"; then
+          printf "\n%s\n" "$line" >> "$file"
+        fi
+      }
+
+      remove_token_prefix() {
+        file="$1"
+        prefix="$2"
+        current="$(cat "$file")"
+        updated="$(printf "%s\n" "$current" | sed -E "s/(^| )${prefix}[^ ]*//g; s/  +/ /g; s/^ //; s/ $//")"
+        printf "%s\n" "$updated" > "$file"
+      }
+
+      ensure_token() {
+        file="$1"
+        token="$2"
+        current="$(cat "$file")"
+        case " $current " in
+          *" $token "*) ;;
+          *) printf "%s %s\n" "$current" "$token" > "$file" ;;
+        esac
+      }
+
+      # Keep boot verbosity visible on HDMI without binding UART console.
+      remove_token_prefix "$CMDLINE_TXT" "quiet"
+      remove_token_prefix "$CMDLINE_TXT" "splash"
+      remove_token_prefix "$CMDLINE_TXT" "plymouth.ignore-serial-consoles"
+      remove_token_prefix "$CMDLINE_TXT" "loglevel="
+      remove_token_prefix "$CMDLINE_TXT" "rd.systemd.show_status="
+      remove_token_prefix "$CMDLINE_TXT" "systemd.show_status="
+      remove_token_prefix "$CMDLINE_TXT" "udev.log_priority="
+      remove_token_prefix "$CMDLINE_TXT" "vt.global_cursor_default="
+      remove_token_prefix "$CMDLINE_TXT" "logo.nologo"
+
+      ensure_token "$CMDLINE_TXT" "console=tty1"
+      ensure_token "$CMDLINE_TXT" "loglevel=7"
+      ensure_token "$CMDLINE_TXT" "systemd.log_level=debug"
+      ensure_token "$CMDLINE_TXT" "systemd.log_target=console"
+      ensure_token "$CMDLINE_TXT" "systemd.show_status=1"
+      ensure_token "$CMDLINE_TXT" "rd.systemd.show_status=1"
+
+      # Favor a conservative HDMI config for bring-up.
+      append_line_if_missing "$CONFIG_TXT" "enable_uart=1"
+      append_line_if_missing "$CONFIG_TXT" "hdmi_force_hotplug=1"
+      append_line_if_missing "$CONFIG_TXT" "hdmi_safe=1"
+      append_line_if_missing "$CONFIG_TXT" "disable_splash=1"
+
