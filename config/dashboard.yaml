@@ -184,7 +184,7 @@ inputs:
       smoothing_alpha: 0.35
   arduino_serial:
     enabled: true
-    port: /dev/serial0
+    port: /dev/ttyAMA3
     baudrate: 115200
     timeout_s: 0.0
     wheel_circumference_m: 2.1

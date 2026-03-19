@@ -214,6 +214,8 @@ class ControlMenuController:
         self._last_press_count = 0
         self._staged_overrides: dict[str, Any] = {}
         self._message = ""
+        self._parent_page_by_page = self._build_parent_page_map(schema)
+        self._page_history: list[str] = []
 
     @property
     def dirty(self) -> bool:
@@ -253,6 +255,7 @@ class ControlMenuController:
         self._cursor = 0
         self._editing_range = False
         self._message = ""
+        self._page_history.clear()
 
     def open_page(self, page_id: str) -> bool:
         if page_id not in self._schema.pages:
@@ -260,6 +263,25 @@ class ControlMenuController:
         self._current_page_id = page_id
         self._cursor = 0
         self._editing_range = False
+        self._page_history.clear()
+        return True
+
+    def back_one(self) -> bool:
+        if self._editing_range:
+            self._editing_range = False
+            self._message = ""
+            return True
+        if self._current_page_id == self._schema.home:
+            return False
+        if self._page_history:
+            target = self._page_history.pop()
+        else:
+            target = self._parent_page_by_page.get(self._current_page_id, self._schema.home)
+        if target not in self._schema.pages:
+            target = self._schema.home
+        self._current_page_id = target
+        self._cursor = 0
+        self._message = ""
         return True
 
     def set_message(self, message: str) -> None:
@@ -287,6 +309,11 @@ class ControlMenuController:
     def _activate_current(self, status: dict[str, str]) -> None:
         item = self._current_item()
         if item.item_type == "submenu" and item.target_page:
+            if self._is_back_item(item):
+                if self._page_history and self._page_history[-1] == item.target_page:
+                    self._page_history.pop()
+            else:
+                self._page_history.append(self._current_page_id)
             self._current_page_id = item.target_page
             self._cursor = 0
             self._editing_range = False
@@ -426,3 +453,25 @@ class ControlMenuController:
                 return f"{float(value):.2f}{staged}{editing}"
             return f"{int(value)}{staged}{editing}"
         return ""
+
+    def _is_back_item(self, item: MenuItem) -> bool:
+        if item.item_type != "submenu":
+            return False
+        item_id = item.item_id.strip().lower()
+        label = item.label.strip().lower()
+        return item_id.startswith("back") or label == "back"
+
+    def _build_parent_page_map(self, schema: MenuSchema) -> dict[str, str]:
+        parent_by_page: dict[str, str] = {}
+        for page in schema.pages.values():
+            for item in page.items:
+                if item.item_type != "submenu" or not item.target_page:
+                    continue
+                if self._is_back_item(item):
+                    continue
+                if item.target_page == schema.home:
+                    continue
+                if item.target_page not in schema.pages:
+                    continue
+                parent_by_page.setdefault(item.target_page, page.page_id)
+        return parent_by_page

@@ -4,8 +4,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 require_rootfs
 
-THEME_NAME="digidash"
-SOURCE_IMAGE="${SOURCE_DIR}/assets/bootscreen/boot.png"
+THEME_NAME="chevy"
+SOURCE_IMAGE="${SOURCE_DIR}/assets/bootscreen/boot2.png"
 SOURCE_THEMES_DIR="${SOURCE_DIR}/image/el-camino-dash/image/mbr/simple_dual/plymouth/themes"
 SOURCE_THEME_DIR="${SOURCE_THEMES_DIR}/${THEME_NAME}"
 if [[ ! -d "${SOURCE_THEME_DIR}" ]]; then
@@ -65,7 +65,7 @@ ensure_cmdline_token() {
 echo "Installing Plymouth theme payload in rootfs..."
 mkdir -p "${THEMES_ROOT}"
 rsync -a --exclude ".DS_Store" "${SOURCE_THEMES_DIR}/" "${THEMES_ROOT}/"
-install -m 0644 "${SOURCE_IMAGE}" "${THEMES_ROOT}/${THEME_NAME}/boot.png"
+install -m 0644 "${SOURCE_IMAGE}" "${THEMES_ROOT}/${THEME_NAME}/boot2.png"
 
 # Activate script splash via plymouth tooling (same pattern as reference repo).
 chroot "${ROOTFS_DIR}" /usr/sbin/plymouth-set-default-theme "${THEME_NAME}" || true

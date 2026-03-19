@@ -40,3 +40,12 @@ systemctl enable gauge-cluster-hdmi.service
 systemctl enable gauge-hide-cursor.service
 systemctl enable gauge-power-control.service
 systemctl enable gauge-ir-protocol.service
+
+# Ensure the runtime user can open /dev/input/event* (IR via evdev).
+if id pi >/dev/null 2>&1; then
+  for grp in input gpio i2c audio bluetooth dialout; do
+    if getent group "${grp}" >/dev/null 2>&1; then
+      usermod -aG "${grp}" pi >/dev/null 2>&1 || true
+    fi
+  done
+fi

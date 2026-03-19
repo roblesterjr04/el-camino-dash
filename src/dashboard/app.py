@@ -90,13 +90,12 @@ class DashboardApp:
             "center_toggle": 0,
             "tune_up": 0,
             "tune_down": 0,
+            "dash_exit": 0,
+            "menu_open": 0,
             "diagnostics_open": 0,
         }
         self._ir_last_code = "-"
         self._last_aux_press_count = 0
-        self._connectivity_started = False
-        self._connectivity_start_delay_s = max(0.0, float(self.config["system"].get("connectivity_start_delay_s", 8.0)))
-        self._app_started_s = time.monotonic()
 
     def run(self) -> None:
         self._install_signal_handlers()
@@ -132,7 +131,8 @@ class DashboardApp:
             on_runtime_refresh=self._refresh_runtime_components,
         )
         self.navit.start()
-        self._app_started_s = time.monotonic()
+        self.bluetooth.start()
+        self.bluetooth_audio.start()
         self._running = True
         clock = pygame.time.Clock()
 
@@ -152,10 +152,8 @@ class DashboardApp:
                 self._update_runtime_metrics()
                 self._update_alert_states()
                 self._update_fault_registry()
-                self._maybe_start_connectivity()
-                if self._connectivity_started:
-                    self.bluetooth.poll()
-                    self.bluetooth_audio.poll()
+                self.bluetooth.poll()
+                self.bluetooth_audio.poll()
                 if self.radio:
                     self.radio.tick()
                 self._update_startup_sweep()
@@ -176,15 +174,6 @@ class DashboardApp:
                 self.display_manager.shutdown()
             self._restore_signal_handlers()
             pygame.quit()
-
-    def _maybe_start_connectivity(self) -> None:
-        if self._connectivity_started:
-            return
-        if (time.monotonic() - self._app_started_s) < self._connectivity_start_delay_s:
-            return
-        self.bluetooth.start()
-        self.bluetooth_audio.start()
-        self._connectivity_started = True
 
     def _install_signal_handlers(self) -> None:
         self._previous_sigint_handler = signal.getsignal(signal.SIGINT)
@@ -232,6 +221,8 @@ class DashboardApp:
             "center_toggle": ("inputs.ir.command.center_toggle_count", "center_dial_mode.toggle"),
             "tune_up": ("inputs.ir.command.tune_up_count", "radio.tune_up"),
             "tune_down": ("inputs.ir.command.tune_down_count", "radio.tune_down"),
+            "dash_exit": ("inputs.ir.command.dash_exit_count", "app.main_screen"),
+            "menu_open": ("inputs.ir.command.menu_open_count", "menu.open_back"),
         }
         for state_key, (value_key, command_id) in command_map.items():
             count = int(current.get(value_key, 0.0))
@@ -533,6 +524,8 @@ class DashboardApp:
             "theme.next": self._cmd_theme_next,
             "center_dial_mode.toggle": self._cmd_center_dial_mode_toggle,
             "map_view.toggle": self._cmd_map_view_toggle,
+            "app.main_screen": self._cmd_app_main_screen,
+            "menu.open_back": self._cmd_menu_open_back,
             "faults.clear": self._cmd_faults_clear,
             "app.restart": self._cmd_app_restart,
         }
@@ -766,11 +759,10 @@ class DashboardApp:
         theme_root = Path(self.config["themes"]["theme_root"])
         if not theme_root.exists():
             return "Theme root missing"
-        available = sorted(
-            path.name for path in theme_root.iterdir() if path.is_dir() and (path / "theme.json").exists()
-        )
+        available = sorted(path.name for path in theme_root.iterdir() if path.is_dir() and (path / "theme.json").exists())
         if not available:
             return "No themes found"
+
         active = str(self.config["themes"].get("active", ""))
         if active in available:
             next_index = (available.index(active) + 1) % len(available)
@@ -820,6 +812,17 @@ class DashboardApp:
         self.config.setdefault("system", {})["map_view_visible"] = next_visible
         self._refresh_runtime_components()
         return f"Map view: {'on' if next_visible else 'off'}"
+
+    def _cmd_app_main_screen(self, _: dict[str, Any]) -> str:
+        self.config.setdefault("system", {})["map_view_visible"] = False
+        if self.display_manager:
+            self.display_manager.close_menu_overlay()
+        return "Main dash screen"
+
+    def _cmd_menu_open_back(self, _: dict[str, Any]) -> str:
+        if not self.display_manager:
+            return "Menu unavailable"
+        return self.display_manager.menu_open_or_back()
 
     def _cmd_faults_clear(self, _: dict[str, Any]) -> str:
         self._fault_latched_word = 0

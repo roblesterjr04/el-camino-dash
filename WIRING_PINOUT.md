@@ -13,8 +13,8 @@ Reference baseline: Raspberry Pi 40-pin header mapping used on current Pi models
 | Arduino reset pulse (programming only) | 4 | 7 | output | Used by installer flash/reset helper |
 | FM radio reset (SI4703 breakout reset) | 5 | 29 | output | `integrations.fm_radio.rst_pin` |
 | IR receiver (gpio-ir overlay) | 26 | 37 | input | `dtoverlay=gpio-ir,gpio_pin=26` |
-| Arduino UART TX -> Arduino RX | 14 (TXD0) | 8 | output | `/dev/serial0` |
-| Arduino UART RX <- Arduino TX | 15 (RXD0) | 10 | input | `/dev/serial0` |
+| Arduino UART TX -> Arduino RX | 8 (TXD4) | 24 | output | `uart4` / `/dev/ttyAMA3` |
+| Arduino UART RX <- Arduino TX | 9 (RXD4) | 21 | input | `uart4` / `/dev/ttyAMA3` |
 | ATtiny PI_SIGNAL (shutdown notice) | 16 | 36 | input | From ATtiny PB1 |
 | ATtiny PI_CONFIRM (shutdown complete) | 12 | 32 | output | To ATtiny ADC3 |
 | I2S BCLK -> PCM5102A BCK | 18 | 12 | output | PCM/I2S clock |
@@ -93,8 +93,17 @@ From `arduino/sketches/sensor_pack/sensor_pack.ino`:
 | Hall speed pulse | D2 (interrupt) |
 | Coil/RPM pulse | D3 (interrupt) |
 | ALT indicator | D4 |
+| RPM selector bit A | D5 (pull-up input, strap to GND for LOW) |
 | IGN sense | D6 |
 | Fault disable | D11 |
+| RPM selector bit B | D12 (pull-up input, strap to GND for LOW) |
+
+RPM pulses-per-revolution selector (`D5` = A, `D12` = B):
+
+- `A=LOW`, `B=HIGH` -> `4` pulses/rev
+- `A=HIGH`, `B=LOW` -> `6` pulses/rev
+- `A=HIGH`, `B=HIGH` -> `8` pulses/rev
+- `A=LOW`, `B=LOW` -> fallback to default (`8`)
 
 ## ATtiny power control unit
 
@@ -137,11 +146,11 @@ Script:
 bash arduino/scripts/program_power_control_attiny.sh --wiring
 ```
 
-## Dormant SPI pins
+## Legacy SPI pin overlap
 
 SPI display mode is intentionally dormant in current installer/runtime defaults.
-
-If SPI is re-enabled later, these header pins become reserved again:
+With UART4 now used for Arduino comms, these pins are intentionally not available
+for SPI wiring in the standard harness:
 
 - GPIO7 (pin 26), GPIO8 (pin 24), GPIO9 (pin 21), GPIO10 (pin 19), GPIO11 (pin 23)
 
@@ -150,4 +159,4 @@ If SPI is re-enabled later, these header pins become reserved again:
 - Removed active reliance on direct Pi GPIO rotary/button inputs in primary configs.
 - Added MCP23017 control input path in code/config validation.
 - Standardized FM reset pin usage to GPIO5 in non-SPI configs to avoid overlap with legacy GPIO17 rotary usage.
-- Standardized Arduino serial path to `/dev/serial0` in Pi-targeted runtime configs.
+- Standardized Arduino serial path to `/dev/ttyAMA3` (UART4 on GPIO8/9) in Pi-targeted runtime configs.

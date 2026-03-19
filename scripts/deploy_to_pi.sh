@@ -118,7 +118,8 @@ rsync -az --checksum --itemize-changes "${PROJECT_DIR}/requirements.txt" "${TARG
 rsync -az --checksum --delete --itemize-changes "${PROJECT_DIR}/deploy/" "${TARGET}:${REMOTE_STAGE}/deploy/"
 
 echo "Promoting staged payload to ${REMOTE_DIR} (sudo rsync)..."
-ssh "${TARGET}" "sudo mkdir -p '${REMOTE_DIR}' && sudo rsync -a --delete '${REMOTE_STAGE}/' '${REMOTE_DIR}/' && sudo chown -R pi:pi '${REMOTE_DIR}'"
+# Preserve runtime-managed virtualenv and data artifacts across iterative deploys.
+ssh "${TARGET}" "sudo mkdir -p '${REMOTE_DIR}' && sudo rsync -a --delete --exclude '.venv/' --exclude 'data/' '${REMOTE_STAGE}/' '${REMOTE_DIR}/' && sudo chown -R pi:pi '${REMOTE_DIR}'"
 
 echo "Ensuring executable bits on remote scripts..."
 ssh "${TARGET}" "sudo find '${REMOTE_DIR}/scripts' -type f -name '*.sh' -exec chmod +x {} +"

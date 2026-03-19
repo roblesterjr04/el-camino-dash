@@ -262,9 +262,92 @@ class DisplayManager:
             merged.update(by_id)
         return merged
 
+    def _build_single_screen_virtual_displays(self, base_display: dict[str, Any]) -> list[dict[str, Any]]:
+        # Allow themes to declare explicit virtual panels for a single physical screen.
+        declared = self._theme_data.get("single_screen_displays", [])
+        if isinstance(declared, list):
+            parsed: list[dict[str, Any]] = []
+            for entry in declared:
+                if not isinstance(entry, dict):
+                    continue
+                display_id = entry.get("id")
+                if not isinstance(display_id, str) or not display_id.strip():
+                    continue
+                virtual = dict(base_display)
+                virtual["id"] = display_id.strip()
+                for key in ("shape", "width", "height", "position", "gauge_id", "monitor_index", "windowed", "fullscreen"):
+                    if key in entry:
+                        virtual[key] = entry[key]
+                virtual["enabled"] = True
+                parsed.append(virtual)
+            if len(parsed) >= 2:
+                return parsed
+
+        # Backward-compatible auto composition: when a theme already defines
+        # canonical panel overrides, synthesize those panels on single-screen setups.
+        overrides = self._theme_data.get("display_overrides", {})
+        if not isinstance(overrides, dict):
+            overrides = {}
+        canonical_ids = [display_id for display_id in ("gauge_left", "gauge_center", "gauge_right") if isinstance(overrides.get(display_id), dict)]
+        use_canonical_ids = canonical_ids if len(canonical_ids) >= 2 else ["gauge_left", "gauge_center", "gauge_right"]
+
+        gauge_cfg = self._config.get("gauges", {})
+        gauge_ids = [key for key in gauge_cfg.keys() if isinstance(key, str)]
+        preferred_order = ["speedometer", "tachometer", "tsps"]
+        selected_gauges: list[str] = []
+        for gauge_id in preferred_order + gauge_ids:
+            if gauge_id in gauge_ids and gauge_id not in selected_gauges:
+                selected_gauges.append(gauge_id)
+            if len(selected_gauges) >= len(use_canonical_ids):
+                break
+        while len(selected_gauges) < len(use_canonical_ids):
+            selected_gauges.append(selected_gauges[-1] if selected_gauges else "")
+
+        width = int(base_display.get("width", 800))
+        height = int(base_display.get("height", 480))
+        left_width = min(height, max(int(width * 0.56), width // 2))
+        right_width = max(0, width - left_width)
+        top_height = max(1, height // 2)
+        bottom_height = max(1, height - top_height)
+
+        if right_width < max(120, int(width * 0.2)):
+            col_width = max(1, width // 3)
+            frames = [
+                (0, 0, col_width, height),
+                (col_width, 0, col_width, height),
+                (col_width * 2, 0, max(1, width - (col_width * 2)), height),
+            ]
+        else:
+            frames = [
+                (0, 0, left_width, height),
+                (left_width, 0, right_width, top_height),
+                (left_width, top_height, right_width, bottom_height),
+            ]
+
+        virtual_displays: list[dict[str, Any]] = []
+        for idx, display_id in enumerate(use_canonical_ids):
+            x, y, panel_w, panel_h = frames[min(idx, len(frames) - 1)]
+            virtual = dict(base_display)
+            virtual["id"] = display_id
+            virtual["position"] = [int(x), int(y)]
+            virtual["width"] = int(panel_w)
+            virtual["height"] = int(panel_h)
+            if idx < len(selected_gauges) and selected_gauges[idx]:
+                virtual["gauge_id"] = selected_gauges[idx]
+            virtual["enabled"] = True
+            virtual_displays.append(virtual)
+        return virtual_displays
+
     def _build_layouts(self) -> list[DisplayLayout]:
         layouts: list[DisplayLayout] = []
-        for display in self._config["displays"]:
+        enabled_displays = [display for display in self._config["displays"] if bool(display.get("enabled", False))]
+        source_displays = enabled_displays
+        if len(enabled_displays) == 1:
+            composed = self._build_single_screen_virtual_displays(enabled_displays[0])
+            if composed:
+                source_displays = composed
+
+        for display in source_displays:
             resolved = self._apply_display_override(display)
             if not resolved["enabled"]:
                 continue
@@ -324,10 +407,8 @@ class DisplayManager:
         known_ids = {layout.display_id for layout in self._layouts}
         if configured in known_ids:
             return configured
-        if "gauge_right" in known_ids:
-            return "gauge_right"
         if self._layouts:
-            return self._layouts[0].display_id
+            return max(self._layouts, key=lambda layout: layout.width * layout.height).display_id
         return configured
 
     def _resolve_menu_layout(self) -> DisplayLayout:
@@ -353,10 +434,8 @@ class DisplayManager:
         known_ids = {layout.display_id for layout in self._layouts}
         if configured in known_ids:
             return configured
-        if "gauge_center" in known_ids:
-            return "gauge_center"
         if self._layouts:
-            return self._layouts[0].display_id
+            return max(self._layouts, key=lambda layout: layout.width * layout.height).display_id
         return configured
 
     def _resolve_alert_layout(self) -> DisplayLayout:
@@ -389,6 +468,9 @@ class DisplayManager:
         if not visible:
             return False
         target_display = str(system_cfg.get("map_display_id", "gauge_right"))
+        known_ids = {entry.display_id for entry in self._layouts}
+        if target_display not in known_ids and self._layouts:
+            target_display = self._menu_display_id
         return layout.display_id == target_display
 
     def _menu_overlay_visible(self, layout: DisplayLayout) -> bool:
@@ -520,3 +602,9 @@ class DisplayManager:
         if self._spi_display_manager is not None:
             self._spi_display_manager.shutdown()
             self._spi_display_manager = None
+
+    def close_menu_overlay(self) -> None:
+        self._menu_overlay.close_overlay()
+
+    def menu_open_or_back(self) -> str:
+        return self._menu_overlay.open_or_back()

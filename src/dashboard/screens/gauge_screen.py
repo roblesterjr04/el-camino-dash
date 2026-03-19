@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import math
 from pathlib import Path
+from time import monotonic
 from typing import Any
 
 import pygame
@@ -21,6 +22,9 @@ class GaugeScreen:
         self._theme_data = self._load_theme_data()
         self._sprite_cache = self._load_sprites()
         self._theme_sprite_cache: dict[str, pygame.Surface] = {}
+        self._ir_activity_counter = 0.0
+        self._ir_activity_visible_until_s = 0.0
+        self._ir_activity_hold_s = 0.45
 
     def _load_theme_data(self) -> dict[str, Any]:
         theme_root = Path(self.config["themes"]["theme_root"])
@@ -93,6 +97,7 @@ class GaugeScreen:
         spec = self._gauge_spec()
         if not spec:
             return
+        self._update_ir_activity_state(values)
         surface.fill(self._screen_background_color())
 
         source = spec["source"]
@@ -262,6 +267,10 @@ class GaugeScreen:
             surface.blit(box_surface, box_rect.topleft)
         surface.blit(text_surface, text_rect.topleft)
         surface.blit(temp_surface, temp_rect.topleft)
+        dot_radius = max(2, int(font_size * 0.15))
+        dot_gap = max(4, int(font_size * 0.32))
+        dot_center = (text_rect.right + dot_gap + dot_radius, text_rect.centery)
+        self._draw_ir_activity_dot(surface, center=dot_center, radius=dot_radius)
 
     def _is_center_clock_mode(self) -> bool:
         if self.layout.display_id != "gauge_center":
@@ -335,6 +344,11 @@ class GaugeScreen:
             text = self._font.render(clock_label, True, (240, 240, 240))
             text_rect = text.get_rect(center=(self.layout.width // 2, int(self.layout.height * 0.78)))
             surface.blit(text, text_rect)
+            self._draw_ir_activity_dot(
+                surface,
+                center=(text_rect.right + max(8, self.layout.width // 70), text_rect.centery),
+                radius=max(3, self.layout.width // 180),
+            )
         if self._theme_flag("show_odometer", True):
             self._draw_odometer(surface, spec, values)
         if status.get("theme_warning"):
@@ -1068,6 +1082,11 @@ class GaugeScreen:
         time_rect = time_surface.get_rect(center=(center_x, center_y - int(radius * 0.02)))
         surface.blit(time_surface, time_rect)
         surface.blit(sec_surface, sec_surface.get_rect(midleft=(time_rect.right + 8, time_rect.centery + 6)))
+        self._draw_ir_activity_dot(
+            surface,
+            center=(time_rect.right + max(10, int(radius * 0.08)), time_rect.centery),
+            radius=max(3, int(radius * 0.045)),
+        )
         surface.blit(date_surface, date_surface.get_rect(center=(center_x, center_y + int(radius * 0.35))))
         surface.blit(temp_surface, temp_surface.get_rect(center=(center_x, center_y + int(radius * 0.56))))
 
@@ -1128,6 +1147,24 @@ class GaugeScreen:
                 angle_max_deg=angle_max_deg,
                 color=color,
             )
+
+    def _update_ir_activity_state(self, values: dict[str, float]) -> None:
+        counter = float(values.get("inputs.ir.command.diagnostics_open_count", 0.0))
+        if counter < self._ir_activity_counter:
+            self._ir_activity_counter = counter
+            return
+        if counter <= self._ir_activity_counter:
+            return
+        self._ir_activity_counter = counter
+        self._ir_activity_visible_until_s = monotonic() + self._ir_activity_hold_s
+
+    def _draw_ir_activity_dot(self, surface: pygame.Surface, center: tuple[int, int], radius: int) -> None:
+        if monotonic() > self._ir_activity_visible_until_s:
+            return
+        dot_color = (82, 255, 156)
+        glow_color = (34, 120, 78)
+        pygame.draw.circle(surface, glow_color, center, max(2, radius + 2))
+        pygame.draw.circle(surface, dot_color, center, max(1, radius))
 
     def _fill_ring_slice(
         self,

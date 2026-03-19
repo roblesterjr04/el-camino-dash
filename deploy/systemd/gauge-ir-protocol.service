@@ -1,14 +1,13 @@
 [Unit]
 Description=Apply IR decoder protocols for gpio_ir_recv
-After=multi-user.target
+After=local-fs.target systemd-modules-load.service
 Before=gauge-cluster-hdmi.service
-Wants=multi-user.target
 
 [Service]
 Type=oneshot
 User=root
 WorkingDirectory=/opt/el-camino-dash
-ExecStart=/opt/el-camino-dash/.venv/bin/python /opt/el-camino-dash/scripts/apply_ir_protocols.py --config /opt/el-camino-dash/config/dashboard.hdmi5.yaml
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-ir-protocol.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-ir-protocol.log; touch "$LOG"; echo "[elc] gauge-ir-protocol start $(date -Is)" >> "$LOG"; exec /opt/el-camino-dash/.venv/bin/python /opt/el-camino-dash/scripts/apply_ir_protocols.py --config /opt/el-camino-dash/config/dashboard.hdmi5.yaml >>"$LOG" 2>&1'
 RemainAfterExit=yes
 
 [Install]

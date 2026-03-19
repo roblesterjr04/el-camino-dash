@@ -1,4 +1,4 @@
-image = Image("boot.png");
+image = Image("boot2.png");
 sprite = Sprite();
 
 sprite.SetImage(image);

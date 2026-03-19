@@ -10,7 +10,8 @@ units=(
   gauge-power-control.service
   gauge-ir-protocol.service
   gauge-cluster-spi.service
-  gauge-connectivity-late.service
+  gauge-wifi-diagnostics.service
+  gauge-ssh-diagnostics.service
 )
 
 for unit in "${units[@]}"; do
@@ -23,17 +24,16 @@ done
 mkdir -p "$(in_rootfs /etc/systemd/system/multi-user.target.wants)"
 ln -sf "../gauge-cluster-hdmi.service" \
   "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-cluster-hdmi.service)"
-ln -sf "../gauge-connectivity-late.service" \
-  "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-connectivity-late.service)"
 ln -sf "../gauge-ir-protocol.service" \
   "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-ir-protocol.service)"
+ln -sf "../gauge-wifi-diagnostics.service" \
+  "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-wifi-diagnostics.service)"
+ln -sf "../gauge-ssh-diagnostics.service" \
+  "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-ssh-diagnostics.service)"
 rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/gauge-cluster-hdmi.service)"
 rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/gauge-hide-cursor.service)"
-rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/gauge-connectivity-late.service)"
 rm -f "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-power-control.service)"
 rm -f "$(in_rootfs /etc/systemd/system/default.target.wants/gauge-power-control.service)"
-rm -f "$(in_rootfs /etc/systemd/system/multi-user.target.wants/bluetooth.service)"
-rm -f "$(in_rootfs /etc/systemd/system/bluetooth.target.wants/bluetooth.service)"
 rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/lightdm.service)"
 rm -f "$(in_rootfs /etc/systemd/system/display-manager.service)"
 

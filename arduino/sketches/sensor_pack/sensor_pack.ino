@@ -4,7 +4,13 @@
  * Reads sensors for a classic car gauge cluster with fault detection.
  * Transmits binary packets over hardware serial to a Raspberry Pi.
  *
- * Wiring - each analog sensor gets a pull-down resistor:
+ * Wiring notes:
+ *
+ *   A0 (potentiometer/fuel sender) supports two modes:
+ *     - 3-wire potentiometer (5V, GND, wiper->A0): no external pull-down
+ *     - 2-wire sender to 5V: add external pull-down on A0
+ *
+ *   A1/A2/A3 analog channels are expected to use a pull-down resistor:
  *
  *     5V
  *      |
@@ -16,7 +22,7 @@
  *      |
  *     GND
  *
- *   This ensures:
+ *   This ensures (for pull-down channels):
  *     - Normal operation reads ~15 to ~1008
  *     - Open circuit (wire break) reads < LOW_THRESHOLD
  *     - Short to VCC reads > HIGH_THRESHOLD
@@ -31,26 +37,29 @@
  *   D2 - Hall effect sensor (vehicle speed)
  *   D3 - Ignition coil tach signal (engine RPM)
  *   D4 - Alternator "L" terminal (charge indicator)
+ *   D5 - RPM selector bit 0 (grounded = LOW)
  *   D6 - Ignition sense (12V switched through voltage divider)
  *   D7 - Pot power monitor (sensor side of PTC fuse)
  *   D8 - Thermistor power monitor (sensor side of PTC fuse)
  *   D9 - Pressure power monitor (sensor side of PTC fuse)
  *   D10 - Voltage sense power monitor (sensor side of PTC fuse)
  *   D11 - Fault logging disable (HIGH = suppress fault reporting)
+ *   D12 - RPM selector bit 1 (grounded = LOW)
  *
- * Packet format (binary, big-endian), 22 bytes:
+ * Packet format (binary, big-endian), 24 bytes:
  *   [0xAA] [0x55]          - sync header (2)
  *   [pot_hi] [pot_lo]      - variable resistor raw ADC (2)
  *   [temp_hi] [temp_lo]    - engine temp raw ADC (2)
  *   [pres_hi] [pres_lo]    - oil pressure raw ADC (2)
  *   [volt_hi] [volt_lo]    - system voltage raw ADC (2)
+ *   [amb_hi] [amb_lo]      - ambient temp raw ADC (A4) (2)
  *   [spd_b3..spd_b0]       - vehicle speed RPM (4)
  *   [rpm_b3..rpm_b0]       - engine RPM (4)
  *   [flags]                - digital states (1)
  *   [faults_hi][faults_lo] - fault bitfield (2)
  *   [crc]                  - XOR checksum (1)
  *                                            ------
- *                              Total:         22 bytes
+ *                              Total:         24 bytes
  */
 
 #include <math.h>
@@ -64,12 +73,14 @@
 #define PIN_HALL       2
 #define PIN_COIL       3
 #define PIN_ALT_L      4
+#define PIN_RPM_SEL_A  5
 #define PIN_IGN_SENSE  6   // ignition on/off (through voltage divider)
 #define PIN_POT_PWR_MON   7
 #define PIN_TEMP_PWR_MON  8
 #define PIN_PRESS_PWR_MON 9
 #define PIN_VOLT_PWR_MON  10
 #define PIN_FAULT_DISABLE  11
+#define PIN_RPM_SEL_B      12
 #define PIN_HANDSHAKE_LED  13
 
 // Config
@@ -92,14 +103,19 @@
 #define HALL_MISSING_THRESH 100   // 5 seconds at 20 Hz
 #define COIL_MISSING_THRESH 100
 
+// A0 mode:
+// 1 = 3-wire potentiometer (5V/GND/wiper), no pull-down required
+// 0 = 2-wire sender + external pull-down on A0
+#define POT_IS_3WIRE 1
+
 // Fuel sender (A0) smoothing/debounce. This is intentionally conservative
 // to suppress tank slosh noise in the gauge display.
 #define POT_FILTER_ALPHA_DIV  32   // higher = slower response
 #define POT_OUTPUT_DEADBAND   2    // ignore tiny output jitter
 
 // Fault Bit Definitions
-#define FAULT_POT_OPEN      (1 << 0)   // A0 below threshold
-#define FAULT_POT_SHORT     (1 << 1)   // A0 above threshold
+#define FAULT_POT_OPEN      (1 << 0)   // A0 below threshold (2-wire pull-down mode)
+#define FAULT_POT_SHORT     (1 << 1)   // A0 above threshold (2-wire pull-down mode)
 #define FAULT_TEMP_OPEN     (1 << 2)   // A1 below threshold
 #define FAULT_TEMP_SHORT    (1 << 3)   // A1 above threshold
 #define FAULT_PRESS_OPEN    (1 << 4)   // A2 below threshold
@@ -120,11 +136,18 @@
 #define VDIV_RATIO     (VDIV_R2 / (VDIV_R1 + VDIV_R2))
 #define AREF_VOLTAGE   5.0
 
-// Thermistor Parameters
-#define THERM_SERIES_R   10000.0
-#define THERM_NOMINAL_R  10000.0
+// Thermistor Parameters (tuned for 100k NTC, B3950)
+#define THERM_SERIES_R   100000.0
+#define THERM_NOMINAL_R  100000.0
 #define THERM_NOMINAL_T  25.0
 #define THERM_BETA       3950.0
+// Temperature calibration offsets (delta C applied after thermistor conversion).
+// Room calibration: measured 69F while reported 83F, so offset is -14F.
+#define ENGINE_TEMP_CAL_OFFSET_C  0
+#define AMBIENT_TEMP_CAL_OFFSET_C 0
+// Thermistor ADC polarity: set to 1 when divider wiring is opposite expected polarity.
+#define ENGINE_TEMP_INVERT_ADC     1
+#define AMBIENT_TEMP_INVERT_ADC    1
 
 // Flag bits
 #define FLAG_ALT_OK    0x01
@@ -186,12 +209,12 @@ uint8_t coilPulsesPerRev = COIL_PULSES_PER_REV_DEFAULT;
 
 uint8_t readCoilPulsesPerRevFromPins() {
   // Selector uses pull-ups: grounded pin reads LOW.
-  bool pin2Low = (digitalRead(PIN_HALL) == LOW);
-  bool pin3Low = (digitalRead(PIN_COIL) == LOW);
+  bool selALow = (digitalRead(PIN_RPM_SEL_A) == LOW);
+  bool selBLow = (digitalRead(PIN_RPM_SEL_B) == LOW);
 
-  if (pin2Low && !pin3Low) return 4;   // 2 low, 3 high
-  if (!pin2Low && pin3Low) return 6;   // 2 high, 3 low
-  if (!pin2Low && !pin3Low) return 8;  // 2 high, 3 high
+  if (selALow && !selBLow) return 4;   // A low, B high
+  if (!selALow && selBLow) return 6;   // A high, B low
+  if (!selALow && !selBLow) return 8;  // A high, B high
 
   // Both grounded is not a valid requested combo; fall back to default.
   return COIL_PULSES_PER_REV_DEFAULT;
@@ -228,6 +251,49 @@ void checkAnalogFault(AnalogFault &f, uint16_t raw, bool powerPinHigh) {
     f.highCount = 0;
   }
   f.faultHigh = (f.highCount >= FAULT_COUNT_THRESH);
+}
+
+void checkPotFault(uint16_t raw, bool powerPinHigh) {
+  // Keep power monitor handling for both modes.
+  if (!powerPinHigh) {
+    if (potFault.powerBadCount < 255) potFault.powerBadCount++;
+  } else {
+    potFault.powerBadCount = 0;
+  }
+  potFault.powerOk = (potFault.powerBadCount < FAULT_COUNT_THRESH);
+
+#if POT_IS_3WIRE
+  // In 3-wire pot mode, endpoints near 0/1023 are valid and should not trip
+  // open/short faults based on pull-down assumptions.
+  (void)raw;
+  potFault.lowCount = 0;
+  potFault.highCount = 0;
+  potFault.faultLow = false;
+  potFault.faultHigh = false;
+#else
+  // 2-wire sender mode uses pull-down-based window fault checks.
+  if (!potFault.powerOk) {
+    potFault.lowCount = 0;
+    potFault.highCount = 0;
+    potFault.faultLow = false;
+    potFault.faultHigh = false;
+    return;
+  }
+
+  if (raw < ADC_LOW_THRESH) {
+    if (potFault.lowCount < 255) potFault.lowCount++;
+  } else {
+    potFault.lowCount = 0;
+  }
+  potFault.faultLow = (potFault.lowCount >= FAULT_COUNT_THRESH);
+
+  if (raw > ADC_HIGH_THRESH) {
+    if (potFault.highCount < 255) potFault.highCount++;
+  } else {
+    potFault.highCount = 0;
+  }
+  potFault.faultHigh = (potFault.highCount >= FAULT_COUNT_THRESH);
+#endif
 }
 
 uint16_t filterPotRaw(uint16_t raw) {
@@ -308,9 +374,9 @@ void updatePiHandshakeStatus() {
 }
 
 void sendPacket(uint16_t pot, uint16_t therm, uint16_t pressure,
-                uint16_t voltage, uint32_t speedRpm, uint32_t engineRpm,
+                uint16_t voltage, uint16_t ambientTherm, uint32_t speedRpm, uint32_t engineRpm,
                 uint8_t flags, uint16_t faults) {
-  uint8_t payload[19];
+  uint8_t payload[21];
 
   payload[0] = (pot >> 8) & 0xFF;
   payload[1] = pot & 0xFF;
@@ -320,17 +386,19 @@ void sendPacket(uint16_t pot, uint16_t therm, uint16_t pressure,
   payload[5] = pressure & 0xFF;
   payload[6] = (voltage >> 8) & 0xFF;
   payload[7] = voltage & 0xFF;
-  payload[8] = (speedRpm >> 24) & 0xFF;
-  payload[9] = (speedRpm >> 16) & 0xFF;
-  payload[10] = (speedRpm >> 8) & 0xFF;
-  payload[11] = speedRpm & 0xFF;
-  payload[12] = (engineRpm >> 24) & 0xFF;
-  payload[13] = (engineRpm >> 16) & 0xFF;
-  payload[14] = (engineRpm >> 8) & 0xFF;
-  payload[15] = engineRpm & 0xFF;
-  payload[16] = flags;
-  payload[17] = (faults >> 8) & 0xFF;
-  payload[18] = faults & 0xFF;
+  payload[8] = (ambientTherm >> 8) & 0xFF;
+  payload[9] = ambientTherm & 0xFF;
+  payload[10] = (speedRpm >> 24) & 0xFF;
+  payload[11] = (speedRpm >> 16) & 0xFF;
+  payload[12] = (speedRpm >> 8) & 0xFF;
+  payload[13] = speedRpm & 0xFF;
+  payload[14] = (engineRpm >> 24) & 0xFF;
+  payload[15] = (engineRpm >> 16) & 0xFF;
+  payload[16] = (engineRpm >> 8) & 0xFF;
+  payload[17] = engineRpm & 0xFF;
+  payload[18] = flags;
+  payload[19] = (faults >> 8) & 0xFF;
+  payload[20] = faults & 0xFF;
 
   uint8_t crc = 0;
   for (uint8_t i = 0; i < sizeof(payload); i++) {
@@ -354,11 +422,39 @@ float adcToVoltage(uint16_t raw) {
 }
 
 float thermistorTempC(uint16_t raw) {
-  if (raw == 0) return -999.0;
+  if (raw == 0 || raw >= 1023) return -999.0;
   float r = THERM_SERIES_R * ((1023.0 / (float)raw) - 1.0);
+  if (r <= 0.0) return -999.0;
   float steinhart = log(r / THERM_NOMINAL_R) / THERM_BETA;
   steinhart += 1.0 / (THERM_NOMINAL_T + 273.15);
   return (1.0 / steinhart) - 273.15;
+}
+
+uint16_t thermistorRawFromTempC(float tempC) {
+  float tKelvin = tempC + 273.15;
+  if (tKelvin <= 0.0) return 1;
+
+  float t0Kelvin = THERM_NOMINAL_T + 273.15;
+  float lnRatio = THERM_BETA * ((1.0 / tKelvin) - (1.0 / t0Kelvin));
+  float r = THERM_NOMINAL_R * exp(lnRatio);
+  float raw = 1023.0 / (1.0 + (r / THERM_SERIES_R));
+
+  if (raw < 1.0) raw = 1.0;
+  if (raw > 1022.0) raw = 1022.0;
+  return (uint16_t)(raw + 0.5);
+}
+
+uint16_t applyThermistorCalOffset(uint16_t raw, float offsetC) {
+  if (offsetC > -0.0001 && offsetC < 0.0001) return raw;
+  float tempC = thermistorTempC(raw);
+  if (tempC < -900.0) return raw;
+  return thermistorRawFromTempC(tempC + offsetC);
+}
+
+uint16_t maybeInvertAdcRaw(uint16_t raw, bool invert) {
+  if (!invert) return raw;
+  if (raw > 1023) raw = 1023;
+  return (uint16_t)(1023 - raw);
 }
 
 void setup() {
@@ -372,12 +468,14 @@ void setup() {
   pinMode(PIN_HALL, INPUT_PULLUP);
   pinMode(PIN_COIL, INPUT_PULLUP);
   pinMode(PIN_ALT_L, INPUT_PULLUP);
+  pinMode(PIN_RPM_SEL_A, INPUT_PULLUP);
   pinMode(PIN_IGN_SENSE, INPUT);
   pinMode(PIN_POT_PWR_MON, INPUT);
   pinMode(PIN_TEMP_PWR_MON, INPUT);
   pinMode(PIN_PRESS_PWR_MON, INPUT);
   pinMode(PIN_VOLT_PWR_MON, INPUT);
   pinMode(PIN_FAULT_DISABLE, INPUT);
+  pinMode(PIN_RPM_SEL_B, INPUT_PULLUP);
   pinMode(PIN_HANDSHAKE_LED, OUTPUT);
   digitalWrite(PIN_HANDSHAKE_LED, LOW);
   coilPulsesPerRev = readCoilPulsesPerRevFromPins();
@@ -411,15 +509,18 @@ void loop() {
   uint16_t presRaw = presSum >> 2;
   uint16_t voltRaw = voltSum >> 2;
   uint16_t ambientThermRaw = ambientThermSum >> 2;
+  uint16_t thermRawPolarity = maybeInvertAdcRaw(thermRaw, ENGINE_TEMP_INVERT_ADC != 0);
+  uint16_t ambientThermRawPolarity = maybeInvertAdcRaw(ambientThermRaw, AMBIENT_TEMP_INVERT_ADC != 0);
+  uint16_t thermRawCal = applyThermistorCalOffset(thermRawPolarity, ENGINE_TEMP_CAL_OFFSET_C);
+  uint16_t ambientThermRawCal = applyThermistorCalOffset(ambientThermRawPolarity, AMBIENT_TEMP_CAL_OFFSET_C);
   uint16_t potGaugeRaw = filterPotRaw(potRaw);
-  (void)ambientThermRaw;  // sampled for ambient/outside thermistor bring-up on A4
 
   bool potPowerHigh = (digitalRead(PIN_POT_PWR_MON) == HIGH);
   bool tempPowerHigh = (digitalRead(PIN_TEMP_PWR_MON) == HIGH);
   bool pressPowerHigh = (digitalRead(PIN_PRESS_PWR_MON) == HIGH);
   bool voltPowerHigh = (digitalRead(PIN_VOLT_PWR_MON) == HIGH);
 
-  checkAnalogFault(potFault, potRaw, potPowerHigh);
+  checkPotFault(potRaw, potPowerHigh);
   checkAnalogFault(tempFault, thermRaw, tempPowerHigh);
   checkAnalogFault(pressFault, presRaw, pressPowerHigh);
   checkAnalogFault(voltFault, voltRaw, voltPowerHigh);
@@ -450,5 +551,5 @@ void loop() {
   bool faultLoggingDisabled = (digitalRead(PIN_FAULT_DISABLE) == HIGH);
   uint16_t faults = faultLoggingDisabled ? 0 : buildFaultWord(ignOn, engineRpm, speedRpm);
 
-  sendPacket(potGaugeRaw, thermRaw, presRaw, voltRaw, speedRpm, engineRpm, flags, faults);
+  sendPacket(potGaugeRaw, thermRawCal, presRaw, voltRaw, ambientThermRawCal, speedRpm, engineRpm, flags, faults);
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 import os
 import time
 from typing import Any
@@ -12,8 +13,8 @@ except ImportError:  # pragma: no cover
 
 
 SYNC = b"\xAA\x55"
-PAYLOAD_LEN = 19
-FRAME_LEN = 2 + PAYLOAD_LEN + 1
+LEGACY_PAYLOAD_LEN = 19
+EXTENDED_PAYLOAD_LEN = 21
 PI_HANDSHAKE_BYTE = b"\xA5"
 PI_HANDSHAKE_INTERVAL_S = 0.25
 
@@ -59,9 +60,10 @@ class ArduinoSerialInput:
         if serial is None:
             self._enabled = False
             return
-        requested_port = str(spec.get("port", "/dev/serial0")).strip()
+        requested_port = str(spec.get("port", "/dev/ttyAMA3")).strip()
         for candidate in (
             requested_port,
+            "/dev/ttyAMA3",
             "/dev/serial0",
             "/dev/ttyAMA0",
             "/dev/ttyS0",
@@ -116,25 +118,60 @@ class ArduinoSerialInput:
         ratio = max(0.0, min(1.0, ratio))
         return out_range[0] + ((out_range[1] - out_range[0]) * ratio)
 
+    def _thermistor_temp_f(self, raw_adc: int) -> float | None:
+        # Match sensor_pack.ino conversion constants (100k NTC, B3950).
+        if raw_adc <= 0 or raw_adc >= 1023:
+            return None
+        therm_series_r = 100000.0
+        therm_nominal_r = 100000.0
+        therm_nominal_t_c = 25.0
+        therm_beta = 3950.0
+
+        resistance = therm_series_r * ((1023.0 / float(raw_adc)) - 1.0)
+        if resistance <= 0.0:
+            return None
+        steinhart = math.log(resistance / therm_nominal_r) / therm_beta
+        steinhart += 1.0 / (therm_nominal_t_c + 273.15)
+        temp_c = (1.0 / steinhart) - 273.15
+        if not math.isfinite(temp_c):
+            return None
+        return (temp_c * 9.0 / 5.0) + 32.0
+
     def _parse_frame(self, payload: bytes) -> dict[str, float]:
-        pot = int.from_bytes(payload[0:2], "big")
-        therm = int.from_bytes(payload[2:4], "big")
-        pressure = int.from_bytes(payload[4:6], "big")
-        voltage = int.from_bytes(payload[6:8], "big")
-        speed_rpm = int.from_bytes(payload[8:12], "big")
-        engine_rpm = int.from_bytes(payload[12:16], "big")
-        flags = int(payload[16])
-        faults = int.from_bytes(payload[17:19], "big")
+        if len(payload) == LEGACY_PAYLOAD_LEN:
+            pot = int.from_bytes(payload[0:2], "big")
+            therm = int.from_bytes(payload[2:4], "big")
+            pressure = int.from_bytes(payload[4:6], "big")
+            voltage = int.from_bytes(payload[6:8], "big")
+            speed_rpm = int.from_bytes(payload[8:12], "big")
+            engine_rpm = int.from_bytes(payload[12:16], "big")
+            flags = int(payload[16])
+            faults = int.from_bytes(payload[17:19], "big")
+        elif len(payload) == EXTENDED_PAYLOAD_LEN:
+            pot = int.from_bytes(payload[0:2], "big")
+            therm = int.from_bytes(payload[2:4], "big")
+            pressure = int.from_bytes(payload[4:6], "big")
+            voltage = int.from_bytes(payload[6:8], "big")
+            # payload[8:10] is ambient thermistor ADC in extended frame
+            speed_rpm = int.from_bytes(payload[10:14], "big")
+            engine_rpm = int.from_bytes(payload[14:18], "big")
+            flags = int(payload[18])
+            faults = int.from_bytes(payload[19:21], "big")
+        else:
+            return {}
 
         wheel_rps = (float(speed_rpm) / self._speed_pulses_per_rev) / 60.0
         speed_mps = wheel_rps * self._wheel_circumference_m
         speed_mph = speed_mps * 2.236936
+        coolant_temp_f = self._thermistor_temp_f(therm)
+        if coolant_temp_f is None:
+            coolant_temp_f = self._map_adc(therm, self._ranges.temp_raw, self._ranges.temp)
 
         return {
             "speed_sensor.vehicle_speed": speed_mph,
             "analog_inputs.engine_rpm": float(engine_rpm),
             "analog_inputs.fuel_level": self._map_adc(pot, self._ranges.fuel_raw, self._ranges.fuel),
-            "analog_inputs.coolant_temp": self._map_adc(therm, self._ranges.temp_raw, self._ranges.temp),
+            "analog_inputs.coolant_temp": coolant_temp_f,
             "analog_inputs.oil_pressure": self._map_adc(pressure, self._ranges.oil_raw, self._ranges.oil),
             "indicators.oil": self._map_adc(pressure, self._ranges.oil_raw, self._ranges.oil),
             "analog_inputs.system_voltage": self._map_adc(voltage, self._ranges.voltage_raw, self._ranges.voltage),
@@ -168,25 +205,37 @@ class ArduinoSerialInput:
         if chunk:
             self._buffer.extend(chunk)
         latest: dict[str, float] = {}
-        while len(self._buffer) >= FRAME_LEN:
+        while len(self._buffer) >= (2 + LEGACY_PAYLOAD_LEN + 1):
             sync_idx = self._buffer.find(SYNC)
             if sync_idx < 0:
                 self._buffer.clear()
                 break
             if sync_idx > 0:
                 del self._buffer[:sync_idx]
-            if len(self._buffer) < FRAME_LEN:
+            if len(self._buffer) < (2 + LEGACY_PAYLOAD_LEN + 1):
                 break
-            payload = bytes(self._buffer[2 : 2 + PAYLOAD_LEN])
-            recv_crc = self._buffer[2 + PAYLOAD_LEN]
-            calc_crc = 0
-            for byte in payload:
-                calc_crc ^= byte
-            del self._buffer[:FRAME_LEN]
-            if recv_crc != calc_crc:
-                continue
-            latest = self._parse_frame(payload)
-            self._send_handshake(force=True)
+            frame_consumed = False
+            for payload_len in (EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN):
+                frame_len = 2 + payload_len + 1
+                if len(self._buffer) < frame_len:
+                    continue
+                payload = bytes(self._buffer[2 : 2 + payload_len])
+                recv_crc = self._buffer[2 + payload_len]
+                calc_crc = 0
+                for byte in payload:
+                    calc_crc ^= byte
+                if recv_crc != calc_crc:
+                    continue
+                del self._buffer[:frame_len]
+                parsed = self._parse_frame(payload)
+                if parsed:
+                    latest = parsed
+                    self._send_handshake(force=True)
+                frame_consumed = True
+                break
+            if not frame_consumed:
+                # Bad sync candidate, drop one byte and keep scanning.
+                del self._buffer[0]
         self._send_handshake(force=False)
         return latest
 

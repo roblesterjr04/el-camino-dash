@@ -217,7 +217,7 @@ def _apply_round_mask(src: Image.Image) -> Image.Image:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Early SPI boot splash for 3x GC9A01 displays")
-    parser.add_argument("--image", default="assets/bootscreen/boot.png", help="Path to splash image")
+    parser.add_argument("--image", default="assets/bootscreen/boot2.png", help="Path to splash image")
     parser.add_argument("--speed-hz", type=int, default=8_000_000, help="SPI speed in Hz")
     parser.add_argument(
         "--madctl",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import time
 from typing import Any
 
@@ -46,9 +47,16 @@ class Mcp23017ControlsInput:
 
     def __init__(self, spec: dict[str, Any]) -> None:
         self._spec = spec
+        self._enabled = bool(spec.get("enabled", False))
         self._ready = False
         self._state = McpControlState()
         self._bus = None
+        self._log_path = self._boot_log_path("elc-i2c-input.log")
+        self._last_i2c_error_log_s = 0.0
+        self._last_i2c_activity_log_s = 0.0
+        self._last_open_attempt_s = 0.0
+        self._open_retry_interval_s = max(0.5, float(spec.get("reopen_interval_s", 2.0)))
+        self._i2c_bus = int(spec.get("i2c_bus", 1))
         self._address = int(spec.get("address", 0x20))
         self._pull_up = bool(spec.get("pull_up", True))
         self._edge_debounce_s = max(0.0, float(spec.get("debounce_ms", 60.0)) / 1000.0)
@@ -72,12 +80,7 @@ class Mcp23017ControlsInput:
         self._pin_menu_left = int(spec.get("menu_left_pin", 6))
         self._pin_menu_select = int(spec.get("menu_select_pin", 7))
 
-        if not bool(spec.get("enabled", False)):
-            return
-        if smbus2 is None:
-            return
-
-        used_pins = {
+        self._used_pins = {
             self._pin_menu_a,
             self._pin_menu_b,
             self._pin_menu_button,
@@ -87,18 +90,45 @@ class Mcp23017ControlsInput:
             self._pin_menu_left,
             self._pin_menu_select,
         }
-        if any(pin < 0 or pin > 15 for pin in used_pins):
+
+        if not self._enabled:
+            return
+        if smbus2 is None:
+            self._append_log("mcp23017 disabled: smbus2 unavailable")
             return
 
+        if any(pin < 0 or pin > 15 for pin in self._used_pins):
+            self._append_log("mcp23017 disabled: invalid pin configuration")
+            return
+
+        self._try_open(force=True)
+
+    def _drop_bus(self) -> None:
+        if self._bus is None:
+            return
         try:
-            self._bus = smbus2.SMBus(int(spec.get("i2c_bus", 1)))
+            self._bus.close()
+        except Exception:
+            pass
+        self._bus = None
+
+    def _try_open(self, *, force: bool) -> None:
+        if self._ready or not self._enabled or smbus2 is None:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last_open_attempt_s) < self._open_retry_interval_s:
+            return
+        self._last_open_attempt_s = now
+        self._drop_bus()
+        try:
+            self._bus = smbus2.SMBus(self._i2c_bus)
             # Make all expander lines inputs to avoid driving external circuits.
             self._write_reg(IODIRA, 0xFF)
             self._write_reg(IODIRB, 0xFF)
             if self._pull_up:
                 gppu_a = self._read_reg(GPPUA)
                 gppu_b = self._read_reg(GPPUB)
-                for pin in used_pins:
+                for pin in self._used_pins:
                     if pin < 8:
                         gppu_a |= (1 << pin)
                     else:
@@ -118,8 +148,30 @@ class Mcp23017ControlsInput:
             self._state.last_menu_ab = ((self._state.last_menu_a & 0x01) << 1) | (menu_b & 0x01)
             self._state.last_aux_ab = ((self._state.last_aux_a & 0x01) << 1) | (aux_b & 0x01)
             self._ready = True
-        except Exception:
+            self._append_log(
+                f"mcp23017 ready: bus={self._i2c_bus} addr=0x{self._address:02X} pull_up={int(self._pull_up)}"
+            )
+        except Exception as exc:
             self._ready = False
+            self._drop_bus()
+            if (now - self._last_i2c_error_log_s) >= 5.0:
+                self._append_log(f"mcp23017 init failed: {exc}")
+                self._last_i2c_error_log_s = now
+
+    @staticmethod
+    def _boot_log_path(filename: str) -> str:
+        base = "/boot/firmware" if os.path.isdir("/boot/firmware") else "/boot"
+        return f"{base}/{filename}"
+
+    def _append_log(self, message: str) -> None:
+        line = f"[i2c-input] {message}"
+        print(line, flush=True)
+        try:
+            ts = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+            with open(self._log_path, "a", encoding="utf-8") as handle:
+                handle.write(f"[{ts}] {message}\n")
+        except OSError:
+            pass
 
     def _write_reg(self, reg: int, value: int) -> None:
         assert self._bus is not None
@@ -166,15 +218,22 @@ class Mcp23017ControlsInput:
 
     def poll(self) -> dict[str, float]:
         if not self._ready:
+            self._try_open(force=False)
             return {
                 "inputs.rotary.menu.delta": 0.0,
-                "inputs.rotary.menu.presses": 0.0,
+                "inputs.rotary.menu.presses": self._state.menu_presses,
                 "inputs.rotary.aux.delta": 0.0,
-                "inputs.rotary.aux.presses": 0.0,
+                "inputs.rotary.aux.presses": self._state.aux_presses,
             }
         try:
             sample = self._read_gpio_word()
-        except Exception:
+        except Exception as exc:
+            now_s = time.monotonic()
+            if (now_s - self._last_i2c_error_log_s) >= 5.0:
+                self._append_log(f"mcp23017 read error: {exc}")
+                self._last_i2c_error_log_s = now_s
+            self._ready = False
+            self._drop_bus()
             return {
                 "inputs.rotary.menu.delta": 0.0,
                 "inputs.rotary.menu.presses": self._state.menu_presses,
@@ -235,13 +294,15 @@ class Mcp23017ControlsInput:
             self._state.last_aux_ab = aux_ab
         self._state.last_aux_a = aux_a
 
-        if menu_button == 0 and self._state.last_menu_button != 0:
+        menu_press_edge = menu_button == 0 and self._state.last_menu_button != 0
+        if menu_press_edge:
             if (now_s - self._state.last_menu_press_s) >= self._button_debounce_s:
                 self._state.menu_presses += 1.0
                 self._state.last_menu_press_s = now_s
         self._state.last_menu_button = menu_button
 
-        if aux_button == 0 and self._state.last_aux_button != 0:
+        aux_press_edge = aux_button == 0 and self._state.last_aux_button != 0
+        if aux_press_edge:
             if (now_s - self._state.last_aux_press_s) >= self._button_debounce_s:
                 self._state.aux_presses += 1.0
                 self._state.last_aux_press_s = now_s
@@ -253,11 +314,27 @@ class Mcp23017ControlsInput:
                 self._state.last_menu_left_edge_s = now_s
         self._state.last_menu_left = menu_left
 
-        if menu_select == 0 and self._state.last_menu_select != 0:
+        menu_select_edge = menu_select == 0 and self._state.last_menu_select != 0
+        if menu_select_edge:
             if (now_s - self._state.last_menu_select_edge_s) >= self._edge_debounce_s:
                 self._state.menu_presses += 1.0
                 self._state.last_menu_select_edge_s = now_s
         self._state.last_menu_select = menu_select
+
+        if (
+            menu_delta != 0.0
+            or aux_delta != 0.0
+            or menu_press_edge
+            or aux_press_edge
+            or menu_select_edge
+        ):
+            if (now_s - self._last_i2c_activity_log_s) >= 0.05:
+                self._append_log(
+                    "mcp23017 activity: "
+                    f"menu_delta={menu_delta:+.1f} aux_delta={aux_delta:+.1f} "
+                    f"menu_presses={self._state.menu_presses:.0f} aux_presses={self._state.aux_presses:.0f}"
+                )
+                self._last_i2c_activity_log_s = now_s
 
         return {
             "inputs.rotary.menu.delta": float(menu_delta),

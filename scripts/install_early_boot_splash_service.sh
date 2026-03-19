@@ -11,7 +11,7 @@ RUN_USER="${SUDO_USER:-${USER}}"
 PYTHON_BIN=""
 
 SERVICE_FILE="/etc/systemd/system/gauge-boot-splash.service"
-IMAGE_PATH="${PROJECT_DIR}/assets/bootscreen/boot.png"
+IMAGE_PATH="${PROJECT_DIR}/assets/bootscreen/boot2.png"
 SCRIPT_PATH="${PROJECT_DIR}/scripts/early_boot_splash.py"
 
 if [[ ! -f "${IMAGE_PATH}" ]]; then

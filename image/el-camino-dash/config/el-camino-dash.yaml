@@ -8,7 +8,7 @@ image:
   layer: image-rpios
   name: el-camino-dash
   boot_part_size: 200%
-  root_part_size: 4G
+  root_part_size: 3G
 
 layer:
   base: bookworm-minbase
@@ -20,3 +20,10 @@ wifi:
   country: US
   ssid: APAwesome
   psk: Blueberry17
+
+ssh:
+  pubkey_user1: keys/pi_authorized_key.pub
+  pubkey_only: y
+
+locale:
+  timezone: America/New_York

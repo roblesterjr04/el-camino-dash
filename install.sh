@@ -684,7 +684,7 @@ WorkingDirectory=${PROJECT_DIR}
 Environment=SDL_VIDEODRIVER=dummy
 Environment=HEADLESS=1
 Environment=PYTHONPATH=${PROJECT_DIR}/src
-ExecStart=${VENV_DIR}/bin/python ${PROJECT_DIR}/src/main.py --config ${PROJECT_DIR}/config/dashboard.spi.yaml --render-mode spi --headless
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-gauge-spi.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-gauge-spi.log; touch "\$LOG"; echo "[elc] gauge-cluster-spi start \$(date -Is)" >> "\$LOG"; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/src/main.py --config ${PROJECT_DIR}/config/dashboard.spi.yaml --render-mode spi --headless >>"\$LOG" 2>&1'
 Restart=always
 RestartSec=5
 
@@ -709,7 +709,7 @@ Environment=DISPLAY_MODE=hardware
 Environment=SDL_VIDEODRIVER=x11
 Environment=SDL_AUDIODRIVER=alsa
 Environment=PYTHONPATH=${PROJECT_DIR}/src
-ExecStart=/bin/bash -lc 'export DISPLAY=:0; export XAUTHORITY=${TARGET_HOME}/.Xauthority; export XDG_RUNTIME_DIR=/run/user/$(id -u "${TARGET_USER}"); export SDL_VIDEODRIVER=x11; export SDL_AUDIODRIVER=alsa; until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ] && xset q >/dev/null 2>&1; do sleep 1; done; cd ${PROJECT_DIR}; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/src/main.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml'
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-gauge-hdmi.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-gauge-hdmi.log; touch "\$LOG"; echo "[elc] gauge-cluster-hdmi start \$(date -Is)" >> "\$LOG"; export DISPLAY=:0; export XAUTHORITY=${TARGET_HOME}/.Xauthority; export XDG_RUNTIME_DIR=/run/user/$(id -u "${TARGET_USER}"); export SDL_VIDEODRIVER=x11; export SDL_AUDIODRIVER=alsa; until [ -S /tmp/.X11-unix/X0 ] && [ -f "${TARGET_HOME}/.Xauthority" ] && xset q >/dev/null 2>&1; do sleep 1; done; cd ${PROJECT_DIR}; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/src/main.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml >>"\$LOG" 2>&1'
 Restart=always
 RestartSec=5
 
@@ -746,7 +746,7 @@ Wants=multi-user.target
 Type=simple
 User=root
 WorkingDirectory=${PROJECT_DIR}
-ExecStart=${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/power_control_listener.py --signal-pin 16 --confirm-pin 12 --debounce-ms 80 --poll-interval-ms 20
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-power-control.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-power-control.log; touch "\$LOG"; echo "[elc] gauge-power-control start \$(date -Is)" >> "\$LOG"; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/power_control_listener.py --signal-pin 16 --confirm-pin 12 --debounce-ms 80 --poll-interval-ms 20 >>"\$LOG" 2>&1'
 Restart=always
 RestartSec=2
 KillSignal=SIGTERM
@@ -767,7 +767,7 @@ Wants=multi-user.target
 Type=oneshot
 User=root
 WorkingDirectory=${PROJECT_DIR}
-ExecStart=${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/apply_ir_protocols.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-ir-protocol.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-ir-protocol.log; touch "\$LOG"; echo "[elc] gauge-ir-protocol start \$(date -Is)" >> "\$LOG"; exec ${VENV_DIR}/bin/python ${PROJECT_DIR}/scripts/apply_ir_protocols.py --config ${PROJECT_DIR}/config/dashboard.hdmi5.yaml >>"\$LOG" 2>&1'
 RemainAfterExit=yes
 
 [Install]
@@ -841,6 +841,7 @@ usermod -aG bluetooth "${TARGET_USER}" >/dev/null 2>&1 || true
 usermod -aG audio "${TARGET_USER}" >/dev/null 2>&1 || true
 usermod -aG i2c "${TARGET_USER}" >/dev/null 2>&1 || true
 usermod -aG gpio "${TARGET_USER}" >/dev/null 2>&1 || true
+usermod -aG input "${TARGET_USER}" >/dev/null 2>&1 || true
 
 echo "[10/10] Final apt cache cleanup..."
 cleanup_space

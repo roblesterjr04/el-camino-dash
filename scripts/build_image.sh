@@ -188,8 +188,8 @@ prepare_local_ssh_pubkey() {
   local selected="${SSH_PUBKEY_FILE}"
   if [[ -z "${selected}" ]]; then
     for candidate in \
-      "${HOME}/.ssh/id_ed25519.pub" \
       "${HOME}/.ssh/id_rsa.pub" \
+      "${HOME}/.ssh/id_ed25519.pub" \
       "${HOME}/.ssh/id_ecdsa.pub"; do
       if [[ -f "${candidate}" ]]; then
         selected="${candidate}"

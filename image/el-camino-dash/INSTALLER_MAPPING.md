@@ -32,7 +32,7 @@ This document maps legacy `install.sh` behavior to the new image-centric flow.
 
 The image build intentionally does not run these behaviors:
 
-- Live Arduino flashing over `/dev/serial0` or USB.
+- Live Arduino flashing over `/dev/ttyAMA3` (UART4) or USB.
 - Runtime process stopping for flash safety.
 - Interactive Bluetooth pairing sessions.
 - Repetitive apt cache cleanup logic.

@@ -31,7 +31,7 @@ else
 fi
 
 # Ensure runtime user group memberships are present in image state.
-for grp in bluetooth audio i2c gpio dialout; do
+for grp in bluetooth audio i2c gpio dialout input; do
   if chroot "${ROOTFS_DIR}" getent group "${grp}" >/dev/null 2>&1; then
     chroot "${ROOTFS_DIR}" usermod -aG "${grp}" "${TARGET_USER}" >/dev/null 2>&1 || true
   fi

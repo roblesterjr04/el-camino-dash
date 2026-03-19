@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any
@@ -13,6 +14,32 @@ import yaml
 _ALIASES = {
     "ned": "nec",
 }
+
+
+def _discover_rc_device_by_name(device_name: str) -> str:
+    name = device_name.strip()
+    if not name:
+        return ""
+    try:
+        result = subprocess.run(["ir-keytable"], capture_output=True, text=True, check=False)
+    except OSError:
+        return ""
+    if result.returncode != 0:
+        return ""
+
+    rc_id = ""
+    found_name = ""
+    for line in result.stdout.splitlines():
+        match_rc = re.search(r"/sys/class/rc/(rc\d+)/", line)
+        if match_rc:
+            rc_id = match_rc.group(1)
+            found_name = ""
+            continue
+        if "Name:" in line:
+            found_name = line.split("Name:", 1)[1].strip()
+            if found_name == name and rc_id:
+                return rc_id
+    return ""
 
 
 def _normalize_protocol(value: Any) -> str:
@@ -81,6 +108,8 @@ def main() -> int:
 
     cmd = ["ir-keytable"]
     rc_device = str(ir_cfg.get("rc_device", "")).strip()
+    if not rc_device:
+        rc_device = _discover_rc_device_by_name(str(ir_cfg.get("device_name", "")))
     if rc_device:
         cmd.extend(["-s", rc_device])
     for protocol in protocols:

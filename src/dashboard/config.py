@@ -346,6 +346,9 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 "rc_device",
                 "apply_protocol",
                 "allow_repeats",
+                "debounce_ms",
+                "repeat_debounce_ms",
+                "any_key_action",
                 "diagnostics_pulse_count",
                 "diagnostics_window_ms",
                 "diagnostics_max_gap_ms",
@@ -375,6 +378,12 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             _expect_type("inputs.ir_remote.apply_protocol", inputs["ir_remote"]["apply_protocol"], bool)
         if "allow_repeats" in inputs["ir_remote"]:
             _expect_type("inputs.ir_remote.allow_repeats", inputs["ir_remote"]["allow_repeats"], bool)
+        if "debounce_ms" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.debounce_ms", inputs["ir_remote"]["debounce_ms"], (int, float))
+        if "repeat_debounce_ms" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.repeat_debounce_ms", inputs["ir_remote"]["repeat_debounce_ms"], (int, float))
+        if "any_key_action" in inputs["ir_remote"]:
+            _expect_type("inputs.ir_remote.any_key_action", inputs["ir_remote"]["any_key_action"], str)
         if "diagnostics_pulse_count" in inputs["ir_remote"]:
             _expect_type("inputs.ir_remote.diagnostics_pulse_count", inputs["ir_remote"]["diagnostics_pulse_count"], int)
         if "diagnostics_window_ms" in inputs["ir_remote"]:

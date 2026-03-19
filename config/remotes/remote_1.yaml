@@ -1,7 +1,7 @@
 remote:
   id: remote_1
   name: IR Remote Template
-  # Fill each control with the KEY_* code shown by diagnostics monitor.
+  # Fill each control with KEY_* names shown by diagnostics monitor.
   # Example: menu_left: KEY_LEFT
   controls:
     menu_left: ""
@@ -14,3 +14,26 @@ remote:
     theme_next: ""
     center_toggle: ""
     map_toggle: ""
+    menu_open: ""
+    dash_exit: ""
+  # Optional direct scancode map for random remotes without a Linux keytable.
+  # Format: "<hex scancode>": <action_name>
+  # Example:
+  # scancodes:
+  #   "0x1ae5": menu_press
+  #   "0x1ae2": menu_left
+  #   "0x1ae3": menu_right
+  #   "0x1ae6": menu_open
+  #   "0x1ae4": dash_exit
+  scancodes:
+    "0x103": menu_press
+    "0x104": menu_right
+    "0x102": menu_left
+    "0x10a": volume_up
+    "0x10e": volume_down
+    "0x11e": theme_next
+    "0x101": center_toggle
+    "0x106": tune_up
+    "0x105": tune_down
+    "0x108": menu_open
+    

@@ -7,7 +7,7 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_IMAGE="${PROJECT_DIR}/assets/bootscreen/boot.png"
+SOURCE_IMAGE="${PROJECT_DIR}/assets/bootscreen/boot2.png"
 
 if [[ ! -f "${SOURCE_IMAGE}" ]]; then
   echo "Boot image not found: ${SOURCE_IMAGE}" >&2

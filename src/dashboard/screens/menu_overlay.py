@@ -305,7 +305,6 @@ class MenuOverlayController:
         self._visible = False
         self._input_initialized = False
         self._last_press_count = 0
-        self._last_diag_open_count = 0
         self._last_press_tick_ms = -1000
         self._close_double_press_ms = max(0, int(system_cfg.get("menu_close_double_press_ms", default_close_ms)))
         self._menu_error = ""
@@ -339,23 +338,12 @@ class MenuOverlayController:
     def process_input(self, values: dict[str, float], status: dict[str, str]) -> None:
         delta = int(values.get("inputs.rotary.menu.delta", 0.0))
         press_count = int(values.get("inputs.rotary.menu.presses", 0.0))
-        diag_open_count = int(values.get("inputs.ir.command.diagnostics_open_count", 0.0))
         if not self._input_initialized:
             # Hot-reload/re-render can recreate this controller while input counters
             # stay cumulative; baseline them so overlay never auto-opens.
             self._last_press_count = press_count
-            self._last_diag_open_count = diag_open_count
             self._input_initialized = True
             return
-        if diag_open_count < self._last_diag_open_count:
-            self._last_diag_open_count = diag_open_count
-        if diag_open_count > self._last_diag_open_count:
-            self._visible = True
-            if self._menu:
-                if not self._menu.open_page("ir_diagnostics"):
-                    self._menu.open_page("system")
-                self._menu.set_message("IR diagnostics active")
-            self._last_diag_open_count = diag_open_count
         if press_count < self._last_press_count:
             self._last_press_count = press_count
         new_presses = max(0, press_count - self._last_press_count)
@@ -380,6 +368,18 @@ class MenuOverlayController:
                 self._menu.press(status)
             self._last_press_tick_ms = now_ms
         self._last_press_count = press_count
+
+    def close_overlay(self) -> None:
+        self._hide_overlay()
+
+    def open_or_back(self) -> str:
+        if not self._visible:
+            self._visible = True
+            return "Menu opened"
+        if self._menu and self._menu.back_one():
+            return "Menu back"
+        self._hide_overlay()
+        return "Menu closed"
 
     def _hide_overlay(self) -> None:
         self._visible = False

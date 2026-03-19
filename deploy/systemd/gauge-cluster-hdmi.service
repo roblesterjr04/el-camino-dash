@@ -1,12 +1,12 @@
 [Unit]
 Description=Gauge Cluster Dashboard (HDMI)
-After=multi-user.target
+After=local-fs.target systemd-modules-load.service
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/el-camino-dash
 Environment=PYTHONPATH=/opt/el-camino-dash/src
-ExecStart=/usr/local/bin/start-gauge-hdmi-x11
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-gauge-hdmi.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-gauge-hdmi.log; touch "$LOG"; echo "[elc] gauge-cluster-hdmi start $(date -Is)" >> "$LOG"; exec /usr/local/bin/start-gauge-hdmi-x11 >>"$LOG" 2>&1'
 Restart=always
 RestartSec=5
 

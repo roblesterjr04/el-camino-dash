@@ -73,7 +73,7 @@
   },
   "center_dial_mode": {
     "_default": "tach",
-    "gauge_center": "tach"
+    "gauge_center": "clock"
   },
   "clock_render": {
     "_default": {

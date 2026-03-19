@@ -2,10 +2,17 @@ device:
   layer: rpi4
   user1: pi
   user1sudo: nopasswd
-  
+
 
 image:
   layer: image-rpios
+
+ssh:
+  pubkey_user1: keys/pi_authorized_key.pub
+  pubkey_only: y
+
+locale:
+  timezone: America/New_York
   boot_part_size: 200%
   root_part_size: 300%
   name: deb12-arm64-min

@@ -90,6 +90,7 @@ The app validates config strictly at startup and exits on schema/key/type errors
   - `inputs.ir_remote.rc_device: rc0`
   - `inputs.ir_remote.apply_protocol: true`
 - Preferred profile format uses `remote.controls` (action -> `KEY_*`), with empty values for unmapped controls
+- Profiles can also map raw scancodes directly with `remote.scancodes` (`0x...` -> action)
 - Diagnostics monitor trigger:
   - 10 quick identical pulses opens IR diagnostics (`inputs.ir_remote.diagnostics_*` controls threshold/timing)
 - Action names supported in profile mappings:

@@ -73,16 +73,15 @@ mask_unit_in_rootfs() {
 }
 
 append_line_if_missing "${CONFIG_TXT}" "enable_uart=1"
-# Keep mini-UART clocking fixed when Bluetooth is moved to ttyS0.
-remove_matching "${CONFIG_TXT}" "^[[:space:]]*core_freq_min=250[[:space:]]*$"
-append_line_if_missing "${CONFIG_TXT}" "core_freq=250"
 append_line_if_missing "${CONFIG_TXT}" "dtparam=i2c_arm=on"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=disable-bt[[:space:]]*$"
-append_line_if_missing "${CONFIG_TXT}" "dtoverlay=miniuart-bt"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=miniuart-bt[[:space:]]*$"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=uart4[[:space:]]*$"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=disable-wifi[[:space:]]*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=vc4-fkms-v3d.*$"
 append_line_if_missing "${CONFIG_TXT}" "dtoverlay=vc4-kms-v3d"
 append_line_if_missing "${CONFIG_TXT}" "dtparam=audio=on"
-append_line_if_missing "${CONFIG_TXT}" "dtparam=spi=on"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtparam=spi=on[[:space:]]*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=spi1-3cs[[:space:]]*$"
 remove_matching "${CONFIG_TXT}" "^dtoverlay=gpio-ir,gpio_pin="
 append_line_if_missing "${CONFIG_TXT}" "dtoverlay=gpio-ir,gpio_pin=26"
@@ -108,3 +107,18 @@ ensure_cmdline_token "${CMDLINE_TXT}" "video=HDMI-A-2:800x480M@60D"
 mask_unit_in_rootfs "serial-getty@serial0.service"
 mask_unit_in_rootfs "serial-getty@ttyAMA0.service"
 mask_unit_in_rootfs "serial-getty@ttyS0.service"
+# Ensure BT UART attach is available when bluetooth service is started late.
+rm -f "$(in_rootfs /etc/systemd/system/hciuart.service)"
+
+# Ensure userspace I2C device nodes are available for MCP23017 input.
+mkdir -p "$(in_rootfs /etc/modules-load.d)"
+cat > "$(in_rootfs /etc/modules-load.d/elc-i2c.conf)" <<'EOF'
+i2c-dev
+EOF
+
+# Pin dashboard image timezone from config (fallback Eastern).
+TIMEZONE="${IGconf_locale_timezone:-America/New_York}"
+if [[ -f "$(in_rootfs /usr/share/zoneinfo/${TIMEZONE})" ]]; then
+  ln -sf "../usr/share/zoneinfo/${TIMEZONE}" "$(in_rootfs /etc/localtime)"
+  printf "%s\n" "${TIMEZONE}" > "$(in_rootfs /etc/timezone)"
+fi
