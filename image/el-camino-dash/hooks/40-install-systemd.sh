@@ -26,24 +26,17 @@ ln -sf "../gauge-cluster-hdmi.service" \
   "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-cluster-hdmi.service)"
 ln -sf "../gauge-ir-protocol.service" \
   "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-ir-protocol.service)"
+ln -sf "../gauge-power-control.service" \
+  "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-power-control.service)"
 ln -sf "../gauge-wifi-diagnostics.service" \
   "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-wifi-diagnostics.service)"
 ln -sf "../gauge-ssh-diagnostics.service" \
   "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-ssh-diagnostics.service)"
 rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/gauge-cluster-hdmi.service)"
 rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/gauge-hide-cursor.service)"
-rm -f "$(in_rootfs /etc/systemd/system/multi-user.target.wants/gauge-power-control.service)"
 rm -f "$(in_rootfs /etc/systemd/system/default.target.wants/gauge-power-control.service)"
 rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/lightdm.service)"
 rm -f "$(in_rootfs /etc/systemd/system/display-manager.service)"
-
-# Keep power-control unit installed but disabled by default to avoid unintended
-# shutdown loops from noisy/miswired control lines during bring-up.
-mkdir -p "$(in_rootfs /etc/systemd/system/gauge-power-control.service.d)"
-cat > "$(in_rootfs /etc/systemd/system/gauge-power-control.service.d/10-default-disabled.conf)" <<'EOF'
-[Unit]
-ConditionPathExists=/etc/elc-enable-power-control
-EOF
 
 # SPI service remains available but disabled/masked by default.
 mkdir -p "$(in_rootfs /etc/systemd/system/gauge-cluster-spi.service.d)"
