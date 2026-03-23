@@ -43,6 +43,9 @@ class SimulatedDataInput:
         if "temp_range" in self._spec:
             period = float(self._spec.get("temp_period_s", self._spec["fuel_period_s"]))
             updates["analog_inputs.coolant_temp"] = self._wave(elapsed, period, self._spec["temp_range"])
+        if "ambient_range" in self._spec:
+            period = float(self._spec.get("ambient_period_s", self._spec.get("fuel_period_s", 24.0)))
+            updates["analog_inputs.ambient_temp"] = self._wave(elapsed, period, self._spec["ambient_range"])
         if "amp_range" in self._spec:
             period = float(self._spec.get("amp_period_s", self._spec["rpm_period_s"]))
             updates["analog_inputs.system_amp"] = self._wave(elapsed, period, self._spec["amp_range"])

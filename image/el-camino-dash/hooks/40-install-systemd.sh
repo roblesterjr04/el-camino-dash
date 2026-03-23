@@ -8,11 +8,8 @@ units=(
   elcamino-voice.service
   gauge-expand-rootfs.service
   gauge-cluster-hdmi.service
-  gauge-xorg.service
-  gauge-hide-cursor.service
   gauge-power-control.service
   gauge-ir-protocol.service
-  gauge-cluster-spi.service
   gauge-wifi-diagnostics.service
   gauge-ssh-diagnostics.service
 )
@@ -44,10 +41,3 @@ rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/gauge-hide-cursor.
 rm -f "$(in_rootfs /etc/systemd/system/default.target.wants/gauge-power-control.service)"
 rm -f "$(in_rootfs /etc/systemd/system/graphical.target.wants/lightdm.service)"
 rm -f "$(in_rootfs /etc/systemd/system/display-manager.service)"
-
-# SPI service remains available but disabled/masked by default.
-mkdir -p "$(in_rootfs /etc/systemd/system/gauge-cluster-spi.service.d)"
-cat > "$(in_rootfs /etc/systemd/system/gauge-cluster-spi.service.d/10-default-disabled.conf)" <<'EOF'
-[Unit]
-ConditionPathExists=/nonexistent
-EOF

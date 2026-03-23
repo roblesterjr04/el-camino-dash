@@ -23,10 +23,12 @@ PI_HANDSHAKE_INTERVAL_S = 0.25
 class _SerialRanges:
     fuel: tuple[float, float]
     temp: tuple[float, float]
+    ambient_temp: tuple[float, float]
     oil: tuple[float, float]
     voltage: tuple[float, float]
     fuel_raw: tuple[float, float]
     temp_raw: tuple[float, float]
+    ambient_temp_raw: tuple[float, float]
     oil_raw: tuple[float, float]
     voltage_raw: tuple[float, float]
 
@@ -48,10 +50,12 @@ class ArduinoSerialInput:
         self._ranges = _SerialRanges(
             fuel=self._parse_range(spec.get("fuel_range"), (0.0, 100.0)),
             temp=self._parse_range(spec.get("temp_range"), (100.0, 260.0)),
+            ambient_temp=self._parse_range(spec.get("ambient_temp_range"), (-20.0, 120.0)),
             oil=self._parse_range(spec.get("oil_range"), (0.0, 100.0)),
             voltage=self._parse_range(spec.get("voltage_range"), (10.0, 16.0)),
             fuel_raw=self._parse_range(spec.get("fuel_raw_range"), (0.0, 1023.0)),
             temp_raw=self._parse_range(spec.get("temp_raw_range"), (0.0, 1023.0)),
+            ambient_temp_raw=self._parse_range(spec.get("ambient_temp_raw_range"), (0.0, 1023.0)),
             oil_raw=self._parse_range(spec.get("oil_raw_range"), (0.0, 1023.0)),
             voltage_raw=self._parse_range(spec.get("voltage_raw_range"), (0.0, 1023.0)),
         )
@@ -167,7 +171,7 @@ class ArduinoSerialInput:
         if coolant_temp_f is None:
             coolant_temp_f = self._map_adc(therm, self._ranges.temp_raw, self._ranges.temp)
 
-        return {
+        out: dict[str, float] = {
             "speed_sensor.vehicle_speed": speed_mph,
             "analog_inputs.engine_rpm": float(engine_rpm),
             "analog_inputs.fuel_level": self._map_adc(pot, self._ranges.fuel_raw, self._ranges.fuel),
@@ -179,6 +183,15 @@ class ArduinoSerialInput:
             "indicators.ign_on": 1.0 if (flags & 0x02) else 0.0,
             "arduino.fault_word": float(faults),
         }
+        if len(payload) == EXTENDED_PAYLOAD_LEN:
+            ambient_raw = int.from_bytes(payload[8:10], "big")
+            ambient_temp_f = self._thermistor_temp_f(ambient_raw)
+            if ambient_temp_f is None:
+                ambient_temp_f = self._map_adc(
+                    ambient_raw, self._ranges.ambient_temp_raw, self._ranges.ambient_temp
+                )
+            out["analog_inputs.ambient_temp"] = ambient_temp_f
+        return out
 
     def _send_handshake(self, *, force: bool) -> None:
         if self._port is None:

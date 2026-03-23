@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from typing import Any
 
@@ -8,6 +9,20 @@ try:
     import serial  # type: ignore
 except ImportError:  # pragma: no cover
     serial = None
+
+# Pi-side tokens from encoder MCU IR map (see encoder_controller.ino applyNecCommand).
+_IR_TOKEN_KEYS: dict[str, str] = {
+    "volume_up": "inputs.ir.command.volume_up_count",
+    "volume_down": "inputs.ir.command.volume_down_count",
+    "theme_next": "inputs.ir.command.theme_next_count",
+    "map_toggle": "inputs.ir.command.map_toggle_count",
+    "center_toggle": "inputs.ir.command.center_toggle_count",
+    "tune_up": "inputs.ir.command.tune_up_count",
+    "tune_down": "inputs.ir.command.tune_down_count",
+    "dash_exit": "inputs.ir.command.dash_exit_count",
+    "menu_open": "inputs.ir.command.menu_open_count",
+    "diagnostics_open": "inputs.ir.command.diagnostics_open_count",
+}
 
 
 class EncoderArduinoSerialInput:
@@ -35,6 +50,9 @@ class EncoderArduinoSerialInput:
         self._rx_lines_total = 0
         self._rx_parsed_frames_total = 0
         self._poll_count = 0
+        self._write_lock = threading.Lock()
+        self._ir_counts: dict[str, float] = {key: 0.0 for key in _IR_TOKEN_KEYS.values()}
+        self._last_ir_code = "-"
 
         if not self._enabled:
             return
@@ -42,18 +60,36 @@ class EncoderArduinoSerialInput:
             self._enabled = False
             return
 
-        requested_port = str(spec.get("port", "/dev/ttyAMA4")).strip()
+        requested_port = str(spec.get("port", "/dev/serial0")).strip()
         for candidate in (
             requested_port,
-            "/dev/ttyAMA4",
-            "/dev/ttyAMA3",
-            "/dev/ttyUSB1",
-            "/dev/ttyACM1",
+            "/dev/serial0",
+            "/dev/ttyAMA0",
+            "/dev/ttyS0",
+            "/dev/ttyUSB0",
+            "/dev/ttyACM0",
         ):
             if candidate and candidate not in self._port_candidates:
                 self._port_candidates.append(candidate)
 
         self._try_open_port(force=True)
+
+    def is_enabled(self) -> bool:
+        return bool(self._enabled)
+
+    def write_raw(self, data: bytes) -> None:
+        """Write bytes on the encoder UART (shared with Nano OLED downlink). Thread-safe."""
+        if not self._enabled or not data:
+            return
+        self._try_open_port(force=False)
+        if self._port is None:
+            return
+        with self._write_lock:
+            try:
+                self._port.write(data)
+                self._port.flush()
+            except Exception:
+                self._drop_port()
 
     def _try_open_port(self, *, force: bool) -> None:
         if self._port is not None or not self._enabled:
@@ -98,11 +134,10 @@ class EncoderArduinoSerialInput:
         except ValueError:
             return None
 
-    def _parse_line(self, line: str) -> dict[str, int]:
-        # Supported event frame examples:
-        # MD=1,AD=0,MP=12,AP=3
-        # MD:-1 AD:0 MP:12 AP:3
+    def _parse_line(self, line: str) -> tuple[dict[str, int], list[str]]:
+        # MD=1,AD=0,MP=12,AP=3[,IR=volume_up]
         parsed: dict[str, int] = {}
+        ir_tokens: list[str] = []
         for chunk in line.replace(" ", ",").split(","):
             token = chunk.strip()
             if not token:
@@ -112,11 +147,17 @@ class EncoderArduinoSerialInput:
                 continue
             key, raw = token.split(sep, 1)
             key = key.strip().upper()
-            value = self._parse_int(raw)
+            raw_stripped = raw.strip()
+            if key == "IR":
+                cleaned = "".join(c for c in raw_stripped.lower() if c.isalnum() or c == "_")
+                if cleaned and cleaned in _IR_TOKEN_KEYS:
+                    ir_tokens.append(cleaned)
+                continue
+            value = self._parse_int(raw_stripped)
             if value is None:
                 continue
             parsed[key] = value
-        return parsed
+        return parsed, ir_tokens
 
     def poll(self) -> dict[str, float]:
         if not self._enabled:
@@ -169,8 +210,8 @@ class EncoderArduinoSerialInput:
             if (now - self._last_frame_log_monotonic) >= 1.0:
                 print(f"[encoder-serial] frame: {line}", flush=True)
                 self._last_frame_log_monotonic = now
-            fields = self._parse_line(line)
-            if not fields:
+            fields, ir_tokens = self._parse_line(line)
+            if not fields and not ir_tokens:
                 continue
             self._rx_parsed_frames_total += 1
             menu_delta += float(fields.get("MD", 0))
@@ -181,13 +222,19 @@ class EncoderArduinoSerialInput:
             if "AP" in fields:
                 next_aux = float(max(0, fields["AP"]))
                 self._aux_presses = next_aux
+            for ir_tok in ir_tokens:
+                vkey = _IR_TOKEN_KEYS[ir_tok]
+                self._ir_counts[vkey] = float(self._ir_counts.get(vkey, 0.0)) + 1.0
+                self._last_ir_code = ir_tok
 
-        return {
+        out: dict[str, float] = {
             "inputs.rotary.menu.delta": float(menu_delta),
             "inputs.rotary.menu.presses": float(self._menu_presses),
             "inputs.rotary.aux.delta": float(aux_delta),
             "inputs.rotary.aux.presses": float(self._aux_presses),
         }
+        out.update(self._ir_counts)
+        return out
 
     @property
     def last_frame(self) -> str:
@@ -199,3 +246,6 @@ class EncoderArduinoSerialInput:
                 f"frames:{self._rx_parsed_frames_total}"
             )
         return "-"
+
+    def last_ir_code(self) -> str:
+        return str(self._last_ir_code or "-")

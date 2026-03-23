@@ -64,8 +64,8 @@ Examples:
   # Slower SPI clock for marginal wiring/targets
   bash arduino/scripts/program_power_control_attiny.sh --bitclock 100
 
-  # USBasp
-  bash arduino/scripts/program_power_control_attiny.sh --programmer usbasp
+  # USBtinyISP
+  bash arduino/scripts/program_power_control_attiny.sh --programmer usbtinyisp
 
   # Arduino-as-ISP (Uno on /dev/ttyACM0)
   bash arduino/scripts/program_power_control_attiny.sh \

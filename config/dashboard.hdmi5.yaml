@@ -11,7 +11,7 @@ system:
   startup_sweep_down_s: 0.7
   left_to_right_preview: false
   left_to_right_spacing_px: 8
-  menu_schema_path: config/menu_schema.yaml
+  menu_schema_path: config/menu_schema_v2.yaml
   menu_display_id: main_display
   alert_display_id: main_display
   alert_overlay_mode: lower_third
@@ -30,29 +30,31 @@ system:
   raw_input_log_enabled: false
   raw_input_log_path: data/raw_inputs.hdmi5.log
   raw_input_log_interval_s: 0.2
-
+  diagnostics_gpio_pin: 21
+  diagnostics_gpio_active_low: true
 displays:
-  - id: main_display
-    enabled: true
-    shape: rectangle
-    width: 800
-    height: 480
-    position: [0, 0]
-    monitor_index: 0
-    windowed: false
-    fullscreen: true
-    fps: 30
-    role: gauge
-    gauge_id: speedometer
-
+- id: main_display
+  enabled: true
+  shape: rectangle
+  width: 800
+  height: 480
+  position:
+  - 0
+  - 0
+  monitor_index: 0
+  windowed: false
+  fullscreen: true
+  fps: 30
+  role: gauge
+  gauge_id: speedometer
 themes:
-  active: digital_hdmi_5in
-  enabled: [digital_hdmi_5in]
+  active: classic_1
+  enabled:
+  - classic_1
   allow_fallback: true
   theme_root: themes
   gauge_asset_root: assets/gauges
   font_name: freesansbold.ttf
-
 gauges:
   speedometer:
     label: Speed
@@ -63,7 +65,7 @@ gauges:
     smoothing_alpha: 0.22
     secondary_label: RPM
     secondary_source: analog_inputs.engine_rpm
-    secondary_unit: ""
+    secondary_unit: ''
     odometer_source: vehicle.odometer_miles
     odometer_label: ODO
     odometer_unit: mi
@@ -77,21 +79,21 @@ gauges:
     smoothing_alpha: 0.2
   tsps:
     label: TSPS
-    unit: "%"
+    unit: '%'
     source: analog_inputs.fuel_level
     min_value: 0
     max_value: 100
     smoothing_alpha: 0.3
   fuel:
     label: Fuel
-    unit: "%"
+    unit: '%'
     source: analog_inputs.fuel_level
     min_value: 0
     max_value: 100
     smoothing_alpha: 0.3
   temp:
     label: Temp
-    unit: "F"
+    unit: F
     source: analog_inputs.coolant_temp
     min_value: 120
     max_value: 260
@@ -103,78 +105,77 @@ gauges:
     min_value: -60
     max_value: 60
     smoothing_alpha: 0.2
-
 inputs:
   rotary_encoders:
-    - id: menu
-      enabled: false
-      pin_a: 17
-      pin_b: 27
-      pin_button: 22
-      pull_up: true
-      debounce_ms: 3
-      button_debounce_ms: 120
-      invert_direction: false
-      acceleration: 1.0
-    - id: aux
-      enabled: false
-      pin_a: 23
-      pin_b: 24
-      pin_button: 25
-      pull_up: true
-      debounce_ms: 3
-      button_debounce_ms: 120
-      invert_direction: false
-      acceleration: 1.0
+  - id: menu
+    enabled: false
+    pin_a: 17
+    pin_b: 27
+    pin_button: 22
+    pull_up: true
+    debounce_ms: 3
+    button_debounce_ms: 120
+    invert_direction: false
+    acceleration: 1.0
+  - id: aux
+    enabled: false
+    pin_a: 23
+    pin_b: 24
+    pin_button: 25
+    pull_up: true
+    debounce_ms: 3
+    button_debounce_ms: 120
+    invert_direction: false
+    acceleration: 1.0
   analog_inputs:
-    - id: engine_rpm
-      enabled: false
-      adc_type: mcp3008
-      spi_bus: 0
-      spi_device: 0
-      channel: 0
-      min_raw: 0
-      max_raw: 1023
-      scale_min: 0
-      scale_max: 6000
-    - id: fuel_level
-      enabled: false
-      adc_type: mcp3008
-      spi_bus: 0
-      spi_device: 0
-      channel: 1
-      min_raw: 0
-      max_raw: 1023
-      scale_min: 0
-      scale_max: 100
-    - id: coolant_temp
-      enabled: false
-      adc_type: mcp3008
-      spi_bus: 0
-      spi_device: 0
-      channel: 2
-      min_raw: 0
-      max_raw: 1023
-      scale_min: 120
-      scale_max: 260
-    - id: system_amp
-      enabled: false
-      adc_type: mcp3008
-      spi_bus: 0
-      spi_device: 0
-      channel: 3
-      min_raw: 0
-      max_raw: 1023
-      scale_min: -60
-      scale_max: 60
+  - id: engine_rpm
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 0
+    min_raw: 0
+    max_raw: 1023
+    scale_min: 0
+    scale_max: 6000
+  - id: fuel_level
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 1
+    min_raw: 0
+    max_raw: 1023
+    scale_min: 0
+    scale_max: 100
+  - id: coolant_temp
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 2
+    min_raw: 0
+    max_raw: 1023
+    scale_min: 120
+    scale_max: 260
+  - id: system_amp
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 3
+    min_raw: 0
+    max_raw: 1023
+    scale_min: -60
+    scale_max: 60
   speed_sensors:
-    - id: vehicle_speed
-      enabled: false
-      gpio_pin: 5
-      pulses_per_revolution: 20
-      wheel_circumference_m: 2.1
-      timeout_ms: 800
-      smoothing_alpha: 0.35
+  - id: vehicle_speed
+    enabled: false
+    gpio_pin: 5
+    pulses_per_revolution: 20
+    wheel_circumference_m: 2.1
+    timeout_ms: 800
+    smoothing_alpha: 0.35
   gpio_buttons:
     enabled: false
     menu_left_pin: 6
@@ -200,20 +201,9 @@ inputs:
     menu_left_pin: 6
     menu_select_pin: 7
     left_delta: 1
-  arduino_serial:
-    enabled: true
-    port: /dev/serial0
-    baudrate: 115200
-    timeout_s: 0.0
-    wheel_circumference_m: 2.1
-    speed_pulses_per_rev: 1
-    fuel_range: [0, 100]
-    temp_range: [120, 260]
-    oil_range: [0, 80]
-    voltage_range: [10, 16]
   encoder_arduino_serial:
     enabled: true
-    port: /dev/ttyAMA4
+    port: /dev/serial0
     baudrate: 115200
     timeout_s: 0.0
     open_retry_interval_s: 1.0
@@ -225,19 +215,41 @@ inputs:
     temp_period_s: 16.0
     amp_period_s: 6.0
     oil_period_s: 10.0
-    speed_range: [0, 95]
-    rpm_range: [700, 4200]
-    fuel_range: [18, 92]
-    temp_range: [150, 235]
-    amp_range: [-18, 28]
-    oil_range: [8, 60]
+    speed_range:
+    - 0
+    - 95
+    rpm_range:
+    - 700
+    - 4200
+    fuel_range:
+    - 18
+    - 92
+    temp_range:
+    - 150
+    - 235
+    ambient_period_s: 18.0
+    ambient_range:
+    - 35
+    - 95
+    amp_range:
+    - -18
+    - 28
+    oil_range:
+    - 8
+    - 60
     turn_signals_enabled: true
     turn_signal_period_s: 0.8
     turn_signal_duty_cycle: 0.5
     turn_signal_mode: alternate
     fault_sim_enabled: true
     fault_cycle_period_s: 5.0
-    fault_codes: [1, 4, 16, 128, 256, 1024]
+    fault_codes:
+    - 1
+    - 4
+    - 16
+    - 128
+    - 256
+    - 1024
   keyboard_sim:
     enabled: true
     rotate_repeat_ms: 130
@@ -263,6 +275,8 @@ inputs:
       fuel_down: K_f
       temp_up: K_t
       temp_down: K_g
+      ambient_up: K_i
+      ambient_down: K_k
       amp_up: K_y
       amp_down: K_h
       oil_up: K_u
@@ -273,22 +287,24 @@ inputs:
   ir_remote:
     enabled: true
     profile_path: config/remotes/remote_1.yaml
-    # Example: /dev/input/event2
-    device_path: ""
-    # Example: gpio_ir_recv
-    device_name: "gpio_ir_recv"
-    # IR decoder protocols applied via `ir-keytable`.
+    device_path: ''
+    device_name: gpio_ir_recv
     protocol: nec
-    rc_device: "rc2"
+    rc_device: rc2
     apply_protocol: true
     allow_repeats: true
     debounce_ms: 320
     repeat_debounce_ms: 240
-    any_key_action: ""
+    any_key_action: ''
     diagnostics_pulse_count: 10
     diagnostics_window_ms: 5000
     diagnostics_max_gap_ms: 450
-
+  sensor_pack_i2c:
+    enabled: true
+    bus: 1
+    address: 18
+    register: 0
+    frame_len: 16
 integrations:
   navit:
     enabled: false
@@ -297,22 +313,22 @@ integrations:
   media:
     enabled: true
     music_root: media
-    startup_track: ""
+    startup_track: ''
     startup_volume: 0.5
     output_backend: pcm5102a
   bluetooth_metadata:
     enabled: true
     provider: bluez
-    device_mac: "70:22:FE:0E:0A:32"
+    device_mac: 70:22:FE:0E:0A:32
     refresh_interval_s: 2.0
   bluetooth_audio:
     enabled: true
-    device_mac: "70:22:FE:0E:0A:32"
+    device_mac: 70:22:FE:0E:0A:32
     auto_connect: true
     pair_on_connect: false
     trust_device: true
     set_default_sink: true
-    sink_name: "alsa_output.platform-fe00b840.mailbox.stereo-fallback"
+    sink_name: alsa_output.platform-fe00b840.mailbox.stereo-fallback
     refresh_interval_s: 5.0
   fm_radio:
     enabled: true
@@ -336,6 +352,22 @@ integrations:
     settle_ms: 8
     sources:
       pi_dac:
-        command_bytes: [192]
+        command_bytes:
+        - 192
       fm_radio:
-        command_bytes: [193]
+        command_bytes:
+        - 193
+  nano_bridge:
+    enabled: true
+    port: /dev/serial0
+    baudrate: 115200
+    write_interval_s: 0.2
+  esp32_audio_link:
+    enabled: true
+    i2c_bus: 1
+    address: 42
+  attiny_power:
+    enabled: true
+    request_pin: 16
+    confirm_pin: 12
+    pull_up: true

@@ -130,14 +130,8 @@ if [[ "${WITH_PIP}" -eq 1 ]]; then
   ssh "${TARGET}" "sudo -u pi bash -lc 'python3 -m venv --system-site-packages \"${REMOTE_DIR}/.venv\" && \"${REMOTE_DIR}/.venv/bin/python\" -m pip install -r \"${REMOTE_DIR}/requirements.txt\"'"
 fi
 
-if [[ "${INSTALL_SERVICES}" -eq 1 ]]; then
-  echo "Installing/updating remote systemd units..."
-  ssh "${TARGET}" "sudo bash '${REMOTE_DIR}/scripts/install_runtime_services.sh'"
-fi
-
 if [[ "${RESTART_SERVICES}" -eq 1 ]]; then
   echo "Restarting runtime services..."
-  ssh "${TARGET}" "sudo systemctl stop gauge-xorg.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-ir-protocol.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-cluster-hdmi.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-power-control.service || true"

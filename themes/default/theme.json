@@ -117,5 +117,22 @@
   },
   "center_dial_mode": {
     "gauge_center": "clock"
-  }
+  },
+  "gauge_packs": [
+    {
+      "id": "gauge_left",
+      "gauge_id": "speedometer",
+      "weight": 1080
+    },
+    {
+      "id": "gauge_center",
+      "gauge_id": "fuel",
+      "weight": 720
+    },
+    {
+      "id": "gauge_right",
+      "gauge_id": "tachometer",
+      "weight": 1080
+    }
+  ]
 }

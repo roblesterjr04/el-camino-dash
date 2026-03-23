@@ -4,47 +4,110 @@ Arduino assets and tooling for the El Camino Dash project live here.
 
 ## Layout
 
-- `arduino/sketches/` - all Arduino sketches by feature/module.
-- `arduino/scripts/install_arduino_cli.sh` - install/check `arduino-cli` with Homebrew.
-- `arduino/scripts/compile_sensor_pack.sh` - compile the first sketch.
-- `arduino/scripts/upload_sensor_pack.sh` - compile + upload to a board.
-- `arduino/scripts/monitor_sensor_pack.py` - decode binary packets into readable text.
-- `arduino/scripts/program_power_control_attiny.sh` - compile + flash ATtiny power controller over ISP.
-- `arduino/sketches/encoder_controller/encoder_controller.ino` - dedicated rotary/menu serial controller.
+- `arduino/sketches/` — sketches by feature/module.
+- `arduino/config/arduino-cli.yaml` — reference for the Espressif board index URL (applied by the install script).
+- `arduino/scripts/install_arduino_cli.sh` — install `arduino-cli`, register ESP32 board index, install **arduino:avr** + **esp32:esp32**, install **Encoder**, **U8g2** (encoder OLED), and **IRremote** v4 (encoder NEC IR).
+- `arduino/scripts/compile_sensor_pack.sh` — compile sensor_pack only.
+- `arduino/scripts/upload_sensor_pack.sh` — compile + upload sensor_pack (serial, optional SSH to Pi, optional `--programmer` for ICSP).
+- `arduino/scripts/upload_avr_sketch.sh` — generic local compile + upload for any sketch under `arduino/sketches/<name>/` (serial or ICSP).
+- `arduino/scripts/upload_esp32_sketch.sh` — compile + upload any ESP32 sketch over **native USB** (default FQBN `esp32:esp32:esp32s3`).
+- `arduino/scripts/deploy_encoder_icsp.sh` — convenience wrapper for `encoder_controller` + your port/programmer args.
+- `arduino/scripts/deploy_attiny_usbisp.sh` — ATtiny **power_control** via **usbtinyisp** (forwards to `program_power_control_attiny.sh`).
+- `arduino/scripts/deploy_esp32_audio_usb.sh` — **esp32_audio_bridge** over USB.
+- `arduino/scripts/program_power_control_attiny.sh` — build + flash ATtiny power controller (avr-g++ + avrdude; Pi SPI, USBasp, Arduino-as-ISP, etc.).
+- `arduino/scripts/sh_common.inc.sh` — shared helpers (core install check, serial port auto-detect).
+- `arduino/scripts/detect_serial_port.py` — used when upload scripts omit the port.
+- `arduino/scripts/monitor_sensor_pack.py` — decode binary packets from the sensor pack.
 
 ## Quick Start (macOS + Homebrew)
 
-Install CLI and AVR core:
+Install CLI, cores, and Encoder library:
 
 ```bash
 bash arduino/scripts/install_arduino_cli.sh
 ```
 
-Compile sketch:
+Compile sensor_pack:
 
 ```bash
 bash arduino/scripts/compile_sensor_pack.sh
 ```
 
-Upload sketch (example for an Uno on `/dev/cu.usbmodem101`):
+Upload sensor_pack (USB serial). With no port argument, picks the first suitable USB serial device (skips Bluetooth):
 
 ```bash
+bash arduino/scripts/upload_sensor_pack.sh
 bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
 ```
 
-Program ATtiny power-control sketch (USBasp default):
+## AVR over ICSP (USB programmer)
+
+Use `arduino-cli upload --programmer …` with the port your programmer expects (often the literal `usb` for **usbtinyisp** / **usbasp**).
+
+**sensor_pack** (existing script):
 
 ```bash
-bash arduino/scripts/program_power_control_attiny.sh
+bash arduino/scripts/upload_sensor_pack.sh usb arduino:avr:uno --programmer usbtinyisp
 ```
 
-Print ATtiny ISP + project pin wiring:
+**encoder_controller** (wrapper). With no arguments, uses **usbtinyisp**, port **usb**, **arduino:avr:uno**:
+
+```bash
+bash arduino/scripts/deploy_encoder_icsp.sh
+bash arduino/scripts/deploy_encoder_icsp.sh usb arduino:avr:uno --programmer usbtinyisp
+```
+
+**Any sketch** (generic):
+
+```bash
+bash arduino/scripts/upload_avr_sketch.sh encoder_controller usb arduino:avr:uno --programmer usbtinyisp
+```
+
+Programmer IDs match what **avrdude** / Arduino expect (e.g. `usbtinyisp`, `usbasp`, `stk500v2`). Use `arduino-cli upload --help` and your programmer’s docs.
+
+## ATtiny power control (ICSP)
+
+Default **USBtinyISP**:
+
+```bash
+bash arduino/scripts/deploy_attiny_usbisp.sh
+```
+
+Other programmers and wiring:
 
 ```bash
 bash arduino/scripts/program_power_control_attiny.sh --wiring
+bash arduino/scripts/program_power_control_attiny.sh --programmer usbtinyisp --bitclock 50
 ```
 
-Monitor decoded packets (instead of garbled binary characters):
+## ESP32 over native USB
+
+Generic uploads default to **ESP32-S3** (`esp32:esp32:esp32s3`) in `upload_esp32_sketch.sh` when you omit `--fqbn`.
+
+**esp32_audio_bridge** is different: it uses **Bluetooth Classic A2DP + AVRCP**, which requires a **classic ESP32** (`esp32:esp32:esp32`), not ESP32-S3 / C3 / S2 (those do not support BR/EDR audio). Install **ESP32-A2DP** and **arduino-audio-tools** via `install_arduino_cli.sh` (git URLs).
+
+Flash **esp32_audio_bridge** (I2C + BT media hub for `Esp32AudioLink` on the Pi). With no arguments, auto-selects a serial port and uses `esp32:esp32:esp32`:
+
+```bash
+bash arduino/scripts/deploy_esp32_audio_usb.sh
+bash arduino/scripts/deploy_esp32_audio_usb.sh /dev/cu.usbmodem1101
+```
+
+Other boards (only if you have a different sketch that does not need A2DP):
+
+```bash
+bash arduino/scripts/upload_esp32_sketch.sh esp32_audio_bridge /dev/cu.usbmodem1101 --fqbn esp32:esp32:esp32s3
+```
+
+Generic upload:
+
+```bash
+bash arduino/scripts/upload_esp32_sketch.sh other_sketch /dev/cu.usbmodem1101 --fqbn esp32:esp32:esp32s3
+```
+
+## Other
+
+Monitor sensor pack serial:
 
 ```bash
 python3 arduino/scripts/monitor_sensor_pack.py --port /dev/cu.usbmodem101 --baud 115200
@@ -52,7 +115,6 @@ python3 arduino/scripts/monitor_sensor_pack.py --port /dev/cu.usbmodem101 --baud
 
 ## Notes
 
-- Default board (`FQBN`) in scripts is `arduino:avr:uno`.
-- Change `FQBN` and serial port for your exact board.
+- Default AVR FQBN in many scripts is `arduino:avr:uno`; use `arduino:avr:nano` (or your exact board) when needed.
 - To discover ports: `arduino-cli board list`.
-- To discover valid board IDs: `arduino-cli board listall`.
+- To discover board IDs: `arduino-cli board listall`.

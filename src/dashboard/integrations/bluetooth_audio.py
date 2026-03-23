@@ -44,6 +44,16 @@ class BluetoothAudioAdapter:
             return "-"
         return self._status
 
+    def media_title(self) -> str:
+        if not self._cfg.get("enabled", False) or not self._status.startswith("connected"):
+            return ""
+        return self._track_title or ""
+
+    def media_artist(self) -> str:
+        if not self._cfg.get("enabled", False) or not self._status.startswith("connected"):
+            return ""
+        return self._track_artist or ""
+
     def start(self) -> None:
         if not self._cfg.get("enabled", False):
             self._status = "disabled"

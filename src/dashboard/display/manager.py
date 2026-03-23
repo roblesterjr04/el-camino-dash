@@ -68,13 +68,13 @@ class DisplayManager:
         self._root_surface: pygame.Surface | None = None
         self._sdl2_video: Any | None = None
         self._sdl2_texture: Any | None = None
-        self._spi_display_manager: Any | None = None
         self._startup_placeholder_drawn = False
+        self._logical_size: tuple[int, int] = (640, 480)
+        self._physical_size: tuple[int, int] = (640, 480)
+        self._composite_surface: pygame.Surface | None = None
 
         if self._render_mode == "multi_window" and not self._init_multi_window_mode():
             self._render_mode = "single_window"
-        if self._render_mode == "spi":
-            self._init_spi_mode()
         if self._render_mode == "single_window":
             self._init_single_window_mode()
         self._render_startup_placeholder()
@@ -144,22 +144,14 @@ class DisplayManager:
             print(f"[startup] placeholder render done after {elapsed:.3f}s", flush=True)
             return
 
-        if self._render_mode == "spi" and self._spi_display_manager is not None:
-            for idx, binding in enumerate(self._bindings):
-                child = pygame.transform.smoothscale(image, binding.layout.size)
-                self._spi_display_manager.update(idx, child)
-                if self._root_surface is not None:
-                    self._root_surface.blit(child, (binding.layout.x, binding.layout.y))
-            if self._root_surface is not None:
-                pygame.display.flip()
-            self._startup_placeholder_drawn = True
-            elapsed = max(0.0, (pygame.time.get_ticks() - started_ms) / 1000.0)
-            print(f"[startup] placeholder render done after {elapsed:.3f}s", flush=True)
-            return
-
         if self._root_surface is not None:
-            scaled = pygame.transform.smoothscale(image, self._window_size())
-            self._root_surface.blit(scaled, (0, 0))
+            scaled = pygame.transform.smoothscale(image, self._logical_size)
+            if self._composite_surface is not None:
+                self._composite_surface.blit(scaled, (0, 0))
+                out = pygame.transform.smoothscale(self._composite_surface, self._physical_size)
+                self._root_surface.blit(out, (0, 0))
+            else:
+                self._root_surface.blit(scaled, (0, 0))
             if str(os.environ.get("HEADLESS", "")).strip() != "1":
                 pygame.display.flip()
             self._startup_placeholder_drawn = True
@@ -176,59 +168,9 @@ class DisplayManager:
         env_mode = str(os.environ.get("DISPLAY_RENDER_MODE", "")).strip().lower()
         cfg_mode = str(system_cfg.get("display_render_mode", "single_window")).strip().lower()
         mode = env_mode or cfg_mode or "single_window"
-        if mode not in {"single_window", "multi_window", "spi"}:
+        if mode not in {"single_window", "multi_window"}:
             return "single_window"
         return mode
-
-    def _resolve_spi_displays(self) -> list[dict[str, Any]]:
-        system_cfg = self._config.get("system", {})
-        raw = system_cfg.get("spi_displays", [])
-        if not isinstance(raw, list):
-            return []
-        resolved: list[dict[str, Any]] = []
-        for idx, layout in enumerate(self._layouts):
-            if idx >= len(raw):
-                break
-            spec = raw[idx]
-            if not isinstance(spec, dict):
-                continue
-            dc_pin = spec.get("dc_pin", spec.get("dc"))
-            rst_pin = spec.get("rst_pin", spec.get("rst"))
-            if dc_pin is None or rst_pin is None:
-                continue
-            resolved.append(
-                {
-                    "label": spec.get("label", layout.display_id),
-                    "shape": layout.shape,
-                    "width": layout.width,
-                    "height": layout.height,
-                    "spi_bus": int(spec.get("spi_bus", 1)),
-                    "spi_device": int(spec.get("spi_device", idx)),
-                    "dc_pin": int(dc_pin),
-                    "rst_pin": int(rst_pin),
-                    "rotation": int(spec.get("rotation", 0)),
-                    "madctl": spec.get("madctl"),
-                    "colmod": int(spec.get("colmod", 0x55)),
-                    "speed_hz": int(spec.get("speed_hz", 8_000_000)),
-                }
-            )
-        return resolved
-
-    def _init_spi_mode(self) -> None:
-        from dashboard.display.spi_display_manager import SPIDisplayManager
-
-        displays = self._resolve_spi_displays()
-        if not displays:
-            print("[display] spi mode requested, but no valid system.spi_displays entries found")
-            return
-        if str(os.environ.get("HEADLESS", "")).strip() != "1":
-            self._root_surface = pygame.display.set_mode(self._window_size())
-            pygame.display.set_caption(self._config["system"]["window_title"])
-        try:
-            self._spi_display_manager = SPIDisplayManager(displays=displays)
-        except Exception as exc:
-            print(f"[display] failed to initialize spi mode: {exc}")
-            self._spi_display_manager = None
 
     def _compose_child_surface(
         self,
@@ -256,10 +198,45 @@ class DisplayManager:
             child.blit(overlay, (0, 0))
         return child
 
-    def _init_single_window_mode(self) -> None:
+    def _single_window_fit_desktop(self) -> bool:
         if str(os.environ.get("HEADLESS", "")).strip() == "1":
-            self._root_surface = pygame.Surface(self._window_size(), pygame.SRCALPHA)
+            return False
+        return bool(self._config.get("system", {}).get("single_window_fit_desktop", False))
+
+    def _fit_desktop_window_size(self, logical: tuple[int, int]) -> tuple[int, int]:
+        lw, lh = logical
+        system_cfg = self._config.get("system", {})
+        margin = int(system_cfg.get("single_window_fit_margin_px", 64))
+        try:
+            sizes = pygame.display.get_desktop_sizes()
+            if not sizes:
+                return logical
+            desk_w, desk_h = int(sizes[0][0]), int(sizes[0][1])
+        except Exception:
+            return logical
+        avail_w = max(320, desk_w - margin)
+        avail_h = max(240, desk_h - margin)
+        scale = min(avail_w / max(1, lw), avail_h / max(1, lh))
+        if scale >= 1.0:
+            return logical
+        dw = max(1, int(round(lw * scale)))
+        dh = max(1, int(round(lh * scale)))
+        return (dw, dh)
+
+    def _init_single_window_mode(self) -> None:
+        self._logical_size = self._canvas_size_from_layouts()
+        self._physical_size = self._logical_size
+        self._composite_surface = None
+        if str(os.environ.get("HEADLESS", "")).strip() == "1":
+            self._root_surface = pygame.Surface(self._logical_size, pygame.SRCALPHA)
             return
+        if self._single_window_fit_desktop():
+            skip_fit = len(self._layouts) == 1 and self._layouts[0].fullscreen
+            if not skip_fit:
+                fit = self._fit_desktop_window_size(self._logical_size)
+                if fit != self._logical_size:
+                    self._physical_size = fit
+                    self._composite_surface = pygame.Surface(self._logical_size, pygame.SRCALPHA)
         flags = 0
         # In single-window hardware mode, respect display fullscreen intent to
         # avoid a decorated desktop window/titlebar on the dash screen.
@@ -273,8 +250,13 @@ class DisplayManager:
                 flags |= pygame.NOFRAME
                 os.environ.setdefault("SDL_VIDEO_WINDOW_POS", "0,0")
         started = pygame.time.get_ticks()
-        print(f"[startup] pygame.display.set_mode begin flags={flags}", flush=True)
-        self._root_surface = pygame.display.set_mode(self._window_size(), flags)
+        print(
+            f"[startup] pygame.display.set_mode begin flags={flags} "
+            f"logical={self._logical_size[0]}x{self._logical_size[1]} "
+            f"physical={self._physical_size[0]}x{self._physical_size[1]}",
+            flush=True,
+        )
+        self._root_surface = pygame.display.set_mode(self._physical_size, flags)
         elapsed = max(0.0, (pygame.time.get_ticks() - started) / 1000.0)
         print(f"[startup] pygame.display.set_mode end after {elapsed:.3f}s", flush=True)
         pygame.display.set_caption(self._config["system"]["window_title"])
@@ -363,6 +345,52 @@ class DisplayManager:
         return merged
 
     def _build_single_screen_virtual_displays(self, base_display: dict[str, Any]) -> list[dict[str, Any]]:
+        # Preferred v2 layout path: theme-declared round gauge packs.
+        packs = self._theme_data.get("gauge_packs", [])
+        if isinstance(packs, list):
+            parsed_packs: list[dict[str, Any]] = []
+            for idx, entry in enumerate(packs):
+                if not isinstance(entry, dict):
+                    continue
+                display_id = str(entry.get("id", f"gauge_pack_{idx}")).strip()
+                if not display_id:
+                    continue
+                gauge_id = str(entry.get("gauge_id", "")).strip()
+                weight_raw = entry.get("weight", 1.0)
+                try:
+                    weight = max(0.1, float(weight_raw))
+                except (TypeError, ValueError):
+                    weight = 1.0
+                parsed_packs.append({"id": display_id, "gauge_id": gauge_id, "weight": weight})
+            if parsed_packs:
+                total_weight = sum(pack["weight"] for pack in parsed_packs)
+                width = int(base_display.get("width", 800))
+                height = int(base_display.get("height", 480))
+                x_cursor = 0
+                virtual_displays: list[dict[str, Any]] = []
+                for idx, pack in enumerate(parsed_packs):
+                    remaining_w = max(1, width - x_cursor)
+                    if idx == len(parsed_packs) - 1:
+                        panel_w = remaining_w
+                    else:
+                        panel_w = max(1, int(round(width * (pack["weight"] / max(0.001, total_weight)))))
+                        panel_w = min(panel_w, remaining_w)
+                    diameter = max(1, min(panel_w, height))
+                    x_pack = int(x_cursor + (panel_w - diameter) // 2)
+                    y_pack = int((height - diameter) // 2)
+                    virtual = dict(base_display)
+                    virtual["id"] = pack["id"]
+                    virtual["shape"] = "round"
+                    virtual["position"] = [x_pack, y_pack]
+                    virtual["width"] = int(diameter)
+                    virtual["height"] = int(diameter)
+                    if pack["gauge_id"]:
+                        virtual["gauge_id"] = pack["gauge_id"]
+                    virtual["enabled"] = True
+                    virtual_displays.append(virtual)
+                    x_cursor += panel_w
+                return virtual_displays
+
         # Allow themes to declare explicit virtual panels for a single physical screen.
         declared = self._theme_data.get("single_screen_displays", [])
         if isinstance(declared, list):
@@ -462,7 +490,7 @@ class DisplayManager:
                 DisplayLayout(
                     display_id=resolved["id"],
                     role=resolved["role"],
-                    shape=resolved["shape"],
+                    shape="round" if str(resolved.get("shape", "round")).strip().lower() == "rectangle" else resolved["shape"],
                     width=resolved["width"],
                     height=resolved["height"],
                     x=resolved["position"][0],
@@ -631,7 +659,7 @@ class DisplayManager:
         active_count = int(values.get("arduino.fault_latched_count", values.get("arduino.fault_active_count", 0.0)))
         return active_count > 0
 
-    def _window_size(self) -> tuple[int, int]:
+    def _canvas_size_from_layouts(self) -> tuple[int, int]:
         if not self._layouts:
             return (640, 480)
         max_x = max(layout.x + layout.width for layout in self._layouts)
@@ -641,7 +669,8 @@ class DisplayManager:
     def _render_single_window(self, values: dict[str, float], status: dict[str, str]) -> None:
         if self._root_surface is None:
             return
-        self._root_surface.fill((12, 12, 12))
+        target = self._composite_surface if self._composite_surface is not None else self._root_surface
+        target.fill((12, 12, 12))
         for binding in self._bindings:
             renderer = self._ensure_renderer(binding)
             child = self._compose_child_surface(
@@ -651,7 +680,10 @@ class DisplayManager:
                 values=values,
                 status=status,
             )
-            self._root_surface.blit(child, (binding.layout.x, binding.layout.y))
+            target.blit(child, (binding.layout.x, binding.layout.y))
+        if self._composite_surface is not None:
+            scaled = pygame.transform.smoothscale(self._composite_surface, self._physical_size)
+            self._root_surface.blit(scaled, (0, 0))
         if str(os.environ.get("HEADLESS", "")).strip() != "1":
             pygame.display.flip()
 
@@ -672,26 +704,6 @@ class DisplayManager:
             binding.renderer.clear()
             binding.renderer.blit(texture)
             binding.renderer.present()
-
-    def _render_spi(self, values: dict[str, float], status: dict[str, str]) -> None:
-        if self._spi_display_manager is None:
-            return
-        if self._root_surface is not None:
-            self._root_surface.fill((12, 12, 12))
-        for idx, binding in enumerate(self._bindings):
-            renderer = self._ensure_renderer(binding)
-            child = self._compose_child_surface(
-                layout=binding.layout,
-                renderer=renderer,
-                map_overlay=self._map_overlays[binding.layout.display_id],
-                values=values,
-                status=status,
-            )
-            self._spi_display_manager.update(idx, child)
-            if self._root_surface is not None:
-                self._root_surface.blit(child, (binding.layout.x, binding.layout.y))
-        if self._root_surface is not None:
-            pygame.display.flip()
 
     def _event_window_id(self, event: pygame.event.Event) -> int | None:
         raw = getattr(event, "window", None)
@@ -732,6 +744,8 @@ class DisplayManager:
 
     def keyboard_input_active(self) -> bool:
         system_cfg = self._config.get("system", {})
+        if str(system_cfg.get("mode", "")).strip().lower() == "simulation":
+            return True
         if not bool(system_cfg.get("keyboard_focus_control_only", False)):
             return True
         if self._render_mode != "multi_window":
@@ -745,18 +759,16 @@ class DisplayManager:
         if self._render_mode == "multi_window":
             self._render_multi_window(values, status)
             return
-        if self._render_mode == "spi":
-            self._render_spi(values, status)
-            return
         self._render_single_window(values, status)
 
     def shutdown(self) -> None:
-        if self._spi_display_manager is not None:
-            self._spi_display_manager.shutdown()
-            self._spi_display_manager = None
+        pass
 
     def close_menu_overlay(self) -> None:
         self._menu_overlay.close_overlay()
+
+    def menu_overlay_visible(self) -> bool:
+        return bool(self._menu_overlay.visible)
 
     def menu_open_or_back(self) -> str:
         return self._menu_overlay.open_or_back()

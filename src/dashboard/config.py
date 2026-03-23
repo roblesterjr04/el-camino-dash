@@ -146,7 +146,7 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
     allowed_sections = required_sections | {
         "gpio_buttons",
         "mcp23017_controls",
-        "arduino_serial",
+        "sensor_pack_i2c",
         "encoder_arduino_serial",
         "ir_remote",
     }
@@ -159,66 +159,29 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 _fail(f"inputs.{section}[{idx}]", "missing key 'id'")
             if section == "rotary_encoders" and "button_debounce_ms" in item:
                 _expect_type(f"inputs.{section}[{idx}].button_debounce_ms", item["button_debounce_ms"], (int, float))
-    if "arduino_serial" in inputs:
-        _expect_type("inputs.arduino_serial", inputs["arduino_serial"], dict)
+    if "sensor_pack_i2c" in inputs:
+        _expect_type("inputs.sensor_pack_i2c", inputs["sensor_pack_i2c"], dict)
         _expect_keys(
-            "inputs.arduino_serial",
-            inputs["arduino_serial"],
+            "inputs.sensor_pack_i2c",
+            inputs["sensor_pack_i2c"],
             {"enabled"},
             {
                 "enabled",
-                "port",
-                "baudrate",
-                "timeout_s",
-                "wheel_circumference_m",
-                "speed_pulses_per_rev",
-                "fuel_range",
-                "temp_range",
-                "oil_range",
-                "voltage_range",
-                "fuel_raw_range",
-                "temp_raw_range",
-                "oil_raw_range",
-                "voltage_raw_range",
+                "bus",
+                "address",
+                "register",
+                "frame_len",
             },
         )
-        _expect_type("inputs.arduino_serial.enabled", inputs["arduino_serial"]["enabled"], bool)
-        if "port" in inputs["arduino_serial"]:
-            _expect_type("inputs.arduino_serial.port", inputs["arduino_serial"]["port"], str)
-        if "baudrate" in inputs["arduino_serial"]:
-            _expect_type("inputs.arduino_serial.baudrate", inputs["arduino_serial"]["baudrate"], int)
-        if "timeout_s" in inputs["arduino_serial"]:
-            _expect_type("inputs.arduino_serial.timeout_s", inputs["arduino_serial"]["timeout_s"], (int, float))
-        if "wheel_circumference_m" in inputs["arduino_serial"]:
-            _expect_type(
-                "inputs.arduino_serial.wheel_circumference_m",
-                inputs["arduino_serial"]["wheel_circumference_m"],
-                (int, float),
-            )
-        if "speed_pulses_per_rev" in inputs["arduino_serial"]:
-            _expect_type(
-                "inputs.arduino_serial.speed_pulses_per_rev",
-                inputs["arduino_serial"]["speed_pulses_per_rev"],
-                (int, float),
-            )
-        for key in (
-            "fuel_range",
-            "temp_range",
-            "oil_range",
-            "voltage_range",
-            "fuel_raw_range",
-            "temp_raw_range",
-            "oil_raw_range",
-            "voltage_raw_range",
-        ):
-            if key not in inputs["arduino_serial"]:
-                continue
-            path = f"inputs.arduino_serial.{key}"
-            _expect_type(path, inputs["arduino_serial"][key], list)
-            if len(inputs["arduino_serial"][key]) != 2:
-                _fail(path, "must contain [min, max]")
-            _expect_type(f"{path}[0]", inputs["arduino_serial"][key][0], (int, float))
-            _expect_type(f"{path}[1]", inputs["arduino_serial"][key][1], (int, float))
+        _expect_type("inputs.sensor_pack_i2c.enabled", inputs["sensor_pack_i2c"]["enabled"], bool)
+        if "bus" in inputs["sensor_pack_i2c"]:
+            _expect_type("inputs.sensor_pack_i2c.bus", inputs["sensor_pack_i2c"]["bus"], int)
+        if "address" in inputs["sensor_pack_i2c"]:
+            _expect_type("inputs.sensor_pack_i2c.address", inputs["sensor_pack_i2c"]["address"], int)
+        if "register" in inputs["sensor_pack_i2c"]:
+            _expect_type("inputs.sensor_pack_i2c.register", inputs["sensor_pack_i2c"]["register"], int)
+        if "frame_len" in inputs["sensor_pack_i2c"]:
+            _expect_type("inputs.sensor_pack_i2c.frame_len", inputs["sensor_pack_i2c"]["frame_len"], int)
     if "encoder_arduino_serial" in inputs:
         _expect_type("inputs.encoder_arduino_serial", inputs["encoder_arduino_serial"], dict)
         _expect_keys(
@@ -260,6 +223,8 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             "amp_max",
             "oil_min",
             "oil_max",
+            "ambient_temp_min",
+            "ambient_temp_max",
         },
     )
     _expect_type("inputs.keyboard_sim.enabled", inputs["keyboard_sim"]["enabled"], bool)
@@ -280,6 +245,18 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
         _expect_type("inputs.keyboard_sim.oil_min", inputs["keyboard_sim"]["oil_min"], (int, float))
     if "oil_max" in inputs["keyboard_sim"]:
         _expect_type("inputs.keyboard_sim.oil_max", inputs["keyboard_sim"]["oil_max"], (int, float))
+    if "ambient_temp_min" in inputs["keyboard_sim"]:
+        _expect_type(
+            "inputs.keyboard_sim.ambient_temp_min",
+            inputs["keyboard_sim"]["ambient_temp_min"],
+            (int, float),
+        )
+    if "ambient_temp_max" in inputs["keyboard_sim"]:
+        _expect_type(
+            "inputs.keyboard_sim.ambient_temp_max",
+            inputs["keyboard_sim"]["ambient_temp_max"],
+            (int, float),
+        )
 
     if "gpio_buttons" in inputs:
         _expect_type("inputs.gpio_buttons", inputs["gpio_buttons"], dict)
@@ -452,6 +429,8 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             "fault_sim_enabled",
             "fault_cycle_period_s",
             "fault_codes",
+            "ambient_period_s",
+            "ambient_range",
         },
     )
     _expect_type("inputs.simulated_data.enabled", inputs["simulated_data"]["enabled"], bool)
@@ -464,6 +443,12 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
         _expect_type("inputs.simulated_data.amp_period_s", inputs["simulated_data"]["amp_period_s"], (int, float))
     if "oil_period_s" in inputs["simulated_data"]:
         _expect_type("inputs.simulated_data.oil_period_s", inputs["simulated_data"]["oil_period_s"], (int, float))
+    if "ambient_period_s" in inputs["simulated_data"]:
+        _expect_type(
+            "inputs.simulated_data.ambient_period_s",
+            inputs["simulated_data"]["ambient_period_s"],
+            (int, float),
+        )
     if "turn_signals_enabled" in inputs["simulated_data"]:
         _expect_type("inputs.simulated_data.turn_signals_enabled", inputs["simulated_data"]["turn_signals_enabled"], bool)
     if "turn_signal_period_s" in inputs["simulated_data"]:
@@ -491,7 +476,7 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             _fail(path, "must contain [min, max]")
         _expect_type(f"{path}[0]", inputs["simulated_data"][key][0], (int, float))
         _expect_type(f"{path}[1]", inputs["simulated_data"][key][1], (int, float))
-    for key in ("temp_range", "amp_range", "oil_range"):
+    for key in ("temp_range", "amp_range", "oil_range", "ambient_range"):
         if key not in inputs["simulated_data"]:
             continue
         path = f"inputs.simulated_data.{key}"
@@ -504,7 +489,14 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
 
 def _validate_integrations(integrations: dict[str, Any]) -> None:
     required_sections = {"navit", "media", "bluetooth_metadata"}
-    allowed_sections = required_sections | {"bluetooth_audio", "fm_radio", "audio_router"}
+    allowed_sections = required_sections | {
+        "bluetooth_audio",
+        "fm_radio",
+        "audio_router",
+        "nano_bridge",
+        "esp32_audio_link",
+        "attiny_power",
+    }
     _expect_keys("integrations", integrations, required_sections, allowed_sections)
     for section in required_sections:
         _expect_type(f"integrations.{section}", integrations[section], dict)
@@ -630,42 +622,43 @@ def _validate_integrations(integrations: dict[str, Any]) -> None:
                 _expect_type(f"{base}.command_bytes", source_spec["command_bytes"], list)
                 for idx, command_value in enumerate(source_spec["command_bytes"]):
                     _expect_type(f"{base}.command_bytes[{idx}]", command_value, (int, str))
+    if "nano_bridge" in integrations:
+        nano = integrations["nano_bridge"]
+        _expect_type("integrations.nano_bridge", nano, dict)
+        _expect_keys(
+            "integrations.nano_bridge",
+            nano,
+            {"enabled"},
+            {"enabled", "port", "baudrate", "write_interval_s", "weather_label"},
+        )
+        _expect_type("integrations.nano_bridge.enabled", nano["enabled"], bool)
+        if "weather_label" in nano:
+            _expect_type("integrations.nano_bridge.weather_label", nano["weather_label"], str)
+    if "esp32_audio_link" in integrations:
+        esp = integrations["esp32_audio_link"]
+        _expect_type("integrations.esp32_audio_link", esp, dict)
+        _expect_keys(
+            "integrations.esp32_audio_link",
+            esp,
+            {"enabled"},
+            {"enabled", "i2c_bus", "address"},
+        )
+        _expect_type("integrations.esp32_audio_link.enabled", esp["enabled"], bool)
+    if "attiny_power" in integrations:
+        attiny = integrations["attiny_power"]
+        _expect_type("integrations.attiny_power", attiny, dict)
+        _expect_keys(
+            "integrations.attiny_power",
+            attiny,
+            {"enabled"},
+            {"enabled", "request_pin", "confirm_pin", "pull_up"},
+        )
+        _expect_type("integrations.attiny_power.enabled", attiny["enabled"], bool)
 
 
 def _validate_system(system: dict[str, Any]) -> None:
     _expect_type("system", system, dict)
-    if "spi_displays" not in system:
-        return
-    _expect_type("system.spi_displays", system["spi_displays"], list)
-    for idx, display in enumerate(system["spi_displays"]):
-        path = f"system.spi_displays[{idx}]"
-        _expect_type(path, display, dict)
-        required = {"spi_bus", "spi_device", "label"}
-        allowed = required | {"dc", "rst", "dc_pin", "rst_pin", "rotation", "speed_hz", "madctl", "colmod"}
-        _expect_keys(path, display, required, allowed)
-        _expect_type(f"{path}.spi_bus", display["spi_bus"], int)
-        _expect_type(f"{path}.spi_device", display["spi_device"], int)
-        _expect_type(f"{path}.label", display["label"], str)
-        if "dc_pin" in display:
-            _expect_type(f"{path}.dc_pin", display["dc_pin"], int)
-        if "rst_pin" in display:
-            _expect_type(f"{path}.rst_pin", display["rst_pin"], int)
-        if "dc" in display:
-            _expect_type(f"{path}.dc", display["dc"], int)
-        if "rst" in display:
-            _expect_type(f"{path}.rst", display["rst"], int)
-        if "dc_pin" not in display and "dc" not in display:
-            _fail(path, "requires either 'dc_pin' or 'dc'")
-        if "rst_pin" not in display and "rst" not in display:
-            _fail(path, "requires either 'rst_pin' or 'rst'")
-        if "rotation" in display:
-            _expect_type(f"{path}.rotation", display["rotation"], int)
-        if "speed_hz" in display:
-            _expect_type(f"{path}.speed_hz", display["speed_hz"], int)
-        if "madctl" in display:
-            _expect_type(f"{path}.madctl", display["madctl"], int)
-        if "colmod" in display:
-            _expect_type(f"{path}.colmod", display["colmod"], int)
+    return
 
 
 def validate_config(raw: dict[str, Any]) -> None:
@@ -690,14 +683,6 @@ def validate_config(raw: dict[str, Any]) -> None:
         # Be resilient across layouts/themes: if configured menu target is not
         # present, pin it to the first enabled display instead of failing load.
         raw["system"]["menu_display_id"] = enabled_display_ids[0]
-    if "spi_displays" in raw["system"]:
-        spi_displays = raw["system"]["spi_displays"]
-        if len(spi_displays) < enabled_display_count:
-            _fail(
-                "system.spi_displays",
-                f"must include at least {enabled_display_count} entries for enabled displays",
-            )
-
     _validate_gauges(raw["gauges"])
     _validate_inputs(raw["inputs"])
     _validate_integrations(raw["integrations"])

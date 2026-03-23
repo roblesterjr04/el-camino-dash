@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 import signal
 import threading
@@ -21,12 +22,20 @@ from dashboard.integrations.bluetooth_audio import BluetoothAudioAdapter
 from dashboard.integrations.fm_radio import FmRadioAdapter
 from dashboard.integrations.media_player import MediaPlayer
 from dashboard.integrations.navit_adapter import NavitAdapter
+from dashboard.integrations.nano_bridge import NanoBridge
+from dashboard.integrations.esp32_audio_link import Esp32AudioLink
+from dashboard.integrations.attiny_power_link import AttinyPowerLink
 from dashboard.integrations.wifi_nm import wifi_connect
 from dashboard.integrations.wifi_nm import wifi_disconnect
 from dashboard.integrations.wifi_nm import wifi_radio_toggle
 from dashboard.integrations.wifi_nm import wifi_rescan
 from dashboard.integrations.wifi_nm import wifi_status_dict
 from dashboard.theme_loader import load_theme_data
+
+try:
+    from gpiozero import DigitalInputDevice  # type: ignore
+except ImportError:  # pragma: no cover
+    DigitalInputDevice = None
 
 
 ARDUINO_FAULT_LABELS: list[tuple[int, str]] = [
@@ -57,6 +66,9 @@ class DashboardApp:
         self.bluetooth = BluetoothMetadataAdapter(self.config["integrations"]["bluetooth_metadata"])
         self.bluetooth_audio = BluetoothAudioAdapter(self.config["integrations"].get("bluetooth_audio", {"enabled": False}))
         self.audio_router = AudioRouterAdapter(self.config["integrations"].get("audio_router", {"enabled": False}))
+        self.nano_bridge = NanoBridge(self.config["integrations"].get("nano_bridge", {"enabled": False}))
+        self.esp32_link = Esp32AudioLink(self.config["integrations"].get("esp32_audio_link", {"enabled": False}))
+        self.attiny_power = AttinyPowerLink(self.config["integrations"].get("attiny_power", {"enabled": False}))
         self.display_manager: DisplayManager | None = None
         self.input_manager: InputManager | None = None
         self.media: MediaPlayer | None = None
@@ -104,6 +116,8 @@ class DashboardApp:
         self._last_aux_press_count = 0
         self._integration_start_thread: threading.Thread | None = None
         self._last_encoder_status_log_s = 0.0
+        self._diagnostic_pin = None
+        self._diagnostic_pin_state = "-"
 
     def _available_theme_names(self) -> list[str]:
         theme_root = Path(self.config["themes"]["theme_root"])
@@ -177,9 +191,11 @@ class DashboardApp:
         self.display_manager.render(values=self._values, status=self._build_status())
         print(f"[startup] first frame submitted at {time.monotonic() - startup_t0:.3f}s", flush=True)
         self.input_manager = InputManager(self.config)
+        self.nano_bridge.bind_serial_writer(self.input_manager.nano_serial_writer())
         self.media = MediaPlayer(media_cfg)
         self.radio = FmRadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
         self._start_integrations_async(startup_t0)
+        self._init_diagnostic_pin()
         self._running = True
         clock = pygame.time.Clock()
 
@@ -203,10 +219,12 @@ class DashboardApp:
                 self.bluetooth_audio.poll()
                 if self.radio:
                     self.radio.tick()
+                self._tick_power_links()
                 self._update_startup_sweep()
                 self._reload_config_if_changed()
                 self._reload_theme_if_changed()
                 status = self._build_status()
+                self._publish_oled_and_audio(status)
                 self.display_manager.render(values=self._values, status=status)
                 fps = int(self.config["system"].get("target_fps", 30))
                 clock.tick(fps)
@@ -217,6 +235,9 @@ class DashboardApp:
             if self.radio:
                 self.radio.stop()
             self.audio_router.stop()
+            self.nano_bridge.stop()
+            self.esp32_link.stop()
+            self.attiny_power.stop()
             if self.display_manager:
                 self.display_manager.shutdown()
             self._restore_signal_handlers()
@@ -259,6 +280,12 @@ class DashboardApp:
                 print(f"[startup] bluetooth audio started at {time.monotonic() - startup_t0:.3f}s", flush=True)
             except Exception as exc:
                 print(f"[startup] bluetooth audio start failed: {exc}", flush=True)
+            try:
+                self.nano_bridge.start()
+                self.esp32_link.start()
+                self.attiny_power.start()
+            except Exception as exc:
+                print(f"[startup] hardware bridge start failed: {exc}", flush=True)
 
         self._integration_start_thread = threading.Thread(target=_starter, name="dash-integrations-start", daemon=True)
         self._integration_start_thread.start()
@@ -446,6 +473,11 @@ class DashboardApp:
             "fault_code_2": lines[1],
             "fault_code_3": lines[2],
             "fault_headline": lines[0] if lines[0] != "-" else "Fault detected",
+            "diagnostics_pin_state": self._diagnostic_pin_state,
+            "nano_bridge": self.nano_bridge.status(),
+            "esp32_link": self.esp32_link.status(),
+            "sensor_pack": "i2c",
+            "attiny_power": self.attiny_power.status(),
         }
         base_status.update(wifi_status_dict(self.config))
         return base_status
@@ -527,6 +559,8 @@ class DashboardApp:
         oil_min, oil_max = self._resolve_source_range("indicators.oil", (0.0, 100.0))
 
         self._values["analog_inputs.coolant_temp"] = self._lerp(temp_min, temp_max, ratio)
+        amb_min, amb_max = self._resolve_source_range("analog_inputs.ambient_temp", (45.0, 85.0))
+        self._values["analog_inputs.ambient_temp"] = self._lerp(amb_min, amb_max, ratio)
         self._values["analog_inputs.system_amp"] = self._lerp(amp_min, amp_max, ratio)
         self._values["indicators.oil"] = self._lerp(oil_min, oil_max, ratio)
 
@@ -547,6 +581,7 @@ class DashboardApp:
         if isinstance(sim, dict):
             range_map = {
                 "analog_inputs.coolant_temp": "temp_range",
+                "analog_inputs.ambient_temp": "ambient_range",
                 "analog_inputs.system_amp": "amp_range",
                 "analog_inputs.oil_pressure": "oil_range",
                 "indicators.oil": "oil_range",
@@ -659,6 +694,17 @@ class DashboardApp:
         self.audio_router.stop()
         self.audio_router = AudioRouterAdapter(self.config["integrations"].get("audio_router", {"enabled": False}))
         self.audio_router.start()
+        self.nano_bridge.stop()
+        self.esp32_link.stop()
+        self.attiny_power.stop()
+        self.nano_bridge = NanoBridge(self.config["integrations"].get("nano_bridge", {"enabled": False}))
+        self.nano_bridge.bind_serial_writer(self.input_manager.nano_serial_writer())
+        self.esp32_link = Esp32AudioLink(self.config["integrations"].get("esp32_audio_link", {"enabled": False}))
+        self.attiny_power = AttinyPowerLink(self.config["integrations"].get("attiny_power", {"enabled": False}))
+        self.nano_bridge.start()
+        self.esp32_link.start()
+        self.attiny_power.start()
+        self._init_diagnostic_pin()
         if self.display_manager and self._command_registry:
             self.display_manager.shutdown()
             self.display_manager = DisplayManager(
@@ -992,3 +1038,94 @@ class DashboardApp:
             self._theme_state_path.write_text(json.dumps(payload), encoding="utf-8")
         except OSError:
             return
+
+    def _init_diagnostic_pin(self) -> None:
+        self._diagnostic_pin = None
+        self._diagnostic_pin_state = "-"
+        system_cfg = self.config.get("system", {})
+        pin = int(system_cfg.get("diagnostics_gpio_pin", -1))
+        pull_up = bool(system_cfg.get("diagnostics_gpio_active_low", True))
+        if pin < 0 or DigitalInputDevice is None:
+            return
+        try:
+            self._diagnostic_pin = DigitalInputDevice(pin, pull_up=pull_up)
+        except Exception:
+            self._diagnostic_pin = None
+
+    def _tick_power_links(self) -> None:
+        self._values.update(self.attiny_power.poll())
+        if self._diagnostic_pin is None:
+            self._diagnostic_pin_state = "-"
+            return
+        try:
+            active_low = bool(self.config.get("system", {}).get("diagnostics_gpio_active_low", True))
+            raw = bool(self._diagnostic_pin.value)
+            active = (not raw) if active_low else raw
+            self._diagnostic_pin_state = "active" if active else "inactive"
+            self._values["diagnostics.pin_active"] = 1.0 if active else 0.0
+        except Exception:
+            self._diagnostic_pin_state = "error"
+
+    def _oled_clock_strings(self) -> tuple[str, str]:
+        now = datetime.now()
+        tm = now.strftime("%I:%M")
+        if tm.startswith("0") and len(tm) > 1 and tm[1] != ":":
+            tm = tm[1:]
+        ap = now.strftime("%p").upper()
+        return tm, ap
+
+    def _oled_weather_temp_str(self) -> str:
+        if "analog_inputs.ambient_temp" not in self._values:
+            return "--"
+        temp_f = float(self._values["analog_inputs.ambient_temp"])
+        return f"{temp_f:.0f}F"
+
+    def _oled_media_for_nano(self, status: dict[str, str]) -> tuple[str, str, int, str, str]:
+        """song_title, song_artist, progress_pct, pos_elapsed, pos_total."""
+        bt_cfg = self.config.get("integrations", {}).get("bluetooth_audio", {})
+        bt_on = isinstance(bt_cfg, dict) and bool(bt_cfg.get("enabled", False))
+        if bt_on and self.bluetooth_audio:
+            st = self.bluetooth_audio.media_title()
+            sa = self.bluetooth_audio.media_artist()
+            if not st and not sa:
+                combined = (status.get("media_track", "") or "").strip()
+                if " - " in combined:
+                    parts = combined.split(" - ", 1)
+                    sa, st = parts[0].strip(), parts[1].strip()
+                elif combined and combined not in ("-", "disabled"):
+                    st, sa = combined, ""
+                else:
+                    st, sa = "-", ""
+            return (st or "-", sa or "-", 0, "0:00", "0:00")
+        if self.media:
+            return (
+                self.media.track_title(),
+                "Local",
+                self.media.progress_pct(),
+                self.media.elapsed_mmss(),
+                "-:--",
+            )
+        return ("-", "-", 0, "0:00", "0:00")
+
+    def _publish_oled_and_audio(self, status: dict[str, str]) -> None:
+        track = status.get("media_track", "-")
+        self.esp32_link.publish_metadata(track)
+        nb_cfg = self.config.get("integrations", {}).get("nano_bridge", {})
+        weather_label = str(nb_cfg.get("weather_label", "OUTSIDE")) if isinstance(nb_cfg, dict) else "OUTSIDE"
+        st, sa, pr, pe, pt = self._oled_media_for_nano(status)
+        tm, ap = self._oled_clock_strings()
+        self.nano_bridge.send_oled_frame(
+            mode="menu" if (self.display_manager and self.display_manager.menu_overlay_visible()) else "drive",
+            title=status.get("theme_active", "-"),
+            line1=status.get("media", "-"),
+            line2=track,
+            weather_label=weather_label,
+            weather_temp=self._oled_weather_temp_str(),
+            song_title=st,
+            song_artist=sa,
+            progress_pct=pr,
+            pos_elapsed=pe,
+            pos_total=pt,
+            clock_time=tm,
+            clock_ampm=ap,
+        )

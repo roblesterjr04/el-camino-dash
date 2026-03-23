@@ -43,9 +43,7 @@ FAULT_BITS: list[tuple[int, str]] = [
 
 APP_SERVICE_UNITS: tuple[str, ...] = (
     "gauge-cluster.service",
-    "gauge-cluster-spi.service",
     "gauge-cluster-hdmi.service",
-    "gauge-hide-cursor.service",
 )
 
 APP_PROCESS_PATTERNS: tuple[str, ...] = (

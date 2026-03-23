@@ -1,22 +1,30 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pygame
 
 from dashboard.input.analog_adc import AnalogAdcInput
-from dashboard.input.arduino_serial import ArduinoSerialInput
 from dashboard.input.encoder_arduino_serial import EncoderArduinoSerialInput
 from dashboard.input.gpio_buttons import GpioButtonInput
 from dashboard.input.ir_remote import IrRemoteInput
 from dashboard.input.keyboard_sim import KeyboardSimInput
 from dashboard.input.mcp23017_controls import Mcp23017ControlsInput
 from dashboard.input.rotary_encoder import RotaryEncoderInput
+from dashboard.input.sensor_pack_i2c import SensorPackI2CInput
 from dashboard.input.simulated_data import SimulatedDataInput
 from dashboard.input.speed_sensor import SpeedSensorInput
 
 
 class InputManager:
+    _ROTARY_KEYBOARD_KEYS = (
+        "inputs.rotary.menu.delta",
+        "inputs.rotary.aux.delta",
+        "inputs.rotary.menu.presses",
+        "inputs.rotary.aux.presses",
+    )
+
     def __init__(self, config: dict[str, Any]) -> None:
         input_cfg = config["inputs"]
         self._rotary = [RotaryEncoderInput(spec) for spec in input_cfg["rotary_encoders"] if spec.get("enabled", False)]
@@ -25,7 +33,7 @@ class InputManager:
         self._ir_remote = IrRemoteInput(input_cfg.get("ir_remote", {"enabled": False}))
         self._analog = [AnalogAdcInput(spec) for spec in input_cfg["analog_inputs"] if spec.get("enabled", False)]
         self._speed = [SpeedSensorInput(spec) for spec in input_cfg["speed_sensors"] if spec.get("enabled", False)]
-        self._arduino_serial = ArduinoSerialInput(input_cfg.get("arduino_serial", {"enabled": False}))
+        self._sensor_pack_i2c = SensorPackI2CInput(input_cfg.get("sensor_pack_i2c", {"enabled": False}))
         self._encoder_arduino_serial = EncoderArduinoSerialInput(
             input_cfg.get("encoder_arduino_serial", {"enabled": False})
         )
@@ -43,10 +51,19 @@ class InputManager:
         self._keyboard_active = bool(active)
 
     def ir_last_code(self) -> str:
-        return self._ir_remote.last_code
+        remote = str(self._ir_remote.last_code or "").strip()
+        if remote:
+            return remote
+        return self._encoder_arduino_serial.last_ir_code()
 
     def encoder_last_frame(self) -> str:
         return self._encoder_arduino_serial.last_frame
+
+    def nano_serial_writer(self) -> Callable[[bytes], None] | None:
+        """When encoder serial is enabled, Pi OLED downlink shares this UART."""
+        if not self._encoder_arduino_serial.is_enabled():
+            return None
+        return self._encoder_arduino_serial.write_raw
 
     def poll(self) -> dict[str, float]:
         values: dict[str, float] = {}
@@ -57,19 +74,30 @@ class InputManager:
         for source in self._speed:
             values.update(source.poll())
         values.update(self._simulated.poll())
-        values.update(self._arduino_serial.poll())
+        values.update(self._sensor_pack_i2c.poll())
 
         pressed = pygame.key.get_pressed()
+        keyboard_rotary: dict[str, float] = {}
         if self._keyboard_enabled and self._keyboard_active:
-            values.update(self._keyboard.poll(pressed))
+            kb = self._keyboard.poll(pressed)
+            for key in self._ROTARY_KEYBOARD_KEYS:
+                if key in kb:
+                    keyboard_rotary[key] = float(kb[key])
+                    del kb[key]
+            values.update(kb)
         ir_values = self._ir_remote.poll()
         self._merge_rotary_actions(values, ir_values, source_id="ir_remote")
-        self._merge_rotary_actions(values, self._encoder_arduino_serial.poll(), source_id="encoder_arduino_serial")
+        enc_values = self._encoder_arduino_serial.poll()
+        self._merge_rotary_actions(values, enc_values, source_id="encoder_arduino_serial")
         self._merge_rotary_actions(values, self._mcp23017_controls.poll(), source_id="mcp23017_controls")
         for key, value in ir_values.items():
             if key.startswith("inputs.ir.command."):
                 values[key] = float(value)
+        for key, value in enc_values.items():
+            if key.startswith("inputs.ir.command."):
+                values[key] = max(float(values.get(key, 0.0)), float(value))
         self._merge_rotary_actions(values, self._gpio_buttons.poll(), source_id="gpio_buttons")
+        self._merge_rotary_actions(values, keyboard_rotary, source_id="keyboard_sim")
         for key, total in self._rotary_press_totals.items():
             values[key] = float(total)
         return values

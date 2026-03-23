@@ -145,12 +145,10 @@ class GaugeScreen:
                     redline_cfg=visuals.get("redline", {}),
                     invert_value=bool(visuals.get("invert_value", False)),
                 )
-            self._draw_corner_clock(surface, values)
             return
 
         if self._is_center_clock_mode():
             self._render_center_clock(surface, values, status, spec, cx, cy, radius)
-            self._draw_corner_clock(surface, values)
             return
 
         draw_under_dial = self._theme_flag_for_gauge("needle_under_dial", False)
@@ -186,91 +184,6 @@ class GaugeScreen:
             self._draw_text(surface, spec, value, values, status, unit_override)
         if self._theme_flag("show_odometer", True):
             self._draw_odometer(surface, spec, values)
-        self._draw_corner_clock(surface, values)
-
-    def _corner_clock_config(self) -> dict[str, Any]:
-        cfg = self._theme_data.get("corner_clock", {})
-        if isinstance(cfg, bool):
-            return {"enabled": cfg}
-        if not isinstance(cfg, dict):
-            return {}
-        merged: dict[str, Any] = {}
-        base_cfg = cfg.get("_default", {})
-        if isinstance(base_cfg, dict):
-            merged.update(base_cfg)
-        display_cfg = cfg.get(self.layout.display_id, {})
-        if isinstance(display_cfg, dict):
-            merged.update(display_cfg)
-        gauge_id = self.layout.gauge_id or ""
-        gauge_cfg = cfg.get(gauge_id, {})
-        if isinstance(gauge_cfg, dict):
-            merged.update(gauge_cfg)
-        for key, value in cfg.items():
-            if key in {"_default", self.layout.display_id, gauge_id}:
-                continue
-            if not isinstance(value, dict):
-                merged[key] = value
-        return merged
-
-    def _draw_corner_clock(self, surface: pygame.Surface, values: dict[str, float]) -> None:
-        # Rectangle layouts benefit from a persistent corner clock; round layouts
-        # keep existing gauge-centric clock behavior.
-        if self.layout.shape.strip().lower() != "rectangle":
-            return
-        cfg = self._corner_clock_config()
-        enabled = bool(cfg.get("enabled", True))
-        if not enabled:
-            return
-        if self._is_center_clock_mode() and not bool(cfg.get("show_with_center_clock", False)):
-            return
-
-        now = datetime.now()
-        use_24h = bool(cfg.get("use_24h", False))
-        include_seconds = bool(cfg.get("include_seconds", False))
-        time_fmt = "%H:%M:%S" if (use_24h and include_seconds) else (
-            "%H:%M" if use_24h else ("%I:%M:%S" if include_seconds else "%I:%M")
-        )
-        time_label = now.strftime(time_fmt)
-        if not use_24h:
-            time_label = time_label.lstrip("0")
-
-        preferred_font = str(cfg.get("font_name", "")).strip()
-        font_scale = float(cfg.get("font_scale", 0.06))
-        font_size = max(12, int(self.layout.height * max(0.02, font_scale)))
-        clock_font = self._digital_font(font_size, preferred_font=preferred_font)
-
-        digital_palette = self._theme_data.get("digital_palette", {})
-        default_color = tuple(digital_palette.get("text", [240, 250, 255]))
-        text_color = self._resolve_rgb(cfg.get("text_color"), default_color)
-        box_color = self._resolve_rgb(cfg.get("box_color"), (0, 0, 0))
-        box_alpha = max(0, min(255, int(cfg.get("box_alpha", 120))))
-        show_box = bool(cfg.get("show_box", True))
-
-        margin_x = int(cfg.get("margin_x_px", max(8, int(self.layout.width * 0.02))))
-        margin_y = int(cfg.get("margin_y_px", max(8, int(self.layout.height * 0.025))))
-        text_surface = clock_font.render(time_label, True, text_color)
-        text_rect = text_surface.get_rect(topleft=(margin_x, margin_y))
-        temp_font = self._digital_font(max(10, int(font_size * 0.62)), preferred_font=preferred_font)
-        temp_surface = temp_font.render(self._clock_temperature_label(values), True, text_color)
-        temp_rect = temp_surface.get_rect(topleft=(margin_x, text_rect.bottom + max(2, int(font_size * 0.12))))
-        if show_box:
-            pad_x = max(4, int(font_size * 0.18))
-            pad_y = max(2, int(font_size * 0.12))
-            box_rect = pygame.Rect(
-                text_rect.left - pad_x,
-                text_rect.top - pad_y,
-                max(text_rect.width, temp_rect.width) + (pad_x * 2),
-                (temp_rect.bottom - text_rect.top) + (pad_y * 2),
-            )
-            box_surface = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
-            box_surface.fill((box_color[0], box_color[1], box_color[2], box_alpha))
-            surface.blit(box_surface, box_rect.topleft)
-        surface.blit(text_surface, text_rect.topleft)
-        surface.blit(temp_surface, temp_rect.topleft)
-        dot_radius = max(2, int(font_size * 0.15))
-        dot_gap = max(4, int(font_size * 0.32))
-        dot_center = (text_rect.right + dot_gap + dot_radius, text_rect.centery)
-        self._draw_ir_activity_dot(surface, center=dot_center, radius=dot_radius)
 
     def _is_center_clock_mode(self) -> bool:
         if self.layout.display_id != "gauge_center":
@@ -563,13 +476,31 @@ class GaugeScreen:
         if not mask:
             surface.blit(dial_layer, (0, 0))
             return
-        resized_mask = pygame.transform.smoothscale(mask, (self.layout.width, self.layout.height))
+        resized_mask = self._scale_mask_surface_to_layout(mask)
         # Treat near-white pixels in mask art as the visible area.
         mask_bin = pygame.mask.from_threshold(resized_mask, (255, 255, 255, 255), (96, 96, 96, 255))
         alpha_mask = mask_bin.to_surface(setcolor=(255, 255, 255, 255), unsetcolor=(255, 255, 255, 0))
         clipped = dial_layer.copy()
         clipped.blit(alpha_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
         surface.blit(clipped, (0, 0))
+
+    def _scale_mask_surface_to_layout(self, mask: pygame.Surface) -> pygame.Surface:
+        lw, lh = self.layout.width, self.layout.height
+        w, h = mask.get_size()
+        if w <= 0 or h <= 0:
+            return pygame.Surface((max(1, lw), max(1, lh)), pygame.SRCALPHA)
+        if str(self.layout.shape).strip().lower() != "round":
+            return pygame.transform.smoothscale(mask, (lw, lh))
+        side = max(1, min(lw, lh))
+        scale = min(side / w, side / h)
+        nw = max(1, int(w * scale))
+        nh = max(1, int(h * scale))
+        scaled = pygame.transform.smoothscale(mask, (nw, nh))
+        layer = pygame.Surface((lw, lh), pygame.SRCALPHA)
+        layer.fill((0, 0, 0, 0))
+        rect = scaled.get_rect(center=(lw // 2, lh // 2))
+        layer.blit(scaled, rect.topleft)
+        return layer
 
     def _load_gauge_mask_surface(self) -> pygame.Surface | None:
         gauge_id = self.layout.gauge_id or ""
@@ -1039,13 +970,15 @@ class GaugeScreen:
         return fallback
 
     def _clock_temperature_label(self, values: dict[str, float]) -> str:
-        source = "analog_inputs.coolant_temp"
-        raw_temp = float(values.get(source, 0.0))
+        source = "analog_inputs.ambient_temp"
+        if source not in values:
+            return "OUTSIDE --"
+        raw_temp = float(values[source])
         calibrated_temp, unit_override = self._apply_source_calibration(source, raw_temp)
         temp_unit = unit_override or str(self.config.get("gauges", {}).get("temp", {}).get("unit", "")).strip()
         if temp_unit:
-            return f"TEMP {calibrated_temp:.0f}{temp_unit}"
-        return f"TEMP {calibrated_temp:.0f}"
+            return f"OUTSIDE {calibrated_temp:.0f}{temp_unit}"
+        return f"OUTSIDE {calibrated_temp:.0f}"
 
     def _render_digital_clock(self, surface: pygame.Surface, values: dict[str, float], status: dict[str, str]) -> None:
         cfg = self._digital_render_config("clock")
@@ -1448,7 +1381,21 @@ class GaugeScreen:
             surface.blit(resized, rect.topleft)
             return
 
-        resized = pygame.transform.smoothscale(sprite, (self.layout.width, self.layout.height))
+        lw, lh = self.layout.width, self.layout.height
+        w, h = sprite.get_size()
+        if w <= 0 or h <= 0:
+            return
+        if str(self.layout.shape).strip().lower() == "round":
+            side = max(1, min(lw, lh))
+            scale = min(side / w, side / h)
+            new_w = max(1, int(w * scale))
+            new_h = max(1, int(h * scale))
+            resized = pygame.transform.smoothscale(sprite, (new_w, new_h))
+            rect = resized.get_rect(center=((lw // 2) + offset_x, (lh // 2) + offset_y))
+            surface.blit(resized, rect.topleft)
+            return
+
+        resized = pygame.transform.smoothscale(sprite, (lw, lh))
         surface.blit(resized, (offset_x, offset_y))
 
     def _layer_offset(self, layer_cfg: dict[str, Any]) -> tuple[int, int]:
@@ -1459,6 +1406,70 @@ class GaugeScreen:
             offset_x = int(offset_px[0])
             offset_y = int(offset_px[1])
         return offset_x, offset_y
+
+    def _layer_scaled_rect(self, layer_name: str, default_mode: str = "fill") -> pygame.Rect | None:
+        """Destination rect where a dial/overlay layer is drawn (matches _blit_layer_sprite)."""
+        sprite = self._sprite_cache.get(layer_name)
+        if sprite is None:
+            return None
+        gauge_id = self._active_sprite_key()
+        render_cfg = self._theme_data.get("sprite_render", {})
+        gauge_cfg = render_cfg.get(gauge_id, {})
+        layer_cfg = gauge_cfg.get(layer_name, {})
+        mode = str(layer_cfg.get("mode", default_mode))
+        offset_x, offset_y = self._layer_offset(layer_cfg)
+        w, h = sprite.get_size()
+        if w <= 0 or h <= 0:
+            return None
+        lw, lh = self.layout.width, self.layout.height
+
+        if mode == "center":
+            return sprite.get_rect(center=((lw // 2) + offset_x, (lh // 2) + offset_y))
+
+        if mode == "center_scale":
+            scale = float(layer_cfg.get("scale", 0.2))
+            target = max(4, int(min(lw, lh) * scale))
+            if w >= h:
+                new_w = target
+                new_h = max(1, int((h / w) * target))
+            else:
+                new_h = target
+                new_w = max(1, int((w / h) * target))
+            rect = pygame.Rect(0, 0, new_w, new_h)
+            rect.center = ((lw // 2) + offset_x, (lh // 2) + offset_y)
+            return rect
+
+        if str(self.layout.shape).strip().lower() == "round":
+            side = max(1, min(lw, lh))
+            scale = min(side / w, side / h)
+            new_w = max(1, int(w * scale))
+            new_h = max(1, int(h * scale))
+            rect = pygame.Rect(0, 0, new_w, new_h)
+            rect.center = ((lw // 2) + offset_x, (lh // 2) + offset_y)
+            return rect
+
+        return pygame.Rect(offset_x, offset_y, lw, lh)
+
+    def _indicator_anchor_point(self, indicator: dict[str, Any]) -> tuple[int, int]:
+        center = indicator.get("center_ratio", [0.5, 0.5])
+        if not isinstance(center, list) or len(center) != 2:
+            center = [0.5, 0.5]
+        offset_x = int(indicator.get("offset_x_px", 0))
+        offset_y = int(indicator.get("offset_y_px", 0))
+        offset_pair = indicator.get("offset_px")
+        if isinstance(offset_pair, list) and len(offset_pair) == 2:
+            offset_x = int(offset_pair[0])
+            offset_y = int(offset_pair[1])
+        align = str(indicator.get("align_layer", "layout")).strip().lower()
+        if align in ("dial", "overlay"):
+            layer_rect = self._layer_scaled_rect(align)
+            if layer_rect is not None:
+                cx = int(layer_rect.left + layer_rect.width * float(center[0])) + offset_x
+                cy = int(layer_rect.top + layer_rect.height * float(center[1])) + offset_y
+                return (cx, cy)
+        cx = int(self.layout.width * float(center[0])) + offset_x
+        cy = int(self.layout.height * float(center[1])) + offset_y
+        return (cx, cy)
 
     def _theme_flag(self, key: str, default: bool) -> bool:
         value = self._theme_data.get(key, default)
@@ -1639,17 +1650,7 @@ class GaugeScreen:
             new_h = target
             new_w = max(1, int((w / h) * target))
         resized = pygame.transform.smoothscale(sprite, (new_w, new_h))
-        center = indicator.get("center_ratio", [0.5, 0.5])
-        if not isinstance(center, list) or len(center) != 2:
-            center = [0.5, 0.5]
-        offset_x = int(indicator.get("offset_x_px", 0))
-        offset_y = int(indicator.get("offset_y_px", 0))
-        offset_pair = indicator.get("offset_px")
-        if isinstance(offset_pair, list) and len(offset_pair) == 2:
-            offset_x = int(offset_pair[0])
-            offset_y = int(offset_pair[1])
-        cx = int(self.layout.width * float(center[0])) + offset_x
-        cy = int(self.layout.height * float(center[1])) + offset_y
+        cx, cy = self._indicator_anchor_point(indicator)
         rect = resized.get_rect(center=(cx, cy))
         surface.blit(resized, rect.topleft)
 
@@ -1660,17 +1661,7 @@ class GaugeScreen:
         if (not is_on) and (not bool(indicator.get("show_when_off", True))):
             return
 
-        center = indicator.get("center_ratio", [0.5, 0.5])
-        if not isinstance(center, list) or len(center) != 2:
-            center = [0.5, 0.5]
-        offset_x = int(indicator.get("offset_x_px", 0))
-        offset_y = int(indicator.get("offset_y_px", 0))
-        offset_pair = indicator.get("offset_px")
-        if isinstance(offset_pair, list) and len(offset_pair) == 2:
-            offset_x = int(offset_pair[0])
-            offset_y = int(offset_pair[1])
-        cx = int(self.layout.width * float(center[0])) + offset_x
-        cy = int(self.layout.height * float(center[1])) + offset_y
+        cx, cy = self._indicator_anchor_point(indicator)
 
         indicator_size = max(6, int(min(self.layout.width, self.layout.height) * float(indicator.get("size_ratio", 0.08))))
         on_color = self._resolve_rgb(indicator.get("on_color"), (255, 208, 64))

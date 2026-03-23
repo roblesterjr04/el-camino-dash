@@ -11,7 +11,7 @@ system:
   startup_sweep_down_s: 0.7
   left_to_right_preview: false
   left_to_right_spacing_px: 16
-  menu_schema_path: config/menu_schema.yaml
+  menu_schema_path: config/menu_schema_v2.yaml
   menu_display_id: gauge_right
   alert_display_id: gauge_center
   alert_overlay_mode: full
@@ -27,52 +27,179 @@ system:
   raw_input_log_enabled: false
   raw_input_log_path: data/raw_inputs.vehicle.log
   raw_input_log_interval_s: 0.2
-
+  diagnostics_gpio_pin: 21
+  diagnostics_gpio_active_low: true
 displays:
-  - {id: gauge_left, enabled: true, shape: round, width: 1080, height: 1080, position: [0, 0], monitor_index: 0, windowed: false, fullscreen: true, fps: 30, role: gauge, gauge_id: speedometer}
-  - {id: gauge_center, enabled: true, shape: round, width: 720, height: 720, position: [2160, 0], monitor_index: 1, windowed: false, fullscreen: true, fps: 30, role: gauge, gauge_id: fuel}
-  - {id: gauge_right, enabled: true, shape: round, width: 1080, height: 1080, position: [1080, 0], monitor_index: 2, windowed: false, fullscreen: true, fps: 30, role: gauge, gauge_id: tachometer}
-
+- id: gauge_left
+  enabled: true
+  shape: round
+  width: 1080
+  height: 1080
+  position:
+  - 0
+  - 0
+  monitor_index: 0
+  windowed: false
+  fullscreen: true
+  fps: 30
+  role: gauge
+  gauge_id: speedometer
+- id: gauge_center
+  enabled: true
+  shape: round
+  width: 720
+  height: 720
+  position:
+  - 1080
+  - 0
+  monitor_index: 1
+  windowed: false
+  fullscreen: true
+  fps: 30
+  role: gauge
+  gauge_id: fuel
+- id: gauge_right
+  enabled: true
+  shape: round
+  width: 1080
+  height: 1080
+  position:
+  - 1800
+  - 0
+  monitor_index: 2
+  windowed: false
+  fullscreen: true
+  fps: 30
+  role: gauge
+  gauge_id: tachometer
 themes:
   active: sport
   allow_fallback: true
   theme_root: themes
   gauge_asset_root: assets/gauges
   font_name: freesansbold.ttf
-
 gauges:
-  speedometer: {label: Speed, unit: mph, source: speed_sensor.vehicle_speed, min_value: 0, max_value: 140, smoothing_alpha: 0.2, odometer_source: vehicle.odometer_miles, odometer_label: ODO, odometer_unit: mi, odometer_decimals: 1}
-  tachometer: {label: RPM, unit: rpm, source: analog_inputs.engine_rpm, min_value: 0, max_value: 8000, smoothing_alpha: 0.2, secondary_label: Temp, secondary_source: analog_inputs.coolant_temp, secondary_unit: "F"}
-  tsps: {label: TSPS, unit: "%", source: analog_inputs.fuel_level, min_value: 0, max_value: 100, smoothing_alpha: 0.3}
-  fuel: {label: Fuel, unit: "%", source: analog_inputs.fuel_level, min_value: 0, max_value: 100, smoothing_alpha: 0.3}
-  temp: {label: Temp, unit: "F", source: analog_inputs.coolant_temp, min_value: 100, max_value: 260, smoothing_alpha: 0.2}
-  amp: {label: Amp, unit: A, source: analog_inputs.system_amp, min_value: -100, max_value: 100, smoothing_alpha: 0.2}
-
+  speedometer:
+    label: Speed
+    unit: mph
+    source: speed_sensor.vehicle_speed
+    min_value: 0
+    max_value: 140
+    smoothing_alpha: 0.2
+    odometer_source: vehicle.odometer_miles
+    odometer_label: ODO
+    odometer_unit: mi
+    odometer_decimals: 1
+  tachometer:
+    label: RPM
+    unit: rpm
+    source: analog_inputs.engine_rpm
+    min_value: 0
+    max_value: 8000
+    smoothing_alpha: 0.2
+    secondary_label: Temp
+    secondary_source: analog_inputs.coolant_temp
+    secondary_unit: F
+  tsps:
+    label: TSPS
+    unit: '%'
+    source: analog_inputs.fuel_level
+    min_value: 0
+    max_value: 100
+    smoothing_alpha: 0.3
+  fuel:
+    label: Fuel
+    unit: '%'
+    source: analog_inputs.fuel_level
+    min_value: 0
+    max_value: 100
+    smoothing_alpha: 0.3
+  temp:
+    label: Temp
+    unit: F
+    source: analog_inputs.coolant_temp
+    min_value: 100
+    max_value: 260
+    smoothing_alpha: 0.2
+  amp:
+    label: Amp
+    unit: A
+    source: analog_inputs.system_amp
+    min_value: -100
+    max_value: 100
+    smoothing_alpha: 0.2
 inputs:
   rotary_encoders:
-    - {id: menu, enabled: false, pin_a: 17, pin_b: 27, pin_button: 22, pull_up: true, debounce_ms: 3, invert_direction: false, acceleration: 1.0}
-    - {id: aux, enabled: false, pin_a: 23, pin_b: 24, pin_button: 25, pull_up: true, debounce_ms: 3, invert_direction: false, acceleration: 1.0}
+  - id: menu
+    enabled: false
+    pin_a: 17
+    pin_b: 27
+    pin_button: 22
+    pull_up: true
+    debounce_ms: 3
+    invert_direction: false
+    acceleration: 1.0
+  - id: aux
+    enabled: false
+    pin_a: 23
+    pin_b: 24
+    pin_button: 25
+    pull_up: true
+    debounce_ms: 3
+    invert_direction: false
+    acceleration: 1.0
   analog_inputs:
-    - {id: engine_rpm, enabled: false, adc_type: mcp3008, spi_bus: 0, spi_device: 0, channel: 0, min_raw: 0, max_raw: 1023, scale_min: 0, scale_max: 8000}
-    - {id: fuel_level, enabled: false, adc_type: mcp3008, spi_bus: 0, spi_device: 0, channel: 1, min_raw: 0, max_raw: 1023, scale_min: 0, scale_max: 100}
-    - {id: coolant_temp, enabled: false, adc_type: mcp3008, spi_bus: 0, spi_device: 0, channel: 2, min_raw: 0, max_raw: 1023, scale_min: 100, scale_max: 260}
-    - {id: system_amp, enabled: false, adc_type: mcp3008, spi_bus: 0, spi_device: 0, channel: 3, min_raw: 0, max_raw: 1023, scale_min: -100, scale_max: 100}
+  - id: engine_rpm
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 0
+    min_raw: 0
+    max_raw: 1023
+    scale_min: 0
+    scale_max: 8000
+  - id: fuel_level
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 1
+    min_raw: 0
+    max_raw: 1023
+    scale_min: 0
+    scale_max: 100
+  - id: coolant_temp
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 2
+    min_raw: 0
+    max_raw: 1023
+    scale_min: 100
+    scale_max: 260
+  - id: system_amp
+    enabled: false
+    adc_type: mcp3008
+    spi_bus: 0
+    spi_device: 0
+    channel: 3
+    min_raw: 0
+    max_raw: 1023
+    scale_min: -100
+    scale_max: 100
   speed_sensors:
-    - {id: vehicle_speed, enabled: false, gpio_pin: 5, pulses_per_revolution: 20, wheel_circumference_m: 2.1, timeout_ms: 800, smoothing_alpha: 0.35}
-  arduino_serial:
-    enabled: true
-    port: /dev/serial0
-    baudrate: 115200
-    timeout_s: 0.0
+  - id: vehicle_speed
+    enabled: false
+    gpio_pin: 5
+    pulses_per_revolution: 20
     wheel_circumference_m: 2.1
-    speed_pulses_per_rev: 1
-    fuel_range: [0, 100]
-    temp_range: [100, 260]
-    oil_range: [0, 100]
-    voltage_range: [10, 16]
+    timeout_ms: 800
+    smoothing_alpha: 0.35
   encoder_arduino_serial:
     enabled: true
-    port: /dev/ttyAMA4
+    port: /dev/serial0
     baudrate: 115200
     timeout_s: 0.0
     open_retry_interval_s: 1.0
@@ -100,21 +227,45 @@ inputs:
     temp_period_s: 14.0
     amp_period_s: 5.0
     oil_period_s: 9.0
-    speed_range: [0, 95]
-    rpm_range: [800, 10000]
-    fuel_range: [18, 88]
-    temp_range: [160, 230]
-    amp_range: [-35, 60]
-    oil_range: [8, 62]
+    speed_range:
+    - 0
+    - 95
+    rpm_range:
+    - 800
+    - 10000
+    fuel_range:
+    - 18
+    - 88
+    temp_range:
+    - 160
+    - 230
+    ambient_period_s: 18.0
+    ambient_range:
+    - 35
+    - 95
+    amp_range:
+    - -35
+    - 60
+    oil_range:
+    - 8
+    - 62
     fault_sim_enabled: false
     fault_cycle_period_s: 5.0
-    fault_codes: [1, 4, 16, 128, 256, 1024]
+    fault_codes:
+    - 1
+    - 4
+    - 16
+    - 128
+    - 256
+    - 1024
   keyboard_sim:
     enabled: true
     rotate_repeat_ms: 130
     rpm_max: 10000
     temp_min: 100
     temp_max: 260
+    ambient_temp_min: -20
+    ambient_temp_max: 120
     amp_min: -100
     amp_max: 100
     oil_min: 0
@@ -134,6 +285,8 @@ inputs:
       fuel_down: K_f
       temp_up: K_t
       temp_down: K_g
+      ambient_up: K_i
+      ambient_down: K_k
       amp_up: K_y
       amp_down: K_h
       oil_up: K_u
@@ -141,11 +294,8 @@ inputs:
   ir_remote:
     enabled: false
     profile_path: config/remotes/remote_1.yaml
-    # Example: /dev/input/event2
-    device_path: ""
-    # Example: gpio_ir_recv
-    device_name: ""
-    # IR decoder protocol applied via `ir-keytable` when enabled.
+    device_path: ''
+    device_name: ''
     protocol: nec
     rc_device: rc0
     apply_protocol: true
@@ -153,12 +303,36 @@ inputs:
     diagnostics_pulse_count: 10
     diagnostics_window_ms: 1500
     diagnostics_max_gap_ms: 180
-
+  sensor_pack_i2c:
+    enabled: true
+    bus: 1
+    address: 18
+    register: 0
+    frame_len: 16
 integrations:
-  navit: {enabled: true, executable: navit, args: []}
-  media: {enabled: true, music_root: media, startup_track: "", startup_volume: 0.5}
-  bluetooth_metadata: {enabled: false, provider: mock}
-  fm_radio: {enabled: false, chip: si4703, i2c_bus: 1, address: 17, rst_pin: 5, startup_mode: fm, startup_freq_mhz: 101.3, wb_channel: 1, startup_volume: 45, fm_step_mhz: 0.1}
+  navit:
+    enabled: true
+    executable: navit
+    args: []
+  media:
+    enabled: true
+    music_root: media
+    startup_track: ''
+    startup_volume: 0.5
+  bluetooth_metadata:
+    enabled: false
+    provider: mock
+  fm_radio:
+    enabled: false
+    chip: si4703
+    i2c_bus: 1
+    address: 17
+    rst_pin: 5
+    startup_mode: fm
+    startup_freq_mhz: 101.3
+    wb_channel: 1
+    startup_volume: 45
+    fm_step_mhz: 0.1
   audio_router:
     enabled: false
     chip: pt2314
@@ -170,6 +344,22 @@ integrations:
     settle_ms: 8
     sources:
       pi_dac:
-        command_bytes: [192]
+        command_bytes:
+        - 192
       fm_radio:
-        command_bytes: [193]
+        command_bytes:
+        - 193
+  nano_bridge:
+    enabled: true
+    port: /dev/serial0
+    baudrate: 115200
+    write_interval_s: 0.2
+  esp32_audio_link:
+    enabled: true
+    i2c_bus: 1
+    address: 42
+  attiny_power:
+    enabled: true
+    request_pin: 16
+    confirm_pin: 12
+    pull_up: true

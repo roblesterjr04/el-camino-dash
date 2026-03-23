@@ -16,6 +16,7 @@ class KeyboardSimState:
     rpm: float = 0.0
     fuel: float = 50.0
     temp: float = 180.0
+    ambient_temp: float = 72.0
     amp: float = 0.0
     oil: float = 100.0
     encoder_delta: float = 0.0
@@ -34,6 +35,8 @@ class KeyboardSimInput:
         self._rpm_max = max(0.0, float(config.get("rpm_max", 8000.0)))
         self._temp_min = float(config.get("temp_min", 100.0))
         self._temp_max = float(config.get("temp_max", 260.0))
+        self._ambient_min = float(config.get("ambient_temp_min", -20.0))
+        self._ambient_max = float(config.get("ambient_temp_max", 120.0))
         self._amp_min = float(config.get("amp_min", -100.0))
         self._amp_max = float(config.get("amp_max", 100.0))
         self._oil_min = float(config.get("oil_min", 0.0))
@@ -85,6 +88,15 @@ class KeyboardSimInput:
         temp_changed = self._update_axis(
             pressed, "temp_up", "temp_down", "temp", 1.0, self._temp_min, self._temp_max
         )
+        ambient_changed = self._update_axis(
+            pressed,
+            "ambient_up",
+            "ambient_down",
+            "ambient_temp",
+            1.0,
+            self._ambient_min,
+            self._ambient_max,
+        )
         amp_changed = self._update_axis(
             pressed, "amp_up", "amp_down", "amp", 1.0, self._amp_min, self._amp_max
         )
@@ -100,6 +112,8 @@ class KeyboardSimInput:
             updates["analog_inputs.fuel_level"] = self._state.fuel
         if temp_changed:
             updates["analog_inputs.coolant_temp"] = self._state.temp
+        if ambient_changed:
+            updates["analog_inputs.ambient_temp"] = self._state.ambient_temp
         if amp_changed:
             updates["analog_inputs.system_amp"] = self._state.amp
         if oil_changed:
@@ -167,6 +181,8 @@ class KeyboardSimInput:
         if key is None and fallback_key:
             key = self._key(fallback_key)
         is_down = bool(key is not None and pressed[key])
+        if not is_down and primary_key == "menu_press" and key == pygame.K_RETURN:
+            is_down = bool(pressed[pygame.K_KP_ENTER])
         was_down = self._last_pressed[state_key]
         self._last_pressed[state_key] = is_down
         return is_down and not was_down

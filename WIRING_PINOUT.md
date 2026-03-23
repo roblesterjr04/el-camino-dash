@@ -12,11 +12,9 @@ Reference baseline: Raspberry Pi 40-pin header mapping used on current Pi models
 | I2C SCL (SI4703 + PT2314 control) | 3 | 5 | bidirectional | Shared I2C bus 1 |
 | Arduino reset pulse (programming only) | 4 | 7 | output | Used by installer flash/reset helper |
 | FM radio reset (SI4703 breakout reset) | 5 | 29 | output | `integrations.fm_radio.rst_pin` |
-| IR receiver (gpio-ir overlay) | 26 | 37 | input | `dtoverlay=gpio-ir,gpio_pin=26` |
-| Sensor-pack Arduino UART TX -> Arduino RX | 14 (TXD0) | 8 | output | primary UART / `/dev/serial0` |
-| Sensor-pack Arduino UART RX <- Arduino TX | 15 (RXD0) | 10 | input | primary UART / `/dev/serial0` |
-| Encoder Arduino UART TX -> Arduino RX | 8 (TXD4) | 24 | output | `uart4` / `/dev/ttyAMA4` |
-| Encoder Arduino UART RX <- Arduino TX | 9 (RXD4) | 21 | input | `uart4` / `/dev/ttyAMA4` |
+| IR via **gpio-ir** (optional; disable if using encoder IR) | 26 | 37 | input | `dtoverlay=gpio-ir,gpio_pin=26` |
+| **Encoder / vehicle MCU UART TX → MCU RX** | **14 (TXD0)** | **8** | output | **Primary UART only** — `/dev/serial0` |
+| **Encoder / vehicle MCU UART RX ← MCU TX** | **15 (RXD0)** | **10** | input | **Primary UART only** — `/dev/serial0` |
 | ATtiny PI_SIGNAL (shutdown notice) | 16 | 36 | input | From ATtiny PB1 |
 | ATtiny PI_CONFIRM (shutdown complete) | 12 | 32 | output | To ATtiny ADC3 |
 | I2S BCLK -> PCM5102A BCK | 18 | 12 | output | PCM/I2S clock |
@@ -26,17 +24,13 @@ Reference baseline: Raspberry Pi 40-pin header mapping used on current Pi models
 | 5V rail | - | 2 or 4 | power | Board power where required |
 | Ground | - | any GND pin | ground | Common ground across Pi/Arduinos/ATtiny |
 
-## Encoder Arduino (second ATmega328P)
+There is **no second Pi UART** in this design: encoders, OLED downlink, and any future Nano-side traffic share **TXD0/RXD0**. Vehicle analog/RPM data use **`inputs.sensor_pack_i2c`** on I2C, not a separate UART.
 
-Rotary/menu controls are now handled by a dedicated ATmega328P and sent to the
-Pi over a second UART link (`inputs.encoder_arduino_serial`).
+## Encoder Arduino (ATmega328P)
 
-Recommended defaults:
+Rotary/menu controls and SPI OLED are handled on the encoder MCU. The Pi opens **`/dev/serial0`** at **`115200`** for `inputs.encoder_arduino_serial` and `integrations.nano_bridge` (same FD when encoder serial is enabled).
 
-- Pi serial device: `/dev/ttyAMA4` (UART4 on GPIO8/GPIO9).
-- Baud: `115200`.
-
-ATmega328P control-side pin map used by the new sketch:
+ATmega328P control-side pin map:
 
 | Control | ATmega328P pin |
 |---|---|
@@ -48,19 +42,37 @@ ATmega328P control-side pin map used by the new sketch:
 | Aux encoder push | D7 |
 | Menu left button | D8 |
 | Menu select button | D9 |
+| **IR demodulator OUT** (38 kHz module, e.g. VS1838B) | **A0** (digital in; 3V3 **VCC**/GND) |
+
+NEC IR is decoded on the encoder MCU (**Arduino-IRremote** v4). Map remote keys in `applyNecCommand()` inside `encoder_controller.ino`; the Pi receives `IR=<token>` on the same UART line as encoders. Leave **`inputs.ir_remote.enabled: false`** when using this path.
+
+SPI OLED (**SSD1322 256×64**, U8g2 `SSD1322_NHD_256X64`) on the **encoder** ATmega328P uses hardware SPI and leaves D2–D9 free for encoders/buttons:
+
+| OLED signal | ATmega328P pin |
+|---|---|
+| MOSI | D11 |
+| SCK | D13 |
+| CS | D10 |
+| **DC** (data/command) | **A4** — must match `OLED_DC` in `encoder_controller.ino` |
+| **RST** | **A5** — must not be swapped with **DC**; swapping DC/RST produces full-screen snow/garbage |
+| VCC / GND | 3V3 or 5V per module (logic must match level shifters if any) |
+
+Some 256×64 modules use a **ZJY** SSD1322 variant; if the NHD profile does not initialize, switch the sketch to `U8G2_SSD1322_ZJY_256X64_1_4W_HW_SPI` (same wiring).
+
+**Speckles / snow:** Usually SPI too fast for the wiring (default **`OLED_SPI_MAX_HZ`** is **400 kHz** in the sketch; lower further if needed). First verify **DC** and **RST** are not crossed. Also **GND** common, short MOSI/SCK/CS/DC leads, and 3V3 logic levels. Wrong controller profile (NHD vs ZJY) or a **128×64 SSD1306** panel mis-labeled as 256×64 will also look like garbage—match the driver to the chip.
 
 Serial framing emitted by `arduino/sketches/encoder_controller/encoder_controller.ino`:
 
 - One line per event batch, newline-terminated.
-- Format: `MD=<int>,AD=<int>,MP=<count>,AP=<count>`.
+- Format: `MD=<int>,AD=<int>,MP=<count>,AP=<count>` optional `,IR=<token>` for Pi-side actions.
 - `MD`/`AD` are signed deltas since previous transmission.
 - `MP`/`AP` are cumulative press counters.
 
 ## IR receiver placement
 
-The IR sensor can be mounted on the expansion board, but route its signal trace
-to a direct Pi GPIO line (current config uses GPIO26 / pin 37 via
-`dtoverlay=gpio-ir,gpio_pin=26`).
+**Preferred (plan):** mount the demodulator on the **encoder** board, **OUT → ATmega328P A0** (see table above).
+
+**Alternate:** route to the Pi (GPIO26 / pin 37, `dtoverlay=gpio-ir,gpio_pin=26`) and enable **`inputs.ir_remote`** — do **not** use both paths at once for the same remote actions.
 
 ## FM module strategy
 
@@ -85,9 +97,13 @@ These command bytes are config-driven for board-to-board flexibility.
 
 ## Arduino sensor pack (vehicle senders)
 
-All vehicle sender inputs are expected on the Arduino sensor pack, then forwarded to Pi over UART.
+Production path: **I2C** sensor frames (`inputs.sensor_pack_i2c`) from the ATmega328 sensor pack — **no UART** to the Pi for gauges.
 
-From `arduino/sketches/sensor_pack/sensor_pack.ino`:
+**Temperature semantics on the Pi:** `analog_inputs.coolant_temp` is **engine coolant** only. `analog_inputs.ambient_temp` is **outside / ambient air** (OLED `WT`, clock “OUTSIDE …” label). **I2C** `sensor_pack_i2c` currently publishes coolant in the frame’s temp field only — ambient is **not** in that 16-byte map yet, so those installs will show `--` for outside until the pack firmware/protocol adds it or you use another source. **UART** `inputs.arduino_serial` **extended** packets (21-byte payload after sync) include ambient ADC bytes `[8:9]` mapped to `analog_inputs.ambient_temp` (see `sensor_pack.ino` / A4).
+
+The legacy `arduino/sketches/sensor_pack/sensor_pack.ino` UART binary protocol remains for bench bring-up only; it cannot run concurrently with the encoder on the same Pi UART.
+
+Pin map (sensor MCU), from `sensor_pack.ino`:
 
 | Signal | Arduino pin |
 |---|---|
@@ -154,14 +170,11 @@ bash arduino/scripts/program_power_control_attiny.sh --wiring
 ## Legacy SPI pin overlap
 
 SPI display mode is intentionally dormant in current installer/runtime defaults.
-With UART4 now used for Arduino comms, these pins are intentionally not available
-for SPI wiring in the standard harness:
-
-- GPIO7 (pin 26), GPIO8 (pin 24), GPIO9 (pin 21), GPIO10 (pin 19), GPIO11 (pin 23)
+SPI0 may still be used for ATtiny programming scripts. GPIO7/8/9/10/11 are not assigned to a **second UART** in this design.
 
 ## Discrepancies corrected
 
 - Removed active reliance on direct Pi GPIO rotary/button inputs in primary configs.
 - Replaced MCP23017 controls with dedicated encoder Arduino serial input.
 - Standardized FM reset pin usage to GPIO5 in non-SPI configs to avoid overlap with legacy GPIO17 rotary usage.
-- Standardized sensor-pack serial path to `/dev/serial0` and encoder-controller serial path to `/dev/ttyAMA4` in Pi-targeted runtime configs.
+- **Single Pi UART:** encoder + OLED downlink use **`/dev/serial0`** (TXD0/RXD0) only; image boot config does **not** enable `uart4`.

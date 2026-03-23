@@ -357,6 +357,19 @@ class MenuOverlayController:
             self._last_press_count = press_count
         new_presses = max(0, press_count - self._last_press_count)
         if new_presses > 0:
+            now_ms = pygame.time.get_ticks()
+            # Two physical presses can arrive in one poll (serial burst). Double-tap-to-close
+            # needs both edges; the old "cap to 1" dropped the second.
+            if (
+                self._visible
+                and self._close_double_press_ms > 0
+                and new_presses >= 2
+                and now_ms - self._last_press_tick_ms <= self._close_double_press_ms
+            ):
+                self._hide_overlay()
+                self._last_press_count = press_count
+                self._last_press_tick_ms = now_ms
+                return
             # Treat select as edge-triggered once per frame. This prevents a
             # single key press from being interpreted as multiple activations.
             new_presses = 1

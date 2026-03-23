@@ -1,0 +1,10 @@
+# Reference Arduino CLI settings (Espressif board index for esp32:esp32).
+#
+# arduino-cli 1.x has no `config import`; install_arduino_cli.sh applies the URL via:
+#   arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+#
+# You can also merge this into your global arduino-cli.yaml if you manage config by hand.
+
+board_manager:
+  additional_urls:
+    - https://espressif.github.io/arduino-esp32/package_esp32_index.json

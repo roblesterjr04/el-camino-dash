@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--render-mode",
-        choices=("single_window", "multi_window", "spi"),
+        choices=("single_window", "multi_window"),
         help="Render topology mode (defaults to DISPLAY_RENDER_MODE env var or config)",
     )
     parser.add_argument(

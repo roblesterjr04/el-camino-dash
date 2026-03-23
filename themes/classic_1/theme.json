@@ -73,7 +73,7 @@
   },
   "center_dial_mode": {
     "_default": "tach",
-    "gauge_center": "clock"
+    "gauge_center": "tach"
   },
   "clock_render": {
     "_default": {
@@ -104,6 +104,23 @@
       "gauge_id": "tsps"
     }
   },
+  "gauge_packs": [
+    {
+      "id": "gauge_left",
+      "gauge_id": "speedometer",
+      "weight": 1080
+    },
+    {
+      "id": "gauge_center",
+      "gauge_id": "tachometer",
+      "weight": 720
+    },
+    {
+      "id": "gauge_right",
+      "gauge_id": "tsps",
+      "weight": 1080
+    }
+  ],
   "sub_gauges": {
     "tsps": [
       {
@@ -253,13 +270,12 @@
         },
         "on_sprite": "battery.png",
         "force_on": false,
+        "align_layer": "overlay",
         "center_ratio": [
-          0.2,
-          0.5
+          0.255,
+          0.49
         ],
-        "zoom_scale": 1.7,
-        "offset_x_px": 30,
-        "offset_y_px": -9
+        "zoom_scale": 1.7
       },
       {
         "id": "temp_light",
@@ -270,13 +286,12 @@
         },
         "force_on": false,
         "on_sprite": "temp.png",
+        "align_layer": "overlay",
         "center_ratio": [
           0.5,
-          0.82
+          0.73
         ],
-        "zoom_scale": 1.8,
-        "offset_x_px": 0,
-        "offset_y_px": -50
+        "zoom_scale": 1.8
       },
       {
         "id": "oil_light",
@@ -287,13 +302,12 @@
           "value": 20
         },
         "on_sprite": "oil.png",
+        "align_layer": "overlay",
         "center_ratio": [
-          0.8,
-          0.5
+          0.74,
+          0.485
         ],
-        "zoom_scale": 1.7,
-        "offset_x_px": -29,
-        "offset_y_px": -9
+        "zoom_scale": 1.7
       }
     ]
   },

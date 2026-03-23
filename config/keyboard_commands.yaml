@@ -53,6 +53,12 @@ keyboard_commands:
   temp_down:
     key: K_g
     description: Decrease simulated coolant temperature
+  ambient_up:
+    key: K_i
+    description: Increase simulated outside (ambient) air temperature
+  ambient_down:
+    key: K_k
+    description: Decrease simulated outside (ambient) air temperature
   amp_up:
     key: K_y
     description: Increase simulated system amperage

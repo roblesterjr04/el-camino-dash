@@ -97,3 +97,24 @@ class MediaPlayer:
         if pygame.mixer.music.get_busy():
             return "playing"
         return "idle"
+
+    def track_title(self) -> str:
+        if not self._tracks:
+            return "-"
+        return self._tracks[self._track_index].stem
+
+    def elapsed_mmss(self) -> str:
+        if not self._cfg.get("enabled", False) or not self._mixer_ready():
+            return "0:00"
+        if not pygame.mixer.music.get_busy() and not self._paused:
+            return "0:00"
+        ms = int(pygame.mixer.music.get_pos())
+        if ms < 0:
+            ms = 0
+        total_s = ms // 1000
+        m, s = divmod(total_s, 60)
+        return f"{m:d}:{s:02d}"
+
+    def progress_pct(self) -> int:
+        """Best-effort; without track duration we return 0."""
+        return 0

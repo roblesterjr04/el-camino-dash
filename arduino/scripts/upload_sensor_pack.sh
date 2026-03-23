@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ARDUINO_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sh_common.inc.sh
+source "${ARDUINO_SCRIPTS_DIR}/sh_common.inc.sh"
+
+PROJECT_ROOT="$(cd "${ARDUINO_SCRIPTS_DIR}/../.." && pwd)"
 SKETCH_DIR="${PROJECT_ROOT}/arduino/sketches/sensor_pack"
 BUILD_DIR="${PROJECT_ROOT}/arduino/build/sensor_pack"
 PORT=""
@@ -18,9 +22,10 @@ REMOTE_BOOTSTRAP=1
 
 usage() {
   cat <<'USAGE'
-Usage: bash arduino/scripts/upload_sensor_pack.sh [serial-port] [fqbn] [options]
+Usage: bash arduino/scripts/upload_sensor_pack.sh [[serial-port] [fqbn]] [options]
 
 Compiles and uploads arduino/sketches/sensor_pack/sensor_pack.ino.
+Omit serial-port (local mode) to auto-pick a USB serial device via arduino-cli.
 By default, pulses GPIO4 LOW->HIGH before upload to reset the Arduino.
 
 Options:
@@ -49,11 +54,6 @@ Examples:
   bash arduino/scripts/upload_sensor_pack.sh usb arduino:avr:uno --programmer usbtinyisp
 USAGE
 }
-
-if [[ $# -eq 0 ]]; then
-  usage >&2
-  exit 2
-fi
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -115,6 +115,14 @@ fi
 
 if [[ -n "${SSH_TARGET}" && -z "${PORT}" ]]; then
   PORT="${REMOTE_DEFAULT_PORT}"
+fi
+
+if [[ -z "${PORT}" && -z "${SSH_TARGET}" ]]; then
+  if [[ -n "${PROGRAMMER}" ]]; then
+    PORT="usb"
+  else
+    PORT="$(elc_detect_serial_port avr)"
+  fi
 fi
 
 if [[ -z "${PORT}" ]]; then
@@ -201,6 +209,8 @@ run_local_upload() {
     echo "arduino-cli not found. Run: bash arduino/scripts/install_arduino_cli.sh" >&2
     exit 1
   fi
+
+  elc_arduino_core_ensure "${FQBN}"
 
   echo "Compiling before upload..."
   mkdir -p "${BUILD_DIR}"
@@ -365,8 +375,8 @@ ensure_remote_core() {
   local required_core
   required_core="$(printf "%s" "${fqbn}" | awk -F: '{print $1 ":" $2}')"
 
-  arduino-cli core update-index
-  if ! arduino-cli core list | awk -v core="${required_core}" '$1 == core {found=1} END {exit found ? 0 : 1}'; then
+  arduino-cli core update-index || echo "WARN: core update-index failed on remote host." >&2
+  if ! arduino-cli core list | awk -v core="${required_core}" 'NR > 1 && $1 == core {found=1} END {exit found ? 0 : 1}'; then
     echo "Installing Arduino core: ${required_core}"
     arduino-cli core install "${required_core}"
   fi
