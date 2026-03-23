@@ -30,6 +30,55 @@ menu:
           type: submenu
           target_page: alerts
           icon: alert
+        - id: wifi_page
+          label: Wi-Fi
+          type: submenu
+          target_page: wifi
+          icon: wifi
+
+    - id: wifi
+      title: Wi-Fi
+      items:
+        - id: back_home
+          label: Back
+          type: submenu
+          target_page: home
+        - id: wifi_overview
+          label: Status
+          type: info
+          status_key: wifi_summary
+        - id: wifi_conn
+          label: Network
+          type: info
+          status_key: wifi_connection
+        - id: wifi_addr
+          label: IPv4
+          type: info
+          status_key: wifi_ip
+        - id: wifi_rad
+          label: Radio
+          type: info
+          status_key: wifi_radio
+        - id: wifi_new_note
+          label: New network
+          type: info
+          status_key: wifi_hint
+        - id: wifi_rescan
+          label: Rescan
+          type: action
+          command: wifi.rescan
+        - id: wifi_connect
+          label: Connect saved
+          type: action
+          command: wifi.connect
+        - id: wifi_disconnect
+          label: Disconnect
+          type: action
+          command: wifi.disconnect
+        - id: wifi_radio_toggle
+          label: Toggle Wi-Fi radio
+          type: action
+          command: wifi.radio_toggle
 
     - id: now
       title: Now
@@ -257,6 +306,10 @@ menu:
           label: IR Diagnostics
           type: submenu
           target_page: ir_diagnostics
+        - id: encoder_last_frame
+          label: Encoder Frame
+          type: info
+          status_key: encoder_last_frame
         - id: toggle_map_view
           label: Toggle Map View
           type: action

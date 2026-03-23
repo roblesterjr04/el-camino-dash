@@ -14,6 +14,8 @@ FORCE_DOCKER=0
 DOCKER_IMAGE="${ELC_IMAGE_DOCKER_IMAGE:-el-camino/rpi-image-gen-builder:bookworm}"
 DOCKER_WORK_VOLUME="${ELC_IMAGE_DOCKER_WORK_VOLUME:-elc-rpi-image-gen-work}"
 DOCKER_FRESH_WORK="${ELC_IMAGE_DOCKER_FRESH_WORK:-y}"
+AUTO_CLEANUP="${ELC_IMAGE_AUTO_CLEANUP:-y}"
+KEEP_DEPLOYS="${ELC_IMAGE_KEEP_DEPLOYS:-1}"
 
 usage() {
   cat <<'EOF'
@@ -32,6 +34,8 @@ Options:
   --docker-work-volume <n>  Docker volume for /workspace/work (default: elc-rpi-image-gen-work).
   --fresh-work              Use a fresh docker work volume for this run (default).
   --reuse-work              Reuse configured docker work volume.
+  --no-cleanup              Keep all historical deploy-* artifact directories.
+  --keep-deploys <n>        Number of newest deploy-* directories to keep (default: 1).
   --local                   Force local build mode.
   -h, --help                Show this help.
 
@@ -45,6 +49,8 @@ Env fallbacks:
   ELC_IMAGE_DOCKER_IMAGE
   ELC_IMAGE_DOCKER_WORK_VOLUME
   ELC_IMAGE_DOCKER_FRESH_WORK
+  ELC_IMAGE_AUTO_CLEANUP
+  ELC_IMAGE_KEEP_DEPLOYS
 
 Examples:
   bash scripts/build_image.sh --remote pi@builder.local
@@ -99,6 +105,14 @@ while [[ $# -gt 0 ]]; do
     --reuse-work)
       DOCKER_FRESH_WORK="n"
       shift
+      ;;
+    --no-cleanup)
+      AUTO_CLEANUP="n"
+      shift
+      ;;
+    --keep-deploys)
+      KEEP_DEPLOYS="${2:-}"
+      shift 2
       ;;
     --local)
       FORCE_LOCAL=1
@@ -178,6 +192,41 @@ compute_artefact_version() {
   local described
   described="$(git -C "${PROJECT_DIR}" describe --tags --always --dirty 2>/dev/null || date +%Y-%m-%d)"
   ARTEFACT_VERSION="$(printf "%s" "${described}" | sed -E 's/-dirty$//')"
+}
+
+prune_old_deploy_artifacts() {
+  if [[ "${AUTO_CLEANUP}" != "y" ]]; then
+    return 0
+  fi
+  if [[ ! -d "${ARTIFACT_DIR}" ]]; then
+    return 0
+  fi
+  if ! [[ "${KEEP_DEPLOYS}" =~ ^[0-9]+$ ]]; then
+    echo "Invalid --keep-deploys value: ${KEEP_DEPLOYS}. Expected a non-negative integer." >&2
+    exit 2
+  fi
+
+  local keep="${KEEP_DEPLOYS}"
+  local deploy_dirs=()
+  local idx
+  local removed=0
+
+  while IFS= read -r path; do
+    deploy_dirs+=("${path}")
+  done < <(ls -1dt "${ARTIFACT_DIR}"/deploy-* 2>/dev/null || true)
+
+  if [[ "${#deploy_dirs[@]}" -le "${keep}" ]]; then
+    return 0
+  fi
+
+  for ((idx=keep; idx<${#deploy_dirs[@]}; idx++)); do
+    rm -rf "${deploy_dirs[$idx]}"
+    removed=$((removed + 1))
+  done
+
+  if [[ "${removed}" -gt 0 ]]; then
+    echo "Cleaned ${removed} old deploy artifact director$( [[ ${removed} -eq 1 ]] && echo "y" || echo "ies" )."
+  fi
 }
 
 prepare_local_ssh_pubkey() {
@@ -271,6 +320,7 @@ run_docker_build() {
     return ${build_status}
   fi
 
+  prune_old_deploy_artifacts
   echo "Docker build complete. Deploy artifacts written to ${ARTIFACT_DIR}."
 }
 
@@ -329,6 +379,7 @@ EOF
     --include='deploy-*/**' \
     --exclude='*' \
     "${REMOTE_HOST}:${REMOTE_DIR}/work/" "${ARTIFACT_DIR}/"
+  prune_old_deploy_artifacts
   echo "Remote build complete. Artifacts synced to: ${ARTIFACT_DIR}"
 }
 

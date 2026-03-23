@@ -10,6 +10,7 @@ Arduino assets and tooling for the El Camino Dash project live here.
 - `arduino/scripts/upload_sensor_pack.sh` - compile + upload to a board.
 - `arduino/scripts/monitor_sensor_pack.py` - decode binary packets into readable text.
 - `arduino/scripts/program_power_control_attiny.sh` - compile + flash ATtiny power controller over ISP.
+- `arduino/sketches/encoder_controller/encoder_controller.ino` - dedicated rotary/menu serial controller.
 
 ## Quick Start (macOS + Homebrew)
 

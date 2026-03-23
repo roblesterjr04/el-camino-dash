@@ -15,11 +15,13 @@ if [[ ! -d "${SYSTEMD_DIR}" ]]; then
 fi
 
 units=(
+  gauge-expand-rootfs.service
   gauge-cluster-hdmi.service
   gauge-hide-cursor.service
   gauge-power-control.service
   gauge-ir-protocol.service
   gauge-cluster-spi.service
+  gauge-xorg.service
 )
 
 for unit in "${units[@]}"; do
@@ -36,8 +38,13 @@ systemctl daemon-reload
 systemctl set-default graphical.target || true
 systemctl disable gauge-cluster-spi.service >/dev/null 2>&1 || true
 systemctl mask gauge-cluster-spi.service >/dev/null 2>&1 || true
+systemctl stop gauge-xorg.service >/dev/null 2>&1 || true
+systemctl disable gauge-xorg.service >/dev/null 2>&1 || true
+systemctl stop gauge-hide-cursor.service >/dev/null 2>&1 || true
+systemctl disable gauge-hide-cursor.service >/dev/null 2>&1 || true
+install -m 0755 "${PROJECT_DIR}/scripts/expand_rootfs_once.sh" /usr/local/sbin/elc-expand-rootfs.sh
+systemctl enable gauge-expand-rootfs.service
 systemctl enable gauge-cluster-hdmi.service
-systemctl enable gauge-hide-cursor.service
 systemctl enable gauge-power-control.service
 systemctl enable gauge-ir-protocol.service
 

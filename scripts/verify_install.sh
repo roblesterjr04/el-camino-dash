@@ -91,7 +91,7 @@ else
 fi
 
 if command -v systemctl >/dev/null 2>&1; then
-  for svc in gauge-cluster-hdmi.service gauge-hide-cursor.service gauge-power-control.service gauge-ir-protocol.service; do
+  for svc in gauge-expand-rootfs.service gauge-cluster-hdmi.service gauge-power-control.service gauge-ir-protocol.service; do
     if systemctl is-enabled "${svc}" >/dev/null 2>&1; then
       pass "Service enabled: ${svc}"
     else
@@ -101,6 +101,8 @@ if command -v systemctl >/dev/null 2>&1; then
 else
   fail "systemctl not available"
 fi
+
+check_file "/usr/local/sbin/elc-expand-rootfs.sh"
 
 if command -v ir-keytable >/dev/null 2>&1; then
   pass "IR tooling available (ir-keytable)"

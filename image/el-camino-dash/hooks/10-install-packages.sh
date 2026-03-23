@@ -6,7 +6,10 @@ require_rootfs
 
 PACKAGES=(
   python3-pip python3-venv
+  python3-dev build-essential
+  ffmpeg libsndfile1 libportaudio2 portaudio19-dev
   python3-pygame python3-pil python3-spidev python3-rpi.gpio python3-evdev
+  cloud-guest-utils
   ir-keytable i2c-tools alsa-utils raspi-config
   gcc-avr binutils-avr avr-libc
   rsync xinit xserver-xorg xauth

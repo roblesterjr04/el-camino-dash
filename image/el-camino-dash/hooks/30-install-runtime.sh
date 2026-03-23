@@ -30,8 +30,18 @@ while IFS= read -r entry; do
   fi
 done < "${manifest}"
 
+# Ensure runtime shell entrypoints are executable in the provisioned image.
+if [[ -d "${target_runtime}/scripts" ]]; then
+  find "${target_runtime}/scripts" -type f -name "*.sh" -exec chmod 0755 {} +
+  if [[ -f "${target_runtime}/scripts/gauge-mcp-monitor" ]]; then
+    chmod 0755 "${target_runtime}/scripts/gauge-mcp-monitor"
+  fi
+fi
+
 install -m 0755 "${SOURCE_DIR}/scripts/gauge-mcp-monitor" "$(in_rootfs /usr/local/bin/gauge-mcp-monitor)"
 install -m 0755 "${SOURCE_DIR}/scripts/start-gauge-hdmi-x11.sh" "$(in_rootfs /usr/local/bin/start-gauge-hdmi-x11)"
+install -m 0755 "${SOURCE_DIR}/scripts/start-gauge-hdmi-kms.sh" "$(in_rootfs /usr/local/bin/start-gauge-hdmi-kms)"
+install -m 0755 "${SOURCE_DIR}/scripts/expand_rootfs_once.sh" "$(in_rootfs /usr/local/sbin/elc-expand-rootfs.sh)"
 
 # Install SSH authorized key explicitly to avoid relying on upstream key mapping.
 auth_key_src="${SOURCE_DIR}/keys/pi_authorized_key.pub"
@@ -61,6 +71,12 @@ EOF
 if [[ -f "${target_runtime}/requirements.txt" ]]; then
   chroot "${ROOTFS_DIR}" /usr/bin/python3 -m venv --system-site-packages "${RUNTIME_DIR}/.venv" || true
   chroot "${ROOTFS_DIR}" /bin/bash -lc "${RUNTIME_DIR}/.venv/bin/python -m pip install -r ${RUNTIME_DIR}/requirements.txt" || true
+fi
+
+# Voice assistant: system Python + PEP 668 override (no venv; matches voice_assistant/README.md).
+if [[ -f "${target_runtime}/voice_assistant/requirements.txt" ]]; then
+  chroot "${ROOTFS_DIR}" /bin/bash -lc \
+    "python3 -m pip install --break-system-packages --no-cache-dir -r '${RUNTIME_DIR}/voice_assistant/requirements.txt'"
 fi
 
 chroot "${ROOTFS_DIR}" chown -R "${TARGET_USER}:${TARGET_USER}" "${RUNTIME_DIR}" || true

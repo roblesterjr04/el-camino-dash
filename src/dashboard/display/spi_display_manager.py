@@ -81,12 +81,6 @@ class SPIDisplayManager:
 
         for state in self._states:
             self._try_init_display(state)
-            if state.initialized:
-                try:
-                    # Pre-clear to avoid startup residual artifacts on some GC9A01 modules.
-                    state.driver.write_frame(Image.new("RGB", (state.width, state.height), (0, 0, 0)))
-                except Exception as exc:
-                    LOG.debug("[spi] pre-clear failed for %s: %s", state.label, exc)
             state.worker.start()
 
     def _try_init_display(self, state: _DisplayThreadState) -> None:

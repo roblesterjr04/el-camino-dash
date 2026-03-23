@@ -1,0 +1,11 @@
+anthropic
+faster-whisper
+openwakeword
+sounddevice
+numpy
+scipy
+silero-vad
+pyserial
+requests
+tflite-runtime
+onnxruntime

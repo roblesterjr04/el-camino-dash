@@ -3,14 +3,16 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SKETCH_DIR="${PROJECT_ROOT}/arduino/sketches/sensor_pack"
+BUILD_DIR="${PROJECT_ROOT}/arduino/build/sensor_pack"
 PORT=""
 FQBN="arduino:avr:uno"
+PROGRAMMER=""
 RESET_GPIO="4"
 RESET_LOW_MS="120"
 NO_RESET=0
 SSH_TARGET=""
 SSH_PORT=""
-REMOTE_DEFAULT_PORT="/dev/ttyAMA3"
+REMOTE_DEFAULT_PORT="/dev/serial0"
 KEEP_REMOTE=0
 REMOTE_BOOTSTRAP=1
 
@@ -24,6 +26,7 @@ By default, pulses GPIO4 LOW->HIGH before upload to reset the Arduino.
 Options:
   --ssh-target <user@host> Run compile/upload on remote Pi over SSH.
   --ssh-port <num>         SSH TCP port for remote mode.
+  --programmer <id>      Upload via programmer (example: usbtinyisp)
   --reset-gpio <num>     GPIO number to pulse for reset (default: 4)
   --reset-low-ms <ms>    Time to hold reset LOW in ms (default: 120)
   --no-reset             Skip GPIO reset pulse
@@ -35,12 +38,15 @@ Examples:
   # Local USB upload from this host:
   bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
 
-  # Upload from Pi side over SSH (uses default /dev/ttyAMA3 on Pi):
+  # Upload from Pi side over SSH (uses default /dev/serial0 on Pi):
   bash arduino/scripts/upload_sensor_pack.sh --ssh-target pi@digidash.local
 
   # Upload from Pi side over SSH using explicit serial path:
-  bash arduino/scripts/upload_sensor_pack.sh /dev/ttyAMA3
-  bash arduino/scripts/upload_sensor_pack.sh /dev/ttyAMA3 arduino:avr:uno --ssh-target pi@digidash.local
+  bash arduino/scripts/upload_sensor_pack.sh /dev/serial0
+  bash arduino/scripts/upload_sensor_pack.sh /dev/serial0 arduino:avr:uno --ssh-target pi@digidash.local
+
+  # Upload using ISP programmer (USBtinyISP):
+  bash arduino/scripts/upload_sensor_pack.sh usb arduino:avr:uno --programmer usbtinyisp
 USAGE
 }
 
@@ -58,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --ssh-port)
       SSH_PORT="${2:-}"
+      shift 2
+      ;;
+    --programmer)
+      PROGRAMMER="${2:-}"
       shift 2
       ;;
     --reset-gpio)
@@ -193,7 +203,11 @@ run_local_upload() {
   fi
 
   echo "Compiling before upload..."
-  bash "${PROJECT_ROOT}/arduino/scripts/compile_sensor_pack.sh" "${FQBN}"
+  mkdir -p "${BUILD_DIR}"
+  arduino-cli compile \
+    --fqbn "${FQBN}" \
+    --build-path "${BUILD_DIR}" \
+    "${SKETCH_DIR}"
 
   if [[ "${NO_RESET}" -eq 0 ]]; then
     echo "Pulsing GPIO ${RESET_GPIO} LOW->HIGH for Arduino reset..."
@@ -204,10 +218,12 @@ run_local_upload() {
   fi
 
   echo "Uploading to ${PORT} (${FQBN})"
-  arduino-cli upload \
-    --fqbn "${FQBN}" \
-    --port "${PORT}" \
-    "${SKETCH_DIR}"
+  local upload_cmd=(arduino-cli upload --fqbn "${FQBN}" --port "${PORT}" --input-dir "${BUILD_DIR}")
+  if [[ -n "${PROGRAMMER}" ]]; then
+    upload_cmd+=(--programmer "${PROGRAMMER}")
+  fi
+  upload_cmd+=("${SKETCH_DIR}")
+  "${upload_cmd[@]}"
 
   echo "Upload complete."
 }
@@ -237,15 +253,16 @@ run_remote_upload() {
 
   echo "Running compile/upload on remote Pi ${SSH_TARGET} (port ${PORT}, fqbn ${FQBN})..."
   set +e
-  "${ssh_cmd[@]}" bash -s -- "${remote_tmp}" "${PORT}" "${FQBN}" "${RESET_GPIO}" "${RESET_LOW_MS}" "${NO_RESET}" "${REMOTE_BOOTSTRAP}" <<'EOF'
+  "${ssh_cmd[@]}" bash -s -- "${remote_tmp}" "${PORT}" "${FQBN}" "${PROGRAMMER}" "${RESET_GPIO}" "${RESET_LOW_MS}" "${NO_RESET}" "${REMOTE_BOOTSTRAP}" <<'EOF'
 set -euo pipefail
 remote_tmp="$1"
 port="$2"
 fqbn="$3"
-reset_gpio="$4"
-reset_low_ms="$5"
-no_reset="$6"
-remote_bootstrap="$7"
+programmer="$4"
+reset_gpio="$5"
+reset_low_ms="$6"
+no_reset="$7"
+remote_bootstrap="$8"
 sketch_dir="${remote_tmp}/arduino/sketches/sensor_pack"
 build_dir="${remote_tmp}/arduino/build/sensor_pack"
 
@@ -368,7 +385,12 @@ if [[ "${no_reset}" -eq 0 ]]; then
   fi
 fi
 
-arduino-cli upload --fqbn "${fqbn}" --port "${port}" "${sketch_dir}"
+upload_cmd=(arduino-cli upload --fqbn "${fqbn}" --port "${port}" --input-dir "${build_dir}")
+if [[ -n "${programmer}" ]]; then
+  upload_cmd+=(--programmer "${programmer}")
+fi
+upload_cmd+=("${sketch_dir}")
+"${upload_cmd[@]}"
 EOF
   status=$?
   set -e

@@ -1,0 +1,19 @@
+[Unit]
+Description=El Camino AI voice assistant
+After=network.target sound.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/el-camino-dash/voice_assistant
+Environment=PYTHONPATH=/opt/el-camino-dash/voice_assistant
+Environment=LOG_LEVEL=INFO
+EnvironmentFile=-/etc/elcamino-voice.env
+ExecStart=/usr/bin/python3 /opt/el-camino-dash/voice_assistant/main.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

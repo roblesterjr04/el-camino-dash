@@ -60,13 +60,13 @@ class ArduinoSerialInput:
         if serial is None:
             self._enabled = False
             return
-        requested_port = str(spec.get("port", "/dev/ttyAMA3")).strip()
+        requested_port = str(spec.get("port", "/dev/serial0")).strip()
         for candidate in (
             requested_port,
-            "/dev/ttyAMA3",
             "/dev/serial0",
             "/dev/ttyAMA0",
             "/dev/ttyS0",
+            "/dev/ttyAMA3",
             "/dev/ttyUSB0",
             "/dev/ttyACM0",
         ):

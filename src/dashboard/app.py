@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import signal
+import threading
 import time
 from typing import Any
 from typing import Callable
@@ -20,6 +21,11 @@ from dashboard.integrations.bluetooth_audio import BluetoothAudioAdapter
 from dashboard.integrations.fm_radio import FmRadioAdapter
 from dashboard.integrations.media_player import MediaPlayer
 from dashboard.integrations.navit_adapter import NavitAdapter
+from dashboard.integrations.wifi_nm import wifi_connect
+from dashboard.integrations.wifi_nm import wifi_disconnect
+from dashboard.integrations.wifi_nm import wifi_radio_toggle
+from dashboard.integrations.wifi_nm import wifi_rescan
+from dashboard.integrations.wifi_nm import wifi_status_dict
 from dashboard.theme_loader import load_theme_data
 
 
@@ -96,13 +102,52 @@ class DashboardApp:
         }
         self._ir_last_code = "-"
         self._last_aux_press_count = 0
+        self._integration_start_thread: threading.Thread | None = None
+        self._last_encoder_status_log_s = 0.0
+
+    def _available_theme_names(self) -> list[str]:
+        theme_root = Path(self.config["themes"]["theme_root"])
+        if not theme_root.exists():
+            return []
+        discovered = sorted(
+            path.name for path in theme_root.iterdir() if path.is_dir() and (path / "theme.json").exists()
+        )
+        enabled = self.config.get("themes", {}).get("enabled")
+        if not isinstance(enabled, list):
+            return discovered
+        allowlist = {str(name).strip() for name in enabled if str(name).strip()}
+        filtered = [name for name in discovered if name in allowlist]
+        return filtered if filtered else discovered
+
+    def _refresh_theme_components(self) -> None:
+        if not self.display_manager:
+            return
+        refreshed = self.display_manager.refresh_theme()
+        if refreshed:
+            self._persist_theme()
+            self._theme_mtimes_ns = self._scan_theme_mtimes_ns()
+            return
+        # Theme changed display topology; rebuild display layer only.
+        self.display_manager.shutdown()
+        self.display_manager = DisplayManager(
+            config=self.config,
+            config_path=self.config_path,
+            command_registry=self._command_registry,
+            on_runtime_refresh=self._refresh_runtime_components,
+        )
+        self._persist_theme()
+        self._theme_mtimes_ns = self._scan_theme_mtimes_ns()
 
     def run(self) -> None:
+        startup_t0 = time.monotonic()
+        print("[startup] run begin", flush=True)
         self._install_signal_handlers()
         # Avoid global pygame.init() because it can initialize mixer/audio
         # backends that are unstable on some Pi Pulse/ALSA stacks.
         pygame.display.init()
+        print(f"[startup] pygame.display.init at {time.monotonic() - startup_t0:.3f}s", flush=True)
         pygame.font.init()
+        print(f"[startup] pygame.font.init at {time.monotonic() - startup_t0:.3f}s", flush=True)
         try:
             pygame.mouse.set_visible(False)
         except pygame.error:
@@ -117,22 +162,24 @@ class DashboardApp:
             except pygame.error:
                 pass
         self._reset_raw_input_log()
-        self.input_manager = InputManager(self.config)
-        self.media = MediaPlayer(media_cfg)
-        self.radio = FmRadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
-        self.radio.start()
-        self.audio_router.start()
         command_registry = self._build_command_registry()
         self._command_registry = command_registry
+        print(f"[startup] building display manager at {time.monotonic() - startup_t0:.3f}s", flush=True)
         self.display_manager = DisplayManager(
             config=self.config,
             config_path=self.config_path,
             command_registry=command_registry,
             on_runtime_refresh=self._refresh_runtime_components,
         )
-        self.navit.start()
-        self.bluetooth.start()
-        self.bluetooth_audio.start()
+        print(f"[startup] display manager ready at {time.monotonic() - startup_t0:.3f}s", flush=True)
+        # Force an immediate first frame so the startup placeholder remains visible
+        # while slower runtime integrations initialize.
+        self.display_manager.render(values=self._values, status=self._build_status())
+        print(f"[startup] first frame submitted at {time.monotonic() - startup_t0:.3f}s", flush=True)
+        self.input_manager = InputManager(self.config)
+        self.media = MediaPlayer(media_cfg)
+        self.radio = FmRadioAdapter(self.config["integrations"].get("fm_radio", {"enabled": False}))
+        self._start_integrations_async(startup_t0)
         self._running = True
         clock = pygame.time.Clock()
 
@@ -180,6 +227,41 @@ class DashboardApp:
         self._previous_sigterm_handler = signal.getsignal(signal.SIGTERM)
         signal.signal(signal.SIGINT, self._handle_shutdown_signal)
         signal.signal(signal.SIGTERM, self._handle_shutdown_signal)
+
+    def _start_integrations_async(self, startup_t0: float) -> None:
+        if self._integration_start_thread and self._integration_start_thread.is_alive():
+            return
+
+        def _starter() -> None:
+            try:
+                if self.radio:
+                    self.radio.start()
+                print(f"[startup] radio started at {time.monotonic() - startup_t0:.3f}s", flush=True)
+            except Exception as exc:
+                print(f"[startup] radio start failed: {exc}", flush=True)
+            try:
+                self.audio_router.start()
+                print(f"[startup] audio router started at {time.monotonic() - startup_t0:.3f}s", flush=True)
+            except Exception as exc:
+                print(f"[startup] audio router start failed: {exc}", flush=True)
+            try:
+                self.navit.start()
+                print(f"[startup] navit started at {time.monotonic() - startup_t0:.3f}s", flush=True)
+            except Exception as exc:
+                print(f"[startup] navit start failed: {exc}", flush=True)
+            try:
+                self.bluetooth.start()
+                print(f"[startup] bluetooth metadata started at {time.monotonic() - startup_t0:.3f}s", flush=True)
+            except Exception as exc:
+                print(f"[startup] bluetooth metadata start failed: {exc}", flush=True)
+            try:
+                self.bluetooth_audio.start()
+                print(f"[startup] bluetooth audio started at {time.monotonic() - startup_t0:.3f}s", flush=True)
+            except Exception as exc:
+                print(f"[startup] bluetooth audio start failed: {exc}", flush=True)
+
+        self._integration_start_thread = threading.Thread(target=_starter, name="dash-integrations-start", daemon=True)
+        self._integration_start_thread.start()
 
     def _restore_signal_handlers(self) -> None:
         if self._previous_sigint_handler is not None:
@@ -332,8 +414,15 @@ class DashboardApp:
         if bt_audio_enabled:
             media_status = self.bluetooth_audio.media_status()
             media_track = self.bluetooth_audio.media_track()
+        encoder_last_frame = "-"
+        if self.input_manager:
+            encoder_last_frame = self.input_manager.encoder_last_frame() or "-"
+        now_s = time.monotonic()
+        if (now_s - self._last_encoder_status_log_s) >= 2.0:
+            print(f"[encoder-status] {encoder_last_frame}", flush=True)
+            self._last_encoder_status_log_s = now_s
 
-        return {
+        base_status = {
             "navit": self.navit.status(),
             "media": media_status,
             "media_track": media_track,
@@ -348,6 +437,7 @@ class DashboardApp:
             "center_dial_mode": self._current_center_dial_mode(),
             "map_view_visible": "on" if bool(self.config.get("system", {}).get("map_view_visible", False)) else "off",
             "ir_last_code": self._ir_last_code,
+            "encoder_last_frame": encoder_last_frame,
             "ir_diag_state": f"open x{int(self._ir_last_counts.get('diagnostics_open', 0))}",
             "fault_status": "ACTIVE" if active_faults else ("LATCHED" if latched_faults else "CLEAR"),
             "fault_active_count": str(len(active_faults)),
@@ -357,6 +447,8 @@ class DashboardApp:
             "fault_code_3": lines[2],
             "fault_headline": lines[0] if lines[0] != "-" else "Fault detected",
         }
+        base_status.update(wifi_status_dict(self.config))
+        return base_status
 
     def _update_runtime_metrics(self) -> None:
         now = time.monotonic()
@@ -528,6 +620,10 @@ class DashboardApp:
             "menu.open_back": self._cmd_menu_open_back,
             "faults.clear": self._cmd_faults_clear,
             "app.restart": self._cmd_app_restart,
+            "wifi.rescan": self._cmd_wifi_rescan,
+            "wifi.connect": self._cmd_wifi_connect,
+            "wifi.disconnect": self._cmd_wifi_disconnect,
+            "wifi.radio_toggle": self._cmd_wifi_radio_toggle,
         }
 
     def _refresh_runtime_components(self) -> None:
@@ -615,7 +711,7 @@ class DashboardApp:
         if current == self._theme_mtimes_ns:
             return
         self._theme_mtimes_ns = current
-        self._refresh_runtime_components()
+        self._refresh_theme_components()
 
     def _cmd_navit_start(self, _: dict[str, Any]) -> str:
         self.navit.start()
@@ -755,13 +851,22 @@ class DashboardApp:
         self._running = False
         return "Stopping app (restart requested)"
 
+    def _cmd_wifi_rescan(self, _: dict[str, Any]) -> str:
+        return wifi_rescan()
+
+    def _cmd_wifi_connect(self, _: dict[str, Any]) -> str:
+        return wifi_connect(self.config)
+
+    def _cmd_wifi_disconnect(self, _: dict[str, Any]) -> str:
+        return wifi_disconnect(self.config)
+
+    def _cmd_wifi_radio_toggle(self, _: dict[str, Any]) -> str:
+        return wifi_radio_toggle()
+
     def _cmd_theme_next(self, _: dict[str, Any]) -> str:
-        theme_root = Path(self.config["themes"]["theme_root"])
-        if not theme_root.exists():
-            return "Theme root missing"
-        available = sorted(path.name for path in theme_root.iterdir() if path.is_dir() and (path / "theme.json").exists())
+        available = self._available_theme_names()
         if not available:
-            return "No themes found"
+            return "Theme root missing"
 
         active = str(self.config["themes"].get("active", ""))
         if active in available:
@@ -769,8 +874,7 @@ class DashboardApp:
         else:
             next_index = 0
         self.config["themes"]["active"] = available[next_index]
-        self._persist_theme()
-        self._refresh_runtime_components()
+        self._refresh_theme_components()
         return f"Theme: {available[next_index]}"
 
     def _cmd_center_dial_mode_toggle(self, _: dict[str, Any]) -> str:
@@ -803,14 +907,13 @@ class DashboardApp:
             theme_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
         except OSError:
             return "Theme save failed"
-        self._refresh_runtime_components()
+        self._refresh_theme_components()
         return f"Center dial: {next_mode}"
 
     def _cmd_map_view_toggle(self, _: dict[str, Any]) -> str:
         current = bool(self.config.get("system", {}).get("map_view_visible", False))
         next_visible = not current
         self.config.setdefault("system", {})["map_view_visible"] = next_visible
-        self._refresh_runtime_components()
         return f"Map view: {'on' if next_visible else 'off'}"
 
     def _cmd_app_main_screen(self, _: dict[str, Any]) -> str:
@@ -871,9 +974,7 @@ class DashboardApp:
             theme_name = str(raw.get("active_theme", "")).strip()
             if not theme_name:
                 return
-            theme_root = Path(self.config["themes"].get("theme_root", "themes"))
-            theme_file = theme_root / theme_name / "theme.json"
-            if not theme_file.exists():
+            if theme_name not in set(self._available_theme_names()):
                 return
             self.config["themes"]["active"] = theme_name
         except (OSError, ValueError, json.JSONDecodeError):

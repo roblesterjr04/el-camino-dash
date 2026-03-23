@@ -143,7 +143,13 @@ def _validate_gauges(gauges: dict[str, Any]) -> None:
 
 def _validate_inputs(inputs: dict[str, Any]) -> None:
     required_sections = {"rotary_encoders", "analog_inputs", "speed_sensors", "simulated_data", "keyboard_sim"}
-    allowed_sections = required_sections | {"gpio_buttons", "mcp23017_controls", "arduino_serial", "ir_remote"}
+    allowed_sections = required_sections | {
+        "gpio_buttons",
+        "mcp23017_controls",
+        "arduino_serial",
+        "encoder_arduino_serial",
+        "ir_remote",
+    }
     _expect_keys("inputs", inputs, required_sections, allowed_sections)
     for section in ("rotary_encoders", "analog_inputs", "speed_sensors"):
         _expect_type(f"inputs.{section}", inputs[section], list)
@@ -213,6 +219,31 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 _fail(path, "must contain [min, max]")
             _expect_type(f"{path}[0]", inputs["arduino_serial"][key][0], (int, float))
             _expect_type(f"{path}[1]", inputs["arduino_serial"][key][1], (int, float))
+    if "encoder_arduino_serial" in inputs:
+        _expect_type("inputs.encoder_arduino_serial", inputs["encoder_arduino_serial"], dict)
+        _expect_keys(
+            "inputs.encoder_arduino_serial",
+            inputs["encoder_arduino_serial"],
+            {"enabled"},
+            {"enabled", "port", "baudrate", "timeout_s", "open_retry_interval_s"},
+        )
+        _expect_type("inputs.encoder_arduino_serial.enabled", inputs["encoder_arduino_serial"]["enabled"], bool)
+        if "port" in inputs["encoder_arduino_serial"]:
+            _expect_type("inputs.encoder_arduino_serial.port", inputs["encoder_arduino_serial"]["port"], str)
+        if "baudrate" in inputs["encoder_arduino_serial"]:
+            _expect_type("inputs.encoder_arduino_serial.baudrate", inputs["encoder_arduino_serial"]["baudrate"], int)
+        if "timeout_s" in inputs["encoder_arduino_serial"]:
+            _expect_type(
+                "inputs.encoder_arduino_serial.timeout_s",
+                inputs["encoder_arduino_serial"]["timeout_s"],
+                (int, float),
+            )
+        if "open_retry_interval_s" in inputs["encoder_arduino_serial"]:
+            _expect_type(
+                "inputs.encoder_arduino_serial.open_retry_interval_s",
+                inputs["encoder_arduino_serial"]["open_retry_interval_s"],
+                (int, float),
+            )
     _expect_type("inputs.keyboard_sim", inputs["keyboard_sim"], dict)
     _expect_keys(
         "inputs.keyboard_sim",

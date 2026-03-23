@@ -137,9 +137,9 @@ fi
 
 if [[ "${RESTART_SERVICES}" -eq 1 ]]; then
   echo "Restarting runtime services..."
+  ssh "${TARGET}" "sudo systemctl stop gauge-xorg.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-ir-protocol.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-cluster-hdmi.service || true"
-  ssh "${TARGET}" "sudo systemctl restart gauge-hide-cursor.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-power-control.service || true"
 fi
 

@@ -46,12 +46,16 @@ def _prepare_display_environment(mode: str, headless: bool) -> None:
         os.environ["SDL_VIDEODRIVER"] = "dummy"
         return
     display = str(os.environ.get("DISPLAY", "")).strip()
+    sdl_driver = str(os.environ.get("SDL_VIDEODRIVER", "")).strip().lower()
+    direct_linux_backends = {"kmsdrm", "fbcon", "wayland"}
     is_linux = sys.platform.startswith("linux")
     if mode == "hardware":
-        if is_linux and not display:
+        if is_linux and not display and sdl_driver not in direct_linux_backends:
             raise RuntimeError("DISPLAY is not set for hardware mode.")
         return
     if display:
+        return
+    if is_linux and sdl_driver in direct_linux_backends:
         return
     if not is_linux:
         # macOS/Windows do not rely on X11 DISPLAY for native pygame windows.

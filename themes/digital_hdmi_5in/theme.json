@@ -16,14 +16,14 @@
     "_default": false
   },
   "show_odometer": true,
-  "screen_background": [8, 6, 2],
+  "screen_background": [2, 8, 3],
   "digital_palette": {
-    "panel_background": [18, 12, 4],
-    "panel_border": [92, 64, 16],
-    "text": [255, 221, 98],
-    "accent": [255, 186, 62],
-    "bar_fill": [255, 210, 84],
-    "bar_empty": [54, 40, 14]
+    "panel_background": [5, 20, 8],
+    "panel_border": [38, 122, 52],
+    "text": [138, 255, 160],
+    "accent": [92, 255, 128],
+    "bar_fill": [96, 255, 132],
+    "bar_empty": [18, 52, 24]
   },
   "digital_render": {
     "_default": {
@@ -145,8 +145,8 @@
         "shape": "arrow_left",
         "center_ratio": [0.42, 0.50],
         "size_ratio": 0.045,
-        "on_color": [255, 214, 82],
-        "off_color": [70, 50, 18],
+        "on_color": [102, 255, 130],
+        "off_color": [22, 64, 30],
         "show_when_off": true,
         "startup_force_on": false
       },
@@ -159,8 +159,8 @@
         "shape": "arrow_right",
         "center_ratio": [0.58, 0.50],
         "size_ratio": 0.045,
-        "on_color": [255, 214, 82],
-        "off_color": [70, 50, 18],
+        "on_color": [102, 255, 130],
+        "off_color": [22, 64, 30],
         "show_when_off": true,
         "startup_force_on": false
       },
@@ -183,10 +183,10 @@
     "speedometer": {
       "font_name": "DSEG14-Modern/DSEG14Modern-Italic.ttf",
       "font_scale": 0.05,
-      "text_color": [255, 221, 98],
-      "decimal_color": [255, 174, 45],
-      "box_color": [24, 16, 6],
-      "box_border": [92, 64, 16],
+      "text_color": [138, 255, 160],
+      "decimal_color": [96, 255, 132],
+      "box_color": [8, 22, 10],
+      "box_border": [38, 122, 52],
       "y_ratio": 0.91,
       "include_label": false,
       "include_unit": true,

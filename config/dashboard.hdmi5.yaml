@@ -47,6 +47,7 @@ displays:
 
 themes:
   active: digital_hdmi_5in
+  enabled: [digital_hdmi_5in]
   allow_fallback: true
   theme_root: themes
   gauge_asset_root: assets/gauges
@@ -182,7 +183,7 @@ inputs:
     left_delta: 1
     debounce_ms: 60
   mcp23017_controls:
-    enabled: true
+    enabled: false
     i2c_bus: 1
     address: 32
     pull_up: true
@@ -201,7 +202,7 @@ inputs:
     left_delta: 1
   arduino_serial:
     enabled: true
-    port: /dev/ttyAMA3
+    port: /dev/serial0
     baudrate: 115200
     timeout_s: 0.0
     wheel_circumference_m: 2.1
@@ -210,6 +211,12 @@ inputs:
     temp_range: [120, 260]
     oil_range: [0, 80]
     voltage_range: [10, 16]
+  encoder_arduino_serial:
+    enabled: true
+    port: /dev/ttyAMA4
+    baudrate: 115200
+    timeout_s: 0.0
+    open_retry_interval_s: 1.0
   simulated_data:
     enabled: false
     speed_period_s: 9.0

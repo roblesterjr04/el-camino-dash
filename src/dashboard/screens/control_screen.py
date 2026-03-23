@@ -88,11 +88,12 @@ class ControlScreen:
         start_x = 24
         start_y = 72
         gap = 14
-        card_w = (self.layout.width - (start_x * 2) - gap) // 2
+        cols = 3
+        card_w = (self.layout.width - (start_x * 2) - (gap * (cols - 1))) // cols
         card_h = 106
-        for idx, row in enumerate(model.rows[:4]):
-            col = idx % 2
-            line = idx // 2
+        for idx, row in enumerate(model.rows[:6]):
+            col = idx % cols
+            line = idx // cols
             x = start_x + (col * (card_w + gap))
             y = start_y + (line * (card_h + gap))
             card_rect = pygame.Rect(x, y, card_w, card_h)

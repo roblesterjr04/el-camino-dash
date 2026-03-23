@@ -183,6 +183,15 @@ class MenuOverlayScreen:
                 outer = (cx + int(math.cos(angle) * (gear_r + int(radius * 0.18))), cy + int(math.sin(angle) * (gear_r + int(radius * 0.18))))
                 pygame.draw.line(surface, color, inner, outer, width=max(2, width - 1))
             return
+        if icon in {"wifi", "wifi_page", "wireless"}:
+            # Curved arcs (signal fan) with a dot
+            dot_r = max(3, radius // 5)
+            pygame.draw.circle(surface, color, (cx, cy + int(radius * 0.55)), dot_r, width=0)
+            for span in (0.95, 0.72, 0.48):
+                r = int(radius * span)
+                rect = pygame.Rect(cx - r, cy - r + int(radius * 0.15), r * 2, r * 2)
+                pygame.draw.arc(surface, color, rect, math.pi * 1.15, math.pi * 1.85, width=max(2, width))
+            return
         if icon in {"alert", "alerts", "warning", "fault", "alerts_page"}:
             tri = [
                 (cx, cy - int(radius * 0.9)),

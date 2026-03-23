@@ -8,48 +8,53 @@ Reference baseline: Raspberry Pi 40-pin header mapping used on current Pi models
 
 | Function | BCM GPIO | Physical Pin | Direction (Pi) | Notes |
 |---|---:|---:|---|---|
-| I2C SDA (MCP23017 + SI4703 + PT2314 control) | 2 | 3 | bidirectional | Shared I2C bus 1 |
-| I2C SCL (MCP23017 + SI4703 + PT2314 control) | 3 | 5 | bidirectional | Shared I2C bus 1 |
+| I2C SDA (SI4703 + PT2314 control) | 2 | 3 | bidirectional | Shared I2C bus 1 |
+| I2C SCL (SI4703 + PT2314 control) | 3 | 5 | bidirectional | Shared I2C bus 1 |
 | Arduino reset pulse (programming only) | 4 | 7 | output | Used by installer flash/reset helper |
 | FM radio reset (SI4703 breakout reset) | 5 | 29 | output | `integrations.fm_radio.rst_pin` |
 | IR receiver (gpio-ir overlay) | 26 | 37 | input | `dtoverlay=gpio-ir,gpio_pin=26` |
-| Arduino UART TX -> Arduino RX | 8 (TXD4) | 24 | output | `uart4` / `/dev/ttyAMA3` |
-| Arduino UART RX <- Arduino TX | 9 (RXD4) | 21 | input | `uart4` / `/dev/ttyAMA3` |
+| Sensor-pack Arduino UART TX -> Arduino RX | 14 (TXD0) | 8 | output | primary UART / `/dev/serial0` |
+| Sensor-pack Arduino UART RX <- Arduino TX | 15 (RXD0) | 10 | input | primary UART / `/dev/serial0` |
+| Encoder Arduino UART TX -> Arduino RX | 8 (TXD4) | 24 | output | `uart4` / `/dev/ttyAMA4` |
+| Encoder Arduino UART RX <- Arduino TX | 9 (RXD4) | 21 | input | `uart4` / `/dev/ttyAMA4` |
 | ATtiny PI_SIGNAL (shutdown notice) | 16 | 36 | input | From ATtiny PB1 |
 | ATtiny PI_CONFIRM (shutdown complete) | 12 | 32 | output | To ATtiny ADC3 |
 | I2S BCLK -> PCM5102A BCK | 18 | 12 | output | PCM/I2S clock |
 | I2S LRCLK -> PCM5102A LCK | 19 | 35 | output | PCM frame sync |
 | I2S DIN -> PCM5102A DIN | 21 | 40 | output | Pi PCM_DOUT to DAC data in |
-| 3.3V rail | - | 1 or 17 | power | Logic supply for MCP23017/ATtiny I/O side |
+| 3.3V rail | - | 1 or 17 | power | Logic reference as needed for level-safe interfaces |
 | 5V rail | - | 2 or 4 | power | Board power where required |
-| Ground | - | any GND pin | ground | Common ground across Pi/Arduino/ATtiny/MCP23017 |
+| Ground | - | any GND pin | ground | Common ground across Pi/Arduinos/ATtiny |
 
-## MCP23017 (rotaries + menu buttons)
+## Encoder Arduino (second ATmega328P)
 
-Assumed address and bus:
+Rotary/menu controls are now handled by a dedicated ATmega328P and sent to the
+Pi over a second UART link (`inputs.encoder_arduino_serial`).
 
-- I2C bus: `1`
-- Address: `0x20` (decimal `32`)
+Recommended defaults:
 
-Configured logical mapping (`inputs.mcp23017_controls`):
+- Pi serial device: `/dev/ttyAMA4` (UART4 on GPIO8/GPIO9).
+- Baud: `115200`.
 
-| Control | MCP23017 pin |
+ATmega328P control-side pin map used by the new sketch:
+
+| Control | ATmega328P pin |
 |---|---|
-| Menu encoder A | GPA0 |
-| Menu encoder B | GPA1 |
-| Menu encoder push | GPA2 |
-| Aux encoder A | GPA3 |
-| Aux encoder B | GPA4 |
-| Aux encoder push | GPA5 |
-| Menu left button | GPA6 |
-| Menu select button | GPA7 |
+| Menu encoder A | D2 |
+| Menu encoder B | D3 |
+| Menu encoder push | D4 |
+| Aux encoder A | D5 |
+| Aux encoder B | D6 |
+| Aux encoder push | D7 |
+| Menu left button | D8 |
+| Menu select button | D9 |
 
-Notes:
+Serial framing emitted by `arduino/sketches/encoder_controller/encoder_controller.ino`:
 
-- Internal pull-ups are enabled in software for the mapped MCP pins.
-- Existing direct Pi GPIO rotary/button configs remain in files but are disabled.
-- IR receiver should not be read through MCP23017; edge timing for IR decode is
-  too tight for I2C expander polling/latency.
+- One line per event batch, newline-terminated.
+- Format: `MD=<int>,AD=<int>,MP=<count>,AP=<count>`.
+- `MD`/`AD` are signed deltas since previous transmission.
+- `MP`/`AP` are cumulative press counters.
 
 ## IR receiver placement
 
@@ -157,6 +162,6 @@ for SPI wiring in the standard harness:
 ## Discrepancies corrected
 
 - Removed active reliance on direct Pi GPIO rotary/button inputs in primary configs.
-- Added MCP23017 control input path in code/config validation.
+- Replaced MCP23017 controls with dedicated encoder Arduino serial input.
 - Standardized FM reset pin usage to GPIO5 in non-SPI configs to avoid overlap with legacy GPIO17 rotary usage.
-- Standardized Arduino serial path to `/dev/ttyAMA3` (UART4 on GPIO8/9) in Pi-targeted runtime configs.
+- Standardized sensor-pack serial path to `/dev/serial0` and encoder-controller serial path to `/dev/ttyAMA4` in Pi-targeted runtime configs.

@@ -61,7 +61,7 @@ inputs:
     - {id: vehicle_speed, enabled: false, gpio_pin: 5, pulses_per_revolution: 20, wheel_circumference_m: 2.1, timeout_ms: 800, smoothing_alpha: 0.35}
   arduino_serial:
     enabled: true
-    port: /dev/ttyAMA3
+    port: /dev/serial0
     baudrate: 115200
     timeout_s: 0.0
     wheel_circumference_m: 2.1
@@ -70,8 +70,14 @@ inputs:
     temp_range: [100, 260]
     oil_range: [0, 100]
     voltage_range: [10, 16]
-  mcp23017_controls:
+  encoder_arduino_serial:
     enabled: true
+    port: /dev/ttyAMA4
+    baudrate: 115200
+    timeout_s: 0.0
+    open_retry_interval_s: 1.0
+  mcp23017_controls:
+    enabled: false
     i2c_bus: 1
     address: 32
     pull_up: true

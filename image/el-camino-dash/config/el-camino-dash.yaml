@@ -8,7 +8,7 @@ image:
   layer: image-rpios
   name: el-camino-dash
   boot_part_size: 200%
-  root_part_size: 3G
+  root_part_size: 4G
 
 layer:
   base: bookworm-minbase
