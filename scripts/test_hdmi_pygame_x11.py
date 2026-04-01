@@ -2,7 +2,8 @@
 """
 Solid-color flash on each X11 screen (requires pygame + running X with RandR).
 
-  DISPLAY=:0 SDL_VIDEODRIVER=x11 python3 /opt/el-camino-dash/scripts/test_hdmi_pygame_x11.py
+  DISPLAY=:0 SDL_VIDEODRIVER=x11 python3 .../test_hdmi_pygame_x11.py
+  DISPLAY=:0 SDL_VIDEODRIVER=x11 python3 .../test_hdmi_pygame_x11.py --only 1   # 4in / second RandR head
 
 Stop gauge-cluster-hdmi first if it owns the tty; use x11-extended or a manual xinit session.
 """
