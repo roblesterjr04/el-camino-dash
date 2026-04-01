@@ -15,10 +15,24 @@ import time
 os.environ.setdefault("DISPLAY", ":0")
 os.environ["SDL_VIDEODRIVER"] = "x11"
 
-DISPLAY_SEC = 4.0
+DISPLAY_SEC = 6.0
 
 
 def main() -> int:
+    only: int | None = None
+    args = [a for a in sys.argv[1:] if a]
+    i = 0
+    while i < len(args):
+        if args[i] == "--only" and i + 1 < len(args):
+            try:
+                only = int(args[i + 1])
+            except ValueError:
+                print("[elc-test] --only expects an integer", file=sys.stderr)
+                return 1
+            i += 2
+            continue
+        i += 1
+
     try:
         import pygame
     except ImportError:
@@ -33,8 +47,14 @@ def main() -> int:
     n = len(sizes) if sizes else 1
     print(f"[elc-test] pygame sees {n} desktop(s): {sizes}", flush=True)
 
+    indices = [only] if only is not None else list(range(n))
+    if only is not None and (only < 0 or only >= n):
+        print(f"[elc-test] --only {only} out of range (0..{n - 1})", file=sys.stderr)
+        pygame.quit()
+        return 1
+
     colors = [(220, 50, 50), (50, 200, 50), (50, 80, 220)]
-    for idx in range(n):
+    for idx in indices:
         w, h = sizes[idx][0], sizes[idx][1]
         w = max(320, min(w, 1280))
         h = max(240, min(h, 1080))
