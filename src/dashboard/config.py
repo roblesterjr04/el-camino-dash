@@ -147,8 +147,10 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
         "gpio_buttons",
         "mcp23017_controls",
         "sensor_pack_i2c",
+        "arduino_serial",
         "encoder_arduino_serial",
         "ir_remote",
+        "sensor_reading_stability",
     }
     _expect_keys("inputs", inputs, required_sections, allowed_sections)
     for section in ("rotary_encoders", "analog_inputs", "speed_sensors"):
@@ -182,6 +184,70 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
             _expect_type("inputs.sensor_pack_i2c.register", inputs["sensor_pack_i2c"]["register"], int)
         if "frame_len" in inputs["sensor_pack_i2c"]:
             _expect_type("inputs.sensor_pack_i2c.frame_len", inputs["sensor_pack_i2c"]["frame_len"], int)
+    if "arduino_serial" in inputs:
+        _expect_type("inputs.arduino_serial", inputs["arduino_serial"], dict)
+        _expect_keys(
+            "inputs.arduino_serial",
+            inputs["arduino_serial"],
+            {"enabled"},
+            {
+                "enabled",
+                "port",
+                "baudrate",
+                "timeout_s",
+                "wheel_circumference_m",
+                "speed_pulses_per_rev",
+                "fuel_range",
+                "temp_range",
+                "ambient_temp_range",
+                "oil_range",
+                "voltage_range",
+                "fuel_raw_range",
+                "temp_raw_range",
+                "ambient_temp_raw_range",
+                "oil_raw_range",
+                "voltage_raw_range",
+            },
+        )
+        _expect_type("inputs.arduino_serial.enabled", inputs["arduino_serial"]["enabled"], bool)
+        if "port" in inputs["arduino_serial"]:
+            _expect_type("inputs.arduino_serial.port", inputs["arduino_serial"]["port"], str)
+        if "baudrate" in inputs["arduino_serial"]:
+            _expect_type("inputs.arduino_serial.baudrate", inputs["arduino_serial"]["baudrate"], int)
+        if "timeout_s" in inputs["arduino_serial"]:
+            _expect_type(
+                "inputs.arduino_serial.timeout_s",
+                inputs["arduino_serial"]["timeout_s"],
+                (int, float),
+            )
+        if "wheel_circumference_m" in inputs["arduino_serial"]:
+            _expect_type(
+                "inputs.arduino_serial.wheel_circumference_m",
+                inputs["arduino_serial"]["wheel_circumference_m"],
+                (int, float),
+            )
+        if "speed_pulses_per_rev" in inputs["arduino_serial"]:
+            _expect_type(
+                "inputs.arduino_serial.speed_pulses_per_rev",
+                inputs["arduino_serial"]["speed_pulses_per_rev"],
+                (int, float),
+            )
+        for key in (
+            "fuel_range",
+            "temp_range",
+            "ambient_temp_range",
+            "oil_range",
+            "voltage_range",
+            "fuel_raw_range",
+            "temp_raw_range",
+            "ambient_temp_raw_range",
+            "oil_raw_range",
+            "voltage_raw_range",
+        ):
+            if key in inputs["arduino_serial"]:
+                _expect_type(f"inputs.arduino_serial.{key}", inputs["arduino_serial"][key], list)
+                if len(inputs["arduino_serial"][key]) != 2:
+                    _fail(f"inputs.arduino_serial.{key}", "must be a list of two numbers")
     if "encoder_arduino_serial" in inputs:
         _expect_type("inputs.encoder_arduino_serial", inputs["encoder_arduino_serial"], dict)
         _expect_keys(
@@ -207,6 +273,37 @@ def _validate_inputs(inputs: dict[str, Any]) -> None:
                 inputs["encoder_arduino_serial"]["open_retry_interval_s"],
                 (int, float),
             )
+    if "sensor_reading_stability" in inputs:
+        _expect_type("inputs.sensor_reading_stability", inputs["sensor_reading_stability"], dict)
+        _expect_keys(
+            "inputs.sensor_reading_stability",
+            inputs["sensor_reading_stability"],
+            {"enabled"},
+            {"enabled", "required_samples", "epsilon", "epsilon_by_key", "keys"},
+        )
+        _expect_type("inputs.sensor_reading_stability.enabled", inputs["sensor_reading_stability"]["enabled"], bool)
+        if "required_samples" in inputs["sensor_reading_stability"]:
+            _expect_type(
+                "inputs.sensor_reading_stability.required_samples",
+                inputs["sensor_reading_stability"]["required_samples"],
+                int,
+            )
+        if "epsilon" in inputs["sensor_reading_stability"]:
+            _expect_type(
+                "inputs.sensor_reading_stability.epsilon",
+                inputs["sensor_reading_stability"]["epsilon"],
+                (int, float),
+            )
+        if "epsilon_by_key" in inputs["sensor_reading_stability"]:
+            ebk = inputs["sensor_reading_stability"]["epsilon_by_key"]
+            _expect_type("inputs.sensor_reading_stability.epsilon_by_key", ebk, dict)
+            for ek, ev in ebk.items():
+                _expect_type("inputs.sensor_reading_stability.epsilon_by_key key", ek, str)
+                _expect_type(f"inputs.sensor_reading_stability.epsilon_by_key[{ek!r}]", ev, (int, float))
+        if "keys" in inputs["sensor_reading_stability"]:
+            _expect_type("inputs.sensor_reading_stability.keys", inputs["sensor_reading_stability"]["keys"], list)
+            for idx, item in enumerate(inputs["sensor_reading_stability"]["keys"]):
+                _expect_type(f"inputs.sensor_reading_stability.keys[{idx}]", item, str)
     _expect_type("inputs.keyboard_sim", inputs["keyboard_sim"], dict)
     _expect_keys(
         "inputs.keyboard_sim",
@@ -658,6 +755,8 @@ def _validate_integrations(integrations: dict[str, Any]) -> None:
 
 def _validate_system(system: dict[str, Any]) -> None:
     _expect_type("system", system, dict)
+    if "menu_render_on_oled" in system:
+        _expect_type("system.menu_render_on_oled", system["menu_render_on_oled"], bool)
     return
 
 

@@ -8,9 +8,101 @@ import pygame
 
 from dashboard.screens.control_menu import ControlMenuController
 from dashboard.screens.control_menu import MenuRenderModel
+from dashboard.screens.control_menu import MenuRenderRow
 from dashboard.screens.control_menu import MenuSchemaError
 from dashboard.screens.control_menu import load_menu_schema
 from dashboard.screens.layout import DisplayLayout
+
+# Matches encoder OLED buffers: title 31 chars; M0–M2 / V0–V2 tokens trim to 31.
+_OLED_TITLE_MAX = 31
+_OLED_TOKEN_MAX = 31
+# Physical OLED shows three stacked rows + scrollbar (encoder_controller drawMenuScroll).
+_OLED_MENU_VISIBLE_ROWS = 3
+
+# Menu row: label left, status/value right — reserve space so values stay right-justified.
+_MENU_VALUE_MARGIN_RIGHT = 8
+_MENU_LABEL_VALUE_GAP = 10
+
+
+def _oled_menu_label_value(row: MenuRenderRow) -> tuple[str, str]:
+    """Label and value for Nano UART (M0–M2 + V0–V2); firmware draws label left, value right."""
+    lab = row.label.strip()[:_OLED_TOKEN_MAX]
+    val = (row.value_text or "").strip()[:_OLED_TOKEN_MAX]
+    return lab, val
+
+
+def _oled_first_visible_row(total: int, selected_idx: int, visible: int) -> int:
+    if total <= 0 or visible <= 0:
+        return 0
+    if total <= visible:
+        return 0
+    ideal = selected_idx - visible // 2
+    return max(0, min(ideal, total - visible))
+
+
+def _menu_model_to_oled_scroll(model: MenuRenderModel) -> dict[str, str | int]:
+    """Payload for Nano 256×64 vertical list (M0–M2, MT, MO, MG)."""
+    title = model.title.replace("  * unsaved", "*").strip()[:_OLED_TITLE_MAX]
+    rows = model.rows
+    n = len(rows)
+    if n == 0:
+        return {
+            "title": title or "-",
+            "m0": "",
+            "m1": "",
+            "m2": "",
+            "v0": "",
+            "v1": "",
+            "v2": "",
+            "total": 0,
+            "offset": 0,
+            "sel": 0,
+        }
+    sel = next((i for i, r in enumerate(rows) if r.selected), 0)
+    mo = _oled_first_visible_row(n, sel, _OLED_MENU_VISIBLE_ROWS)
+    labs: list[str] = []
+    vals: list[str] = []
+    for i in range(_OLED_MENU_VISIBLE_ROWS):
+        idx = mo + i
+        if idx < n:
+            lab, val = _oled_menu_label_value(rows[idx])
+            labs.append(lab)
+            vals.append(val)
+        else:
+            labs.append("")
+            vals.append("")
+    return {
+        "title": title or "-",
+        "m0": labs[0],
+        "m1": labs[1],
+        "m2": labs[2],
+        "v0": vals[0],
+        "v1": vals[1],
+        "v2": vals[2],
+        "total": n,
+        "offset": mo,
+        "sel": sel,
+    }
+
+
+def _scroll_offset_px(
+    selected_idx: int,
+    num_rows: int,
+    row_height: int,
+    row_gap: int,
+    viewport_h: int,
+) -> int:
+    """Pixel offset so the list scrolls vertically; keeps the selection near the viewport center."""
+    if num_rows <= 0 or viewport_h <= 0:
+        return 0
+    row_stride = row_height + row_gap
+    total_h = num_rows * row_stride - row_gap
+    if total_h <= viewport_h:
+        return 0
+    sel_center = selected_idx * row_stride + row_height // 2
+    ideal = sel_center - viewport_h // 2
+    max_scroll = max(0, total_h - viewport_h)
+    return max(0, min(ideal, max_scroll))
 
 
 class MenuOverlayScreen:
@@ -41,10 +133,7 @@ class MenuOverlayScreen:
         line_y = content_rect.y + header.get_height() + line_gap
         pygame.draw.line(surface, (156, 122, 38), (content_rect.x, line_y), (content_rect.right, line_y), 2)
         body_top = line_y + (6 if self._compact else 10)
-        if model.page_id == "home":
-            self._render_home_carousel(surface, model, content_rect, body_top)
-        else:
-            self._render_list(surface, model, content_rect, body_top)
+        self._render_scroll_menu(surface, model, content_rect, body_top)
         close_hint = ""
         if self._close_enabled:
             close_hint = "x2:Close" if self._compact else "Double press: Close"
@@ -89,9 +178,10 @@ class MenuOverlayScreen:
         pygame.draw.rect(surface, (188, 148, 54, 235), panel, width=2, border_radius=18)
         return pygame.Rect(32, 24, self.layout.width - 64, self.layout.height - 60)
 
-    def _render_home_carousel(
+    def _render_scroll_menu(
         self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect, body_top: int
     ) -> None:
+        """Traditional vertical list: fixed row order, scroll to keep selection in view."""
         if not model.rows:
             return
         selected_idx = 0
@@ -99,36 +189,85 @@ class MenuOverlayScreen:
             if row.selected:
                 selected_idx = idx
                 break
-        center_x = content_rect.centerx
         footer_reserve = self._tiny_font.get_height() + (20 if self._compact else 34)
-        body_bottom = max(body_top + 24, content_rect.bottom - footer_reserve)
-        center_y = body_top + ((body_bottom - body_top) // 2)
-        slot_width = max(46 if self._compact else 78, content_rect.width // 4)
-        for idx, row in enumerate(model.rows):
-            distance = idx - selected_idx
-            if abs(distance) > 2:
-                continue
-            x = center_x + (distance * slot_width)
-            if x < content_rect.left or x > content_rect.right:
-                continue
-            radius = max(16 if self._compact else 24, (36 if self._compact else 52) - (abs(distance) * 8))
-            selected = distance == 0
-            fill = (130, 96, 24) if selected else (70, 50, 14)
-            border = (255, 215, 96) if selected else (186, 146, 58)
-            pygame.draw.circle(surface, fill, (x, center_y), radius)
-            pygame.draw.circle(surface, border, (x, center_y), radius, width=3 if selected else 2)
-            icon_color = (250, 246, 220) if selected else (236, 216, 162)
-            self._draw_menu_icon(
-                surface=surface,
-                center=(x, center_y),
-                radius=max(14, radius - 10),
-                icon_id=str(row.icon or row.item_id or row.label).strip().lower(),
-                color=icon_color,
-            )
-            label = self._small_font.render(row.label, True, (246, 232, 176) if selected else (206, 184, 120))
-            label_offset = 14 if self._compact else 24
-            label_rect = label.get_rect(center=(x, center_y + radius + label_offset))
-            surface.blit(label, label_rect)
+        viewport_bottom = content_rect.bottom - footer_reserve
+        viewport_h = max(0, viewport_bottom - body_top)
+        row_gap = 2 if self._compact else 4
+        row_height = max(self._small_font.get_height() + (10 if self._compact else 14), 30 if self._compact else 40)
+        row_stride = row_height + row_gap
+        icon_col = 40 if self._compact else 52
+        icon_r = 12 if self._compact else 16
+
+        scroll = _scroll_offset_px(
+            selected_idx=selected_idx,
+            num_rows=len(model.rows),
+            row_height=row_height,
+            row_gap=row_gap,
+            viewport_h=viewport_h,
+        )
+        total_h = len(model.rows) * row_stride - row_gap
+        max_scroll = max(0, total_h - viewport_h)
+
+        viewport = pygame.Rect(content_rect.x, body_top, content_rect.width, viewport_h)
+        prev_clip = surface.get_clip()
+        surface.set_clip(viewport)
+
+        try:
+            for i, row in enumerate(model.rows):
+                y = body_top - scroll + i * row_stride
+                if y > viewport_bottom or y + row_height < body_top:
+                    continue
+                row_rect = pygame.Rect(content_rect.x, y, content_rect.width, row_height)
+                if row.selected:
+                    pygame.draw.rect(surface, (96, 70, 18), row_rect, border_radius=9)
+                    pygame.draw.rect(surface, (252, 208, 88), row_rect, width=1, border_radius=9)
+                cx = content_rect.x + icon_col // 2
+                cy = y + row_height // 2
+                icon_color = (250, 246, 220) if row.selected else (236, 216, 162)
+                pygame.draw.circle(surface, (55, 42, 14) if row.selected else (45, 34, 10), (cx, cy), icon_r + 2)
+                self._draw_menu_icon(
+                    surface=surface,
+                    center=(cx, cy),
+                    radius=icon_r,
+                    icon_id=str(row.icon or row.item_id or row.label).strip().lower(),
+                    color=icon_color,
+                )
+                label_x = content_rect.x + icon_col + 6
+                label_text = self._small_font.render(row.label, True, (248, 240, 206))
+                label_y = y + (row_height - label_text.get_height()) // 2
+                if row.value_text:
+                    value_text = self._small_font.render(row.value_text, True, (240, 210, 128))
+                    vw = value_text.get_width()
+                    label_max_w = max(
+                        0,
+                        content_rect.right
+                        - _MENU_VALUE_MARGIN_RIGHT
+                        - vw
+                        - _MENU_LABEL_VALUE_GAP
+                        - label_x,
+                    )
+                    label_clip = pygame.Rect(label_x, y, label_max_w, row_height)
+                    clip_before = surface.get_clip()
+                    surface.set_clip(label_clip.clip(clip_before))
+                    surface.blit(label_text, (label_x, label_y))
+                    surface.set_clip(clip_before)
+                    value_rect = value_text.get_rect(
+                        midright=(content_rect.right - _MENU_VALUE_MARGIN_RIGHT, y + row_height // 2)
+                    )
+                    surface.blit(value_text, value_rect)
+                else:
+                    surface.blit(label_text, (label_x, label_y))
+        finally:
+            surface.set_clip(prev_clip)
+
+        if max_scroll > 0:
+            hint_c = (200, 170, 90)
+            if scroll > 2:
+                up = self._tiny_font.render("\u25b2", True, hint_c)
+                surface.blit(up, (content_rect.right - 22, body_top))
+            if scroll < max_scroll - 2:
+                down = self._tiny_font.render("\u25bc", True, hint_c)
+                surface.blit(down, (content_rect.right - 22, viewport_bottom - self._tiny_font.get_height()))
 
     def _draw_menu_icon(
         self,
@@ -208,6 +347,35 @@ class MenuOverlayScreen:
             )
             pygame.draw.circle(surface, color, (cx, cy + int(radius * 0.55)), max(2, radius // 8), width=0)
             return
+        if icon in {"close", "close_menu", "exit", "quit", "exit_app"}:
+            # Doorway + arrow out (read left-to-right as "leave")
+            w = int(radius * 0.85)
+            h = int(radius * 1.1)
+            rect = pygame.Rect(cx - int(radius * 0.55), cy - h // 2, w, h)
+            pygame.draw.rect(surface, color, rect, width=max(2, width))
+            ax0 = cx + int(radius * 0.2)
+            pygame.draw.line(
+                surface,
+                color,
+                (ax0, cy),
+                (cx + int(radius * 0.95), cy),
+                width=max(2, width + 1),
+            )
+            pygame.draw.line(
+                surface,
+                color,
+                (cx + int(radius * 0.65), cy - int(radius * 0.35)),
+                (cx + int(radius * 0.95), cy),
+                width=max(2, width + 1),
+            )
+            pygame.draw.line(
+                surface,
+                color,
+                (cx + int(radius * 0.65), cy + int(radius * 0.35)),
+                (cx + int(radius * 0.95), cy),
+                width=max(2, width + 1),
+            )
+            return
         token = (icon_id or "?").strip().upper()[:3] or "?"
         glyph = self._small_font.render(token, True, color)
         surface.blit(glyph, glyph.get_rect(center=(cx, cy)))
@@ -267,34 +435,6 @@ class MenuOverlayScreen:
         except pygame.error:
             self._audio_icon_base = None
         return self._audio_icon_base
-
-    def _render_list(self, surface: pygame.Surface, model: MenuRenderModel, content_rect: pygame.Rect, body_top: int) -> None:
-        y = body_top
-        row_height = max(self._small_font.get_height() + (8 if self._compact else 12), 22)
-        selected_idx = 0
-        for idx, row in enumerate(model.rows):
-            if row.selected:
-                selected_idx = idx
-                break
-        # Keep the selected entry pinned at the top for small displays.
-        ordered_rows = model.rows[selected_idx:] + model.rows[:selected_idx]
-        footer_reserve = self._tiny_font.get_height() + (20 if self._compact else 34)
-        row_gap = 2 if self._compact else 4
-        for row in ordered_rows:
-            if y > content_rect.bottom - footer_reserve:
-                break
-            row_rect = pygame.Rect(content_rect.x, y - 4, content_rect.width, row_height)
-            if row.selected:
-                pygame.draw.rect(surface, (96, 70, 18), row_rect, border_radius=9)
-                pygame.draw.rect(surface, (252, 208, 88), row_rect, width=1, border_radius=9)
-            label_text = self._small_font.render(row.label, True, (248, 240, 206))
-            label_y = row_rect.centery - (label_text.get_height() // 2)
-            surface.blit(label_text, (content_rect.x + 8, label_y))
-            if row.value_text:
-                value_text = self._small_font.render(row.value_text, True, (240, 210, 128))
-                value_rect = value_text.get_rect(midright=(content_rect.right - 8, row_rect.centery))
-                surface.blit(value_text, value_rect)
-            y += row_height + row_gap
 
 
 class MenuOverlayController:
@@ -407,6 +547,13 @@ class MenuOverlayController:
         self._visible = False
         if self._menu:
             self._menu.reset_view()
+
+    def oled_menu_nano_payload(self, status: dict[str, str]) -> dict[str, str | int] | None:
+        """Structured menu for Nano UART (vertical scroll list); None if menu is closed."""
+        if not self._visible or not self._menu:
+            return None
+        model = self._menu.render_model(status=status)
+        return _menu_model_to_oled_scroll(model)
 
     def render(self, surface: pygame.Surface, status: dict[str, str]) -> None:
         if not self._visible:

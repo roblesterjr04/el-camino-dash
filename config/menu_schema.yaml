@@ -35,6 +35,11 @@ menu:
           type: submenu
           target_page: wifi
           icon: wifi
+        - id: close_menu
+          label: Close menu
+          type: action
+          command: menu.close
+          icon: close
 
     - id: wifi
       title: Wi-Fi

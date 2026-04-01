@@ -106,6 +106,29 @@ class BluetoothAudioAdapter:
         except Exception:
             self._status = "error"
 
+    def disconnect(self) -> str:
+        """Disconnect the active Bluetooth device via bluetoothctl."""
+        if not self._cfg.get("enabled", False):
+            self._status = "disabled"
+            return self._status
+        macs = self._connected_device_macs()
+        if not macs:
+            configured = self._device_mac()
+            if configured and self._is_connected(configured):
+                macs = [configured]
+        if not macs:
+            self._refresh_status()
+            return self._status
+        target = macs[0]
+        try:
+            self._run_bt_session([f"disconnect {target}"], timeout_s=25.0)
+        except Exception:
+            self._status = "disconnect-error"
+            return self._status
+        self._active_device_mac = ""
+        self._refresh_status()
+        return self._status
+
     def media_play_pause(self) -> str:
         # Prefer native toggle; fallback to alternating play/pause on stacks
         # where play-pause is unsupported.

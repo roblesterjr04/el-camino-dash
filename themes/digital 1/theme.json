@@ -88,7 +88,7 @@
       "show_primary_min_max": false,
       "show_primary_readout": true,
       "value_scale": 0.25,
-      "unit_scale": 0.070
+      "unit_scale": 0.07
     },
     "fuel": {
       "value_scale": 0.27,
@@ -104,7 +104,7 @@
     "clock": {
       "font_name": "DSEG14-Modern/DSEG14Modern-Italic.ttf",
       "label_scale": 0.1,
-      "value_scale": 0.20,
+      "value_scale": 0.2,
       "panel_radius_ratio": 0.45,
       "use_24h": false
     }
@@ -120,12 +120,19 @@
         "visual_max": 140,
         "angle_min_deg": 40,
         "angle_max_deg": 160,
-        "center_ratio": [0.5, 0.5],
+        "center_ratio": [
+          0.5,
+          0.5
+        ],
         "size_ratio": 0.425,
         "ring_thickness_ratio": 0.15,
         "ring_segments": 18,
         "ring_gap_ratio": 0.16,
-        "color": [46, 205, 113],
+        "color": [
+          46,
+          205,
+          113
+        ],
         "show_label": true,
         "show_value": false,
         "label_offset_px": 128,
@@ -144,19 +151,30 @@
         "visual_max": 8000,
         "angle_min_deg": 200,
         "angle_max_deg": 320,
-        "center_ratio": [0.5, 0.5],
+        "center_ratio": [
+          0.5,
+          0.5
+        ],
         "size_ratio": 0.425,
         "ring_thickness_ratio": 0.15,
         "ring_segments": 18,
         "ring_gap_ratio": 0.16,
-        "color": [142, 214, 54],
+        "color": [
+          142,
+          214,
+          54
+        ],
         "show_label": true,
         "show_value": false,
         "label_offset_px": 128,
         "redline": {
           "start_value": 4500,
           "end_value": 8000,
-          "color": [255, 52, 52]
+          "color": [
+            255,
+            52,
+            52
+          ]
         },
         "calibration": {
           "scale": 1.0,
@@ -172,7 +190,10 @@
         "source": "analog_inputs.fuel_level",
         "visual_min": 0,
         "visual_max": 100,
-        "center_ratio": [0.34, 0.40],
+        "center_ratio": [
+          0.34,
+          0.4
+        ],
         "bar_width_ratio": 0.22,
         "bar_height_ratio": 0.035,
         "bar_segments": 10,
@@ -182,8 +203,16 @@
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
-        "color": [120, 246, 255],
-        "empty_color": [24, 36, 50],
+        "color": [
+          120,
+          246,
+          255
+        ],
+        "empty_color": [
+          24,
+          36,
+          50
+        ],
         "calibration": {
           "scale": 1.0,
           "offset": 0.0
@@ -196,7 +225,10 @@
         "source": "analog_inputs.coolant_temp",
         "visual_min": 40,
         "visual_max": 250,
-        "center_ratio": [0.66, 0.40],
+        "center_ratio": [
+          0.66,
+          0.4
+        ],
         "bar_width_ratio": 0.22,
         "bar_height_ratio": 0.035,
         "bar_segments": 10,
@@ -206,8 +238,16 @@
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
-        "color": [120, 246, 255],
-        "empty_color": [24, 36, 50],
+        "color": [
+          120,
+          246,
+          255
+        ],
+        "empty_color": [
+          24,
+          36,
+          50
+        ],
         "calibration": {
           "scale": 1.0,
           "offset": 0.0
@@ -220,7 +260,10 @@
         "source": "indicators.oil",
         "visual_min": 0,
         "visual_max": 60,
-        "center_ratio": [0.34, 0.63],
+        "center_ratio": [
+          0.34,
+          0.63
+        ],
         "bar_width_ratio": 0.22,
         "bar_height_ratio": 0.035,
         "bar_segments": 10,
@@ -230,8 +273,16 @@
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
-        "color": [120, 246, 255],
-        "empty_color": [24, 36, 50],
+        "color": [
+          120,
+          246,
+          255
+        ],
+        "empty_color": [
+          24,
+          36,
+          50
+        ],
         "calibration": {
           "scale": 1.0,
           "offset": 0.0
@@ -244,7 +295,10 @@
         "source": "analog_inputs.system_amp",
         "visual_min": -100,
         "visual_max": 100,
-        "center_ratio": [0.66, 0.63],
+        "center_ratio": [
+          0.66,
+          0.63
+        ],
         "bar_width_ratio": 0.22,
         "bar_height_ratio": 0.035,
         "bar_segments": 10,
@@ -254,8 +308,16 @@
         "show_label": true,
         "show_value": false,
         "label_offset_px": 30,
-        "color": [120, 246, 255],
-        "empty_color": [24, 36, 50],
+        "color": [
+          120,
+          246,
+          255
+        ],
+        "empty_color": [
+          24,
+          36,
+          50
+        ],
         "calibration": {
           "scale": 1.0,
           "offset": 0.0
@@ -266,7 +328,7 @@
   "display_overrides": {
     "gauge_left": {
       "gauge_id": "speedometer"
-    },    
+    },
     "gauge_right": {
       "gauge_id": "tsps"
     }
@@ -275,10 +337,26 @@
     "speedometer": {
       "font_name": "DSEG14-Modern/DSEG14Modern-Italic.ttf",
       "font_scale": 0.042,
-      "text_color": [236, 251, 255],
-      "decimal_color": [120, 246, 255],
-      "box_color": [6, 12, 18],
-      "box_border": [22, 108, 146],
+      "text_color": [
+        236,
+        251,
+        255
+      ],
+      "decimal_color": [
+        120,
+        246,
+        255
+      ],
+      "box_color": [
+        6,
+        12,
+        18
+      ],
+      "box_border": [
+        22,
+        108,
+        146
+      ],
       "y_ratio": 0.75,
       "include_label": false,
       "include_unit": false,

@@ -7,7 +7,8 @@
     "fuel": true,
     "tachometer": true,
     "amp": false,
-    "temp": false
+    "temp": false,
+    "clock": false
   },
   "map_view": {
     "_default": {
@@ -50,7 +51,7 @@
       "scale": 0.5,
       "outer_ratio": 0.59,
       "length_ratio": 0.19,
-      "width_scale": 1.0
+      "width_scale": 1
     }
   },
   "show_text": {
@@ -135,7 +136,7 @@
           0.42
         ],
         "needle_length_ratio": 0.2,
-        "needle_width": 5,
+        "needle_width": 10,
         "needle_color": [
           255,
           52,
@@ -214,6 +215,10 @@
       "dial": "indicator_fuel.png",
       "overlay": "gauge_mask.png",
       "needle": "needle.png"
+    },
+    "clock": {
+      "overlay": "clock-face.png",
+      "dial": "clock-dial-cover.png"
     }
   },
   "clip_dial_to_mask": {
@@ -222,6 +227,14 @@
     "tsps": false
   },
   "sprite_render": {
+    "clock": {
+      "dial": {
+        "mode": "center_scale",
+        "scale": 0.25,
+        "offset_x_px": 0,
+        "offset_y_px": 0
+      }
+    },
     "speedometer": {
       "dial": {
         "mode": "center_scale",
@@ -234,7 +247,7 @@
         "scale": 0.32,
         "pivot": [
           0.5,
-          0.9
+          0.91
         ],
         "angle_offset_deg": -90
       }

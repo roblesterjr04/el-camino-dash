@@ -60,9 +60,13 @@ class EncoderArduinoSerialInput:
             self._enabled = False
             return
 
-        requested_port = str(spec.get("port", "/dev/serial0")).strip()
+        env_port = os.environ.get("EL_CAMINO_ENCODER_SERIAL_PORT", "").strip()
+        requested_port = env_port or str(spec.get("port", "/dev/serial0")).strip()
+        # Vehicle UART4 encoder link is often /dev/ttyAMA4. If config still says /dev/serial0
+        # (missing on many Pi images) or opening the wrong ttyAMA*, try ttyAMA4 before ttyAMA0.
         for candidate in (
             requested_port,
+            "/dev/ttyAMA4",
             "/dev/serial0",
             "/dev/ttyAMA0",
             "/dev/ttyS0",
@@ -134,8 +138,20 @@ class EncoderArduinoSerialInput:
         except ValueError:
             return None
 
-    def _parse_line(self, line: str) -> tuple[dict[str, int], list[str]]:
-        # MD=1,AD=0,MP=12,AP=3[,IR=volume_up]
+    @staticmethod
+    def _rotary_step_delta(raw: str) -> float | None:
+        """MCU sends UP/DOWN per detent; legacy frames use signed integers."""
+        r = raw.strip().upper()
+        if r == "UP":
+            return 1.0
+        if r == "DOWN":
+            return -1.0
+        return None
+
+    def _parse_line(self, line: str) -> tuple[float, float, dict[str, int], list[str]]:
+        # MD=UP,AD=DOWN,… | MD=UP,MD=UP,… | legacy MD=-2,AD=0 | MP=12,AP=3[,IR=volume_up]
+        menu_delta = 0.0
+        aux_delta = 0.0
         parsed: dict[str, int] = {}
         ir_tokens: list[str] = []
         for chunk in line.replace(" ", ",").split(","):
@@ -153,11 +169,29 @@ class EncoderArduinoSerialInput:
                 if cleaned and cleaned in _IR_TOKEN_KEYS:
                     ir_tokens.append(cleaned)
                 continue
+            if key == "MD":
+                step = self._rotary_step_delta(raw_stripped)
+                if step is not None:
+                    menu_delta += step
+                else:
+                    v = self._parse_int(raw_stripped)
+                    if v is not None:
+                        menu_delta += float(v)
+                continue
+            if key == "AD":
+                step = self._rotary_step_delta(raw_stripped)
+                if step is not None:
+                    aux_delta += step
+                else:
+                    v = self._parse_int(raw_stripped)
+                    if v is not None:
+                        aux_delta += float(v)
+                continue
             value = self._parse_int(raw_stripped)
             if value is None:
                 continue
             parsed[key] = value
-        return parsed, ir_tokens
+        return menu_delta, aux_delta, parsed, ir_tokens
 
     def poll(self) -> dict[str, float]:
         if not self._enabled:
@@ -210,12 +244,12 @@ class EncoderArduinoSerialInput:
             if (now - self._last_frame_log_monotonic) >= 1.0:
                 print(f"[encoder-serial] frame: {line}", flush=True)
                 self._last_frame_log_monotonic = now
-            fields, ir_tokens = self._parse_line(line)
-            if not fields and not ir_tokens:
+            md_line, ad_line, fields, ir_tokens = self._parse_line(line)
+            if not fields and not ir_tokens and md_line == 0.0 and ad_line == 0.0:
                 continue
             self._rx_parsed_frames_total += 1
-            menu_delta += float(fields.get("MD", 0))
-            aux_delta += float(fields.get("AD", 0))
+            menu_delta += md_line
+            aux_delta += ad_line
             if "MP" in fields:
                 next_menu = float(max(0, fields["MP"]))
                 self._menu_presses = next_menu

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install arduino-cli (Homebrew on macOS), import project board index, install AVR + ESP32 cores,
+# Install arduino-cli (Homebrew on macOS), import project board indexes, install AVR + ESP32 + RP2040 cores,
 # and common libraries used by repo sketches.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CONFIG_FILE="${PROJECT_ROOT}/arduino/config/arduino-cli.yaml"
 ESP32_INDEX_URL="https://espressif.github.io/arduino-esp32/package_esp32_index.json"
+# Earle Philhower RP2040 (recommended for encoder_controller; avoids Mbed RTOS crash LED pattern on Pico).
+RP2040_PHILHOWER_INDEX_URL="https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json"
 
 if ! command -v brew >/dev/null 2>&1; then
   echo "Homebrew is required but was not found." >&2
@@ -30,7 +32,12 @@ if ! arduino-cli config dump 2>/dev/null | grep -Fq "${ESP32_INDEX_URL}"; then
 else
   echo "Espressif board index URL already in arduino-cli config."
 fi
-
+if ! arduino-cli config dump 2>/dev/null | grep -Fq "${RP2040_PHILHOWER_INDEX_URL}"; then
+  echo "Registering Earle Philhower RP2040 board index (arduino-pico)..."
+  arduino-cli config add board_manager.additional_urls "${RP2040_PHILHOWER_INDEX_URL}"
+else
+  echo "RP2040 (Philhower) board index URL already in arduino-cli config."
+fi
 echo "Updating board index..."
 arduino-cli core update-index || echo "WARN: core update-index failed (offline? continuing.)" >&2
 
@@ -50,7 +57,7 @@ install_core_if_missing() {
 }
 
 if [[ $# -eq 0 ]]; then
-  DEFAULT_CORES=(arduino:avr esp32:esp32)
+  DEFAULT_CORES=(arduino:avr esp32:esp32 rp2040:rp2040 arduino:mbed_rp2040)
 else
   DEFAULT_CORES=("$@")
 fi

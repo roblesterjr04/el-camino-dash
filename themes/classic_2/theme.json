@@ -143,7 +143,7 @@
           0.42
         ],
         "needle_length_ratio": 0.41,
-        "needle_width": 5,
+        "needle_width": 10,
         "offset_y_px": 40,
         "needle_color": [
           255,
@@ -168,7 +168,7 @@
         ],
         "offset_y_px": 0,
         "needle_length_ratio": 0.35,
-        "needle_width": 5,
+        "needle_width": 10,
         "needle_color": [
           255,
           52,
@@ -193,7 +193,7 @@
         ],
         "offset_y_px": 50,
         "needle_length_ratio": 0.4,
-        "needle_width": 5,
+        "needle_width": 10,
         "needle_color": [
           255,
           52,
@@ -226,7 +226,7 @@
         ],
         "offset_y_px": 40,
         "needle_length_ratio": 0.41,
-        "needle_width": 5,
+        "needle_width": 10,
         "needle_color": [
           255,
           52,

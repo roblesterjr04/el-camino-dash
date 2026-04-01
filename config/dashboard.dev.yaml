@@ -15,6 +15,7 @@ system:
   single_window_fit_margin_px: 80
   menu_schema_path: config/menu_schema_v2.yaml
   menu_display_id: gauge_right
+  menu_render_on_oled: true
   alert_display_id: gauge_center
   alert_overlay_mode: full
   odometer_start_miles: 12345.0
@@ -307,11 +308,16 @@ inputs:
     diagnostics_window_ms: 1500
     diagnostics_max_gap_ms: 180
   sensor_pack_i2c:
-    enabled: true
+    enabled: false
     bus: 1
     address: 18
     register: 0
     frame_len: 16
+  arduino_serial:
+    enabled: true
+    port: /dev/ttyAMA1
+    baudrate: 115200
+    timeout_s: 0.0
 integrations:
   navit:
     enabled: false
@@ -354,7 +360,7 @@ integrations:
         - 193
   nano_bridge:
     enabled: true
-    port: /dev/serial0
+    port: /dev/ttyAMA4
     baudrate: 115200
     write_interval_s: 0.2
   esp32_audio_link:

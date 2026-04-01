@@ -48,6 +48,7 @@ class DisplayManager:
         self._layouts = self._build_layouts()
         self._menu_display_id = self._resolve_menu_display_id()
         self._menu_layout = self._resolve_menu_layout()
+        self._menu_render_on_oled = self._resolve_menu_render_on_oled()
         self._alert_display_id = self._resolve_alert_display_id()
         self._alert_layout = self._resolve_alert_layout()
         self._menu_overlay = MenuOverlayController(
@@ -186,7 +187,7 @@ class DisplayManager:
             overlay = pygame.Surface(layout.size, pygame.SRCALPHA)
             map_overlay.render(overlay, values=values, status=status)
             child.blit(overlay, (0, 0))
-        if self._menu_overlay_visible(layout):
+        if self._menu_gauge_overlay_visible(layout):
             overlay = pygame.Surface(layout.size, pygame.SRCALPHA)
             self._menu_overlay.render(overlay, status=status)
             child.blit(overlay, (0, 0))
@@ -240,7 +241,8 @@ class DisplayManager:
         flags = 0
         # In single-window hardware mode, respect display fullscreen intent to
         # avoid a decorated desktop window/titlebar on the dash screen.
-        if len(self._layouts) == 1 and self._layouts[0].fullscreen:
+        all_fullscreen = bool(self._layouts) and all(layout.fullscreen for layout in self._layouts)
+        if all_fullscreen and not self._single_window_fit_desktop():
             # SDL fullscreen mode switches can stall HDMI bring-up on some Pi/X11
             # paths. Use borderless full-window mode by default for faster first paint.
             use_legacy_fullscreen = bool(self._config.get("system", {}).get("legacy_fullscreen_mode", False))
@@ -568,6 +570,9 @@ class DisplayManager:
             gauge_id=None,
         )
 
+    def _resolve_menu_render_on_oled(self) -> bool:
+        return bool(self._config.get("system", {}).get("menu_render_on_oled", False))
+
     def _resolve_alert_display_id(self) -> str:
         configured = str(self._config.get("system", {}).get("alert_display_id", "gauge_center"))
         known_ids = {layout.display_id for layout in self._layouts}
@@ -607,6 +612,7 @@ class DisplayManager:
         self._layouts = self._build_layouts()
         self._menu_display_id = self._resolve_menu_display_id()
         self._menu_layout = self._resolve_menu_layout()
+        self._menu_render_on_oled = self._resolve_menu_render_on_oled()
         self._alert_display_id = self._resolve_alert_display_id()
         self._alert_layout = self._resolve_alert_layout()
         self._menu_overlay = MenuOverlayController(
@@ -650,8 +656,12 @@ class DisplayManager:
             target_display = self._menu_display_id
         return layout.display_id == target_display
 
-    def _menu_overlay_visible(self, layout: DisplayLayout) -> bool:
-        return self._menu_overlay.visible and layout.display_id == self._menu_display_id
+    def _menu_gauge_overlay_visible(self, layout: DisplayLayout) -> bool:
+        return (
+            self._menu_overlay.visible
+            and layout.display_id == self._menu_display_id
+            and not self._menu_render_on_oled
+        )
 
     def _warning_overlay_visible(self, layout: DisplayLayout, values: dict[str, float]) -> bool:
         if layout.display_id != self._alert_display_id:
@@ -746,6 +756,8 @@ class DisplayManager:
         system_cfg = self._config.get("system", {})
         if str(system_cfg.get("mode", "")).strip().lower() == "simulation":
             return True
+        if self._menu_render_on_oled and self._menu_overlay.visible:
+            return True
         if not bool(system_cfg.get("keyboard_focus_control_only", False)):
             return True
         if self._render_mode != "multi_window":
@@ -769,6 +781,12 @@ class DisplayManager:
 
     def menu_overlay_visible(self) -> bool:
         return bool(self._menu_overlay.visible)
+
+    def menu_render_on_oled(self) -> bool:
+        return self._menu_render_on_oled
+
+    def oled_menu_nano_payload(self, status: dict[str, str]) -> dict[str, str | int] | None:
+        return self._menu_overlay.oled_menu_nano_payload(status)
 
     def menu_open_or_back(self) -> str:
         return self._menu_overlay.open_or_back()

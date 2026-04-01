@@ -594,6 +594,18 @@ class IrRemoteInput:
         return True
 
     def _normalize_scancode(self, value: Any) -> str:
+        """Normalize kernel MSC_SCAN for profile lookup.
+
+        Linux often reports NEC as the enabled protocol but still sends MSC_SCAN=0
+        on every press (rc keymap path); EV_KEY carries the real identity. Treat 0 as
+        absent so callers fall back to KEY_* mapping. Coerce to unsigned 32-bit so
+        large NEC frames are not mangled by signed evdev quirks.
+        """
+        if isinstance(value, int):
+            u = value & 0xFFFFFFFF
+            if u == 0:
+                return ""
+            return f"0x{u:x}"
         text = str(value).strip().lower()
         if not text:
             return ""
@@ -602,12 +614,17 @@ class IrRemoteInput:
             if not digits:
                 return ""
             try:
-                numeric = int(digits, 16)
+                numeric = int(digits, 16) & 0xFFFFFFFF
             except ValueError:
+                return ""
+            if numeric == 0:
                 return ""
             return f"0x{numeric:x}"
         if text.isdigit():
-            return f"0x{int(text):x}"
+            u = int(text) & 0xFFFFFFFF
+            if u == 0:
+                return ""
+            return f"0x{u:x}"
         return ""
 
     def _normalize_action_name(self, action_name: str) -> str:

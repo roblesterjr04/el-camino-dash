@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 from pathlib import Path
 import signal
@@ -16,6 +17,7 @@ from dashboard.config import ConfigError
 from dashboard.config import load_dashboard_config
 from dashboard.display.manager import DisplayManager
 from dashboard.input.manager import InputManager
+from dashboard.input.stable_readings import SensorReadingStability
 from dashboard.integrations.audio_router import AudioRouterAdapter
 from dashboard.integrations.bluetooth_metadata import BluetoothMetadataAdapter
 from dashboard.integrations.bluetooth_audio import BluetoothAudioAdapter
@@ -74,6 +76,8 @@ class DashboardApp:
         self.media: MediaPlayer | None = None
         self.radio: FmRadioAdapter | None = None
         self._values: dict[str, float] = {}
+        self._sensor_stability = SensorReadingStability(self.config["inputs"].get("sensor_reading_stability", {"enabled": False}))
+        self._oled_ambient_display_int: int | None = None
         self._running = False
         self._command_registry: dict[str, Callable[[dict[str, Any]], str | None]] = {}
         self._last_runtime_s = time.monotonic()
@@ -319,6 +323,9 @@ class DashboardApp:
             )
             current["inputs.ir.command.diagnostics_open_count"] = float(diag_count + aux_press_delta)
         self._last_aux_press_count = aux_presses
+        # Stabilize sensor keys here (not in InputManager) so the same dict becomes _values and feeds
+        # HDMI gauges, raw_input log, and NanoBridge OLED WT= token (encoder display downlink).
+        current = self._sensor_stability.apply(current)
         self._values.update(current)
         self._ir_last_code = self.input_manager.ir_last_code() or "-"
         self._apply_ir_commands(current)
@@ -476,7 +483,7 @@ class DashboardApp:
             "diagnostics_pin_state": self._diagnostic_pin_state,
             "nano_bridge": self.nano_bridge.status(),
             "esp32_link": self.esp32_link.status(),
-            "sensor_pack": "i2c",
+            "sensor_pack": self.input_manager.sensor_pack_source() if self.input_manager else "off",
             "attiny_power": self.attiny_power.status(),
         }
         base_status.update(wifi_status_dict(self.config))
@@ -648,11 +655,14 @@ class DashboardApp:
             "audio.source_fm": self._cmd_audio_source_fm,
             "audio.select_source": self._cmd_audio_select_source,
             "bluetooth_audio.reconnect": self._cmd_bluetooth_audio_reconnect,
+            "bluetooth.connect": self._cmd_bluetooth_connect,
+            "bluetooth.disconnect": self._cmd_bluetooth_disconnect,
             "theme.next": self._cmd_theme_next,
             "center_dial_mode.toggle": self._cmd_center_dial_mode_toggle,
             "map_view.toggle": self._cmd_map_view_toggle,
             "app.main_screen": self._cmd_app_main_screen,
             "menu.open_back": self._cmd_menu_open_back,
+            "menu.close": self._cmd_menu_close,
             "faults.clear": self._cmd_faults_clear,
             "app.restart": self._cmd_app_restart,
             "wifi.rescan": self._cmd_wifi_rescan,
@@ -678,6 +688,7 @@ class DashboardApp:
         self._odometer_persist_enabled = bool(self.config["system"].get("odometer_persist_enabled", True))
         self._odometer_write_interval_s = float(self.config["system"].get("odometer_write_interval_s", 2.0))
         self.input_manager = InputManager(self.config)
+        self._sensor_stability = SensorReadingStability(self.config["inputs"].get("sensor_reading_stability", {"enabled": False}))
         self.media = MediaPlayer(self.config["integrations"]["media"])
         if self.config["integrations"]["navit"].get("enabled", False):
             self.navit.start()
@@ -814,6 +825,13 @@ class DashboardApp:
     def _cmd_bluetooth_audio_reconnect(self, _: dict[str, Any]) -> str:
         self.bluetooth_audio.reconnect()
         return f"Bluetooth audio: {self.bluetooth_audio.status()}"
+
+    def _cmd_bluetooth_connect(self, _: dict[str, Any]) -> str:
+        self.bluetooth_audio.reconnect()
+        return f"Bluetooth: {self.bluetooth_audio.status()}"
+
+    def _cmd_bluetooth_disconnect(self, _: dict[str, Any]) -> str:
+        return f"Bluetooth: {self.bluetooth_audio.disconnect()}"
 
     def _cmd_radio_fm_mode(self, _: dict[str, Any]) -> str:
         if not self.radio:
@@ -973,6 +991,12 @@ class DashboardApp:
             return "Menu unavailable"
         return self.display_manager.menu_open_or_back()
 
+    def _cmd_menu_close(self, _: dict[str, Any]) -> str:
+        if not self.display_manager:
+            return "Menu unavailable"
+        self.display_manager.close_menu_overlay()
+        return "Menu closed"
+
     def _cmd_faults_clear(self, _: dict[str, Any]) -> str:
         self._fault_latched_word = 0
         self._values["arduino.fault_latched_word"] = 0.0
@@ -1074,11 +1098,34 @@ class DashboardApp:
         ap = now.strftime("%p").upper()
         return tm, ap
 
+    def _oled_ambient_temp_display_int_hysteresis(self, temp_f: float) -> int:
+        """Match gauge_screen clock: avoid 71/72 flicker when float hovers near a half-degree boundary."""
+        last = self._oled_ambient_display_int
+        if last is None:
+            n = int(round(temp_f))
+            self._oled_ambient_display_int = n
+            return n
+        if temp_f >= last + 0.5:
+            n = int(math.floor(temp_f + 0.5))
+        elif temp_f <= last - 0.5:
+            n = int(math.ceil(temp_f - 0.5))
+        else:
+            n = last
+        self._oled_ambient_display_int = n
+        return n
+
     def _oled_weather_temp_str(self) -> str:
+        """Encoder OLED WT token (NanoBridge downlink on encoder UART).
+
+        Path: ATmega328 sensor_pack UART (Pi) → ArduinoSerialInput → InputManager.poll →
+        DashboardApp._tick_inputs SensorReadingStability.apply → _values → this string →
+        NanoBridge.send_oled_frame |WT=… → encoder_controller parseDownlinkLine WT.
+        """
         if "analog_inputs.ambient_temp" not in self._values:
             return "--"
         temp_f = float(self._values["analog_inputs.ambient_temp"])
-        return f"{temp_f:.0f}F"
+        shown = self._oled_ambient_temp_display_int_hysteresis(temp_f)
+        return f"{shown}F"
 
     def _oled_media_for_nano(self, status: dict[str, str]) -> tuple[str, str, int, str, str]:
         """song_title, song_artist, progress_pct, pos_elapsed, pos_total."""
@@ -1114,18 +1161,47 @@ class DashboardApp:
         weather_label = str(nb_cfg.get("weather_label", "OUTSIDE")) if isinstance(nb_cfg, dict) else "OUTSIDE"
         st, sa, pr, pe, pt = self._oled_media_for_nano(status)
         tm, ap = self._oled_clock_strings()
-        self.nano_bridge.send_oled_frame(
-            mode="menu" if (self.display_manager and self.display_manager.menu_overlay_visible()) else "drive",
-            title=status.get("theme_active", "-"),
-            line1=status.get("media", "-"),
-            line2=track,
-            weather_label=weather_label,
-            weather_temp=self._oled_weather_temp_str(),
-            song_title=st,
-            song_artist=sa,
-            progress_pct=pr,
-            pos_elapsed=pe,
-            pos_total=pt,
-            clock_time=tm,
-            clock_ampm=ap,
-        )
+        dm = self.display_manager
+        menu_open = bool(dm and dm.menu_overlay_visible())
+        pl = dm.oled_menu_nano_payload(status) if (menu_open and dm and dm.menu_render_on_oled()) else None
+        if pl is not None:
+            self.nano_bridge.send_oled_frame(
+                mode="menu",
+                title=str(pl.get("title", "-")),
+                line1="-",
+                line2="-",
+                weather_label=weather_label,
+                weather_temp=self._oled_weather_temp_str(),
+                song_title=st,
+                song_artist=sa,
+                progress_pct=pr,
+                pos_elapsed=pe,
+                pos_total=pt,
+                clock_time=tm,
+                clock_ampm=ap,
+                menu_rows=(str(pl.get("m0", "")), str(pl.get("m1", "")), str(pl.get("m2", ""))),
+                menu_row_values=(
+                    str(pl.get("v0", "")),
+                    str(pl.get("v1", "")),
+                    str(pl.get("v2", "")),
+                ),
+                menu_total=int(pl.get("total", 0)),
+                menu_offset=int(pl.get("offset", 0)),
+                menu_sel=int(pl.get("sel", 0)),
+            )
+        else:
+            self.nano_bridge.send_oled_frame(
+                mode="drive",
+                title=status.get("theme_active", "-"),
+                line1=status.get("media", "-"),
+                line2=track,
+                weather_label=weather_label,
+                weather_temp=self._oled_weather_temp_str(),
+                song_title=st,
+                song_artist=sa,
+                progress_pct=pr,
+                pos_elapsed=pe,
+                pos_total=pt,
+                clock_time=tm,
+                clock_ampm=ap,
+            )

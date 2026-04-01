@@ -6,6 +6,7 @@ from typing import Any
 import pygame
 
 from dashboard.input.analog_adc import AnalogAdcInput
+from dashboard.input.arduino_serial import ArduinoSerialInput
 from dashboard.input.encoder_arduino_serial import EncoderArduinoSerialInput
 from dashboard.input.gpio_buttons import GpioButtonInput
 from dashboard.input.ir_remote import IrRemoteInput
@@ -34,6 +35,7 @@ class InputManager:
         self._analog = [AnalogAdcInput(spec) for spec in input_cfg["analog_inputs"] if spec.get("enabled", False)]
         self._speed = [SpeedSensorInput(spec) for spec in input_cfg["speed_sensors"] if spec.get("enabled", False)]
         self._sensor_pack_i2c = SensorPackI2CInput(input_cfg.get("sensor_pack_i2c", {"enabled": False}))
+        self._arduino_serial = ArduinoSerialInput(input_cfg.get("arduino_serial", {"enabled": False}))
         self._encoder_arduino_serial = EncoderArduinoSerialInput(
             input_cfg.get("encoder_arduino_serial", {"enabled": False})
         )
@@ -75,6 +77,7 @@ class InputManager:
             values.update(source.poll())
         values.update(self._simulated.poll())
         values.update(self._sensor_pack_i2c.poll())
+        values.update(self._arduino_serial.poll())
 
         pressed = pygame.key.get_pressed()
         keyboard_rotary: dict[str, float] = {}
@@ -101,6 +104,18 @@ class InputManager:
         for key, total in self._rotary_press_totals.items():
             values[key] = float(total)
         return values
+
+    def sensor_pack_source(self) -> str:
+        """How vehicle analog/RPM data is ingested: i2c, uart, both, or off."""
+        i2c_on = self._sensor_pack_i2c.is_enabled()
+        uart_on = self._arduino_serial.is_enabled()
+        if i2c_on and uart_on:
+            return "both"
+        if uart_on:
+            return "uart"
+        if i2c_on:
+            return "i2c"
+        return "off"
 
     def _merge_rotary_actions(self, values: dict[str, float], additions: dict[str, float], *, source_id: str) -> None:
         if not additions:

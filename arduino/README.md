@@ -6,18 +6,21 @@ Arduino assets and tooling for the El Camino Dash project live here.
 
 - `arduino/sketches/` — sketches by feature/module.
 - `arduino/config/arduino-cli.yaml` — reference for the Espressif board index URL (applied by the install script).
-- `arduino/scripts/install_arduino_cli.sh` — install `arduino-cli`, register ESP32 board index, install **arduino:avr** + **esp32:esp32**, install **Encoder**, **U8g2** (encoder OLED), and **IRremote** v4 (encoder NEC IR).
+- `arduino/scripts/install_arduino_cli.sh` — install `arduino-cli`, register ESP32 + **Earle Philhower RP2040** board indexes, install **arduino:avr** + **esp32:esp32** + **rp2040:rp2040** (arduino-pico) + **arduino:mbed_rp2040** (optional), install **Encoder**, **U8g2** (encoder OLED), and **IRremote** v4 (encoder NEC IR).
 - `arduino/scripts/compile_sensor_pack.sh` — compile sensor_pack only.
 - `arduino/scripts/upload_sensor_pack.sh` — compile + upload sensor_pack (serial, optional SSH to Pi, optional `--programmer` for ICSP).
 - `arduino/scripts/upload_avr_sketch.sh` — generic local compile + upload for any sketch under `arduino/sketches/<name>/` (serial or ICSP).
 - `arduino/scripts/upload_esp32_sketch.sh` — compile + upload any ESP32 sketch over **native USB** (default FQBN `esp32:esp32:esp32s3`).
-- `arduino/scripts/deploy_encoder_icsp.sh` — convenience wrapper for `encoder_controller` + your port/programmer args.
+- `arduino/scripts/upload_rp2040_sketch.sh` — compile + upload any RP2040 sketch over **native USB** (default FQBN **`rp2040:rp2040:rpipico`**, Earle Philhower core).
+- `arduino/scripts/deploy_encoder_icsp.sh` — compatibility wrapper for `encoder_controller` that now targets Pi Pico USB upload.
 - `arduino/scripts/deploy_attiny_usbisp.sh` — ATtiny **power_control** via **usbtinyisp** (forwards to `program_power_control_attiny.sh`).
 - `arduino/scripts/deploy_esp32_audio_usb.sh` — **esp32_audio_bridge** over USB.
 - `arduino/scripts/program_power_control_attiny.sh` — build + flash ATtiny power controller (avr-g++ + avrdude; Pi SPI, USBasp, Arduino-as-ISP, etc.).
 - `arduino/scripts/sh_common.inc.sh` — shared helpers (core install check, serial port auto-detect).
 - `arduino/scripts/detect_serial_port.py` — used when upload scripts omit the port.
 - `arduino/scripts/monitor_sensor_pack.py` — decode binary packets from the sensor pack.
+
+**Sensor pack ↔ Pi:** shipping dashboard configs use **`inputs.arduino_serial`** (UART binary from `sensor_pack.ino` on **Pi UART1**). The **ATmega328P sensor MCU is not on I2C to the Pi** in those builds (5V logic; no Pi↔sensor-pack I2C without level shifters). Optional **`inputs.sensor_pack_i2c`** exists for legacy 3.3V I2C-slave bench setups only.
 
 ## Quick Start (macOS + Homebrew)
 
@@ -39,6 +42,20 @@ Upload sensor_pack (USB serial). With no port argument, picks the first suitable
 bash arduino/scripts/upload_sensor_pack.sh
 bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
 ```
+
+## Encoder Controller on Pi Pico
+
+Use the **Earle Philhower** core (**Tools → Board → Raspberry Pi Pico**, package *Raspberry Pi Pico/RP2040*), not **Arduino Mbed OS RP2040 Boards**, unless you have a reason. On **Mbed**, a repeating **four long + four short** green LED blink is a [known RTOS fault indicator](https://github.com/arduino/ArduinoCore-mbed/issues/316); switch to **arduino-pico** and re-flash.
+
+Flash `encoder_controller` (defaults to **`rp2040:rp2040:rpipico`**; auto-selects serial port):
+
+```bash
+bash arduino/scripts/install_arduino_cli.sh
+bash arduino/scripts/deploy_encoder_icsp.sh
+bash arduino/scripts/upload_rp2040_sketch.sh encoder_controller /dev/cu.usbmodem1101
+```
+
+To build with Mbed explicitly: `--fqbn arduino:mbed_rp2040:pico`.
 
 ## AVR over ICSP (USB programmer)
 

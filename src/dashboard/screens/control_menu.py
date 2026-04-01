@@ -431,27 +431,45 @@ class ControlMenuController:
         )
 
     def _value_text(self, item: MenuItem, status: dict[str, str]) -> str:
-        if item.item_type == "submenu":
-            return ">"
+        st = ""
+        if item.status_key:
+            st = str(status.get(item.status_key, "unknown"))
+
         if item.item_type == "info":
-            if not item.status_key:
-                return ""
-            return f"{status.get(item.status_key, 'unknown')}"
+            return st
+
+        if item.item_type == "submenu":
+            if st:
+                return f"{st}  >"
+            return ">"
+
         if item.item_type == "toggle":
             if not item.config_path:
-                return ""
+                return st
             value = bool(self._effective_value(item.config_path))
             staged = " (staged)" if item.config_path in self._staged_overrides else ""
-            return f"{'ON' if value else 'OFF'}{staged}"
+            native = f"{'ON' if value else 'OFF'}{staged}"
+            if st:
+                return f"{native}  {st}"
+            return native
+
         if item.item_type == "range":
             if not item.config_path:
-                return ""
+                return st
             value = self._effective_value(item.config_path)
             staged = " (staged)" if item.config_path in self._staged_overrides else ""
             editing = " [edit]" if self._editing_range and item == self._current_item() else ""
             if item.value_type == "float":
-                return f"{float(value):.2f}{staged}{editing}"
-            return f"{int(value)}{staged}{editing}"
+                native = f"{float(value):.2f}{staged}{editing}"
+            else:
+                native = f"{int(value)}{staged}{editing}"
+            if st:
+                return f"{native}  {st}"
+            return native
+
+        if item.item_type == "action":
+            return st
+
         return ""
 
     def _is_back_item(self, item: MenuItem) -> bool:

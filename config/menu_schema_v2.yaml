@@ -5,21 +5,18 @@ menu:
     - id: home
       title: Main Menu
       items:
-        - id: now_page
-          label: Now
+        - id: bluetooth_page
+          label: Bluetooth
           type: submenu
-          target_page: now
-          icon: clock
-        - id: audio_page
-          label: Audio
-          type: submenu
-          target_page: audio
+          target_page: bluetooth
           icon: audio
-        - id: inputs_page
-          label: Inputs
+          status_key: bluetooth
+        - id: radio_page
+          label: Radio
           type: submenu
-          target_page: inputs
-          icon: inputs
+          target_page: radio
+          icon: audio
+          status_key: fm_radio
         - id: system_page
           label: System
           type: submenu
@@ -30,16 +27,23 @@ menu:
           type: submenu
           target_page: alerts
           icon: alert
+          status_key: fault_status
         - id: wifi_page
           label: Wi-Fi
           type: submenu
           target_page: wifi
           icon: wifi
+          status_key: wifi_summary
         - id: diagnostics_page
           label: Diagnostics
           type: submenu
           target_page: diagnostics
           icon: alert
+        - id: close_menu
+          label: Close menu
+          type: action
+          command: menu.close
+          icon: close
 
     - id: wifi
       title: Wi-Fi
@@ -48,93 +52,43 @@ menu:
           label: Back
           type: submenu
           target_page: home
-        - id: wifi_overview
-          label: Status
-          type: info
-          status_key: wifi_summary
-        - id: wifi_conn
-          label: Network
-          type: info
-          status_key: wifi_connection
-        - id: wifi_addr
-          label: IPv4
-          type: info
-          status_key: wifi_ip
-        - id: wifi_rad
-          label: Radio
-          type: info
-          status_key: wifi_radio
-        - id: wifi_new_note
-          label: New network
-          type: info
-          status_key: wifi_hint
         - id: wifi_rescan
           label: Rescan
           type: action
           command: wifi.rescan
+          status_key: wifi_summary
         - id: wifi_connect
           label: Connect saved
           type: action
           command: wifi.connect
+          status_key: wifi_connection
         - id: wifi_disconnect
           label: Disconnect
           type: action
           command: wifi.disconnect
+          status_key: wifi_ip
         - id: wifi_radio_toggle
           label: Toggle Wi-Fi radio
           type: action
           command: wifi.radio_toggle
+          status_key: wifi_radio
 
-    - id: now
-      title: Now
+    - id: bluetooth
+      title: Bluetooth
       items:
         - id: back_home
           label: Back
           type: submenu
           target_page: home
-        - id: navit_status
-          label: Navit Status
-          type: info
-          status_key: navit
-        - id: media_status
-          label: Media Status
-          type: info
-          status_key: media
-        - id: profile_mode
-          label: Profile Mode
-          type: info
-          status_key: system_mode
-        - id: quick_navit_start
-          label: Start Navit
+        - id: bluetooth_connect
+          label: Connect
           type: action
-          command: navit.start
-        - id: quick_navit_stop
-          label: Stop Navit
+          command: bluetooth.connect
+          status_key: bluetooth
+        - id: bluetooth_disconnect
+          label: Disconnect
           type: action
-          command: navit.stop
-
-    - id: audio
-      title: Audio
-      items:
-        - id: back_home
-          label: Back
-          type: submenu
-          target_page: home
-        - id: media_page
-          label: Media
-          type: submenu
-          target_page: media
-          icon: audio
-        - id: radio_page
-          label: Radio
-          type: submenu
-          target_page: radio
-          icon: audio
-        - id: audio_route_page
-          label: Source Route
-          type: submenu
-          target_page: audio_route
-          icon: audio
+          command: bluetooth.disconnect
 
     - id: media
       title: Media
@@ -143,22 +97,16 @@ menu:
           label: Back
           type: submenu
           target_page: home
-        - id: media_status
-          label: Status
-          type: info
-          status_key: media
-        - id: media_track
-          label: Now Playing
-          type: info
-          status_key: media_track
         - id: media_play_pause
           label: Play/Pause
           type: action
           command: media.play_pause
+          status_key: media_track
         - id: media_next
           label: Next Track
           type: action
           command: media.next
+          status_key: media
         - id: media_stop
           label: Stop
           type: action
@@ -181,14 +129,11 @@ menu:
           label: Back
           type: submenu
           target_page: home
-        - id: radio_status
-          label: Status
-          type: info
-          status_key: fm_radio
         - id: radio_fm_mode
           label: FM Mode
           type: action
           command: radio.fm_mode
+          status_key: fm_radio
         - id: radio_wb_mode
           label: Weather Mode (SI4737 only)
           type: action
@@ -245,22 +190,16 @@ menu:
           label: Back
           type: submenu
           target_page: home
-        - id: audio_router_status
-          label: Router
-          type: info
-          status_key: audio_router
-        - id: audio_source_status
-          label: Active Source
-          type: info
-          status_key: audio_source
         - id: audio_source_pi
           label: Select Pi DAC
           type: action
           command: audio.source_pi
+          status_key: audio_source
         - id: audio_source_fm
           label: Select FM Radio
           type: action
           command: audio.source_fm
+          status_key: audio_source
 
     - id: inputs
       title: Inputs
@@ -287,59 +226,20 @@ menu:
           label: Back
           type: submenu
           target_page: home
-        - id: active_theme
-          label: Theme
-          type: info
-          status_key: theme_active
         - id: next_theme
           label: Switch Theme
           type: action
           command: theme.next
-        - id: center_mode
-          label: Center Dial
-          type: info
-          status_key: center_dial_mode
+          status_key: theme_active
         - id: toggle_center_mode
           label: Toggle Center Dial
           type: action
           command: center_dial_mode.toggle
-        - id: map_view_state
-          label: Map View
-          type: info
-          status_key: map_view_visible
+          status_key: center_dial_mode
         - id: ir_diag_page
           label: IR Diagnostics
           type: submenu
           target_page: ir_diagnostics
-        - id: encoder_last_frame
-          label: Encoder Frame
-          type: info
-          status_key: encoder_last_frame
-        - id: toggle_map_view
-          label: Toggle Map View
-          type: action
-          command: map_view.toggle
-        - id: target_fps
-          label: Target FPS
-          type: range
-          config_path: system.target_fps
-          value_type: int
-          min: 10
-          max: 60
-          step: 1
-          apply_mode: immediate
-        - id: save_config
-          label: Save Config
-          type: action
-          command: config.save
-        - id: reload_config
-          label: Reload Config
-          type: action
-          command: config.reload
-        - id: restart_app
-          label: Restart App
-          type: action
-          command: app.restart
 
     - id: ir_diagnostics
       title: IR Diagnostics
@@ -392,10 +292,6 @@ menu:
           label: Back
           type: submenu
           target_page: home
-        - id: fault_status
-          label: Status
-          type: info
-          status_key: fault_status
         - id: fault_active_count
           label: Active
           type: info
@@ -420,3 +316,4 @@ menu:
           label: Clear Faults
           type: action
           command: faults.clear
+          status_key: fault_status

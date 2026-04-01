@@ -27,6 +27,9 @@ class SensorPackI2CInput:
             self._bus = None
             self._enabled = False
 
+    def is_enabled(self) -> bool:
+        return bool(self._enabled)
+
     def _read_frame(self) -> bytes:
         if self._bus is None:
             return b""

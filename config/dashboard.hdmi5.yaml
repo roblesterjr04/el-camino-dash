@@ -2,7 +2,7 @@ system:
   mode: vehicle
   log_level: INFO
   target_fps: 60
-  window_title: El Camino Dash (HDMI 5in)
+  window_title: El Camino Dash (dual 5in round)
   display_render_mode: single_window
   keyboard_focus_control_only: false
   startup_sweep_enabled: true
@@ -12,15 +12,16 @@ system:
   left_to_right_preview: false
   left_to_right_spacing_px: 8
   menu_schema_path: config/menu_schema_v2.yaml
-  menu_display_id: main_display
-  alert_display_id: main_display
+  menu_display_id: round_right
+  menu_render_on_oled: true
+  alert_display_id: round_right
   alert_overlay_mode: lower_third
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.hdmi5.json
   odometer_write_interval_s: 1.5
   map_view_visible: false
-  map_display_id: main_display
+  map_display_id: round_right
   low_oil_pressure_alert_enabled: true
   low_oil_pressure_source: indicators.oil
   low_oil_pressure_threshold: 20
@@ -33,11 +34,13 @@ system:
   diagnostics_gpio_pin: 21
   diagnostics_gpio_active_low: true
 displays:
-- id: main_display
+# Single HDMI 2160×1080: splitter drives two 1080×1080 round panels (left / right).
+# IDs avoid classic_1 theme display_overrides (gauge_* → tsps/tach/speed mix).
+- id: round_left
   enabled: true
-  shape: rectangle
-  width: 800
-  height: 480
+  shape: round
+  width: 1080
+  height: 1080
   position:
   - 0
   - 0
@@ -47,6 +50,20 @@ displays:
   fps: 30
   role: gauge
   gauge_id: speedometer
+- id: round_right
+  enabled: true
+  shape: round
+  width: 1080
+  height: 1080
+  position:
+  - 1080
+  - 0
+  monitor_index: 0
+  windowed: false
+  fullscreen: true
+  fps: 30
+  role: gauge
+  gauge_id: tachometer
 themes:
   active: classic_1
   enabled:
@@ -203,7 +220,7 @@ inputs:
     left_delta: 1
   encoder_arduino_serial:
     enabled: true
-    port: /dev/serial0
+    port: /dev/ttyAMA4
     baudrate: 115200
     timeout_s: 0.0
     open_retry_interval_s: 1.0
@@ -299,12 +316,26 @@ inputs:
     diagnostics_pulse_count: 10
     diagnostics_window_ms: 5000
     diagnostics_max_gap_ms: 450
-  sensor_pack_i2c:
+  sensor_reading_stability:
     enabled: true
+    # 71 vs 72°F are 1° apart — global epsilon 0.05 never counts them as the same sample, so the streak
+    # never completes and raw values pass through. Use ~1°F for outside air (and similar for coolant).
+    required_samples: 50
+    epsilon: 0.05
+    epsilon_by_key:
+      analog_inputs.ambient_temp: 1.0
+      analog_inputs.coolant_temp: 1.0
+  sensor_pack_i2c:
+    enabled: false
     bus: 1
     address: 18
     register: 0
     frame_len: 16
+  arduino_serial:
+    enabled: true
+    port: /dev/ttyAMA1
+    baudrate: 115200
+    timeout_s: 0.0
 integrations:
   navit:
     enabled: false
@@ -359,9 +390,9 @@ integrations:
         - 193
   nano_bridge:
     enabled: true
-    port: /dev/serial0
+    port: /dev/ttyAMA4
     baudrate: 115200
-    write_interval_s: 0.2
+    write_interval_s: 0.05
   esp32_audio_link:
     enabled: true
     i2c_bus: 1

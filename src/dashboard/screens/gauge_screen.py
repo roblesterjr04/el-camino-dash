@@ -25,6 +25,7 @@ class GaugeScreen:
         self._ir_activity_counter = 0.0
         self._ir_activity_visible_until_s = 0.0
         self._ir_activity_hold_s = 0.45
+        self._outside_temp_display_int: int | None = None
 
     def _load_theme_data(self) -> dict[str, Any]:
         theme_root = Path(self.config["themes"]["theme_root"])
@@ -969,6 +970,22 @@ class GaugeScreen:
                 return fallback
         return fallback
 
+    def _outside_temp_display_int_hysteresis(self, calibrated_temp: float) -> int:
+        """Avoid 71/72 flicker when the float hovers near a .5 rounding boundary."""
+        last = self._outside_temp_display_int
+        if last is None:
+            n = int(round(calibrated_temp))
+            self._outside_temp_display_int = n
+            return n
+        if calibrated_temp >= last + 0.5:
+            n = int(math.floor(calibrated_temp + 0.5))
+        elif calibrated_temp <= last - 0.5:
+            n = int(math.ceil(calibrated_temp - 0.5))
+        else:
+            n = last
+        self._outside_temp_display_int = n
+        return n
+
     def _clock_temperature_label(self, values: dict[str, float]) -> str:
         source = "analog_inputs.ambient_temp"
         if source not in values:
@@ -976,9 +993,10 @@ class GaugeScreen:
         raw_temp = float(values[source])
         calibrated_temp, unit_override = self._apply_source_calibration(source, raw_temp)
         temp_unit = unit_override or str(self.config.get("gauges", {}).get("temp", {}).get("unit", "")).strip()
+        shown = self._outside_temp_display_int_hysteresis(calibrated_temp)
         if temp_unit:
-            return f"OUTSIDE {calibrated_temp:.0f}{temp_unit}"
-        return f"OUTSIDE {calibrated_temp:.0f}"
+            return f"OUTSIDE {shown}{temp_unit}"
+        return f"OUTSIDE {shown}"
 
     def _render_digital_clock(self, surface: pygame.Surface, values: dict[str, float], status: dict[str, str]) -> None:
         cfg = self._digital_render_config("clock")

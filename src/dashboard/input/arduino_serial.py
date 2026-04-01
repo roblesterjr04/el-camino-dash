@@ -79,6 +79,9 @@ class ArduinoSerialInput:
 
         self._try_open_port(force=True)
 
+    def is_enabled(self) -> bool:
+        return bool(self._enabled)
+
     def _try_open_port(self, *, force: bool) -> None:
         if self._port is not None or not self._enabled:
             return

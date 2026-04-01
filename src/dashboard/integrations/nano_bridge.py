@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable
 from typing import Any
@@ -15,7 +16,8 @@ class NanoBridge:
 
     def __init__(self, spec: dict[str, Any]) -> None:
         self._enabled = bool(spec.get("enabled", False))
-        self._port_name = str(spec.get("port", "/dev/serial0"))
+        env_port = os.environ.get("EL_CAMINO_NANO_BRIDGE_PORT", "").strip()
+        self._port_name = env_port or str(spec.get("port", "/dev/serial0"))
         self._baudrate = int(spec.get("baudrate", 115200))
         self._write_interval_s = max(0.05, float(spec.get("write_interval_s", 0.2)))
         self._port: Any | None = None
@@ -73,6 +75,11 @@ class NanoBridge:
         pos_total: str = "0:00",
         clock_time: str = "12:00",
         clock_ampm: str = "AM",
+        menu_rows: tuple[str, str, str] | None = None,
+        menu_row_values: tuple[str, str, str] | None = None,
+        menu_total: int = 0,
+        menu_offset: int = 0,
+        menu_sel: int = 0,
     ) -> None:
         if not self._enabled:
             return
@@ -80,7 +87,7 @@ class NanoBridge:
         if (now - self._last_write_s) < self._write_interval_s:
             return
         pr = max(0, min(100, int(progress_pct)))
-        payload = (
+        body = (
             f"MODE={self._oled_token(mode, 8)}"
             f"|TITLE={self._oled_token(title)}"
             f"|L1={self._oled_token(line1)}"
@@ -94,8 +101,28 @@ class NanoBridge:
             f"|PT={self._oled_token(pos_total, 8)}"
             f"|TM={self._oled_token(clock_time, 8)}"
             f"|AP={self._oled_token(clock_ampm, 4)}"
-            "\n"
-        ).encode("utf-8", errors="ignore")
+        )
+        if menu_rows is not None and str(mode).strip().lower() == "menu" and int(menu_total) > 0:
+            m0, m1, m2 = menu_rows
+            mt = max(0, int(menu_total))
+            mo = max(0, int(menu_offset))
+            mg = max(0, int(menu_sel))
+            body += (
+                f"|M0={self._oled_token(m0, 31)}"
+                f"|M1={self._oled_token(m1, 31)}"
+                f"|M2={self._oled_token(m2, 31)}"
+                f"|MT={mt}"
+                f"|MO={mo}"
+                f"|MG={mg}"
+            )
+            if menu_row_values is not None:
+                v0, v1, v2 = menu_row_values
+                body += (
+                    f"|V0={self._oled_token(v0, 31)}"
+                    f"|V1={self._oled_token(v1, 31)}"
+                    f"|V2={self._oled_token(v2, 31)}"
+                )
+        payload = (body + "\n").encode("utf-8", errors="ignore")
         if self._serial_write is not None:
             try:
                 self._serial_write(payload)

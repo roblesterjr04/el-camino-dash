@@ -1,4 +1,10 @@
-# Sensor Pack I2C Frame
+# Sensor Pack I2C Frame (legacy)
+
+> **Vehicle / production:** the **sensor ATmega328P is 5V**; shipping configs use **UART only** (`inputs.arduino_serial`, `sensor_pack.ino` binary frames on **Pi UART1**), **not** an I2C link to the Pi. See **`src/dashboard/input/arduino_serial.py`**.
+
+This document describes the **optional** I2C register map for **bench-only** or **3.3V I2C-slave** sensor builds consumed by `SensorPackI2CInput`.
+
+---
 
 ATmega328 sensor pack publishes a fixed frame on I2C. Pi polls register `0x00`.
 

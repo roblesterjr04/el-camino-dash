@@ -17,6 +17,8 @@ remote:
     menu_open: ""
     dash_exit: ""
   # Optional direct scancode map for random remotes without a Linux keytable.
+  # If diagnostics only ever shows SCAN:0x0, the kernel is not exposing MSC_SCAN;
+  # fill `controls` with KEY_* names from the same line instead (ignore SCAN:).
   # Format: "<hex scancode>": <action_name>
   # Example:
   # scancodes:

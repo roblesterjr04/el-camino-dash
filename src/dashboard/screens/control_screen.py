@@ -11,6 +11,7 @@ from dashboard.screens.control_menu import MenuRenderModel
 from dashboard.screens.control_menu import MenuSchemaError
 from dashboard.screens.control_menu import load_menu_schema
 from dashboard.screens.layout import DisplayLayout
+from dashboard.screens.menu_overlay import _scroll_offset_px
 
 
 class ControlScreen:
@@ -61,10 +62,7 @@ class ControlScreen:
         surface.blit(header, (20, 14))
         pygame.draw.line(surface, (50, 74, 98), (20, 52), (self.layout.width - 20, 52), 2)
 
-        if model.page_id == "home":
-            self._render_home_cards(surface, model)
-        else:
-            self._render_list(surface, model)
+        self._render_scroll_menu(surface, model)
 
         footer_text = self._tiny_font.render(model.footer, True, (150, 168, 190))
         surface.blit(footer_text, (20, self.layout.height - 26))
@@ -84,41 +82,52 @@ class ControlScreen:
             )
             pygame.draw.line(surface, color, (0, y), (self.layout.width, y))
 
-    def _render_home_cards(self, surface: pygame.Surface, model: MenuRenderModel) -> None:
-        start_x = 24
-        start_y = 72
-        gap = 14
-        cols = 3
-        card_w = (self.layout.width - (start_x * 2) - (gap * (cols - 1))) // cols
-        card_h = 106
-        for idx, row in enumerate(model.rows[:6]):
-            col = idx % cols
-            line = idx // cols
-            x = start_x + (col * (card_w + gap))
-            y = start_y + (line * (card_h + gap))
-            card_rect = pygame.Rect(x, y, card_w, card_h)
-            fill = (34, 56, 78) if row.selected else (22, 34, 50)
-            border = (112, 206, 255) if row.selected else (52, 82, 110)
-            pygame.draw.rect(surface, fill, card_rect, border_radius=14)
-            pygame.draw.rect(surface, border, card_rect, width=2, border_radius=14)
-            icon_center = (x + 24, y + 24)
-            pygame.draw.circle(surface, border, icon_center, 10, width=2)
-            label = self._small_font.render(row.label, True, (230, 236, 242))
-            surface.blit(label, (x + 44, y + 14))
-            hint = self._tiny_font.render("Open", True, (164, 182, 201))
-            surface.blit(hint, (x + 44, y + 46))
-
-    def _render_list(self, surface: pygame.Surface, model: MenuRenderModel) -> None:
-        y = 72
-        for row in model.rows:
-            row_rect = pygame.Rect(20, y - 2, self.layout.width - 40, 28)
-            if row.selected:
-                pygame.draw.rect(surface, (38, 68, 102), row_rect, border_radius=8)
-                pygame.draw.rect(surface, (108, 202, 255), row_rect, width=1, border_radius=8)
-            label_text = self._small_font.render(row.label, True, (235, 240, 245))
-            surface.blit(label_text, (28, y))
-            if row.value_text:
-                value_text = self._small_font.render(row.value_text, True, (171, 208, 232))
-                value_rect = value_text.get_rect(midright=(self.layout.width - 28, y + 10))
-                surface.blit(value_text, value_rect)
-            y += 30
+    def _render_scroll_menu(self, surface: pygame.Surface, model: MenuRenderModel) -> None:
+        body_top = 60
+        footer_h = 52
+        viewport_h = max(40, self.layout.height - body_top - footer_h)
+        selected_idx = next((i for i, r in enumerate(model.rows) if r.selected), 0)
+        row_gap = 4
+        row_height = max(26, self._small_font.get_height() + 10)
+        row_stride = row_height + row_gap
+        scroll = _scroll_offset_px(
+            selected_idx=selected_idx,
+            num_rows=len(model.rows),
+            row_height=row_height,
+            row_gap=row_gap,
+            viewport_h=viewport_h,
+        )
+        margin_x = 20
+        viewport = pygame.Rect(margin_x, body_top, self.layout.width - 2 * margin_x, viewport_h)
+        prev = surface.get_clip()
+        surface.set_clip(viewport)
+        try:
+            for i, row in enumerate(model.rows):
+                y = body_top - scroll + i * row_stride
+                if y + row_height < body_top or y > body_top + viewport_h:
+                    continue
+                row_rect = pygame.Rect(margin_x, y, self.layout.width - 2 * margin_x, row_height)
+                if row.selected:
+                    pygame.draw.rect(surface, (38, 68, 102), row_rect, border_radius=8)
+                    pygame.draw.rect(surface, (108, 202, 255), row_rect, width=1, border_radius=8)
+                label_x = margin_x + 10
+                label_text = self._small_font.render(row.label, True, (235, 240, 245))
+                label_y = y + (row_height - label_text.get_height()) // 2
+                value_margin_right = 10
+                label_value_gap = 10
+                if row.value_text:
+                    value_text = self._small_font.render(row.value_text, True, (171, 208, 232))
+                    vw = value_text.get_width()
+                    right_x = self.layout.width - margin_x - value_margin_right
+                    label_max_w = max(0, right_x - vw - label_value_gap - label_x)
+                    label_clip = pygame.Rect(label_x, y, label_max_w, row_height)
+                    clip_before = surface.get_clip()
+                    surface.set_clip(label_clip.clip(clip_before))
+                    surface.blit(label_text, (label_x, label_y))
+                    surface.set_clip(clip_before)
+                    value_rect = value_text.get_rect(midright=(right_x, y + row_height // 2))
+                    surface.blit(value_text, value_rect)
+                else:
+                    surface.blit(label_text, (label_x, label_y))
+        finally:
+            surface.set_clip(prev)

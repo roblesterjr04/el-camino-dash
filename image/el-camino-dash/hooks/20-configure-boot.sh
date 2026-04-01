@@ -73,11 +73,14 @@ mask_unit_in_rootfs() {
 }
 
 append_line_if_missing "${CONFIG_TXT}" "enable_uart=1"
+# Vehicle UART: sensor pack (UART1) + encoder / nano bridge (UART4). GPIO pins from overlay help:
+#   dtoverlay -h uart1   /   dtoverlay -h uart4
+append_line_if_missing "${CONFIG_TXT}" "dtoverlay=uart1"
+append_line_if_missing "${CONFIG_TXT}" "dtoverlay=uart4"
+# I2C: FM, audio router, etc. — not used for the 5V ATmega328P sensor pack (UART1 only in app config).
 append_line_if_missing "${CONFIG_TXT}" "dtparam=i2c_arm=on"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=disable-bt[[:space:]]*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=miniuart-bt[[:space:]]*$"
-remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=uart4[[:space:]]*$"
-remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=uart3[[:space:]]*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=disable-wifi[[:space:]]*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=vc4-fkms-v3d.*$"
 append_line_if_missing "${CONFIG_TXT}" "dtoverlay=vc4-kms-v3d"
@@ -91,7 +94,8 @@ append_line_if_missing "${CONFIG_TXT}" "dtoverlay=gpio-ir,gpio_pin=26"
 append_line_if_missing "${CONFIG_TXT}" "hdmi_force_hotplug=1"
 append_line_if_missing "${CONFIG_TXT}" "hdmi_group=2"
 append_line_if_missing "${CONFIG_TXT}" "hdmi_mode=87"
-append_line_if_missing "${CONFIG_TXT}" "hdmi_cvt=800 480 60 6 0 0 0"
+# Dual 5in round 1080^2 panels via HDMI splitter (single cable, left/right framebuffer).
+append_line_if_missing "${CONFIG_TXT}" "hdmi_cvt=2160 1080 60 6 0 0 0"
 append_line_if_missing "${CONFIG_TXT}" "disable_overscan=1"
 
 remove_cmdline_token_prefix "${CMDLINE_TXT}" "console=serial0"
@@ -104,12 +108,14 @@ remove_cmdline_token_prefix "${CMDLINE_TXT}" "video="
 
 ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_headphones=1"
 ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_hdmi=0"
-ensure_cmdline_token "${CMDLINE_TXT}" "video=HDMI-A-2:800x480M@60D"
+ensure_cmdline_token "${CMDLINE_TXT}" "video=HDMI-A-2:2160x1080M@60D"
 
 # Keep UART enabled but guarantee Linux login consoles do not bind serial ports.
 mask_unit_in_rootfs "serial-getty@serial0.service"
 mask_unit_in_rootfs "serial-getty@ttyAMA0.service"
 mask_unit_in_rootfs "serial-getty@ttyS0.service"
+mask_unit_in_rootfs "serial-getty@ttyAMA1.service"
+mask_unit_in_rootfs "serial-getty@ttyAMA4.service"
 # Ensure BT UART attach is available when bluetooth service is started late.
 rm -f "$(in_rootfs /etc/systemd/system/hciuart.service)"
 

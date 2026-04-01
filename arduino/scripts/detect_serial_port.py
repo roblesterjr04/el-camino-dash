@@ -17,8 +17,8 @@ USBISH = re.compile(
 
 def main() -> int:
     prefer = sys.argv[1] if len(sys.argv) > 1 else "any"
-    if prefer not in ("any", "avr", "esp32"):
-        print(f"Usage: {sys.argv[0]} [any|avr|esp32]", file=sys.stderr)
+    if prefer not in ("any", "avr", "esp32", "pico"):
+        print(f"Usage: {sys.argv[0]} [any|avr|esp32|pico]", file=sys.stderr)
         return 2
 
     r = subprocess.run(
@@ -66,6 +66,8 @@ def main() -> int:
         if prefer == "esp32" and "esp32" in fl:
             s += 10
         if prefer == "avr" and "avr" in fl:
+            s += 10
+        if prefer == "pico" and ("rp2040" in fl or "mbed_rp2040" in fl or "rpi pico" in fl):
             s += 10
         return (-s, addr)
 
