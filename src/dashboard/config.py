@@ -757,6 +757,10 @@ def _validate_system(system: dict[str, Any]) -> None:
     _expect_type("system", system, dict)
     if "menu_render_on_oled" in system:
         _expect_type("system.menu_render_on_oled", system["menu_render_on_oled"], bool)
+    if "display_rotation_deg" in system:
+        _expect_type("system.display_rotation_deg", system["display_rotation_deg"], int)
+        if int(system["display_rotation_deg"]) not in (0, 180):
+            _fail("system.display_rotation_deg", "must be 0 or 180")
     return
 
 

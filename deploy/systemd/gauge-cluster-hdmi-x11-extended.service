@@ -1,0 +1,26 @@
+[Unit]
+Description=Gauge Cluster Dashboard (X11 extended desktop, dual HDMI)
+Documentation=file:/opt/el-camino-dash/scripts/start-gauge-hdmi-x11-extended.sh
+After=local-fs.target systemd-modules-load.service
+Before=multi-user.target getty@tty1.service plymouth-quit-wait.service
+Conflicts=getty@tty1.service gauge-cluster-hdmi.service
+ConditionPathExists=/dev/dri
+ConditionPathExists=/dev/tty1
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/el-camino-dash
+Environment=PYTHONPATH=/opt/el-camino-dash/src
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-gauge-hdmi-x11.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-gauge-hdmi-x11.log; touch "$LOG"; echo "[elc] gauge-cluster-hdmi-x11-extended start $(date -Is)" >> "$LOG"; exec runuser -u pi -- /bin/bash -lc "/opt/el-camino-dash/scripts/start-gauge-hdmi-x11-extended.sh" >>"$LOG" 2>&1'
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

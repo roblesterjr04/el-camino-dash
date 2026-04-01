@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SDL KMSDRM: one DRM output per process — no extended desktop. For dual HDMI as one pygame surface,
+# use start-gauge-hdmi-x11-extended.sh (X11 + RandR) instead.
 set -euo pipefail
 
 cd /opt/el-camino-dash

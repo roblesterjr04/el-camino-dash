@@ -2,7 +2,7 @@
 Description=Gauge Cluster Dashboard (HDMI)
 After=local-fs.target systemd-modules-load.service
 Before=multi-user.target getty@tty1.service plymouth-quit-wait.service
-Conflicts=getty@tty1.service
+Conflicts=getty@tty1.service gauge-cluster-hdmi-x11-extended.service
 ConditionPathExists=/dev/dri
 ConditionPathExists=/dev/tty1
 

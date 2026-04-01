@@ -91,12 +91,32 @@ append_line_if_missing "${CONFIG_TXT}" "dtparam=spi=off"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*dtoverlay=spi1-3cs[[:space:]]*$"
 remove_matching "${CONFIG_TXT}" "^dtoverlay=gpio-ir,gpio_pin="
 append_line_if_missing "${CONFIG_TXT}" "dtoverlay=gpio-ir,gpio_pin=26"
-append_line_if_missing "${CONFIG_TXT}" "hdmi_force_hotplug=1"
-append_line_if_missing "${CONFIG_TXT}" "hdmi_group=2"
-append_line_if_missing "${CONFIG_TXT}" "hdmi_mode=87"
-# Dual 5in round 1080^2 panels via HDMI splitter (single cable, left/right framebuffer).
-append_line_if_missing "${CONFIG_TXT}" "hdmi_cvt=2160 1080 60 6 0 0 0"
-append_line_if_missing "${CONFIG_TXT}" "disable_overscan=1"
+# HDMI: replace globals with a single ELC block (dual ports: splitter + 4in).
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*hdmi_force_hotplug=.*$"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*hdmi_group=.*$"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*hdmi_mode=.*$"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*hdmi_cvt=.*$"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*disable_overscan=.*$"
+if [[ -f "${CONFIG_TXT}" ]] && grep -q "# ELC-HDMI-BEGIN" "${CONFIG_TXT}"; then
+  sed -i '/# ELC-HDMI-BEGIN/,/# ELC-HDMI-END/d' "${CONFIG_TXT}"
+fi
+cat >> "${CONFIG_TXT}" <<'HDMI_EOF'
+# ELC-HDMI-BEGIN — HDMI0 = wide splitter (2880×1080); HDMI1 = 4in round (720×720). Swap [HDMI:0]/[HDMI:1] blocks if cables are reversed.
+hdmi_force_hotplug=1
+disable_overscan=1
+
+[HDMI:0]
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=2880 1080 60 6 0 0 0
+
+[HDMI:1]
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=720 720 60 6 0 0 0
+
+# ELC-HDMI-END
+HDMI_EOF
 
 remove_cmdline_token_prefix "${CMDLINE_TXT}" "console=serial0"
 remove_cmdline_token_prefix "${CMDLINE_TXT}" "console=ttyAMA0"
@@ -108,7 +128,8 @@ remove_cmdline_token_prefix "${CMDLINE_TXT}" "video="
 
 ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_headphones=1"
 ensure_cmdline_token "${CMDLINE_TXT}" "snd_bcm2835.enable_hdmi=0"
-ensure_cmdline_token "${CMDLINE_TXT}" "video=HDMI-A-2:2160x1080M@60D"
+# Do not set video=HDMI-A-* here — it forces one connector and often blanks the other.
+# Modes come from config.txt [HDMI:0]/[HDMI:1]; DRM/KMS picks both up.
 
 # Keep UART enabled but guarantee Linux login consoles do not bind serial ports.
 mask_unit_in_rootfs "serial-getty@serial0.service"

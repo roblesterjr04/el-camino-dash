@@ -2,7 +2,12 @@ system:
   mode: vehicle
   log_level: INFO
   target_fps: 60
-  window_title: El Camino Dash (dual 5in round)
+  window_title: El Camino Dash (triple round HDMI)
+  # Single pygame window: KMSDRM = one physical output only. For splitter HDMI + 4in HDMI as one
+  # canvas, use X11 extended desktop: scripts/start-gauge-hdmi-x11-extended.sh + systemd unit
+  # gauge-cluster-hdmi-x11-extended.service (RandR spans outputs; fourth gauge at x=2880).
+  # 180 = physical panels mounted upside down (do not also set display_rotate=2 in config.txt).
+  display_rotation_deg: 180
   display_render_mode: single_window
   keyboard_focus_control_only: false
   startup_sweep_enabled: true
@@ -14,7 +19,7 @@ system:
   menu_schema_path: config/menu_schema_v2.yaml
   menu_display_id: round_right
   menu_render_on_oled: true
-  alert_display_id: round_right
+  alert_display_id: round_center
   alert_overlay_mode: lower_third
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
@@ -34,8 +39,9 @@ system:
   diagnostics_gpio_pin: 21
   diagnostics_gpio_active_low: true
 displays:
-# Single HDMI 2160×1080: splitter drives two 1080×1080 round panels (left / right).
-# IDs avoid classic_1 theme display_overrides (gauge_* → tsps/tach/speed mix).
+# Logical canvas 3600×1080: 2880×1080 splitter strip + 720×720 on the extended-desktop second output.
+# Under KMSDRM only the 2880×1080 region is visible; enable fourth gauge when using X11 extended.
+# IDs avoid classic_1 gauge_* overrides.
 - id: round_left
   enabled: true
   shape: round
@@ -44,26 +50,52 @@ displays:
   position:
   - 0
   - 0
-  monitor_index: 0
   windowed: false
   fullscreen: true
   fps: 30
   role: gauge
   gauge_id: speedometer
+- id: round_center
+  enabled: true
+  shape: round
+  width: 720
+  height: 720
+  position:
+  - 1080
+  - 0
+  windowed: false
+  fullscreen: true
+  fps: 30
+  role: gauge
+  gauge_id: fuel
 - id: round_right
   enabled: true
   shape: round
   width: 1080
   height: 1080
   position:
-  - 1080
+  - 1800
   - 0
-  monitor_index: 0
   windowed: false
   fullscreen: true
   fps: 30
   role: gauge
   gauge_id: tachometer
+# Fourth gauge on second output (x=2880). Set enabled: true when using start-gauge-hdmi-x11-extended.sh;
+# leave false for KMS-only (2880×1080) so set_mode matches the splitter.
+- id: round_four_inch
+  enabled: false
+  shape: round
+  width: 720
+  height: 720
+  position:
+  - 2880
+  - 0
+  windowed: false
+  fullscreen: true
+  fps: 30
+  role: gauge
+  gauge_id: tsps
 themes:
   active: classic_1
   enabled:

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Minimal Xorg + pygame (often single output). SDL_VIDEO_X11_XRANDR=0 avoids some RandR bugs.
+# For two HDMI outputs as one wide desktop, use start-gauge-hdmi-x11-extended.sh instead.
 set -euo pipefail
 
 exec /usr/bin/xinit /bin/bash -lc \

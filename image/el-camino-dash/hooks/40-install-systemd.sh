@@ -8,6 +8,7 @@ units=(
   elcamino-voice.service
   gauge-expand-rootfs.service
   gauge-cluster-hdmi.service
+  gauge-cluster-hdmi-x11-extended.service
   gauge-power-control.service
   gauge-ir-protocol.service
   gauge-wifi-diagnostics.service

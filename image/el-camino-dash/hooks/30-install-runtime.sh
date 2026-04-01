@@ -41,6 +41,7 @@ fi
 install -m 0755 "${SOURCE_DIR}/scripts/gauge-mcp-monitor" "$(in_rootfs /usr/local/bin/gauge-mcp-monitor)"
 install -m 0755 "${SOURCE_DIR}/scripts/start-gauge-hdmi-x11.sh" "$(in_rootfs /usr/local/bin/start-gauge-hdmi-x11)"
 install -m 0755 "${SOURCE_DIR}/scripts/start-gauge-hdmi-kms.sh" "$(in_rootfs /usr/local/bin/start-gauge-hdmi-kms)"
+install -m 0755 "${SOURCE_DIR}/scripts/start-gauge-hdmi-x11-extended.sh" "$(in_rootfs /usr/local/bin/start-gauge-hdmi-x11-extended)"
 install -m 0755 "${SOURCE_DIR}/scripts/expand_rootfs_once.sh" "$(in_rootfs /usr/local/sbin/elc-expand-rootfs.sh)"
 
 # Install SSH authorized key explicitly to avoid relying on upstream key mapping.

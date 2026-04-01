@@ -9,5 +9,7 @@ scripts/apply_ir_protocols.py
 scripts/mcp23017_monitor.py
 scripts/gauge-mcp-monitor
 scripts/start-gauge-hdmi-kms.sh
+scripts/start-gauge-hdmi-x11-extended.sh
+scripts/x11-configure-extended-desktop.sh
 scripts/wifi_runtime_diagnostics.sh
 scripts/ssh_auth_diagnostics.sh

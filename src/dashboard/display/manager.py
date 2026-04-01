@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
+import traceback
 from pathlib import Path
 from typing import Any
 from typing import Callable
@@ -44,6 +45,7 @@ class DisplayManager:
         self._config_path = config_path
         self._command_registry = command_registry
         self._on_runtime_refresh = on_runtime_refresh
+        self._view_rotation_flip_hv = self._resolve_view_rotation_flip_hv()
         self._theme_data = self._load_theme_data()
         self._layouts = self._build_layouts()
         self._menu_display_id = self._resolve_menu_display_id()
@@ -75,6 +77,17 @@ class DisplayManager:
         self._composite_surface: pygame.Surface | None = None
 
         if self._render_mode == "multi_window" and not self._init_multi_window_mode():
+            distinct_monitors = {
+                int(layout.monitor_index)
+                for layout in self._layouts
+                if layout.monitor_index is not None
+            }
+            if len(distinct_monitors) > 1:
+                raise RuntimeError(
+                    "multi_window init failed but config uses multiple monitor_index values. "
+                    "Pygame SDL KMSDRM usually cannot create multiple windows (one per HDMI). "
+                    "Use display_render_mode: single_window and disable extra displays, or run under X11."
+                )
             self._render_mode = "single_window"
         if self._render_mode == "single_window":
             self._init_single_window_mode()
@@ -111,6 +124,28 @@ class DisplayManager:
             return config_relative
         return None
 
+    def _resolve_view_rotation_flip_hv(self) -> bool:
+        raw = self._config.get("system", {}).get("display_rotation_deg", 0)
+        try:
+            deg = int(raw) % 360
+        except (TypeError, ValueError):
+            return False
+        if deg not in (0, 180):
+            print(f"[display] display_rotation_deg={raw!r} unsupported; use 0 or 180", flush=True)
+            return False
+        return deg == 180
+
+    def _apply_view_rotation(self, surface: pygame.Surface) -> pygame.Surface:
+        if not self._view_rotation_flip_hv:
+            return surface
+        return pygame.transform.flip(surface, True, True)
+
+    def _flip_root_surface_if_rotated(self) -> None:
+        if not self._view_rotation_flip_hv or self._root_surface is None:
+            return
+        flipped = pygame.transform.flip(self._root_surface, True, True)
+        self._root_surface.blit(flipped, (0, 0))
+
     def _render_startup_placeholder(self) -> None:
         if self._startup_placeholder_drawn:
             return
@@ -135,6 +170,7 @@ class DisplayManager:
         if self._render_mode == "multi_window" and self._sdl2_texture is not None:
             for binding in self._window_bindings.values():
                 scaled = pygame.transform.smoothscale(image, binding.layout.size)
+                scaled = self._apply_view_rotation(scaled)
                 texture = self._sdl2_texture.from_surface(binding.renderer, scaled)
                 binding.renderer.draw_color = (0, 0, 0, 255)
                 binding.renderer.clear()
@@ -153,6 +189,7 @@ class DisplayManager:
                 self._root_surface.blit(out, (0, 0))
             else:
                 self._root_surface.blit(scaled, (0, 0))
+            self._flip_root_surface_if_rotated()
             if str(os.environ.get("HEADLESS", "")).strip() != "1":
                 pygame.display.flip()
             self._startup_placeholder_drawn = True
@@ -313,7 +350,8 @@ class DisplayManager:
                 )
                 renderer = sdl2_video.Renderer.from_window(window)
             except Exception as exc:
-                print(f"[display] multi_window init failed on {binding.layout.display_id}: {exc}")
+                print(f"[display] multi_window init failed on {binding.layout.display_id}: {exc!r}")
+                traceback.print_exc()
                 self._window_bindings.clear()
                 self._window_ids.clear()
                 self._interaction_window_ids.clear()
@@ -694,6 +732,7 @@ class DisplayManager:
         if self._composite_surface is not None:
             scaled = pygame.transform.smoothscale(self._composite_surface, self._physical_size)
             self._root_surface.blit(scaled, (0, 0))
+        self._flip_root_surface_if_rotated()
         if str(os.environ.get("HEADLESS", "")).strip() != "1":
             pygame.display.flip()
 
@@ -709,6 +748,7 @@ class DisplayManager:
                 values=values,
                 status=status,
             )
+            child = self._apply_view_rotation(child)
             texture = self._sdl2_texture.from_surface(binding.renderer, child)
             binding.renderer.draw_color = (12, 12, 12, 255)
             binding.renderer.clear()
