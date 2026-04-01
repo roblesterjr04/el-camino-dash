@@ -13,7 +13,7 @@ User=root
 WorkingDirectory=/opt/el-camino-dash
 Environment=PYTHONPATH=/opt/el-camino-dash/src
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-gauge-hdmi-x11.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-gauge-hdmi-x11.log; touch "$LOG"; echo "[elc] gauge-cluster-hdmi-x11-extended start $(date -Is)" >> "$LOG"; exec runuser -u pi -- /bin/bash -lc "/opt/el-camino-dash/scripts/start-gauge-hdmi-x11-extended.sh" >>"$LOG" 2>&1'
+ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-gauge-hdmi-x11.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-gauge-hdmi-x11.log; touch "$LOG"; echo "[elc] gauge-cluster-hdmi-x11-extended start $(date -Is)" >> "$LOG"; exec /opt/el-camino-dash/scripts/start-gauge-hdmi-x11-extended.sh >>"$LOG" 2>&1'
 StandardInput=tty
 TTYPath=/dev/tty1
 TTYReset=yes

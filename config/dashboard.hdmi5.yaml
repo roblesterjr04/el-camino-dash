@@ -3,9 +3,9 @@ system:
   log_level: INFO
   target_fps: 60
   window_title: El Camino Dash (triple round HDMI)
-  # Single pygame window: KMSDRM = one physical output only. For splitter HDMI + 4in HDMI as one
-  # canvas, use X11 extended desktop: scripts/start-gauge-hdmi-x11-extended.sh + systemd unit
-  # gauge-cluster-hdmi-x11-extended.service (RandR spans outputs; fourth gauge at x=2880).
+  # Single pygame window: KMSDRM = first HDMI only — 4in never gets the app. Use
+  # gauge-cluster-hdmi-x11-extended.service so RandR spans 2160px + 720px; fourth gauge at x=2160
+  # (same as HDMI-2 offset). If boot mode is 2880-wide on HDMI-1, adjust positions accordingly.
   # 180 = physical panels mounted upside down (do not also set display_rotate=2 in config.txt).
   display_rotation_deg: 180
   display_render_mode: single_window
@@ -39,8 +39,7 @@ system:
   diagnostics_gpio_pin: 21
   diagnostics_gpio_active_low: true
 displays:
-# Logical canvas 3600×1080: 2880×1080 splitter strip + 720×720 on the extended-desktop second output.
-# Under KMSDRM only the 2880×1080 region is visible; enable fourth gauge when using X11 extended.
+# Logical canvas 2880×1080: x 0–2159 → HDMI-1, x 2160–2879 → HDMI-2 (4in). Fourth gauge must start at 2160, not 2880.
 # IDs avoid classic_1 gauge_* overrides.
 - id: round_left
   enabled: true
@@ -81,15 +80,14 @@ displays:
   fps: 30
   role: gauge
   gauge_id: tachometer
-# Fourth gauge on second output (x=2880). Set enabled: true when using start-gauge-hdmi-x11-extended.sh;
-# leave false for KMS-only (2880×1080) so set_mode matches the splitter.
+# Fourth gauge — only visible with X11 extended + enabled service (not KMS-only).
 - id: round_four_inch
-  enabled: false
+  enabled: true
   shape: round
   width: 720
   height: 720
   position:
-  - 2880
+  - 2160
   - 0
   windowed: false
   fullscreen: true
