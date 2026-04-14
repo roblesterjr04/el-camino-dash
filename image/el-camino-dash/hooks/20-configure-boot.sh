@@ -97,13 +97,18 @@ remove_matching "${CONFIG_TXT}" "^[[:space:]]*hdmi_group=.*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*hdmi_mode=.*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*hdmi_cvt=.*$"
 remove_matching "${CONFIG_TXT}" "^[[:space:]]*disable_overscan=.*$"
+remove_matching "${CONFIG_TXT}" "^[[:space:]]*display_hdmi_rotate=.*$"
 if [[ -f "${CONFIG_TXT}" ]] && grep -q "# ELC-HDMI-BEGIN" "${CONFIG_TXT}"; then
   sed -i '/# ELC-HDMI-BEGIN/,/# ELC-HDMI-END/d' "${CONFIG_TXT}"
 fi
 cat >> "${CONFIG_TXT}" <<'HDMI_EOF'
-# ELC-HDMI-BEGIN — HDMI0 = wide splitter (2880×1080); HDMI1 = 4in round (720×720). Swap [HDMI:0]/[HDMI:1] blocks if cables are reversed.
+# ELC-HDMI-BEGIN — HDMI0 = wide splitter (2880×1080); HDMI1 = 4in round (720×720).
+# Physical: Pi HDMI0 is usually the port nearest the USB-C (Pi 4/5); HDMI1 is the second port.
+# If the 4″ is on the “wrong” socket, swap the two [HDMI:n] blocks below (same timings, swapped sections).
 hdmi_force_hotplug=1
 disable_overscan=1
+# Avoid 4K60 negotiation quirks on dual-HDMI setups (Bookworm / vc4-kms-v3d).
+hdmi_enable_4kp60=0
 
 [HDMI:0]
 hdmi_group=2
@@ -114,6 +119,7 @@ hdmi_cvt=2880 1080 60 6 0 0 0
 hdmi_group=2
 hdmi_mode=87
 hdmi_cvt=720 720 60 6 0 0 0
+# Upside-down bezel: use xrandr (ELC_X11_ROTATE) in gauge-cluster-hdmi-x11-extended, not display_hdmi_rotate here.
 
 # ELC-HDMI-END
 HDMI_EOF

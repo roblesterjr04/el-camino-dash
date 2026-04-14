@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 import os
+import threading
 import time
 from typing import Any
 
@@ -17,6 +18,9 @@ LEGACY_PAYLOAD_LEN = 19
 EXTENDED_PAYLOAD_LEN = 21
 PI_HANDSHAKE_BYTE = b"\xA5"
 PI_HANDSHAKE_INTERVAL_S = 0.25
+# Firmware treats the link as dead if no handshake for ~1000ms (sensor_pack.ino). Keepalives
+# run off the pygame loop so a slow frame (multi-display render, I2C, etc.) cannot starve it.
+PI_HANDSHAKE_KEEPALIVE_S = 0.35
 
 
 @dataclass
@@ -45,6 +49,9 @@ class ArduinoSerialInput:
         self._last_open_attempt_monotonic = 0.0
         self._open_retry_interval_s = 1.0
         self._last_handshake_sent_monotonic = 0.0
+        self._lock = threading.Lock()
+        self._keepalive_stop: threading.Event | None = None
+        self._keepalive_thread: threading.Thread | None = None
         self._wheel_circumference_m = max(0.01, float(spec.get("wheel_circumference_m", 2.1)))
         self._speed_pulses_per_rev = max(1.0, float(spec.get("speed_pulses_per_rev", 1.0)))
         self._ranges = _SerialRanges(
@@ -94,21 +101,71 @@ class ArduinoSerialInput:
             if not os.path.exists(port_name):
                 continue
             try:
+                self._stop_keepalive()
                 self._port = serial.Serial(port_name, baudrate=self._baudrate, timeout=self._timeout_s)
                 self._buffer.clear()
                 self._last_handshake_sent_monotonic = 0.0
+                self._start_keepalive()
                 return
             except Exception:
                 self._port = None
 
-    def _drop_port(self) -> None:
-        if self._port is None:
+    def _start_keepalive(self) -> None:
+        if not self._enabled or self._port is None:
             return
-        try:
-            self._port.close()
-        except Exception:
-            pass
-        self._port = None
+        self._stop_keepalive()
+        stop = threading.Event()
+        self._keepalive_stop = stop
+
+        def _loop() -> None:
+            while not stop.wait(PI_HANDSHAKE_KEEPALIVE_S):
+                if stop.is_set():
+                    break
+                try:
+                    with self._lock:
+                        if self._port is None:
+                            break
+                        self._port.write(PI_HANDSHAKE_BYTE)
+                    self._last_handshake_sent_monotonic = time.monotonic()
+                except Exception:
+                    with self._lock:
+                        p = self._port
+                        self._port = None
+                        if p is not None:
+                            try:
+                                p.close()
+                            except Exception:
+                                pass
+                    break
+
+        t = threading.Thread(
+            target=_loop,
+            name="sensor-pack-uart-keepalive",
+            daemon=True,
+        )
+        self._keepalive_thread = t
+        t.start()
+
+    def _stop_keepalive(self) -> None:
+        stop = self._keepalive_stop
+        t = self._keepalive_thread
+        if stop:
+            stop.set()
+        if t is not None and t.is_alive() and threading.current_thread() is not t:
+            t.join(timeout=1.5)
+        self._keepalive_stop = None
+        self._keepalive_thread = None
+
+    def _drop_port(self) -> None:
+        self._stop_keepalive()
+        with self._lock:
+            if self._port is None:
+                return
+            try:
+                self._port.close()
+            except Exception:
+                pass
+            self._port = None
 
     def _parse_range(self, raw: Any, fallback: tuple[float, float]) -> tuple[float, float]:
         if not isinstance(raw, list) or len(raw) != 2:
@@ -197,24 +254,26 @@ class ArduinoSerialInput:
         return out
 
     def _send_handshake(self, *, force: bool) -> None:
-        if self._port is None:
-            return
         now = time.monotonic()
         if not force and (now - self._last_handshake_sent_monotonic) < PI_HANDSHAKE_INTERVAL_S:
             return
         try:
-            self._port.write(PI_HANDSHAKE_BYTE)
-            self._last_handshake_sent_monotonic = now
+            with self._lock:
+                if self._port is None:
+                    return
+                self._port.write(PI_HANDSHAKE_BYTE)
+                self._last_handshake_sent_monotonic = now
         except Exception:
             # Drop dead serial handles so a later poll can re-open.
             self._drop_port()
             return
 
     def _extract_latest_packet(self) -> dict[str, float]:
-        if self._port is None:
-            return {}
         try:
-            chunk = self._port.read(256)
+            with self._lock:
+                if self._port is None:
+                    return {}
+                chunk = self._port.read(256)
         except Exception:
             self._drop_port()
             return {}

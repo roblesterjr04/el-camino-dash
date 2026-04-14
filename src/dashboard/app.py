@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from datetime import datetime
 from pathlib import Path
 import signal
@@ -81,6 +82,7 @@ class DashboardApp:
         self._running = False
         self._command_registry: dict[str, Callable[[dict[str, Any]], str | None]] = {}
         self._last_runtime_s = time.monotonic()
+        self._last_gauge_smooth_s: float | None = None
         self._odometer_path = Path(self.config["system"].get("odometer_state_path", "data/odometer_state.json"))
         self._odometer_persist_enabled = bool(self.config["system"].get("odometer_persist_enabled", True))
         self._odometer_write_interval_s = float(self.config["system"].get("odometer_write_interval_s", 2.0))
@@ -156,14 +158,44 @@ class DashboardApp:
         self._persist_theme()
         self._theme_mtimes_ns = self._scan_theme_mtimes_ns()
 
+    def _init_pygame_display_with_retry(self, startup_t0: float) -> None:
+        """SDL sometimes races X11 RandR on Pi; retry instead of crashing the systemd service."""
+        display = str(os.environ.get("DISPLAY", "")).strip()
+        driver = str(os.environ.get("SDL_VIDEODRIVER", "")).strip().lower()
+        attempts = 1
+        delay_s = 0.05
+        if display and driver in ("", "x11"):
+            attempts = 50
+            delay_s = 0.35
+        last_exc: pygame.error | None = None
+        for n in range(attempts):
+            try:
+                pygame.display.init()
+                if n > 0:
+                    print(
+                        f"[startup] pygame.display.init at {time.monotonic() - startup_t0:.3f}s "
+                        f"(attempt {n + 1}/{attempts})",
+                        flush=True,
+                    )
+                else:
+                    print(f"[startup] pygame.display.init at {time.monotonic() - startup_t0:.3f}s", flush=True)
+                return
+            except pygame.error as exc:
+                last_exc = exc
+                msg = str(exc).lower()
+                if "no available displays" not in msg or n + 1 >= attempts:
+                    raise
+                time.sleep(delay_s)
+        if last_exc is not None:
+            raise last_exc
+
     def run(self) -> None:
         startup_t0 = time.monotonic()
         print("[startup] run begin", flush=True)
         self._install_signal_handlers()
         # Avoid global pygame.init() because it can initialize mixer/audio
         # backends that are unstable on some Pi Pulse/ALSA stacks.
-        pygame.display.init()
-        print(f"[startup] pygame.display.init at {time.monotonic() - startup_t0:.3f}s", flush=True)
+        self._init_pygame_display_with_retry(startup_t0)
         pygame.font.init()
         print(f"[startup] pygame.font.init at {time.monotonic() - startup_t0:.3f}s", flush=True)
         try:
@@ -416,13 +448,32 @@ class DashboardApp:
             return
 
     def _apply_gauge_smoothing(self) -> None:
+        # Exponential smoothing with a per-frame alpha is wrong when frame times jitter (multi-window
+        # X11, load spikes): the same alpha implies a different time constant every frame. Scale alpha
+        # by elapsed time so behavior matches smoothing_alpha at system.target_fps regardless of actual FPS.
+        now = time.monotonic()
+        ref_fps = float(self.config["system"].get("target_fps", 30))
+        ref_dt = 1.0 / max(1.0, ref_fps)
+        last = self._last_gauge_smooth_s
+        self._last_gauge_smooth_s = now
+        if last is None:
+            last = now - ref_dt
+        dt = max(0.001, min(0.25, now - last))
+
         for gauge_id, gauge in self.config["gauges"].items():
             src = gauge["source"]
             alpha = float(gauge["smoothing_alpha"])
             new_val = float(self._values.get(src, 0.0))
             smooth_key = f"gauges.{gauge_id}.value"
             prev_val = float(self._values.get(smooth_key, new_val))
-            smoothed = (alpha * new_val) + ((1.0 - alpha) * prev_val)
+            if alpha <= 0.0:
+                smoothed = new_val
+            elif alpha >= 1.0:
+                smoothed = new_val
+            else:
+                exponent = dt / ref_dt
+                alpha_eff = 1.0 - (1.0 - alpha) ** exponent
+                smoothed = (alpha_eff * new_val) + ((1.0 - alpha_eff) * prev_val)
             self._values[smooth_key] = smoothed
 
     def _build_status(self) -> dict[str, str]:

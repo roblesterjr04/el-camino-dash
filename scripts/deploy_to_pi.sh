@@ -9,13 +9,14 @@ Usage:
 Examples:
   bash scripts/deploy_to_pi.sh pi@192.168.1.50
   bash scripts/deploy_to_pi.sh pi@elcamino.local /opt/el-camino-dash --with-pip
-  bash scripts/deploy_to_pi.sh pi@elcamino.local --with-pip --install-services --logs
+  bash scripts/deploy_to_pi.sh pi@elcamino.local --with-pip --install-services --boot-hdmi-rotation --logs
 
 Options:
   --with-pip          Refresh Python deps in remote venv after sync.
-  --install-services  Install/update tracked systemd units on remote target.
+  --install-services  Copy deploy/systemd/*.service into /etc/systemd/system and daemon-reload.
+  --boot-hdmi-rotation  Add display_hdmi_rotate=2 under each ELC [HDMI:n] block in config.txt (reboot to apply).
   --no-restart        Skip service restart after deploy.
-  --logs              Print recent logs from gauge-cluster-hdmi service.
+  --logs              Print recent logs from HDMI gauge services.
   -h, --help          Show this help message.
 
 Notes:
@@ -46,6 +47,7 @@ fi
 
 WITH_PIP=0
 INSTALL_SERVICES=0
+BOOT_HDMI_ROTATION=0
 RESTART_SERVICES=1
 SHOW_LOGS=0
 
@@ -56,6 +58,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --install-services)
       INSTALL_SERVICES=1
+      ;;
+    --boot-hdmi-rotation)
+      BOOT_HDMI_ROTATION=1
       ;;
     --no-restart)
       RESTART_SERVICES=0
@@ -125,6 +130,51 @@ echo "Ensuring executable bits on remote scripts..."
 ssh "${TARGET}" "sudo find '${REMOTE_DIR}/scripts' -type f -name '*.sh' -exec chmod +x {} +"
 ssh "${TARGET}" "sudo chmod +x '${REMOTE_DIR}/scripts/gauge-mcp-monitor'"
 
+if [[ "${INSTALL_SERVICES}" -eq 1 ]]; then
+  echo "Installing systemd units from ${REMOTE_DIR}/deploy/systemd/..."
+  ssh "${TARGET}" "sudo bash -lc 'shopt -s nullglob; for u in \"${REMOTE_DIR}\"/deploy/systemd/*.service; do install -m644 \"\$u\" /etc/systemd/system/; done; systemctl daemon-reload'"
+fi
+
+if [[ "${BOOT_HDMI_ROTATION}" -eq 1 ]]; then
+  echo "Patching firmware config.txt for display_hdmi_rotate=2 (reboot required)..."
+  ssh "${TARGET}" bash -s <<'EOS'
+set -euo pipefail
+CFG=""
+for d in /boot/firmware /boot; do
+  if [[ -f "${d}/config.txt" ]]; then CFG="${d}/config.txt"; break; fi
+done
+if [[ -z "${CFG}" ]]; then echo "[elc-deploy] No config.txt under /boot; skipping rotation patch." >&2; exit 0; fi
+if ! grep -q '# ELC-HDMI-BEGIN' "${CFG}"; then echo "[elc-deploy] No ELC HDMI block in config.txt; skipping." >&2; exit 0; fi
+if grep -q '^display_hdmi_rotate=2' "${CFG}"; then echo "[elc-deploy] display_hdmi_rotate=2 already present." >&2; exit 0; fi
+sudo cp -a "${CFG}" "${CFG}.elc-bak-$(date +%Y%m%d%H%M%S)"
+export CFG
+sudo env CFG="${CFG}" python3 <<'PY'
+from pathlib import Path
+import os
+
+cfg = Path(os.environ["CFG"])
+text = cfg.read_text()
+lines = text.splitlines(keepends=True)
+out = []
+in_elc = False
+i = 0
+while i < len(lines):
+    line = lines[i]
+    if "# ELC-HDMI-BEGIN" in line:
+        in_elc = True
+    if "# ELC-HDMI-END" in line:
+        in_elc = False
+    out.append(line)
+    if in_elc and line.strip().startswith("hdmi_cvt="):
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        if "display_hdmi_rotate" not in nxt:
+            out.append("display_hdmi_rotate=2\n")
+    i += 1
+cfg.write_text("".join(out))
+PY
+EOS
+fi
+
 if [[ "${WITH_PIP}" -eq 1 ]]; then
   echo "Refreshing remote virtualenv dependencies..."
   ssh "${TARGET}" "sudo -u pi bash -lc 'python3 -m venv --system-site-packages \"${REMOTE_DIR}/.venv\" && \"${REMOTE_DIR}/.venv/bin/python\" -m pip install -r \"${REMOTE_DIR}/requirements.txt\"'"
@@ -132,14 +182,14 @@ fi
 
 if [[ "${RESTART_SERVICES}" -eq 1 ]]; then
   echo "Restarting runtime services..."
+  ssh "${TARGET}" "sudo systemctl try-restart gauge-cluster-hdmi.service gauge-cluster-hdmi-x11-extended.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-ir-protocol.service || true"
-  ssh "${TARGET}" "sudo systemctl restart gauge-cluster-hdmi.service || true"
   ssh "${TARGET}" "sudo systemctl restart gauge-power-control.service || true"
 fi
 
 if [[ "${SHOW_LOGS}" -eq 1 ]]; then
   echo "Recent HDMI service logs:"
-  ssh "${TARGET}" "sudo journalctl -u gauge-cluster-hdmi.service -n 80 --no-pager"
+  ssh "${TARGET}" "sudo journalctl -u gauge-cluster-hdmi.service -u gauge-cluster-hdmi-x11-extended.service -n 80 --no-pager"
 fi
 
 echo "Deploy complete."

@@ -1,0 +1,30 @@
+.pio/build/esp32dev/FrameworkArduino/esp32-hal-periman.c.o: \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-periman.c \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-log.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/dio_qspi/include/sdkconfig.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_timer/include/esp_timer.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/newlib/platform_include/stdio.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_common/include/esp_err.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_common/include/esp_compiler.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_hw_support/include/esp_etm.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_rom/esp32/include/esp32/rom/ets_sys.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_rom/include/esp_rom_sys.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/soc/esp32/include/soc/reset_reasons.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/soc/esp32/include/soc/soc_caps.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_config.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_level.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_common/include/esp_assert.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_color.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_buffer.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_timestamp.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_write.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_format.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_args.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_common/include/esp_macros.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_common/include/esp_assert.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_log_attr.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_common/include/esp_attr.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/log/include/esp_private/log_attr.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-periman.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32/include/esp_common/include/esp_bit_defs.h

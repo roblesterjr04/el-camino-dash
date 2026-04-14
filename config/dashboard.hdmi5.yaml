@@ -3,12 +3,12 @@ system:
   log_level: INFO
   target_fps: 60
   window_title: El Camino Dash (triple round HDMI)
-  # Single pygame window: KMSDRM = first HDMI only — 4in never gets the app. Use
-  # gauge-cluster-hdmi-x11-extended.service so RandR spans 2160px + 720px; fourth gauge at x=2160
-  # (same as HDMI-2 offset). If boot mode is 2880-wide on HDMI-1, adjust positions accordingly.
-  # 180 = physical panels mounted upside down (do not also set display_rotate=2 in config.txt).
+  # Dual HDMI (X11): OS tiles 2160×1080 | 720×720 side-by-side (2880×1080 desktop). Three SDL windows at x=0,1080,2160.
+  # gauge-cluster-hdmi-x11-extended sets ELC_X11_LAYOUT=side_by_side; overlap mode is for legacy single-window span.
+  multi_window_borderless: true
   display_rotation_deg: 180
-  display_render_mode: single_window
+  # If the 4″ is still wrong after round_four_inch view_rotation_deg: 0, set on the service: ELC_X11_ROTATE_NARROW=inverted
+  display_render_mode: multi_window
   keyboard_focus_control_only: false
   startup_sweep_enabled: true
   startup_sweep_up_s: 1.0
@@ -17,16 +17,18 @@ system:
   left_to_right_preview: false
   left_to_right_spacing_px: 8
   menu_schema_path: config/menu_schema_v2.yaml
-  menu_display_id: round_right
-  menu_render_on_oled: true
-  alert_display_id: round_center
+  # Amber pygame menu on the 4″ (MenuOverlayScreen). Encoder/IR still drive inputs.rotary.menu;
+  # set false so the menu is not mirrored to the Nano UART OLED (menu mode downlink).
+  menu_display_id: round_four_inch
+  menu_render_on_oled: false
+  alert_display_id: round_four_inch
   alert_overlay_mode: lower_third
   odometer_start_miles: 12345.0
   odometer_persist_enabled: true
   odometer_state_path: data/odometer_state.hdmi5.json
   odometer_write_interval_s: 1.5
   map_view_visible: false
-  map_display_id: round_right
+  map_display_id: round_four_inch
   low_oil_pressure_alert_enabled: true
   low_oil_pressure_source: indicators.oil
   low_oil_pressure_threshold: 20
@@ -39,8 +41,7 @@ system:
   diagnostics_gpio_pin: 21
   diagnostics_gpio_active_low: true
 displays:
-# Logical canvas 2880×1080: x 0–2159 → HDMI-1, x 2160–2879 → HDMI-2 (4in). Fourth gauge must start at 2160, not 2880.
-# IDs avoid classic_1 gauge_* overrides.
+# Multi-window X positions on 2880×1080 desktop: speed | TSPS on 2160-wide output; tach on 720-wide output.
 - id: round_left
   enabled: true
   shape: round
@@ -49,38 +50,11 @@ displays:
   position:
   - 0
   - 0
-  windowed: false
-  fullscreen: true
+  windowed: true
+  fullscreen: false
   fps: 30
   role: gauge
   gauge_id: speedometer
-- id: round_center
-  enabled: true
-  shape: round
-  width: 720
-  height: 720
-  position:
-  - 1080
-  - 0
-  windowed: false
-  fullscreen: true
-  fps: 30
-  role: gauge
-  gauge_id: fuel
-- id: round_right
-  enabled: true
-  shape: round
-  width: 1080
-  height: 1080
-  position:
-  - 1800
-  - 0
-  windowed: false
-  fullscreen: true
-  fps: 30
-  role: gauge
-  gauge_id: tachometer
-# Fourth gauge — only visible with X11 extended + enabled service (not KMS-only).
 - id: round_four_inch
   enabled: true
   shape: round
@@ -89,8 +63,23 @@ displays:
   position:
   - 2160
   - 0
-  windowed: false
-  fullscreen: true
+  windowed: true
+  fullscreen: false
+  fps: 30
+  role: gauge
+  gauge_id: clock
+  # Opt out of system display_rotation_deg (180) for this window only — 5″ panels stay flipped; 4″ often mounts opposite.
+  view_rotation_deg: 0
+- id: round_right
+  enabled: true
+  shape: round
+  width: 1080
+  height: 1080
+  position:
+  - 1080
+  - 0
+  windowed: true
+  fullscreen: false
   fps: 30
   role: gauge
   gauge_id: tsps
@@ -109,7 +98,8 @@ gauges:
     source: speed_sensor.vehicle_speed
     min_value: 0
     max_value: 120
-    smoothing_alpha: 0.22
+    # Higher = snappier (1.0 = no smoothing). Was 0.22 — felt laggy behind the sensor pack.
+    smoothing_alpha: 0.5
     secondary_label: RPM
     secondary_source: analog_inputs.engine_rpm
     secondary_unit: ''
@@ -123,28 +113,35 @@ gauges:
     source: analog_inputs.engine_rpm
     min_value: 0
     max_value: 6000
-    smoothing_alpha: 0.2
+    smoothing_alpha: 0.5
+  clock:
+    label: Clock
+    unit: ''
+    source: analog_inputs.engine_rpm
+    min_value: 0
+    max_value: 1
+    smoothing_alpha: 0.0
   tsps:
     label: TSPS
     unit: '%'
     source: analog_inputs.fuel_level
     min_value: 0
     max_value: 100
-    smoothing_alpha: 0.3
+    smoothing_alpha: 0.55
   fuel:
     label: Fuel
     unit: '%'
     source: analog_inputs.fuel_level
     min_value: 0
     max_value: 100
-    smoothing_alpha: 0.3
+    smoothing_alpha: 0.55
   temp:
     label: Temp
     unit: F
     source: analog_inputs.coolant_temp
     min_value: 120
     max_value: 260
-    smoothing_alpha: 0.2
+    smoothing_alpha: 0.4
   amp:
     label: Amp
     unit: A
@@ -347,10 +344,10 @@ inputs:
     diagnostics_window_ms: 5000
     diagnostics_max_gap_ms: 450
   sensor_reading_stability:
-    enabled: true
+    enabled: false
     # 71 vs 72°F are 1° apart — global epsilon 0.05 never counts them as the same sample, so the streak
     # never completes and raw values pass through. Use ~1°F for outside air (and similar for coolant).
-    required_samples: 50
+    required_samples: 10
     epsilon: 0.05
     epsilon_by_key:
       analog_inputs.ambient_temp: 1.0

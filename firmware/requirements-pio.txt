@@ -1,0 +1,8 @@
+# Install into the SAME Python that runs PlatformIO (fixes Espressif 55.x builder imports).
+# Example (Homebrew PIO on macOS):
+#   /opt/homebrew/Cellar/platformio/6.1.7/libexec/bin/python3.11 -m pip install -r requirements-pio.txt
+# Or:  python3 -m pip install -r requirements-pio.txt
+#   where python3 is `pio system info` → Python Executable
+littlefs-python>=0.17
+fatfs-ng>=0.1
+PyYAML>=6

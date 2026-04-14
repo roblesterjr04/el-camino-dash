@@ -17,6 +17,8 @@ class DisplayLayout:
     monitor_index: int | None = None
     windowed: bool = True
     fullscreen: bool = False
+    # None = inherit system.display_rotation_deg (0 or 180).
+    view_rotation_deg: int | None = None
 
     @property
     def size(self) -> tuple[int, int]:

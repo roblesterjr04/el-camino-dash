@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
+import re
+import subprocess
 import traceback
 from pathlib import Path
 from typing import Any
@@ -45,9 +47,12 @@ class DisplayManager:
         self._config_path = config_path
         self._command_registry = command_registry
         self._on_runtime_refresh = on_runtime_refresh
-        self._view_rotation_flip_hv = self._resolve_view_rotation_flip_hv()
+        self._system_view_rotation_deg = self._resolve_system_display_rotation_deg()
+        self._view_rotation_flip_hv = self._system_view_rotation_deg == 180
         self._theme_data = self._load_theme_data()
         self._layouts = self._build_layouts()
+        self._apply_responsive_canvas_layout()
+        self._log_view_rotation_startup()
         self._menu_display_id = self._resolve_menu_display_id()
         self._menu_layout = self._resolve_menu_layout()
         self._menu_render_on_oled = self._resolve_menu_render_on_oled()
@@ -105,6 +110,7 @@ class DisplayManager:
                 int(layout.monitor_index) if layout.monitor_index is not None else None,
                 bool(layout.windowed),
                 bool(layout.fullscreen),
+                layout.view_rotation_deg,
             )
             for layout in layouts
         )
@@ -124,27 +130,68 @@ class DisplayManager:
             return config_relative
         return None
 
-    def _resolve_view_rotation_flip_hv(self) -> bool:
+    def _resolve_system_display_rotation_deg(self) -> int:
         raw = self._config.get("system", {}).get("display_rotation_deg", 0)
         try:
             deg = int(raw) % 360
         except (TypeError, ValueError):
-            return False
+            return 0
         if deg not in (0, 180):
             print(f"[display] display_rotation_deg={raw!r} unsupported; use 0 or 180", flush=True)
-            return False
-        return deg == 180
+            return 0
+        return deg
 
-    def _apply_view_rotation(self, surface: pygame.Surface) -> pygame.Surface:
-        if not self._view_rotation_flip_hv:
+    def _optional_view_rotation_deg(self, resolved: dict[str, Any]) -> int | None:
+        if "view_rotation_deg" not in resolved:
+            return None
+        raw = resolved["view_rotation_deg"]
+        try:
+            deg = int(raw) % 360
+        except (TypeError, ValueError):
+            print(f"[display] displays[{resolved.get('id', '?')}].view_rotation_deg invalid; ignoring", flush=True)
+            return None
+        if deg not in (0, 180):
+            print(f"[display] displays[{resolved.get('id', '?')}].view_rotation_deg must be 0 or 180; ignoring", flush=True)
+            return None
+        return deg
+
+    def _effective_view_rotation_deg(self, layout: DisplayLayout) -> int:
+        if layout.view_rotation_deg is not None:
+            return int(layout.view_rotation_deg) % 360
+        return self._system_view_rotation_deg
+
+    def _flip_surface_for_layout(self, layout: DisplayLayout, surface: pygame.Surface) -> pygame.Surface:
+        if self._effective_view_rotation_deg(layout) != 180:
             return surface
-        return pygame.transform.flip(surface, True, True)
+        src = surface.copy()
+        return pygame.transform.flip(src, True, True)
 
-    def _flip_root_surface_if_rotated(self) -> None:
-        if not self._view_rotation_flip_hv or self._root_surface is None:
+    def _should_flip_full_frame_for_uniform_rotation(self) -> bool:
+        if not self._layouts:
+            return False
+        first = self._effective_view_rotation_deg(self._layouts[0])
+        if first != 180:
+            return False
+        return all(self._effective_view_rotation_deg(layout) == first for layout in self._layouts)
+
+    def _flip_surface_hv_inplace(self, surface: pygame.Surface) -> None:
+        src = surface.copy()
+        surface.blit(pygame.transform.flip(src, True, True), (0, 0))
+
+    def _log_view_rotation_startup(self) -> None:
+        if not self._layouts:
             return
-        flipped = pygame.transform.flip(self._root_surface, True, True)
-        self._root_surface.blit(flipped, (0, 0))
+        degs = {self._effective_view_rotation_deg(layout) for layout in self._layouts}
+        if len(degs) == 1:
+            d = next(iter(degs))
+            print(
+                f"[display] system display_rotation_deg={self._system_view_rotation_deg}; "
+                f"all panels effective {d}°",
+                flush=True,
+            )
+        else:
+            parts = [f"{layout.display_id}={self._effective_view_rotation_deg(layout)}°" for layout in self._layouts]
+            print("[display] mixed view_rotation_deg: " + ", ".join(parts), flush=True)
 
     def _render_startup_placeholder(self) -> None:
         if self._startup_placeholder_drawn:
@@ -170,7 +217,7 @@ class DisplayManager:
         if self._render_mode == "multi_window" and self._sdl2_texture is not None:
             for binding in self._window_bindings.values():
                 scaled = pygame.transform.smoothscale(image, binding.layout.size)
-                scaled = self._apply_view_rotation(scaled)
+                scaled = self._flip_surface_for_layout(binding.layout, scaled)
                 texture = self._sdl2_texture.from_surface(binding.renderer, scaled)
                 binding.renderer.draw_color = (0, 0, 0, 255)
                 binding.renderer.clear()
@@ -189,7 +236,8 @@ class DisplayManager:
                 self._root_surface.blit(out, (0, 0))
             else:
                 self._root_surface.blit(scaled, (0, 0))
-            self._flip_root_surface_if_rotated()
+            if self._should_flip_full_frame_for_uniform_rotation():
+                self._flip_surface_hv_inplace(self._root_surface)
             if str(os.environ.get("HEADLESS", "")).strip() != "1":
                 pygame.display.flip()
             self._startup_placeholder_drawn = True
@@ -274,7 +322,33 @@ class DisplayManager:
                 fit = self._fit_desktop_window_size(self._logical_size)
                 if fit != self._logical_size:
                     self._physical_size = fit
-                    self._composite_surface = pygame.Surface(self._logical_size, pygame.SRCALPHA)
+                    self._composite_surface = pygame.Surface(self._logical_size)
+        # X11 desktop can be narrower than our layout canvas (e.g. 2160×1080 splitter while
+        # YAML lays out 2880×1080 for three panels). SDL may still report a full-size surface,
+        # so use pygame.display.get_desktop_sizes() and render via composite + smoothscale.
+        if str(os.environ.get("HEADLESS", "")).strip() != "1":
+            try:
+                sizes = pygame.display.get_desktop_sizes()
+                if sizes and len(sizes[0]) >= 2:
+                    dw, dh = int(sizes[0][0]), int(sizes[0][1])
+                    if dw < self._logical_size[0] or dh < self._logical_size[1]:
+                        self._physical_size = (
+                            min(dw, self._logical_size[0]),
+                            min(dh, self._logical_size[1]),
+                        )
+                        if self._composite_surface is None:
+                            self._composite_surface = pygame.Surface(self._logical_size)
+                        print(
+                            f"[display] desktop {dw}x{dh} < logical {self._logical_size[0]}x{self._logical_size[1]}; "
+                            f"window {self._physical_size[0]}x{self._physical_size[1]} + composite",
+                            flush=True,
+                        )
+            except Exception:
+                pass
+        if self._composite_surface is None and (
+            self._physical_size[0] < self._logical_size[0] or self._physical_size[1] < self._logical_size[1]
+        ):
+            self._composite_surface = pygame.Surface(self._logical_size)
         flags = 0
         # In single-window hardware mode, respect display fullscreen intent to
         # avoid a decorated desktop window/titlebar on the dash screen.
@@ -296,6 +370,18 @@ class DisplayManager:
             flush=True,
         )
         self._root_surface = pygame.display.set_mode(self._physical_size, flags)
+        # SDL sometimes returns a surface size different from what we requested.
+        if str(os.environ.get("HEADLESS", "")).strip() != "1":
+            actual_w, actual_h = self._root_surface.get_size()
+            if actual_w != self._logical_size[0] or actual_h != self._logical_size[1]:
+                if self._composite_surface is None:
+                    self._composite_surface = pygame.Surface(self._logical_size)
+                self._physical_size = (actual_w, actual_h)
+                print(
+                    f"[display] surface {actual_w}x{actual_h} vs logical {self._logical_size[0]}x{self._logical_size[1]} "
+                    f"(composite scaling)",
+                    flush=True,
+                )
         elapsed = max(0.0, (pygame.time.get_ticks() - started) / 1000.0)
         print(f"[startup] pygame.display.set_mode end after {elapsed:.3f}s", flush=True)
         pygame.display.set_caption(self._config["system"]["window_title"])
@@ -309,16 +395,30 @@ class DisplayManager:
         self._sdl2_video = sdl2_video
         self._sdl2_texture = sdl2_video.Texture
         title_root = str(self._config["system"].get("window_title", "El Camino Dash"))
+        system_cfg = self._config.get("system", {})
+        borderless = bool(system_cfg.get("multi_window_borderless", True))
         for binding in self._bindings:
             try:
                 layout = binding.layout
-                kwargs: dict[str, Any] = {"fullscreen": False}
-                window = sdl2_video.Window(
-                    title=f"{title_root} [{layout.display_id}]",
-                    size=layout.size,
-                    position=(layout.x, layout.y),
-                    **kwargs,
-                )
+                os.environ["SDL_VIDEO_WINDOW_POS"] = f"{layout.x},{layout.y}"
+                wkwargs: dict[str, Any] = {"fullscreen": False}
+                if borderless:
+                    wkwargs["borderless"] = True
+                try:
+                    window = sdl2_video.Window(
+                        title=f"{title_root} [{layout.display_id}]",
+                        size=layout.size,
+                        position=(layout.x, layout.y),
+                        **wkwargs,
+                    )
+                except TypeError:
+                    wkwargs.pop("borderless", None)
+                    window = sdl2_video.Window(
+                        title=f"{title_root} [{layout.display_id}]",
+                        size=layout.size,
+                        position=(layout.x, layout.y),
+                        **wkwargs,
+                    )
                 requested_monitor = layout.monitor_index
                 if requested_monitor is not None and hasattr(window, "display_index"):
                     try:
@@ -348,7 +448,8 @@ class DisplayManager:
                         h=layout.height,
                     )
                 )
-                renderer = sdl2_video.Renderer.from_window(window)
+                # Renderer.from_window() fails on Pi (empty pygame.error); direct ctor works.
+                renderer = sdl2_video.Renderer(window, accelerated=-1)
             except Exception as exc:
                 print(f"[display] multi_window init failed on {binding.layout.display_id}: {exc!r}")
                 traceback.print_exc()
@@ -526,6 +627,7 @@ class DisplayManager:
             resolved = self._apply_display_override(display)
             if not resolved["enabled"]:
                 continue
+            vrot = self._optional_view_rotation_deg(resolved)
             layouts.append(
                 DisplayLayout(
                     display_id=resolved["id"],
@@ -540,11 +642,227 @@ class DisplayManager:
                     monitor_index=resolved.get("monitor_index"),
                     windowed=bool(resolved.get("windowed", True)),
                     fullscreen=bool(resolved.get("fullscreen", False)),
+                    view_rotation_deg=vrot,
                 )
             )
         if self._config["system"].get("left_to_right_preview", False):
             layouts = self._reflow_left_to_right(layouts)
         return layouts
+
+    def _x11_screen_dimensions_px(self) -> tuple[int, int] | None:
+        """Physical X11 Screen 0 size — used for canvas_triple_hdmi_split and canvas_scale.
+
+        Prefer xdpyinfo when x11-utils is installed; many Pi images omit it, so we fall back to
+        xrandr (parse ``current WxH``), then pygame desktop sizes after display.init().
+        Optional: ELC_SCREEN_WIDTH / ELC_SCREEN_HEIGHT (integers) to force dimensions on the vehicle.
+        """
+        display = str(os.environ.get("DISPLAY", "")).strip()
+        if not display:
+            return None
+        ew = str(os.environ.get("ELC_SCREEN_WIDTH", "")).strip()
+        eh = str(os.environ.get("ELC_SCREEN_HEIGHT", "")).strip()
+        if ew.isdigit() and eh.isdigit():
+            return int(ew), int(eh)
+        env = {**os.environ}
+        # 1) xdpyinfo (x11-utils)
+        try:
+            proc = subprocess.run(
+                ["xdpyinfo", "-display", display],
+                capture_output=True,
+                text=True,
+                timeout=4,
+                env=env,
+            )
+            if proc.returncode == 0:
+                m = re.search(r"dimensions:\s*(\d+)x(\d+)", proc.stdout or "")
+                if m:
+                    return int(m.group(1)), int(m.group(2))
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+        except Exception:
+            pass
+        # 2) xrandr — usually available wherever Xorg runs
+        try:
+            proc = subprocess.run(
+                ["xrandr", "-display", display],
+                capture_output=True,
+                text=True,
+                timeout=4,
+                env=env,
+            )
+            if proc.returncode == 0:
+                m = re.search(r"current\s+(\d+)\s+x\s+(\d+)", proc.stdout or "")
+                if m:
+                    return int(m.group(1)), int(m.group(2))
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+        except Exception:
+            pass
+        # 3) pygame (DisplayManager is created after pygame.display.init() in app.run)
+        try:
+            if pygame.display.get_init():
+                sizes = pygame.display.get_desktop_sizes()
+                if sizes and len(sizes[0]) >= 2:
+                    return int(sizes[0][0]), int(sizes[0][1])
+        except Exception:
+            pass
+        return None
+
+    def _use_triple_hdmi_split(self) -> bool:
+        """2160×1080 + HDMI splitter (1080|1080) + overlapping center round: uniform canvas_scale breaks column boundaries."""
+        system_cfg = self._config.get("system", {})
+        if not bool(system_cfg.get("canvas_triple_hdmi_split", False)):
+            return False
+        if len(self._layouts) != 3:
+            return False
+        ids = {layout.display_id for layout in self._layouts}
+        if not {"round_left", "round_four_inch", "round_right"} <= ids:
+            return False
+        if str(os.environ.get("HEADLESS", "")).strip() == "1":
+            return False
+        env_mode = str(os.environ.get("DISPLAY_RENDER_MODE", "")).strip().lower()
+        cfg_mode = str(system_cfg.get("display_render_mode", "single_window")).strip().lower()
+        if (env_mode or cfg_mode or "single_window") == "multi_window":
+            return False
+        pair = self._x11_screen_dimensions_px()
+        if pair is None:
+            return False
+        dw, dh = pair
+        if dh != 1080:
+            return False
+        if abs(dw - 2160) > 8:
+            return False
+        return True
+
+    def _apply_triple_hdmi_2160_split_layout(self) -> None:
+        pair = self._x11_screen_dimensions_px()
+        if pair is None:
+            return
+        dw, _dh = pair
+        ref = int(self._config.get("system", {}).get("triple_hdmi_canvas_ref_width", 2880))
+        if ref < 1:
+            ref = 2880
+        center_x = (1080 * dw) // ref
+        by_id = {lay.display_id: lay for lay in self._layouts}
+        left = by_id["round_left"]
+        center = by_id["round_four_inch"]
+        right = by_id["round_right"]
+        # Non-overlapping strips that sum to dw: splitter still shows 0–1079 | 1080–2159; we avoid
+        # drawing TSPS in 1080–center_x+719 so the tach layer does not paint over the right gauge.
+        left_w = center_x
+        right_x = center_x + 720
+        right_w = dw - right_x
+        if left_w < 1 or right_w < 1:
+            return
+        self._layouts = [
+            replace(left, x=0, width=left_w),
+            replace(center, x=center_x, width=720),
+            replace(right, x=right_x, width=right_w),
+        ]
+        print(
+            f"[display] canvas_triple_hdmi_split: strips 0–{left_w - 1} | {center_x}–{center_x + 719} | "
+            f"{right_x}–{dw - 1} (TSPS no longer under tach); xrandr center @x={center_x}",
+            flush=True,
+        )
+
+    def _apply_responsive_canvas_layout(self) -> None:
+        want_triple = bool(self._config.get("system", {}).get("canvas_triple_hdmi_split", False))
+        if self._use_triple_hdmi_split():
+            self._apply_triple_hdmi_2160_split_layout()
+            return
+        if want_triple:
+            pair = self._x11_screen_dimensions_px()
+            print(
+                f"[display] canvas_triple_hdmi_split is true but layout not applied "
+                f"(screen={pair}; need ~2160×1080). Using canvas_scale_to_desktop_width instead. "
+                f"Set ELC_SCREEN_WIDTH=2160 ELC_SCREEN_HEIGHT=1080 or install x11-utils (xdpyinfo).",
+                flush=True,
+            )
+        self._scale_layouts_to_desktop_width_if_needed()
+
+    def _scale_layouts_to_desktop_width_if_needed(self) -> None:
+        """When the X11 desktop is narrower than the YAML canvas (e.g. 2160 vs 2880) but the same
+        height, scale each panel's x/width proportionally so we draw 1:1 into the window instead of
+        smoothscaling the full off-screen canvas — avoids horizontal squish and tach bleeding onto 5″ panels."""
+        if not self._layouts:
+            return
+        if str(os.environ.get("HEADLESS", "")).strip() == "1":
+            return
+        env_mode = str(os.environ.get("DISPLAY_RENDER_MODE", "")).strip().lower()
+        cfg_mode = str(self._config.get("system", {}).get("display_render_mode", "single_window")).strip().lower()
+        if (env_mode or cfg_mode or "single_window") == "multi_window":
+            return
+        system_cfg = self._config.get("system", {})
+        if not bool(system_cfg.get("canvas_scale_to_desktop_width", True)):
+            return
+        pair = self._x11_screen_dimensions_px()
+        if pair is not None:
+            dw, dh = pair
+        else:
+            try:
+                sizes = pygame.display.get_desktop_sizes()
+                if not sizes or len(sizes[0]) < 2:
+                    return
+                dw, dh = int(sizes[0][0]), int(sizes[0][1])
+            except Exception:
+                return
+        if dw < 320 or dh < 240:
+            return
+        canvas_w, canvas_h = self._canvas_size_from_layouts()
+        if canvas_w <= 0 or canvas_h <= 0:
+            return
+        if dh != canvas_h:
+            return
+        if dw >= canvas_w:
+            return
+        scale = dw / float(canvas_w)
+        new_layouts: list[DisplayLayout] = []
+        for layout in self._layouts:
+            nx = int(round(layout.x * scale))
+            nw = max(1, int(round(layout.width * scale)))
+            new_layouts.append(
+                DisplayLayout(
+                    display_id=layout.display_id,
+                    role=layout.role,
+                    shape=layout.shape,
+                    width=nw,
+                    height=layout.height,
+                    x=nx,
+                    y=layout.y,
+                    fps=layout.fps,
+                    gauge_id=layout.gauge_id,
+                    monitor_index=layout.monitor_index,
+                    windowed=layout.windowed,
+                    fullscreen=layout.fullscreen,
+                    view_rotation_deg=layout.view_rotation_deg,
+                )
+            )
+        if not new_layouts:
+            return
+        last = new_layouts[-1]
+        gap = dw - (last.x + last.width)
+        if gap != 0 and last.width + gap > 0:
+            new_layouts[-1] = DisplayLayout(
+                display_id=last.display_id,
+                role=last.role,
+                shape=last.shape,
+                width=last.width + gap,
+                height=last.height,
+                x=last.x,
+                y=last.y,
+                fps=last.fps,
+                gauge_id=last.gauge_id,
+                monitor_index=last.monitor_index,
+                windowed=last.windowed,
+                fullscreen=last.fullscreen,
+                view_rotation_deg=last.view_rotation_deg,
+            )
+        self._layouts = new_layouts
+        print(
+            f"[display] canvas_scale_to_desktop_width: {canvas_w}x{canvas_h} → {dw}x{dh} "
+            f"(scale={scale:.4f}); 1:1 blit (no horizontal composite squash)",
+            flush=True,
+        )
 
     def _reflow_left_to_right(self, layouts: list[DisplayLayout]) -> list[DisplayLayout]:
         spacing = int(self._config["system"].get("left_to_right_spacing_px", 16))
@@ -565,6 +883,7 @@ class DisplayManager:
                     monitor_index=layout.monitor_index,
                     windowed=layout.windowed,
                     fullscreen=layout.fullscreen,
+                    view_rotation_deg=layout.view_rotation_deg,
                 )
             )
             next_x += layout.width + spacing
@@ -606,6 +925,7 @@ class DisplayManager:
             y=0,
             fps=30,
             gauge_id=None,
+            view_rotation_deg=None,
         )
 
     def _resolve_menu_render_on_oled(self) -> bool:
@@ -636,6 +956,7 @@ class DisplayManager:
             y=0,
             fps=30,
             gauge_id=None,
+            view_rotation_deg=None,
         )
 
     def _build_map_overlays(self) -> dict[str, MapScreen]:
@@ -648,6 +969,7 @@ class DisplayManager:
         old_signature = self._layout_signature(self._layouts)
         self._theme_data = self._load_theme_data()
         self._layouts = self._build_layouts()
+        self._apply_responsive_canvas_layout()
         self._menu_display_id = self._resolve_menu_display_id()
         self._menu_layout = self._resolve_menu_layout()
         self._menu_render_on_oled = self._resolve_menu_render_on_oled()
@@ -728,11 +1050,11 @@ class DisplayManager:
                 values=values,
                 status=status,
             )
+            child = self._flip_surface_for_layout(binding.layout, child)
             target.blit(child, (binding.layout.x, binding.layout.y))
         if self._composite_surface is not None:
             scaled = pygame.transform.smoothscale(self._composite_surface, self._physical_size)
             self._root_surface.blit(scaled, (0, 0))
-        self._flip_root_surface_if_rotated()
         if str(os.environ.get("HEADLESS", "")).strip() != "1":
             pygame.display.flip()
 
@@ -748,7 +1070,7 @@ class DisplayManager:
                 values=values,
                 status=status,
             )
-            child = self._apply_view_rotation(child)
+            child = self._flip_surface_for_layout(binding.layout, child)
             texture = self._sdl2_texture.from_surface(binding.renderer, child)
             binding.renderer.draw_color = (12, 12, 12, 255)
             binding.renderer.clear()

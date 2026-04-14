@@ -2,3 +2,8 @@
 /build-artifacts
 /keys/pi_authorized_key.pub
 /tmp
+/firmware/esp32_p4_tsps/.venv
+/firmware/esp32_p4_tsps/.venv-assets
+/firmware/esp32_p4_tsps/.pio
+/.venv-tsps-assets
+/.venv-assets

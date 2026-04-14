@@ -108,10 +108,11 @@
 // 0 = 2-wire sender + external pull-down on A0
 #define POT_IS_3WIRE 1
 
-// Fuel sender (A0) smoothing/debounce. This is intentionally conservative
-// to suppress tank slosh noise in the gauge display.
+// Fuel sender (A0) smoothing. EMA reduces ADC/tank slosh noise; do not deadband the value
+// sent on the wire — a non-zero deadband quantizes the stream into visible steps on the Pi
+// gauge (dashboard applies its own smoothing_alpha). Higher = slower EMA toward raw.
 #define POT_FILTER_ALPHA_DIV  32   // higher = slower response
-#define POT_OUTPUT_DEADBAND   2    // ignore tiny output jitter
+#define POT_OUTPUT_DEADBAND   0    // 0 = continuous EMA out; was 2 (stepped serial ~2 ADC counts)
 
 // Fault Bit Definitions
 #define FAULT_POT_OPEN      (1 << 0)   // A0 below threshold (2-wire pull-down mode)

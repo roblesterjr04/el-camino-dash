@@ -1,0 +1,12 @@
+{
+  "name": "el_camino_p4_common",
+  "version": "1.0.0",
+  "description": "Shared MIPI DSI setup, sensor UART, boot splash (direct framebuffer), and helpers for el-camino-dash ESP32-P4 gauge firmwares",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "build": {
+    "includeDir": "include",
+    "srcDir": "src",
+    "libArchive": false
+  }
+}

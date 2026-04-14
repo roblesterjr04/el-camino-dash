@@ -133,6 +133,9 @@ class BluetoothMetadataAdapter:
             )
         except subprocess.TimeoutExpired:
             proc = subprocess.CompletedProcess(cmd, 124, "", "timeout")
+        except (FileNotFoundError, OSError) as exc:
+            # bluetoothctl missing or not executable (e.g. minimal image / PATH under systemd)
+            proc = subprocess.CompletedProcess(cmd, 127, "", str(exc))
         if (not allow_fail) and proc.returncode != 0:
             raise RuntimeError(f"command failed: {' '.join(cmd)}: {proc.stderr.strip()}")
         return proc

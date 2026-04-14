@@ -26,6 +26,9 @@ class GaugeScreen:
         self._ir_activity_visible_until_s = 0.0
         self._ir_activity_hold_s = 0.45
         self._outside_temp_display_int: int | None = None
+        # Optional needle_ease_halflife_s: smooth stepped inputs into a sweeping needle (ratio 0..1).
+        self._needle_ease_last_t: float | None = None
+        self._needle_ease_display_ratio: float | None = None
 
     def _load_theme_data(self) -> dict[str, Any]:
         theme_root = Path(self.config["themes"]["theme_root"])
@@ -94,6 +97,44 @@ class GaugeScreen:
             return {}
         return self.config["gauges"][self.layout.gauge_id]
 
+    def _apply_needle_ease(self, spec: dict[str, Any], target_ratio: float) -> float:
+        """Exponential ease toward target_ratio using a half-life in seconds (frame-rate independent).
+
+        When ``needle_ease_halflife_s`` is unset or <= 0, the needle follows the input ratio immediately.
+        """
+        raw = spec.get("needle_ease_halflife_s")
+        if raw is None:
+            self._needle_ease_last_t = None
+            self._needle_ease_display_ratio = None
+            return target_ratio
+        try:
+            halflife_s = float(raw)
+        except (TypeError, ValueError):
+            return target_ratio
+        if halflife_s <= 0.0:
+            self._needle_ease_last_t = None
+            self._needle_ease_display_ratio = None
+            return target_ratio
+
+        target = max(0.0, min(1.0, float(target_ratio)))
+        now = monotonic()
+        if self._needle_ease_last_t is None:
+            self._needle_ease_display_ratio = target
+            self._needle_ease_last_t = now
+            return target
+        dt = max(0.0, min(0.5, now - self._needle_ease_last_t))
+        self._needle_ease_last_t = now
+        prev = self._needle_ease_display_ratio
+        if prev is None:
+            prev = target
+        # Half-life τ: error decays by half every τ seconds (frame-rate independent).
+        k = math.log(2.0) / halflife_s
+        blend = 1.0 - math.exp(-k * dt)
+        eased = prev + (target - prev) * blend
+        eased = max(0.0, min(1.0, eased))
+        self._needle_ease_display_ratio = eased
+        return eased
+
     def render(self, surface: pygame.Surface, values: dict[str, float], status: dict[str, str]) -> None:
         spec = self._gauge_spec()
         if not spec:
@@ -123,6 +164,10 @@ class GaugeScreen:
                 ratio = max(0.0, min(1.0, float(startup_ratio)))
             except (TypeError, ValueError):
                 pass
+            self._needle_ease_last_t = None
+            self._needle_ease_display_ratio = None
+        else:
+            ratio = self._apply_needle_ease(spec, ratio)
 
         cx = self.layout.width // 2
         cy = self.layout.height // 2
@@ -187,6 +232,8 @@ class GaugeScreen:
             self._draw_odometer(surface, spec, values)
 
     def _is_center_clock_mode(self) -> bool:
+        if str(self.layout.gauge_id or "").strip().lower() == "clock":
+            return True
         if self.layout.display_id != "gauge_center":
             return False
         mode_cfg = self._theme_data.get("center_dial_mode", "tach")

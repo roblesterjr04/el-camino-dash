@@ -13,6 +13,9 @@ User=root
 WorkingDirectory=/opt/el-camino-dash
 Environment=PYTHONPATH=/opt/el-camino-dash/src
 Environment=PYTHONUNBUFFERED=1
+# Overlap + --rotate inverted made SDL report "No available displays" on Pi; use system.display_rotation_deg instead.
+Environment=ELC_X11_ROTATE=none
+Environment=ELC_X11_LAYOUT=side_by_side
 ExecStart=/bin/bash -lc 'set -euo pipefail; LOG=/boot/elc-gauge-hdmi-x11.log; [ -d /boot/firmware ] && LOG=/boot/firmware/elc-gauge-hdmi-x11.log; touch "$LOG"; echo "[elc] gauge-cluster-hdmi-x11-extended start $(date -Is)" >> "$LOG"; exec /opt/el-camino-dash/scripts/start-gauge-hdmi-x11-extended.sh >>"$LOG" 2>&1'
 StandardInput=tty
 TTYPath=/dev/tty1
@@ -20,7 +23,7 @@ TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes
 Restart=always
-RestartSec=2
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

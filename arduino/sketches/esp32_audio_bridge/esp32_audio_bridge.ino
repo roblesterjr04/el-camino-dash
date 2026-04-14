@@ -11,14 +11,20 @@
  *
  * Default I2C address 0x2A matches config integrations.esp32_audio_link.address.
  * I2S defaults match ESP32-A2DP + AudioTools (wire BCK/WS/DOUT to your PCM DAC).
+ *
+ * ESP32-P4 center (Waveshare): connect this chip's I2C to the **same bus** as the round
+ * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (default Arduino ESP32: SDA=GPIO21,
+ * SCL=GPIO22). Re-map I2S or I2C in #defines if GPIO 22 is used twice below.
  */
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <Wire.h>
 #include <cstring>
 
 #include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
+#include "cluster_theme_i2c.h"
 
 #ifndef BT_DEVICE_NAME
 #define BT_DEVICE_NAME "ElCamino-Media"
@@ -34,6 +40,18 @@
 
 #ifndef I2C_SCL_PIN
 #define I2C_SCL_PIN SCL
+#endif
+
+// Second I2C peripheral: cluster theme slave (center P4 master on GPIO 47/48 in vehicle).
+// Metadata bridge uses `Wire` @ 0x2A; theme mirror uses `Wire1` @ 0x3E — different pins.
+#ifndef CLUSTER_THEME_I2C_ENABLE
+#define CLUSTER_THEME_I2C_ENABLE 1
+#endif
+#ifndef CLUSTER_THEME_SDA
+#define CLUSTER_THEME_SDA 18
+#endif
+#ifndef CLUSTER_THEME_SCL
+#define CLUSTER_THEME_SCL 19
 #endif
 
 // I2S to external DAC (override per your PCB)
@@ -57,6 +75,30 @@ static volatile uint8_t s_i2c_cmd = kRegMetadata;
 static char s_meta_artist[kMaxTrackLen + 1];
 static char s_meta_title[kMaxTrackLen + 1];
 static portMUX_TYPE s_track_mux = portMUX_INITIALIZER_UNLOCKED;
+
+#if CLUSTER_THEME_I2C_ENABLE
+static Preferences s_cluster_prefs;
+
+static void on_cluster_theme_receive(int num_bytes) {
+  if (num_bytes < 2) {
+    while (Wire1.available()) {
+      (void)Wire1.read();
+    }
+    return;
+  }
+  const uint8_t reg = Wire1.read();
+  const uint8_t val = Wire1.read();
+  while (Wire1.available()) {
+    (void)Wire1.read();
+  }
+  if (reg == CLUSTER_REG_THEME) {
+    s_cluster_prefs.putUChar(CLUSTER_NVS_KEY_THEME, val);
+  } else if (reg == CLUSTER_REG_CENTER_SUBVIEW) {
+    // Optional: store if you later want the ESP32-D to react to center sub-view.
+    (void)val;
+  }
+}
+#endif
 
 I2SStream i2s;
 BluetoothA2DPSink a2dp_sink(i2s);
@@ -190,10 +232,24 @@ void setup() {
   Wire.onReceive(onReceive);
   Wire.onRequest(onRequest);
 
+#if CLUSTER_THEME_I2C_ENABLE
+  s_cluster_prefs.begin(CLUSTER_NVS_NAMESPACE, false);
+  Wire1.begin(static_cast<uint8_t>(CLUSTER_THEME_I2C_ADDR), CLUSTER_THEME_SDA, CLUSTER_THEME_SCL, 100000U);
+  Wire1.onReceive(on_cluster_theme_receive);
+#endif
+
   Serial.print(F("BT name: "));
   Serial.println(BT_DEVICE_NAME);
-  Serial.print(F("I2C 0x"));
+  Serial.print(F("I2C metadata 0x"));
   Serial.println(I2C_SLAVE_ADDR, HEX);
+#if CLUSTER_THEME_I2C_ENABLE
+  Serial.print(F("I2C cluster theme 0x"));
+  Serial.print(CLUSTER_THEME_I2C_ADDR, HEX);
+  Serial.print(F(" SDA="));
+  Serial.print(CLUSTER_THEME_SDA);
+  Serial.print(F(" SCL="));
+  Serial.println(CLUSTER_THEME_SCL);
+#endif
 }
 
 void loop() {

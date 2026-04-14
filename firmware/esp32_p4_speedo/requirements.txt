@@ -1,0 +1,3 @@
+# Used by ./flash.sh inside a local .venv (required for Homebrew Python / PEP 668).
+platformio>=6.1.18
+littlefs-python

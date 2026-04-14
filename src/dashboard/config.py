@@ -67,7 +67,7 @@ def _expect_type(path: str, value: Any, expected_type: type | tuple[type, ...]) 
 def _validate_display(idx: int, display: dict[str, Any]) -> None:
     path = f"displays[{idx}]"
     required = {"id", "enabled", "shape", "width", "height", "position", "fps", "role"}
-    allowed = required | {"gauge_id", "monitor_index", "windowed", "fullscreen"}
+    allowed = required | {"gauge_id", "monitor_index", "windowed", "fullscreen", "view_rotation_deg"}
     _expect_keys(path, display, required, allowed)
     _expect_type(f"{path}.id", display["id"], str)
     _expect_type(f"{path}.enabled", display["enabled"], bool)
@@ -97,6 +97,10 @@ def _validate_display(idx: int, display: dict[str, Any]) -> None:
         _expect_type(f"{path}.windowed", display["windowed"], bool)
     if "fullscreen" in display:
         _expect_type(f"{path}.fullscreen", display["fullscreen"], bool)
+    if "view_rotation_deg" in display:
+        _expect_type(f"{path}.view_rotation_deg", display["view_rotation_deg"], int)
+        if int(display["view_rotation_deg"]) not in (0, 180):
+            _fail(f"{path}.view_rotation_deg", "must be 0 or 180")
     if windowed and fullscreen:
         _fail(path, "windowed and fullscreen cannot both be true")
     if not windowed and not fullscreen:
@@ -117,6 +121,7 @@ def _validate_gauges(gauges: dict[str, Any]) -> None:
             "odometer_label",
             "odometer_unit",
             "odometer_decimals",
+            "needle_ease_halflife_s",
         }
         _expect_keys(path, spec, required, allowed)
         _expect_type(f"{path}.label", spec["label"], str)
@@ -139,6 +144,8 @@ def _validate_gauges(gauges: dict[str, Any]) -> None:
             _expect_type(f"{path}.odometer_unit", spec["odometer_unit"], str)
         if "odometer_decimals" in spec:
             _expect_type(f"{path}.odometer_decimals", spec["odometer_decimals"], int)
+        if "needle_ease_halflife_s" in spec:
+            _expect_type(f"{path}.needle_ease_halflife_s", spec["needle_ease_halflife_s"], (int, float))
 
 
 def _validate_inputs(inputs: dict[str, Any]) -> None:
@@ -761,6 +768,14 @@ def _validate_system(system: dict[str, Any]) -> None:
         _expect_type("system.display_rotation_deg", system["display_rotation_deg"], int)
         if int(system["display_rotation_deg"]) not in (0, 180):
             _fail("system.display_rotation_deg", "must be 0 or 180")
+    if "canvas_scale_to_desktop_width" in system:
+        _expect_type("system.canvas_scale_to_desktop_width", system["canvas_scale_to_desktop_width"], bool)
+    if "canvas_triple_hdmi_split" in system:
+        _expect_type("system.canvas_triple_hdmi_split", system["canvas_triple_hdmi_split"], bool)
+    if "triple_hdmi_canvas_ref_width" in system:
+        _expect_type("system.triple_hdmi_canvas_ref_width", system["triple_hdmi_canvas_ref_width"], int)
+    if "multi_window_borderless" in system:
+        _expect_type("system.multi_window_borderless", system["multi_window_borderless"], bool)
     return
 
 
