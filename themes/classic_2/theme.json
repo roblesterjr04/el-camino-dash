@@ -321,16 +321,22 @@
     "speedometer": {
       "dial": {
         "mode": "center_scale",
-        "scale": 0.7,
+        "scale": 0.75,
         "offset_x_px": 0,
         "offset_y_px": -5
+      },
+      "overlay": {
+        "mode": "center_scale",
+        "scale": 1.0,
+        "offset_x_px": 0,
+        "offset_y_px": 0
       },
       "needle": {
         "mode": "native_scale",
         "scale": 0.32,
         "pivot": [
           0.5,
-          0.9
+          0.91
         ],
         "angle_offset_deg": -90
       }
@@ -346,9 +352,9 @@
     "tsps": {
       "overlay": {
         "mode": "center_scale",
-        "scale": 0.97,
-        "offset_x_px": 5,
-        "offset_y_px": 6
+        "scale": 1.0,
+        "offset_x_px": 0,
+        "offset_y_px": 0
       },
       "dial": {
         "mode": "center_scale",
@@ -376,7 +382,7 @@
       "show_box": false,
       "font_scale": 0.042,
       "max_width_ratio": 0.38,
-      "y_ratio": 0.59,
+      "y_offset_from_center_px": 50,
       "text_color": [
         236,
         236,
@@ -392,9 +398,9 @@
   },
   "fallback_palette": {
     "background": [
-      18,
-      18,
-      18
+      0,
+      0,
+      0
     ],
     "ring": [
       140,

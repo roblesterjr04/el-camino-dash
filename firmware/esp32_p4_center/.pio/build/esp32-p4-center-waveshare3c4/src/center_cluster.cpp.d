@@ -337,5 +337,7 @@
  .pio/libdeps/esp32-p4-center-waveshare3c4/GFX\ Library\ for\ Arduino/src/display/Arduino_ST7796.h \
  .pio/libdeps/esp32-p4-center-waveshare3c4/GFX\ Library\ for\ Arduino/src/display/Arduino_WEA2012.h \
  .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_common/include/cluster_i2c.h \
- src/center_audio_link.h src/center_fallout.h src/center_assets_gen.h \
- src/center_clock_assets_gen.h
+ src/center_media_ui.h src/center_fallout.h src/center_assets_gen.h \
+ src/center_clock_assets_gen.h src/center_mpg_assets_gen.h \
+ .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_ui/include/FreeSansBold10pt7b.h \
+ .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_common/include/el_camino_firmware_config.h

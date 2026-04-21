@@ -8,6 +8,21 @@ except ImportError:  # pragma: no cover
     SMBus = None
 
 
+def _i2c_metadata_bytes(track: str, max_len: int = 32) -> bytes:
+    """SMBus block payload is capped at 32 bytes; prefer song title when 'Artist - Title' is too long."""
+    raw = (track or "").strip() or "-"
+    enc_full = raw.encode("ascii", errors="ignore")
+    if len(enc_full) <= max_len:
+        return enc_full[:max_len]
+    if " - " in raw:
+        _artist, title = raw.split(" - ", 1)
+        title = title.strip()
+        enc_title = title.encode("ascii", errors="ignore") if title else b""
+        if enc_title and len(enc_title) <= max_len:
+            return enc_title[:max_len]
+    return enc_full[:max_len]
+
+
 class Esp32AudioLink:
     """Lightweight ESP32 control/status bridge over I2C."""
 
@@ -43,9 +58,22 @@ class Esp32AudioLink:
     def publish_metadata(self, track: str) -> None:
         if self._bus is None:
             return
-        encoded = (track or "-")[:32].encode("ascii", errors="ignore")
+        encoded = _i2c_metadata_bytes(track, 32)
         try:
             self._bus.write_i2c_block_data(self._address, 0x01, list(encoded))
+            self._status = "online"
+        except Exception:
+            self._status = "offline"
+
+    def publish_transport(self, elapsed_s: int, duration_s: int, vol_0_15: int = 0) -> None:
+        if self._bus is None:
+            return
+        el = max(0, min(0xFFFF, int(elapsed_s)))
+        du = max(0, min(0xFFFF, int(duration_s)))
+        vol = max(0, min(15, int(vol_0_15)))
+        payload = [el & 0xFF, (el >> 8) & 0xFF, du & 0xFF, (du >> 8) & 0xFF, vol]
+        try:
+            self._bus.write_i2c_block_data(self._address, 0x05, payload)
             self._status = "online"
         except Exception:
             self._status = "offline"

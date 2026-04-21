@@ -150,9 +150,9 @@
   },
   "fallback_palette": {
     "background": [
-      4,
-      8,
-      14
+      0,
+      0,
+      0
     ],
     "ring": [
       40,

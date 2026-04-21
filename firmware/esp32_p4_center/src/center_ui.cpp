@@ -10,13 +10,14 @@
 #include <WiFi.h>
 
 #include <cluster_i2c.h>
+#include <sensor_packet.h>
 
 #include <p4_round_mask.h>
 
 #include "FreeSansBold10pt7b.h"
-#include "center_audio_link.h"
+#include "FreeSansBold12pt7b.h"
 #include "center_ble.h"
-#include "center_i2c_host.h"
+#include "center_gps.h"
 #include "center_sd_settings.h"
 #include "center_wifi_ntp.h"
 
@@ -33,27 +34,27 @@ enum class UiPage : uint8_t {
   Home,
   WifiTools,
   WifiList,
-  More,
+  FsPhone,
   FsPsk,
-  FsI2c,
-  FsBle,
-  FsTz,
+  FsSerial,
+  FsGpsDiag,
   FsWifiScan,
   FsWifiConn,
 };
 
 enum : int {
-  CID_TACH = 0,
-  CID_CLOCK = 1,
-  CID_WIFI = 2,
-  CID_MORE = 3,
+  CID_H_CLOCK = 1,
+  CID_H_TACH = 2,
+  CID_H_BT = 3,
+  CID_H_PHONE = 4,
+  CID_H_THEME = 5,
+  CID_H_WIFI = 6,
+  CID_H_ECON = 7,
   CID_W_USE = 10,
   CID_W_SCAN = 11,
   CID_W_BACK = 12,
-  CID_W_TZ = 13,
-  CID_M_I2C = 20,
-  CID_M_BLE = 21,
-  CID_M_BACK = 22,
+  CID_W_SERIAL = 14,
+  CID_W_GPS = 15,
   CID_SS_BASE = 100,
 };
 
@@ -91,10 +92,31 @@ static char s_pwd[65];
 static int s_pwd_len = 0;
 static bool s_kb_shift = false;
 
-static uint8_t s_i2c_addrs[24];
-static int s_i2c_n = 0;
-
 static Arduino_Canvas *s_fs_canvas = nullptr;
+
+static constexpr int kSensorLogLines = 22;
+static constexpr int kSensorLogChars = 120;
+static char s_sensor_log[kSensorLogLines][kSensorLogChars];
+static int s_sensor_log_count = 0;
+static uint32_t s_last_sensor_pkt_ms = 0;
+static uint32_t s_sensor_pkts_since_stats = 0;
+static uint32_t s_last_sensor_stats_ms = 0;
+
+static int16_t s_touch_drag_accum = 0;
+static int16_t s_touch_last_y = -1;
+static bool s_touch_prev_down = false;
+
+static void sensor_log_push_line(const char *line) {
+  if (s_sensor_log_count < kSensorLogLines) {
+    strncpy(s_sensor_log[s_sensor_log_count], line, (size_t)kSensorLogChars - 1u);
+    s_sensor_log[s_sensor_log_count][kSensorLogChars - 1] = '\0';
+    s_sensor_log_count++;
+  } else {
+    memmove(s_sensor_log[0], s_sensor_log[1], sizeof(s_sensor_log[0]) * (size_t)(kSensorLogLines - 1));
+    strncpy(s_sensor_log[kSensorLogLines - 1], line, (size_t)kSensorLogChars - 1u);
+    s_sensor_log[kSensorLogLines - 1][kSensorLogChars - 1] = '\0';
+  }
+}
 
 static bool touch_in_circle(int16_t x, int16_t y) {
   if (!s_gfx) {
@@ -212,48 +234,14 @@ static bool hit_cancel_bar(int16_t tx, int16_t ty, int16_t sw, int16_t sh) {
   return tx >= bx && tx < bx + bw && ty >= by && ty < by + bh;
 }
 
-// UTC−12 … UTC+14 grid (whole hours). POSIX via Espressif-style GMT±N (see center_wifi_set_tz_utc_offset_hours).
-static constexpr int kTzGridMinH = -12;
-static constexpr int kTzGridMaxH = 14;
-static constexpr int kTzGridCols = 6;
-
-struct TzGridGeom {
-  int16_t y0;
-  int16_t cellw, cellh, gap;
-};
-
-static void tz_grid_geom(int16_t sw, TzGridGeom *g) {
-  g->gap = 5;
-  const int16_t inner = (int16_t)(sw - 2 * kLayoutInset);
-  g->cellw = (int16_t)((inner - (kTzGridCols - 1) * g->gap) / kTzGridCols);
-  g->cellh = 34;
-  g->y0 = (int16_t)(kLayoutInset + 108);
-}
-
-static bool hit_tz_offset_grid(int16_t tx, int16_t ty, int16_t sw, int16_t /*sh*/, int *out_h) {
-  TzGridGeom geom{};
-  tz_grid_geom(sw, &geom);
-  const int n = kTzGridMaxH - kTzGridMinH + 1;
-  for (int idx = 0; idx < n; idx++) {
-    const int row = idx / kTzGridCols;
-    const int col = idx % kTzGridCols;
-    const int16_t bx = (int16_t)(kLayoutInset + col * (geom.cellw + geom.gap));
-    const int16_t by = (int16_t)(geom.y0 + row * (geom.cellh + geom.gap));
-    if (tx >= bx && tx < bx + geom.cellw && ty >= by && ty < by + geom.cellh) {
-      if (out_h) {
-        *out_h = kTzGridMinH + idx;
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
 static void menu_open_home() {
   s_page = UiPage::Home;
   s_menu->setScreenSize(s_gfx->width(), s_gfx->height());
   s_menu->setBackdropColor(0x0000);
-  s_menu->setupGrid2x2(CID_TACH, CID_CLOCK, CID_WIFI, CID_MORE, "TACH", "CLOCK", "WIFI", "MORE", kLayoutInset, 14);
+  static const int kHomeIds[] = {CID_H_CLOCK, CID_H_TACH, CID_H_ECON, CID_H_BT, CID_H_PHONE, CID_H_THEME, CID_H_WIFI};
+  static const char *const kHomeLbl[] = {"Clock",      "Tachometer",      "Efficiency (MPG)",
+                                         "Bluetooth Audio", "Phone", "Theme Toggle", "WiFi Settings"};
+  s_menu->setupHomeTranslateList(kHomeIds, kHomeLbl, 7, kLayoutInset);
   s_menu->open();
 }
 
@@ -262,27 +250,15 @@ static void menu_wifi_tools() {
   const int16_t sw = s_gfx->width();
   const int16_t sh = s_gfx->height();
   const int16_t m = kLayoutInset;
-  const int16_t gap = 10;
-  const int16_t h = (int16_t)((sh - 2 * m - 3 * gap) / 4);
+  const int16_t gap = 8;
+  const int rows = 5;
+  const int16_t h = (int16_t)((sh - 2 * m - (rows - 1) * gap) / rows);
   s_menu->clearItems();
   s_menu->addItem({CID_W_USE, m, m, (int16_t)(sw - 2 * m), h, "SAVED"});
-  s_menu->addItem({CID_W_SCAN, m, (int16_t)(m + h + gap), (int16_t)(sw - 2 * m), h, "SCAN"});
-  s_menu->addItem({CID_W_TZ, m, (int16_t)(m + 2 * (h + gap)), (int16_t)(sw - 2 * m), h, "TIME ZONE"});
-  s_menu->addItem({CID_W_BACK, m, (int16_t)(m + 3 * (h + gap)), (int16_t)(sw - 2 * m), h, "BACK"});
-  s_menu->open();
-}
-
-static void menu_more() {
-  s_page = UiPage::More;
-  const int16_t sw = s_gfx->width();
-  const int16_t sh = s_gfx->height();
-  const int16_t m = kLayoutInset;
-  const int16_t gap = 10;
-  const int16_t h = (int16_t)((sh - 2 * m - 2 * gap) / 3);
-  s_menu->clearItems();
-  s_menu->addItem({CID_M_I2C, m, m, (int16_t)(sw - 2 * m), h, "I2C BUS"});
-  s_menu->addItem({CID_M_BLE, m, (int16_t)(m + h + gap), (int16_t)(sw - 2 * m), h, "BT INFO"});
-  s_menu->addItem({CID_M_BACK, m, (int16_t)(m + 2 * (h + gap)), (int16_t)(sw - 2 * m), h, "BACK"});
+  s_menu->addItem({CID_W_SCAN, m, (int16_t)(m + 1 * (h + gap)), (int16_t)(sw - 2 * m), h, "SCAN"});
+  s_menu->addItem({CID_W_SERIAL, m, (int16_t)(m + 2 * (h + gap)), (int16_t)(sw - 2 * m), h, "SENSOR LOG"});
+  s_menu->addItem({CID_W_GPS, m, (int16_t)(m + 3 * (h + gap)), (int16_t)(sw - 2 * m), h, "GPS UART"});
+  s_menu->addItem({CID_W_BACK, m, (int16_t)(m + 4 * (h + gap)), (int16_t)(sw - 2 * m), h, "BACK"});
   s_menu->open();
 }
 
@@ -317,6 +293,49 @@ static void close_to_gauge() {
   center_shell_set_wifi_psk_pending(nullptr);
 }
 
+void center_ui_sensor_log_line(const char *line) {
+  if (line && line[0]) {
+    sensor_log_push_line(line);
+  }
+}
+
+void center_ui_on_sensor_uart_line(const char *line) {
+  center_ui_sensor_log_line(line);
+}
+
+void center_ui_on_sensor_packet(const SensorPacketValues &v) {
+  s_last_sensor_pkt_ms = millis();
+  s_sensor_pkts_since_stats++;
+  char line[kSensorLogChars];
+  if (v.extended && v.has_odometer && v.has_fuel_economy) {
+    const double odo_mi = (double)v.odometer_tenths_mile * 0.1;
+    const double dte_mi = (double)v.dte_tenths_mile * 0.1;
+    snprintf(line, sizeof(line),
+             "pot=%u th=%u amb=%u p=%u v=%u spd=%lu eng=%lu f=0x%02X x=0x%04X odo=%.1fmi mpg_i=%u.%u mpg_a=%u.%u dte=%.1fmi",
+             (unsigned)v.pot_adc, (unsigned)v.therm_adc, (unsigned)v.ambient_adc, (unsigned)v.pressure_adc,
+             (unsigned)v.voltage_adc, (unsigned long)v.speed_rpm, (unsigned long)v.engine_rpm, (unsigned)v.flags,
+             (unsigned)v.faults, odo_mi, (unsigned)(v.mpg_instant_x10 / 10u), (unsigned)(v.mpg_instant_x10 % 10u),
+             (unsigned)(v.mpg_average_x10 / 10u), (unsigned)(v.mpg_average_x10 % 10u), dte_mi);
+  } else if (v.extended && v.has_odometer) {
+    const double odo_mi = (double)v.odometer_tenths_mile * 0.1;
+    snprintf(line, sizeof(line),
+             "pot=%u th=%u amb=%u p=%u v=%u spd=%lu eng=%lu f=0x%02X x=0x%04X odo=%.1fmi odo_t=%lu",
+             (unsigned)v.pot_adc, (unsigned)v.therm_adc, (unsigned)v.ambient_adc, (unsigned)v.pressure_adc,
+             (unsigned)v.voltage_adc, (unsigned long)v.speed_rpm, (unsigned long)v.engine_rpm, (unsigned)v.flags,
+             (unsigned)v.faults, odo_mi, (unsigned long)v.odometer_tenths_mile);
+  } else if (v.extended) {
+    snprintf(line, sizeof(line), "pot=%u th=%u amb=%u p=%u v=%u spd=%lu eng=%lu f=0x%02X x=0x%04X",
+             (unsigned)v.pot_adc, (unsigned)v.therm_adc, (unsigned)v.ambient_adc, (unsigned)v.pressure_adc,
+             (unsigned)v.voltage_adc, (unsigned long)v.speed_rpm, (unsigned long)v.engine_rpm, (unsigned)v.flags,
+             (unsigned)v.faults);
+  } else {
+    snprintf(line, sizeof(line), "pot=%u th=%u p=%u v=%u spd=%lu eng=%lu f=0x%02X x=0x%04X", (unsigned)v.pot_adc,
+             (unsigned)v.therm_adc, (unsigned)v.pressure_adc, (unsigned)v.voltage_adc, (unsigned long)v.speed_rpm,
+             (unsigned long)v.engine_rpm, (unsigned)v.flags, (unsigned)v.faults);
+  }
+  sensor_log_push_line(line);
+}
+
 void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs, P4OverlayMenu *menu) {
   s_gfx = gfx;
   s_prefs = prefs;
@@ -324,7 +343,7 @@ void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs, P4OverlayMenu *menu) 
   if (prefs) {
     s_theme = (prefs->getUChar("ctheme", 0) != 0) ? ClusterTheme::Fallout : ClusterTheme::Classic;
     uint8_t v = prefs->getUChar("view", 0);
-    if (v > 2) {
+    if (v > 3) {
       v = 0;
     }
     s_view = (CenterViewMode)v;
@@ -366,7 +385,7 @@ void center_ui_process_touch_gesture(uint32_t duration_ms, int16_t x, int16_t y)
   }
   if (duration_ms >= 3000u && s_theme == ClusterTheme::Classic) {
     uint8_t v = (uint8_t)s_view;
-    v = (uint8_t)((v + 1u) % 3u);
+    v = (uint8_t)((v + 1u) % 4u);
     s_view = (CenterViewMode)v;
     s_prefs->putUChar("view", v);
     center_sd_settings_sync(*s_prefs);
@@ -379,8 +398,8 @@ void center_ui_process_touch_gesture(uint32_t duration_ms, int16_t x, int16_t y)
 bool center_ui_overlay_open() { return s_menu && s_menu->isOpen(); }
 
 bool center_ui_fullscreen() {
-  return s_page == UiPage::FsPsk || s_page == UiPage::FsI2c || s_page == UiPage::FsBle || s_page == UiPage::FsTz ||
-         s_page == UiPage::FsWifiScan || s_page == UiPage::FsWifiConn;
+  return s_page == UiPage::FsPsk || s_page == UiPage::FsSerial || s_page == UiPage::FsGpsDiag ||
+         s_page == UiPage::FsWifiScan || s_page == UiPage::FsWifiConn || s_page == UiPage::FsPhone;
 }
 
 static void draw_wifi_tools_status(Arduino_GFX *g) {
@@ -457,7 +476,16 @@ void center_ui_draw_overlay() {
   if (!s_menu || !s_menu->isOpen()) {
     return;
   }
-  const int hi = (s_view == CenterViewMode::Tach) ? CID_TACH : (s_view == CenterViewMode::Clock) ? CID_CLOCK : -999;
+  int hi = -999;
+  if (s_view == CenterViewMode::Tach) {
+    hi = CID_H_TACH;
+  } else if (s_view == CenterViewMode::Clock) {
+    hi = CID_H_CLOCK;
+  } else if (s_view == CenterViewMode::Efficiency) {
+    hi = CID_H_ECON;
+  } else if (s_view == CenterViewMode::Media) {
+    hi = CID_H_BT;
+  }
   if (s_page == UiPage::Home) {
     s_menu->draw((int16_t)hi);
   } else {
@@ -466,12 +494,6 @@ void center_ui_draw_overlay() {
   if (s_page == UiPage::WifiTools && s_gfx) {
     draw_wifi_tools_status(s_gfx);
   }
-}
-
-static void run_i2c_scan_page() {
-  center_i2c_host_scan(s_i2c_addrs, 24, &s_i2c_n);
-  s_page = UiPage::FsI2c;
-  s_menu->close();
 }
 
 static void draw_scan_progress(Arduino_GFX *t, int16_t sw, int16_t sh, uint32_t ms, float phase01) {
@@ -491,6 +513,133 @@ static void draw_scan_progress(Arduino_GFX *t, int16_t sw, int16_t sh, uint32_t 
   const int16_t bw = (int16_t)((float)barw * phase01);
   t->fillRoundRect(kLayoutInset, (int16_t)(cy + rr + 20), barw, 10, 4, ui_rgb565(40, 40, 40));
   t->fillRoundRect(kLayoutInset, (int16_t)(cy + rr + 20), bw, 10, 4, ui_rgb565(200, 200, 200));
+}
+
+static void ui_print_trunc_line(Arduino_GFX *t, int16_t x, int16_t y, int16_t max_chars, uint16_t col,
+                                const char *s) {
+  t->setFont(nullptr);
+  t->setTextSize(1);
+  t->setTextColor(col);
+  t->setCursor(x, y);
+  if (!s || !s[0]) {
+    t->print("—");
+    return;
+  }
+  const size_t mc = (size_t)(max_chars > 8 ? max_chars : 8);
+  char b[128];
+  strncpy(b, s, sizeof(b) - 1u);
+  b[sizeof(b) - 1u] = '\0';
+  const size_t L = strlen(b);
+  if (L > mc) {
+    const size_t cut = mc > 3u ? mc - 3u : 0u;
+    if (cut < sizeof(b)) {
+      b[cut] = '\0';
+    }
+    const size_t len2 = strlen(b);
+    if (len2 + 3u < sizeof(b)) {
+      memcpy(b + len2, "...", 4);
+    }
+  }
+  t->print(b);
+}
+
+static void ui_print_trunc_gfx(Arduino_GFX *t, int16_t x, int16_t y, int16_t max_chars, uint16_t col,
+                               const GFXfont *font, const char *s) {
+  t->setFont(font);
+  t->setTextSize(1);
+  t->setTextColor(col);
+  t->setCursor(x, y);
+  if (!s || !s[0]) {
+    t->print("—");
+    return;
+  }
+  const size_t mc = (size_t)(max_chars > 8 ? max_chars : 8);
+  char b[128];
+  strncpy(b, s, sizeof(b) - 1u);
+  b[sizeof(b) - 1u] = '\0';
+  const size_t L = strlen(b);
+  if (L > mc) {
+    const size_t cut = mc > 3u ? mc - 3u : 0u;
+    if (cut < sizeof(b)) {
+      b[cut] = '\0';
+    }
+    const size_t len2 = strlen(b);
+    if (len2 + 3u < sizeof(b)) {
+      memcpy(b + len2, "...", 4);
+    }
+  }
+  t->print(b);
+}
+
+static int16_t ui_draw_wrapped_gfx(Arduino_GFX *t, const GFXfont *font, int16_t x0, int16_t y0, int16_t y_max,
+                                   int16_t max_chars, int16_t line_h, uint16_t color, const char *text) {
+  t->setFont(font);
+  t->setTextSize(1);
+  t->setTextColor(color);
+  int16_t y = y0;
+  if (!text || text[0] == '\0') {
+    t->setCursor(x0, y);
+    t->print("(empty)");
+    return (int16_t)(y + line_h);
+  }
+  if (max_chars < 12) {
+    max_chars = 12;
+  }
+  const size_t len = strlen(text);
+  size_t pos = 0;
+  while (pos < len && y <= (int16_t)(y_max - line_h)) {
+    size_t chunk = (size_t)max_chars;
+    if (pos + chunk > len) {
+      chunk = len - pos;
+    }
+    char buf[160];
+    if (chunk >= sizeof(buf)) {
+      chunk = sizeof(buf) - 1u;
+    }
+    memcpy(buf, text + pos, chunk);
+    buf[chunk] = '\0';
+    t->setCursor(x0, y);
+    t->print(buf);
+    y = (int16_t)(y + line_h);
+    pos += chunk;
+  }
+  return y;
+}
+
+/** Default-font wrapped text; returns Y just below last printed line. */
+static int16_t ui_draw_wrapped_small(Arduino_GFX *t, int16_t x0, int16_t y0, int16_t y_max, int16_t max_chars,
+                                     int16_t line_h, uint16_t color, const char *text) {
+  t->setFont(nullptr);
+  t->setTextSize(1);
+  t->setTextColor(color);
+  int16_t y = y0;
+  if (!text || text[0] == '\0') {
+    t->setCursor(x0, y);
+    t->print("(empty)");
+    return (int16_t)(y + line_h);
+  }
+  if (max_chars < 12) {
+    max_chars = 12;
+  }
+  const size_t len = strlen(text);
+  size_t pos = 0;
+  while (pos < len && y <= (int16_t)(y_max - line_h)) {
+    size_t chunk = (size_t)max_chars;
+    if (pos + chunk > len) {
+      chunk = len - pos;
+    }
+    char buf[160];
+    if (chunk >= sizeof(buf)) {
+      chunk = sizeof(buf) - 1u;
+    }
+    memcpy(buf, text + pos, chunk);
+    buf[chunk] = '\0';
+    t->setCursor(x0, y);
+    t->print(buf);
+    y = (int16_t)(y + line_h);
+    pos += chunk;
+  }
+  return y;
 }
 
 void center_ui_draw_fullscreen(Arduino_GFX *gfx) {
@@ -602,143 +751,63 @@ void center_ui_draw_fullscreen(Arduino_GFX *gfx) {
       t->print(lbl);
     }
     t->setFont(nullptr);
-  } else if (s_page == UiPage::FsI2c) {
+  } else if (s_page == UiPage::FsPhone) {
+    t->setFont(&FreeSansBold10pt7b);
+    t->setTextSize(1);
+    t->setTextColor(0xFFFFu);
     t->setCursor(kLayoutInset, kLayoutInset);
-    t->print("I2C (host scan)");
-    int y = kLayoutInset + 36;
-    for (int i = 0; i < s_i2c_n; i++) {
-      char line[24];
-      snprintf(line, sizeof(line), "0x%02X", (unsigned)s_i2c_addrs[i]);
-      t->setCursor(kLayoutInset, (int16_t)y);
-      t->print(line);
-      y += 26;
-      if (y > sh - 100) {
-        break;
-      }
-    }
-    if (s_i2c_n == 0) {
-      t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 40));
-      t->print("(none)");
-    }
+    t->print("Phone");
+    t->setFont(nullptr);
+    t->setTextSize(1);
+    t->setTextColor(ui_rgb565(150, 150, 160));
+    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 26));
+    t->print("Hands-free / cabin audio — integration TBD.");
+    t->setTextColor(0xFFFFu);
+    t->setFont(&FreeSansBold10pt7b);
     const int16_t bw = 280;
     const int16_t bh = 48;
     const int16_t bx = (int16_t)((sw - bw) / 2);
     const int16_t by = (int16_t)(sh - kLayoutInset - 8 - bh);
     t->fillRoundRect(bx, by, bw, bh, 10, ui_rgb565(48, 48, 48));
     t->drawRoundRect(bx, by, bw, bh, 10, ui_rgb565(140, 140, 140));
-    int16_t bx0 = 0, by0 = 0;
-    uint16_t tw = 0, th = 0;
-    t->getTextBounds("CANCEL", 0, 0, &bx0, &by0, &tw, &th);
-    t->setCursor((int16_t)(bx + (bw - (int16_t)tw) / 2), (int16_t)(by + (bh + (int16_t)th) / 2));
-    t->print("CANCEL");
-  } else if (s_page == UiPage::FsTz) {
-    t->setCursor(kLayoutInset, kLayoutInset);
-    t->print("Time zone");
-    t->setTextColor(ui_rgb565(160, 160, 160));
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 24));
-    t->print("NTP = UTC; pick fixed offset (no DST).");
-    String cur = s_prefs ? s_prefs->getString("tz", CENTER_TZ_DEFAULT) : String(CENTER_TZ_DEFAULT);
-    t->setTextColor(0xFFFFu);
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 48));
-    t->print("Now: ");
-    if (cur.length() > 28) {
-      t->print(cur.substring(0, 25));
-      t->print("...");
-    } else {
-      t->print(cur);
-    }
-    {
-      TzGridGeom geom{};
-      tz_grid_geom(sw, &geom);
-      const int n = kTzGridMaxH - kTzGridMinH + 1;
-      for (int idx = 0; idx < n; idx++) {
-        const int h = kTzGridMinH + idx;
-        const int row = idx / kTzGridCols;
-        const int col = idx % kTzGridCols;
-        const int16_t bx = (int16_t)(kLayoutInset + col * (geom.cellw + geom.gap));
-        const int16_t by = (int16_t)(geom.y0 + row * (geom.cellh + geom.gap));
-        char lbl[12];
-        if (h == 0) {
-          strncpy(lbl, "UTC", sizeof(lbl) - 1);
-          lbl[sizeof(lbl) - 1] = '\0';
-        } else {
-          snprintf(lbl, sizeof(lbl), "%+d", h);
-        }
-        t->fillRoundRect(bx, by, geom.cellw, geom.cellh, 6, ui_rgb565(38, 38, 44));
-        t->drawRoundRect(bx, by, geom.cellw, geom.cellh, 6, ui_rgb565(110, 110, 130));
-        int16_t bx0 = 0, by0 = 0;
-        uint16_t tw = 0, th = 0;
-        t->getTextBounds(lbl, 0, 0, &bx0, &by0, &tw, &th);
-        t->setTextColor(0xFFFFu);
-        t->setCursor((int16_t)(bx + (geom.cellw - (int16_t)tw) / 2), (int16_t)(by + (geom.cellh + (int16_t)th) / 2));
-        t->print(lbl);
-      }
-    }
-    const int16_t cbw = 280;
-    const int16_t cbh = 48;
-    const int16_t cbx = (int16_t)((sw - cbw) / 2);
-    const int16_t cby = (int16_t)(sh - kLayoutInset - 8 - cbh);
-    t->fillRoundRect(cbx, cby, cbw, cbh, 10, ui_rgb565(48, 48, 48));
-    t->drawRoundRect(cbx, cby, cbw, cbh, 10, ui_rgb565(140, 140, 140));
     int16_t bx0 = 0, by0 = 0;
     uint16_t tw = 0, th = 0;
     t->getTextBounds("BACK", 0, 0, &bx0, &by0, &tw, &th);
-    t->setTextColor(0xFFFFu);
-    t->setCursor((int16_t)(cbx + (cbw - (int16_t)tw) / 2), (int16_t)(cby + (cbh + (int16_t)th) / 2));
+    t->setCursor((int16_t)(bx + (bw - (int16_t)tw) / 2), (int16_t)(by + (bh + (int16_t)th) / 2));
     t->print("BACK");
-  } else if (s_page == UiPage::FsBle) {
+    t->setFont(nullptr);
+  } else if (s_page == UiPage::FsSerial) {
     t->setCursor(kLayoutInset, kLayoutInset);
-    t->print("Bluetooth on this display");
-    t->setTextColor(ui_rgb565(160, 160, 160));
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 26));
-    t->print("BLE: status / tooling only (no phone A2DP).");
+    t->print("Sensor UART");
+    t->setFont(nullptr);
+    t->setTextSize(1);
+    t->setTextColor(ui_rgb565(150, 150, 160));
+    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 22));
+    t->print("Decoded frames + FRAM* UART (sensor_pack on Serial1)");
     t->setTextColor(0xFFFFu);
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 52));
-    if (center_ble_is_connected()) {
-      t->setTextColor(ui_rgb565(120, 200, 120));
-      t->print("BLE: connected");
-    } else {
-      t->setTextColor(ui_rgb565(220, 200, 120));
-      t->print("BLE: advertising");
-    }
-    t->setTextColor(ui_rgb565(180, 220, 180));
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 78));
-    t->print("ElCamino");
-    t->setTextColor(ui_rgb565(140, 140, 160));
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 104));
-    t->print("(scanner apps, not phone Settings)");
-    t->setTextColor(ui_rgb565(160, 160, 160));
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 134));
-    t->print("Classic BT audio: external ESP32 (A2DP)");
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 160));
-    if (center_audio_link_ok()) {
-      t->setTextColor(ui_rgb565(120, 200, 120));
-      t->print("I2C metadata 0x2A: OK");
-    } else {
-      t->setTextColor(ui_rgb565(255, 170, 120));
-      t->print("I2C metadata 0x2A: offline");
-    }
-    t->setTextColor(ui_rgb565(200, 200, 210));
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 188));
-    t->print("Now:");
-    t->setCursor((int16_t)(kLayoutInset + 52), (int16_t)(kLayoutInset + 188));
     {
-      const char *np = center_audio_link_line();
-      if (np && np[0]) {
-        char buf[36];
-        strncpy(buf, np, sizeof(buf) - 1);
-        buf[sizeof(buf) - 1] = '\0';
-        t->print(buf);
-      } else {
+      const int16_t y0 = (int16_t)(kLayoutInset + 42);
+      const int16_t lh = 14;
+      const int max_lines = (int)((sh - 72 - y0) / lh);
+      const int first = (s_sensor_log_count <= max_lines) ? 0 : (s_sensor_log_count - max_lines);
+      for (int i = first; i < s_sensor_log_count; i++) {
+        const int16_t y = (int16_t)(y0 + (i - first) * lh);
+        t->setCursor(kLayoutInset, y);
+        t->print(s_sensor_log[i]);
+      }
+      if (s_sensor_log_count == 0) {
         t->setTextColor(ui_rgb565(120, 120, 130));
-        t->print("—");
+        t->setCursor(kLayoutInset, (int16_t)(y0 + 4));
+        t->print("(waiting for packets...)");
       }
     }
+    t->setFont(&FreeSansBold10pt7b);
+    t->setTextSize(1);
+    t->setTextColor(0xFFFFu);
     const int16_t bw = 280;
     const int16_t bh = 48;
     const int16_t bx = (int16_t)((sw - bw) / 2);
     const int16_t by = (int16_t)(sh - kLayoutInset - 8 - bh);
-    t->setTextColor(0xFFFFu);
     t->fillRoundRect(bx, by, bw, bh, 10, ui_rgb565(48, 48, 48));
     t->drawRoundRect(bx, by, bw, bh, 10, ui_rgb565(140, 140, 140));
     int16_t bx0 = 0, by0 = 0;
@@ -746,13 +815,191 @@ void center_ui_draw_fullscreen(Arduino_GFX *gfx) {
     t->getTextBounds("CANCEL", 0, 0, &bx0, &by0, &tw, &th);
     t->setCursor((int16_t)(bx + (bw - (int16_t)tw) / 2), (int16_t)(by + (bh + (int16_t)th) / 2));
     t->print("CANCEL");
+  } else if (s_page == UiPage::FsGpsDiag) {
+    const int16_t bh = 48;
+    const int16_t by_btn = (int16_t)(sh - kLayoutInset - 8 - bh);
+    const int16_t lh_stream = 22;
+    const int16_t n_recent = CENTER_GPS_DIAG_RECENT_LINES;
+    const int16_t stream_block = (int16_t)(lh_stream * (1 + n_recent) + 12);
+    const int16_t y_list_top = (int16_t)(by_btn - stream_block);
+    const int16_t y_hdr_max = (int16_t)(y_list_top - 8);
+    const int16_t max_chars12 = (int16_t)((sw - 2 * kLayoutInset - 4) / 12);
+    const int16_t lh_hdr = 24;
+    int16_t y = (int16_t)(kLayoutInset + 4);
+
+    t->setFont(&FreeSansBold12pt7b);
+    t->setTextSize(1);
+    t->setTextColor(0xFFFFu);
+    t->setCursor(kLayoutInset, y);
+    t->print("GPS UART");
+    y = (int16_t)(y + 30);
+
+    {
+      char sub[88];
+      snprintf(sub, sizeof(sub), "UART2 @ %lu baud", (unsigned long)center_gps_uart_baud());
+      y = ui_draw_wrapped_gfx(t, &FreeSansBold12pt7b, kLayoutInset, y, y_hdr_max, max_chars12, lh_hdr,
+                              ui_rgb565(140, 145, 165), sub);
+    }
+    {
+      const uint32_t gbt = center_gps_last_uart_byte_ms();
+      char rxl[72];
+      if (gbt == 0) {
+        strncpy(rxl, "Last RX byte: never", sizeof(rxl) - 1u);
+      } else {
+        snprintf(rxl, sizeof(rxl), "Last RX byte: %lums ago", (unsigned long)(ms - gbt));
+      }
+      rxl[sizeof(rxl) - 1u] = '\0';
+      y = ui_draw_wrapped_gfx(t, &FreeSansBold12pt7b, kLayoutInset, y, y_hdr_max, max_chars12, lh_hdr,
+                              ui_rgb565(140, 145, 165), rxl);
+    }
+    y = (int16_t)(y + 4);
+    y = ui_draw_wrapped_gfx(t, &FreeSansBold12pt7b, kLayoutInset, y, y_hdr_max, max_chars12, lh_hdr,
+                            ui_rgb565(160, 185, 210), "Assembling (incomplete line):");
+    char partial[200];
+    center_gps_diag_copy_partial(partial, sizeof(partial));
+    y = ui_draw_wrapped_gfx(t, &FreeSansBold12pt7b, kLayoutInset, y, y_hdr_max, max_chars12, lh_hdr,
+                            ui_rgb565(225, 220, 195), partial);
+
+    y = (int16_t)(y + 6);
+    double la = 0.0, lo = 0.0;
+    const bool have_ll = center_gps_last_fix_coords(&la, &lo);
+    char sum[120];
+    if (have_ll) {
+      snprintf(sum, sizeof(sum), "Fix pos=1  lat=%.6f  lon=%.6f", la, lo);
+    } else {
+      snprintf(sum, sizeof(sum), "Fix pos=0 (need RMC A or GGA q 1-9)");
+    }
+    y = ui_draw_wrapped_gfx(t, &FreeSansBold12pt7b, kLayoutInset, y, y_hdr_max, max_chars12, lh_hdr,
+                            ui_rgb565(135, 200, 135), sum);
+
+    const char *st = center_gps_street_line();
+    char stline[100];
+    if (st && st[0]) {
+      snprintf(stline, sizeof(stline), "Street: %s", st);
+    } else {
+      strncpy(stline, "Street: (none yet)", sizeof(stline) - 1u);
+      stline[sizeof(stline) - 1u] = '\0';
+    }
+    y = ui_draw_wrapped_gfx(t, &FreeSansBold12pt7b, kLayoutInset, y, y_hdr_max, max_chars12, lh_hdr,
+                            ui_rgb565(175, 175, 220), stline);
+
+    t->setFont(&FreeSansBold12pt7b);
+    t->setTextSize(1);
+    t->setTextColor(ui_rgb565(115, 140, 155));
+    t->setCursor(kLayoutInset, y_list_top);
+    t->print("Recent $ sentences (newest at bottom):");
+
+    char rows[CENTER_GPS_DIAG_RECENT_LINES][128];
+    center_gps_diag_copy_recent(rows);
+    for (int i = 0; i < n_recent; i++) {
+      const int16_t yy = (int16_t)(y_list_top + lh_stream + i * lh_stream);
+      const uint16_t col = (i == n_recent - 1) ? ui_rgb565(255, 225, 120) : ui_rgb565(175, 180, 190);
+      ui_print_trunc_gfx(t, kLayoutInset, yy, max_chars12, col, &FreeSansBold12pt7b, rows[i][0] ? rows[i] : "—");
+    }
+
+    t->setFont(&FreeSansBold10pt7b);
+    t->setTextSize(1);
+    t->setTextColor(0xFFFFu);
+    const int16_t bw = 280;
+    const int16_t bx = (int16_t)((sw - bw) / 2);
+    t->fillRoundRect(bx, by_btn, bw, bh, 10, ui_rgb565(48, 48, 48));
+    t->drawRoundRect(bx, by_btn, bw, bh, 10, ui_rgb565(140, 140, 140));
+    int16_t bx0 = 0, by0 = 0;
+    uint16_t tw = 0, th = 0;
+    t->getTextBounds("BACK", 0, 0, &bx0, &by0, &tw, &th);
+    t->setCursor((int16_t)(bx + (bw - (int16_t)tw) / 2), (int16_t)(by_btn + (bh + (int16_t)th) / 2));
+    t->print("BACK");
   }
 
   t->setFont(nullptr);
   blit_round_canvas(gfx);
 }
 
+void center_ui_touch_sample(int16_t x, int16_t y, bool finger_down) {
+  (void)x;
+  if (!s_menu || !s_menu->isOpen() || center_ui_fullscreen()) {
+    if (!finger_down) {
+      s_touch_prev_down = false;
+      s_touch_last_y = -1;
+    }
+    return;
+  }
+  if (finger_down && !s_touch_prev_down) {
+    s_touch_drag_accum = 0;
+    s_touch_last_y = -1;
+  }
+  if (finger_down) {
+    if (s_touch_last_y < 0) {
+      s_touch_last_y = y;
+      if (s_page == UiPage::Home && s_menu->isHomeTranslateList()) {
+        s_menu->homeListBeginDrag(y);
+      }
+    } else {
+      const int dy = (int)y - (int)s_touch_last_y;
+      s_touch_drag_accum = (int16_t)(s_touch_drag_accum + (dy < 0 ? -dy : dy));
+      s_touch_last_y = y;
+      if (s_page == UiPage::Home && s_menu->isHomeTranslateList()) {
+        s_menu->homeListDragTo(y);
+      }
+    }
+  } else {
+    s_touch_last_y = -1;
+  }
+  s_touch_prev_down = finger_down;
+}
+
 void center_ui_loop() {
+  const uint32_t now = millis();
+  /* Rolling 2 s window: reset even when log is closed so the next open shows a fresh rate. */
+  if (now - s_last_sensor_stats_ms >= 2000u) {
+    s_last_sensor_stats_ms = now;
+    const uint32_t pkts = s_sensor_pkts_since_stats;
+    s_sensor_pkts_since_stats = 0;
+    if (s_page == UiPage::FsSerial) {
+      char b[kSensorLogChars];
+      const wl_status_t wst = WiFi.status();
+      const char *ws = (wst == WL_CONNECTED) ? "wifi=ok" : ((wst == WL_DISCONNECTED) ? "wifi=off" : "wifi=?");
+      uint64_t wall_ms = 0;
+      const bool wall = center_wall_epoch_ms(&wall_ms);
+      const char *street = center_gps_street_line();
+      char place[72];
+      place[0] = '\0';
+      if (street && street[0]) {
+        strncpy(place, street, sizeof(place) - 1);
+        place[sizeof(place) - 1] = '\0';
+        /* One line: trim long names for the log width. */
+        if (strlen(place) > 32u) {
+          place[29] = '.';
+          place[30] = '.';
+          place[31] = '.';
+          place[32] = '\0';
+        }
+      } else {
+        strncpy(place, "(no street yet)", sizeof(place) - 1);
+        place[sizeof(place) - 1] = '\0';
+      }
+      /* gbt = millis() when last byte arrived; (now - gbt) small/zero means UART is actively receiving. */
+      const uint32_t gbt = center_gps_last_uart_byte_ms();
+      char grx[32];
+      if (gbt == 0) {
+        strncpy(grx, "gps_rx=none", sizeof(grx) - 1);
+        grx[sizeof(grx) - 1] = '\0';
+      } else {
+        snprintf(grx, sizeof(grx), "gps_rx_age=%lums", (unsigned long)(now - gbt));
+      }
+      const char *pos = center_gps_have_position_fix() ? "pos=1" : "pos=0";
+      if (s_last_sensor_pkt_ms == 0) {
+        snprintf(b, sizeof(b), "[status] %s %s %s wall=%s pkts/2s=%lu st=%s (no frames yet)", ws, grx, pos,
+                 wall ? "set" : "unset", (unsigned long)pkts, place);
+      } else {
+        const uint32_t age = now - s_last_sensor_pkt_ms;
+        snprintf(b, sizeof(b), "[status] %s %s %s wall=%s last_frame=%lums pkts/2s=%lu st=%s", ws, grx, pos,
+                 wall ? "set" : "unset", (unsigned long)age, (unsigned long)pkts, place);
+      }
+      sensor_log_push_line(b);
+    }
+  }
+
   if (s_page == UiPage::FsWifiScan) {
     int nout = 0;
     const int pr = center_wifi_scan_async_poll(s_scan_ssid, s_scan_enc, 8, &nout);
@@ -789,19 +1036,14 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
   if (center_ui_fullscreen()) {
     const int16_t sw = s_gfx->width();
     const int16_t sh = s_gfx->height();
-    if (s_page == UiPage::FsTz) {
+    if (s_page == UiPage::FsPhone) {
       if (hit_cancel_bar(x, y, sw, sh)) {
-        menu_wifi_tools();
-        return;
-      }
-      int uh = 0;
-      if (hit_tz_offset_grid(x, y, sw, sh, &uh)) {
-        center_wifi_set_tz_utc_offset_hours(*s_prefs, uh);
-        menu_wifi_tools();
+        menu_open_home();
       }
       return;
     }
-    if (s_page == UiPage::FsWifiScan || s_page == UiPage::FsI2c || s_page == UiPage::FsBle || s_page == UiPage::FsWifiConn) {
+    if (s_page == UiPage::FsWifiScan || s_page == UiPage::FsSerial || s_page == UiPage::FsGpsDiag ||
+        s_page == UiPage::FsWifiConn) {
       if (hit_cancel_bar(x, y, sw, sh)) {
         center_shell_set_wifi_psk_pending(nullptr);
         if (s_page == UiPage::FsWifiConn) {
@@ -864,7 +1106,15 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
     return;
   }
 
-  const int pick = s_menu->onRelease(x, y);
+  const int16_t drag = s_touch_drag_accum;
+  if (s_page == UiPage::Home && s_menu->isHomeTranslateList() && drag > 20) {
+    s_menu->homeListSnap();
+    s_touch_drag_accum = 0;
+    return;
+  }
+
+  const int pick = s_menu->onRelease(x, y, drag);
+  s_touch_drag_accum = 0;
   if (pick == -2) {
     close_to_gauge();
     return;
@@ -874,22 +1124,41 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
   }
 
   if (s_page == UiPage::Home) {
-    if (pick == CID_TACH) {
+    if (pick == CID_H_TACH) {
       s_view = CenterViewMode::Tach;
       s_prefs->putUChar("view", 0);
       center_sd_settings_sync(*s_prefs);
       center_ui_sync_cluster_bus();
       close_to_gauge();
-    } else if (pick == CID_CLOCK) {
+    } else if (pick == CID_H_CLOCK) {
       s_view = CenterViewMode::Clock;
       s_prefs->putUChar("view", 1);
       center_sd_settings_sync(*s_prefs);
       center_ui_sync_cluster_bus();
       close_to_gauge();
-    } else if (pick == CID_WIFI) {
+    } else if (pick == CID_H_ECON) {
+      s_view = CenterViewMode::Efficiency;
+      s_prefs->putUChar("view", 3);
+      center_sd_settings_sync(*s_prefs);
+      center_ui_sync_cluster_bus();
+      close_to_gauge();
+    } else if (pick == CID_H_BT) {
+      s_view = CenterViewMode::Media;
+      s_prefs->putUChar("view", 2);
+      center_sd_settings_sync(*s_prefs);
+      center_ui_sync_cluster_bus();
+      close_to_gauge();
+    } else if (pick == CID_H_PHONE) {
+      s_page = UiPage::FsPhone;
+      s_menu->close();
+    } else if (pick == CID_H_THEME) {
+      s_theme = (s_theme == ClusterTheme::Classic) ? ClusterTheme::Fallout : ClusterTheme::Classic;
+      s_prefs->putUChar("ctheme", (uint8_t)s_theme);
+      center_sd_settings_sync(*s_prefs);
+      center_ui_sync_cluster_bus();
+      close_to_gauge();
+    } else if (pick == CID_H_WIFI) {
       menu_wifi_tools();
-    } else if (pick == CID_MORE) {
-      menu_more();
     }
     return;
   }
@@ -903,8 +1172,11 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
       center_wifi_join_saved_async_start(*s_prefs);
     } else if (pick == CID_W_SCAN) {
       start_fs_scan();
-    } else if (pick == CID_W_TZ) {
-      s_page = UiPage::FsTz;
+    } else if (pick == CID_W_SERIAL) {
+      s_page = UiPage::FsSerial;
+      s_menu->close();
+    } else if (pick == CID_W_GPS) {
+      s_page = UiPage::FsGpsDiag;
       s_menu->close();
     }
     return;
@@ -937,14 +1209,4 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
     return;
   }
 
-  if (s_page == UiPage::More) {
-    if (pick == CID_M_BACK) {
-      menu_open_home();
-    } else if (pick == CID_M_I2C) {
-      run_i2c_scan_page();
-    } else if (pick == CID_M_BLE) {
-      s_page = UiPage::FsBle;
-      s_menu->close();
-    }
-  }
 }

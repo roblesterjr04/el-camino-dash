@@ -1,6 +1,33 @@
 #include <sensor_packet.h>
 
 #include <cmath>
+#include <cstring>
+
+namespace {
+
+constexpr size_t kUartTextQ = 8;
+/** Long enough for sensor_pack ODO_FRAM* lines (e.g. "ODO_FRAM read OK v2 tenths=999999"). */
+constexpr size_t kUartTextMax = 96;
+char s_uart_text_q[kUartTextQ][kUartTextMax];
+uint8_t s_uart_text_q_head = 0;
+uint8_t s_uart_text_q_count = 0;
+
+void uart_text_q_push(const char *s) {
+  size_t n = strlen(s);
+  if (n >= kUartTextMax) {
+    n = kUartTextMax - 1;
+  }
+  if (s_uart_text_q_count >= kUartTextQ) {
+    s_uart_text_q_head = (uint8_t)((s_uart_text_q_head + 1) % kUartTextQ);
+    s_uart_text_q_count--;
+  }
+  uint8_t slot = (uint8_t)((s_uart_text_q_head + s_uart_text_q_count) % kUartTextQ);
+  memcpy(s_uart_text_q[slot], s, n);
+  s_uart_text_q[slot][n] = 0;
+  s_uart_text_q_count++;
+}
+
+}  // namespace
 
 static float map_adc(uint16_t raw, float in_lo, float in_hi, float out_lo, float out_hi) {
   float r = (float)raw;
@@ -49,6 +76,12 @@ uint8_t SensorPacketParser::xor_payload(const uint8_t *p, size_t n) {
 }
 
 bool SensorPacketParser::parse_payload(const uint8_t *payload, size_t len, SensorPacketValues &out) {
+  out.has_odometer = false;
+  out.odometer_tenths_mile = 0;
+  out.has_fuel_economy = false;
+  out.mpg_instant_x10 = 0;
+  out.mpg_average_x10 = 0;
+  out.dte_tenths_mile = 0;
   if (len == LEGACY_PAYLOAD_LEN) {
     out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
     out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
@@ -77,7 +110,111 @@ bool SensorPacketParser::parse_payload(const uint8_t *payload, size_t len, Senso
     out.valid = true;
     return true;
   }
+  if (len == ECONOMY_PAYLOAD_LEN) {
+    out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
+    out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
+    out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
+    out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
+    out.ambient_adc = (uint16_t)((payload[8] << 8) | payload[9]);
+    out.speed_rpm = ((uint32_t)payload[10] << 24) | ((uint32_t)payload[11] << 16) | ((uint32_t)payload[12] << 8) | payload[13];
+    out.engine_rpm = ((uint32_t)payload[14] << 24) | ((uint32_t)payload[15] << 16) | ((uint32_t)payload[16] << 8) | payload[17];
+    out.flags = payload[18];
+    out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
+    out.odometer_tenths_mile =
+        ((uint32_t)payload[21] << 24) | ((uint32_t)payload[22] << 16) | ((uint32_t)payload[23] << 8) | (uint32_t)payload[24];
+    out.has_odometer = true;
+    out.mpg_instant_x10 = (uint16_t)((payload[25] << 8) | payload[26]);
+    out.mpg_average_x10 = (uint16_t)((payload[27] << 8) | payload[28]);
+    out.dte_tenths_mile =
+        ((uint32_t)payload[29] << 24) | ((uint32_t)payload[30] << 16) | ((uint32_t)payload[31] << 8) | (uint32_t)payload[32];
+    out.has_fuel_economy = true;
+    out.extended = true;
+    out.valid = true;
+    return true;
+  }
+  if (len == ODOMETER_PAYLOAD_LEN) {
+    out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
+    out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
+    out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
+    out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
+    out.ambient_adc = (uint16_t)((payload[8] << 8) | payload[9]);
+    out.speed_rpm = ((uint32_t)payload[10] << 24) | ((uint32_t)payload[11] << 16) | ((uint32_t)payload[12] << 8) | payload[13];
+    out.engine_rpm = ((uint32_t)payload[14] << 24) | ((uint32_t)payload[15] << 16) | ((uint32_t)payload[16] << 8) | payload[17];
+    out.flags = payload[18];
+    out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
+    out.odometer_tenths_mile =
+        ((uint32_t)payload[21] << 24) | ((uint32_t)payload[22] << 16) | ((uint32_t)payload[23] << 8) | (uint32_t)payload[24];
+    out.has_odometer = true;
+    out.extended = true;
+    out.valid = true;
+    return true;
+  }
   return false;
+}
+
+void SensorPacketParser::stripLeadingUartTextLines() {
+  while (_len > 0) {
+    if (_len >= 2 && _buf[0] == SENSOR_SYNC0 && _buf[1] == SENSOR_SYNC1) {
+      break;
+    }
+    if (_len >= 1 && _buf[0] == SENSOR_SYNC0) {
+      break;
+    }
+    size_t nl = 0;
+    while (nl < _len && _buf[nl] != '\n') {
+      nl++;
+    }
+    if (nl >= _len) {
+      break;
+    }
+    size_t ll = nl;
+    if (ll > 0 && _buf[ll - 1] == '\r') {
+      ll--;
+    }
+    if (ll == 0) {
+      memmove(_buf, _buf + nl + 1, _len - nl - 1);
+      _len -= nl + 1;
+      continue;
+    }
+    bool printable = true;
+    for (size_t i = 0; i < ll; i++) {
+      unsigned char c = _buf[i];
+      if (c < 0x20 || c > 0x7e) {
+        printable = false;
+        break;
+      }
+    }
+    if (printable) {
+      char tmp[kUartTextMax];
+      size_t copy = ll;
+      if (copy >= kUartTextMax) {
+        copy = kUartTextMax - 1;
+      }
+      memcpy(tmp, _buf, copy);
+      tmp[copy] = 0;
+      uart_text_q_push(tmp);
+    }
+    memmove(_buf, _buf + nl + 1, _len - nl - 1);
+    _len -= nl + 1;
+  }
+}
+
+bool SensorPacketParser::takePendingTextLine(char *out, size_t cap) {
+  if (!out || cap == 0) {
+    return false;
+  }
+  if (s_uart_text_q_count == 0) {
+    return false;
+  }
+  const char *src = s_uart_text_q[s_uart_text_q_head];
+  size_t i = 0;
+  for (; src[i] && i + 1 < cap; i++) {
+    out[i] = src[i];
+  }
+  out[i] = 0;
+  s_uart_text_q_head = (uint8_t)((s_uart_text_q_head + 1) % kUartTextQ);
+  s_uart_text_q_count--;
+  return true;
 }
 
 bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_good) {
@@ -91,10 +228,14 @@ bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_go
       break;
     }
     if (_len >= sizeof(_buf)) {
-      _len = 0;
+      const size_t keep = 64;
+      memmove(_buf, _buf + (_len - keep), keep);
+      _len = keep;
     }
     _buf[_len++] = (uint8_t)c;
   }
+
+  stripLeadingUartTextLines();
 
   bool got = false;
   while (_len >= (2 + LEGACY_PAYLOAD_LEN + 1)) {
@@ -111,7 +252,7 @@ bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_go
     }
 
     bool frame_ok = false;
-    for (size_t plen : {EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN}) {
+    for (size_t plen : {ECONOMY_PAYLOAD_LEN, ODOMETER_PAYLOAD_LEN, EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN}) {
       size_t frame_len = 2 + plen + 1;
       if (_len < frame_len) {
         continue;
@@ -133,7 +274,7 @@ bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_go
       break;
     }
     if (frame_ok) {
-      break;
+      continue;
     }
     // Bad sync candidate — drop one byte and rescan (matches Python).
     memmove(_buf, _buf + 1, _len - 1);

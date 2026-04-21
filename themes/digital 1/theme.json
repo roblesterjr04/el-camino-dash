@@ -26,15 +26,15 @@
     "clock": "digital"
   },
   "screen_background": [
-    2,
-    6,
-    10
+    0,
+    0,
+    0
   ],
   "digital_palette": {
     "panel_background": [
-      6,
-      12,
-      18
+      0,
+      0,
+      0
     ],
     "panel_border": [
       22,

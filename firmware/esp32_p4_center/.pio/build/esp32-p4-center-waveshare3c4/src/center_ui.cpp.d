@@ -381,7 +381,9 @@
  /Users/rob/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiServer.h \
  /Users/rob/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiUdp.h \
  /Users/rob/.platformio/packages/framework-arduinoespressif32/libraries/Network/src/NetworkUdp.h \
+ .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_common/include/sensor_packet.h \
  .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_ui/include/p4_round_mask.h \
  .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_ui/include/FreeSansBold10pt7b.h \
- src/center_audio_link.h src/center_ble.h src/center_i2c_host.h \
- src/center_sd_settings.h src/center_wifi_ntp.h
+ .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_ui/include/FreeSansBold12pt7b.h \
+ src/center_ble.h src/center_gps.h src/center_sd_settings.h \
+ src/center_wifi_ntp.h

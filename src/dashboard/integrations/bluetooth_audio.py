@@ -15,6 +15,8 @@ class BluetoothAudioAdapter:
         self._player_state = ""
         self._track_title = ""
         self._track_artist = ""
+        self._track_position_s = 0
+        self._track_duration_s = 0
         self._active_device_mac = ""
         self._last_reconnect_attempt_s = 0.0
         self._loopback_module_id = ""
@@ -53,6 +55,16 @@ class BluetoothAudioAdapter:
         if not self._cfg.get("enabled", False) or not self._status.startswith("connected"):
             return ""
         return self._track_artist or ""
+
+    def media_position_s(self) -> int:
+        if not self._cfg.get("enabled", False) or not self._status.startswith("connected"):
+            return 0
+        return int(max(0, self._track_position_s))
+
+    def media_duration_s(self) -> int:
+        if not self._cfg.get("enabled", False) or not self._status.startswith("connected"):
+            return 0
+        return int(max(0, self._track_duration_s))
 
     def start(self) -> None:
         if not self._cfg.get("enabled", False):
@@ -179,12 +191,16 @@ class BluetoothAudioAdapter:
             self._player_state = ""
             self._track_title = ""
             self._track_artist = ""
+            self._track_position_s = 0
+            self._track_duration_s = 0
             return
         if not self._is_connected(device_mac):
             self._status = "disconnected"
             self._player_state = ""
             self._track_title = ""
             self._track_artist = ""
+            self._track_position_s = 0
+            self._track_duration_s = 0
             return
         was_connected = self._status.startswith("connected")
         self._active_device_mac = device_mac
@@ -255,10 +271,32 @@ class BluetoothAudioAdapter:
                 return card_name
         return ""
 
+    @staticmethod
+    def _parse_bluez_time_value(rest: str) -> int:
+        rest = rest.strip()
+        if not rest:
+            return 0
+        try:
+            val = int(rest, 16) if rest.lower().startswith("0x") else int(rest)
+        except ValueError:
+            return 0
+        if val <= 0:
+            return 0
+        # BlueZ commonly reports ms (or occasionally µs for very large values).
+        if val >= 50_000_000:
+            return min(val // 1_000_000, 24 * 3600)
+        if val >= 500_000:
+            return min(val // 1000, 24 * 3600)
+        if val >= 5000:
+            return min(val // 1000, 24 * 3600)
+        return min(val, 24 * 3600)
+
     def _refresh_player_metadata(self) -> None:
         self._player_state = ""
         self._track_title = ""
         self._track_artist = ""
+        self._track_position_s = 0
+        self._track_duration_s = 0
         result = self._run_bt(["player.show"], allow_fail=True, timeout_s=5.0)
         if result.returncode != 0:
             return
@@ -270,6 +308,10 @@ class BluetoothAudioAdapter:
                 self._track_title = line.split(":", 1)[1].strip()
             elif line.startswith("Artist:"):
                 self._track_artist = line.split(":", 1)[1].strip()
+            elif line.lower().startswith("duration:"):
+                self._track_duration_s = self._parse_bluez_time_value(line.split(":", 1)[1])
+            elif line.lower().startswith("position:"):
+                self._track_position_s = self._parse_bluez_time_value(line.split(":", 1)[1])
 
     def _run_player_action(self, action: str) -> str:
         if not self._cfg.get("enabled", False):

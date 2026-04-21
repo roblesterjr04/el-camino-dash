@@ -16,9 +16,9 @@
     "_default": false
   },
   "show_odometer": true,
-  "screen_background": [2, 8, 3],
+  "screen_background": [0, 0, 0],
   "digital_palette": {
-    "panel_background": [5, 20, 8],
+    "panel_background": [0, 0, 0],
     "panel_border": [38, 122, 52],
     "text": [138, 255, 160],
     "accent": [92, 255, 128],

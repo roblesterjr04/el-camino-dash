@@ -344,4 +344,5 @@
  .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_ui/include/p4_touch.h \
  .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_common/include/sensor_packet.h \
  src/center_audio_link.h src/center_ble.h src/center_cluster.h \
- src/center_sd_settings.h src/center_ui.h src/center_wifi_ntp.h
+ src/center_gps.h src/center_media_ui.h src/center_sd_settings.h \
+ src/center_ui.h src/center_wifi_ntp.h

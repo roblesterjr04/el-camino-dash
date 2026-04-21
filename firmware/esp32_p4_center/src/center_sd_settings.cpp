@@ -5,8 +5,6 @@
 #include <SD_MMC.h>
 #endif
 
-#include "center_wifi_ntp.h"
-
 static bool s_sd_mounted = false;
 
 #if defined(BOARD_HAS_SDMMC) && defined(SOC_SDMMC_HOST_SUPPORTED)
@@ -62,8 +60,8 @@ static bool json_has_key(const String &j, const char *key) {
   return j.indexOf(String("\"") + key + "\"") >= 0;
 }
 
-static bool json_get_view(const String &j, uint8_t *out) {
-  const String k = "\"view\":";
+static bool json_get_u8_field(const String &j, const char *field, uint8_t *out) {
+  const String k = String("\"") + field + "\":";
   int a = j.indexOf(k);
   if (a < 0) {
     return false;
@@ -148,8 +146,11 @@ void center_sd_settings_import(Preferences &prefs) {
     }
   }
   uint8_t v = 0;
-  if (json_get_view(j, &v)) {
+  if (json_get_u8_field(j, "view", &v) && !prefs.isKey("view")) {
     prefs.putUChar("view", v);
+  }
+  if (json_get_u8_field(j, "ctheme", &v) && !prefs.isKey("ctheme")) {
+    prefs.putUChar("ctheme", v);
   }
   Serial.println("[sd] imported elcamino/settings.json → NVS");
 #else
@@ -162,10 +163,11 @@ void center_sd_settings_sync(Preferences &prefs) {
   if (!s_sd_mounted) {
     return;
   }
-  String tz = prefs.getString("tz", CENTER_TZ_DEFAULT);
+  String tz = prefs.getString("tz", "GMT0");
   String ssid = prefs.getString("wifi_ssid", "");
   String psk = prefs.getString("wifi_psk", "");
   const uint8_t view = prefs.getUChar("view", 0);
+  const uint8_t ctheme = prefs.getUChar("ctheme", 0);
 
   String json;
   json.reserve(tz.length() + ssid.length() + psk.length() + 96);
@@ -177,6 +179,8 @@ void center_sd_settings_sync(Preferences &prefs) {
   append_json_escape(&json, psk);
   json += "\",\"view\":";
   json += (unsigned)view;
+  json += ",\"ctheme\":";
+  json += (unsigned)ctheme;
   json += '}';
 
   File f = SD_MMC.open(kSettingsPath, "w", true);

@@ -33,6 +33,7 @@ from dashboard.integrations.wifi_nm import wifi_disconnect
 from dashboard.integrations.wifi_nm import wifi_radio_toggle
 from dashboard.integrations.wifi_nm import wifi_rescan
 from dashboard.integrations.wifi_nm import wifi_status_dict
+from dashboard.theme_loader import apply_center_dial_persisted
 from dashboard.theme_loader import load_theme_data
 
 try:
@@ -796,7 +797,6 @@ class DashboardApp:
             return
         self.config.clear()
         self.config.update(loaded.raw)
-        self._persist_theme()
         self._values["vehicle.odometer_miles"] = previous_odo
         self._refresh_runtime_components()
 
@@ -993,35 +993,13 @@ class DashboardApp:
         return f"Theme: {available[next_index]}"
 
     def _cmd_center_dial_mode_toggle(self, _: dict[str, Any]) -> str:
-        theme_root = Path(self.config["themes"].get("theme_root", "themes"))
-        theme_name = str(self.config["themes"].get("active", "")).strip()
-        if not theme_name:
+        resolved = self._resolved_theme_data()
+        if not resolved:
             return "No active theme"
-        theme_path = theme_root / theme_name / "theme.json"
-        if not theme_path.exists():
-            return "Theme file missing"
-        try:
-            raw = json.loads(theme_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, json.JSONDecodeError):
-            return "Theme load failed"
-        if not isinstance(raw, dict):
-            return "Theme format invalid"
-        mode_cfg = raw.get("center_dial_mode", {})
-        resolved_theme = load_theme_data(theme_root=theme_root, theme_name=theme_name)
-        current_mode = self._center_mode_from_theme_data(resolved_theme)
+        current_mode = self._center_mode_from_theme_data(resolved)
         next_mode = "clock" if current_mode == "tach" else "tach"
-        if isinstance(mode_cfg, str):
-            raw["center_dial_mode"] = {"_default": mode_cfg, "gauge_center": next_mode}
-        elif isinstance(mode_cfg, dict):
-            updated = dict(mode_cfg)
-            updated["gauge_center"] = next_mode
-            raw["center_dial_mode"] = updated
-        else:
-            raw["center_dial_mode"] = {"_default": "tach", "gauge_center": next_mode}
-        try:
-            theme_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
-        except OSError:
-            return "Theme save failed"
+        self.config.setdefault("system", {})["persisted_center_dial_mode"] = next_mode
+        self._persist_theme()
         self._refresh_theme_components()
         return f"Center dial: {next_mode}"
 
@@ -1029,10 +1007,12 @@ class DashboardApp:
         current = bool(self.config.get("system", {}).get("map_view_visible", False))
         next_visible = not current
         self.config.setdefault("system", {})["map_view_visible"] = next_visible
+        self._persist_theme()
         return f"Map view: {'on' if next_visible else 'off'}"
 
     def _cmd_app_main_screen(self, _: dict[str, Any]) -> str:
         self.config.setdefault("system", {})["map_view_visible"] = False
+        self._persist_theme()
         if self.display_manager:
             self.display_manager.close_menu_overlay()
         return "Main dash screen"
@@ -1073,15 +1053,27 @@ class DashboardApp:
         mode = mode.strip().lower()
         return "clock" if mode == "clock" else "tach"
 
-    def _current_center_dial_mode(self) -> str:
+    def _resolved_theme_data(self) -> dict[str, Any] | None:
         theme_root = Path(self.config["themes"].get("theme_root", "themes"))
         theme_name = str(self.config["themes"].get("active", "")).strip()
         if not theme_name:
+            return None
+        raw = load_theme_data(theme_root=theme_root, theme_name=theme_name)
+        if not raw:
+            return None
+        persisted = self.config.get("system", {}).get("persisted_center_dial_mode")
+        p: str | None = None
+        if isinstance(persisted, str):
+            pl = persisted.strip().lower()
+            if pl in ("tach", "clock"):
+                p = pl
+        return apply_center_dial_persisted(raw, p)
+
+    def _current_center_dial_mode(self) -> str:
+        resolved = self._resolved_theme_data()
+        if not resolved:
             return "tach"
-        resolved_theme = load_theme_data(theme_root=theme_root, theme_name=theme_name)
-        if not resolved_theme:
-            return "tach"
-        return self._center_mode_from_theme_data(resolved_theme)
+        return self._center_mode_from_theme_data(resolved)
 
     def _load_persisted_theme(self) -> None:
         if not self._theme_persist_enabled:
@@ -1092,6 +1084,11 @@ class DashboardApp:
             raw = json.loads(self._theme_state_path.read_text(encoding="utf-8"))
             if not isinstance(raw, dict):
                 return
+            if isinstance(raw.get("map_view_visible"), bool):
+                self.config.setdefault("system", {})["map_view_visible"] = raw["map_view_visible"]
+            cm = raw.get("center_dial_mode")
+            if isinstance(cm, str) and cm.strip().lower() in ("tach", "clock"):
+                self.config.setdefault("system", {})["persisted_center_dial_mode"] = cm.strip().lower()
             theme_name = str(raw.get("active_theme", "")).strip()
             if not theme_name:
                 return
@@ -1107,7 +1104,11 @@ class DashboardApp:
         active = str(self.config.get("themes", {}).get("active", "")).strip()
         if not active:
             return
-        payload = {"active_theme": active}
+        payload = {
+            "active_theme": active,
+            "map_view_visible": bool(self.config.get("system", {}).get("map_view_visible", False)),
+            "center_dial_mode": self._current_center_dial_mode(),
+        }
         try:
             self._theme_state_path.parent.mkdir(parents=True, exist_ok=True)
             self._theme_state_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -1207,7 +1208,14 @@ class DashboardApp:
 
     def _publish_oled_and_audio(self, status: dict[str, str]) -> None:
         track = status.get("media_track", "-")
+        bt_audio_cfg = self.config.get("integrations", {}).get("bluetooth_audio", {})
+        bt_audio_enabled = isinstance(bt_audio_cfg, dict) and bool(bt_audio_cfg.get("enabled", False))
+        el_s, du_s = 0, 0
+        if bt_audio_enabled and self.bluetooth_audio:
+            el_s = self.bluetooth_audio.media_position_s()
+            du_s = self.bluetooth_audio.media_duration_s()
         self.esp32_link.publish_metadata(track)
+        self.esp32_link.publish_transport(el_s, du_s, 0)
         nb_cfg = self.config.get("integrations", {}).get("nano_bridge", {})
         weather_label = str(nb_cfg.get("weather_label", "OUTSIDE")) if isinstance(nb_cfg, dict) else "OUTSIDE"
         st, sa, pr, pe, pt = self._oled_media_for_nano(status)

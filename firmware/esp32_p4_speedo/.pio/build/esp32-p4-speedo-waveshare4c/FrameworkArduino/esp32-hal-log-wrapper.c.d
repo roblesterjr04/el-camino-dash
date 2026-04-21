@@ -1,0 +1,23 @@
+.pio/build/esp32-p4-speedo-waveshare4c/FrameworkArduino/esp32-hal-log-wrapper.c.o: \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-log-wrapper.c \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/qio_qspi/include/sdkconfig.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/esp_rom/include/esp_rom_sys.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/soc/esp32p4/include/soc/reset_reasons.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/soc/esp32p4/include/soc/soc_caps.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_config.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_level.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/esp_common/include/esp_assert.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/newlib/platform_include/assert.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_color.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_buffer.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_timestamp.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_write.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_format.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_args.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/esp_common/include/esp_macros.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/esp_common/include/esp_assert.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/esp_common/include/esp_compiler.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_log_attr.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/esp_common/include/esp_attr.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4/include/log/include/esp_private/log_attr.h

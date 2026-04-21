@@ -15,6 +15,7 @@ DEFAULT_SENSOR_KEYS = frozenset(
         "indicators.ign_on",
         "arduino.fault_word",
         "analog_inputs.ambient_temp",
+        "sensor_pack.odometer_miles",
     }
 )
 

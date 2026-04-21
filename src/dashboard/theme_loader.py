@@ -42,3 +42,23 @@ def _load_theme_data_recursive(theme_root: Path, theme_name: str, seen: set[str]
 
 def load_theme_data(theme_root: Path, theme_name: str) -> dict[str, Any]:
     return _load_theme_data_recursive(theme_root, theme_name, set())
+
+
+def apply_center_dial_persisted(theme_data: dict[str, Any], persisted: str | None) -> dict[str, Any]:
+    """Merge NVS-style center dial preference over theme.json (same shape as menu toggle)."""
+    if not persisted:
+        return theme_data
+    mode = persisted.strip().lower()
+    if mode not in ("tach", "clock"):
+        return theme_data
+    out = dict(theme_data)
+    mode_cfg = out.get("center_dial_mode", "tach")
+    if isinstance(mode_cfg, str):
+        out["center_dial_mode"] = {"_default": mode_cfg, "gauge_center": mode}
+    elif isinstance(mode_cfg, dict):
+        updated = dict(mode_cfg)
+        updated["gauge_center"] = mode
+        out["center_dial_mode"] = updated
+    else:
+        out["center_dial_mode"] = {"_default": "tach", "gauge_center": mode}
+    return out

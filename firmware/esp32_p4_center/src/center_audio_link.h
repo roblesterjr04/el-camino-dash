@@ -12,5 +12,8 @@ void center_audio_link_poll();
 bool center_audio_link_ok();
 const char *center_audio_link_line();
 
+// Playback transport from Pi (I2C reg 0x05): elapsed/duration seconds, volume 0–15. Returns false until first valid read.
+bool center_audio_link_transport(uint16_t *elapsed_s, uint16_t *duration_s, uint8_t *vol_0_15);
+
 // One-line ticker at bottom of gauge (call after center_render; skipped when empty / offline).
 void center_audio_link_draw(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h);

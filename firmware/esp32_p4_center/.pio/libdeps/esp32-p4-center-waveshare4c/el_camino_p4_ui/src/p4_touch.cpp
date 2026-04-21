@@ -153,6 +153,13 @@ bool p4_touch_finger_down() {
   return down;
 }
 
+void p4_touch_sample(int16_t *x, int16_t *y, bool *down) {
+  if (!x || !y || !down) {
+    return;
+  }
+  sample_finger(x, y, down);
+}
+
 bool p4_touch_poll_release(int16_t *x, int16_t *y) {
   int16_t tx = 0;
   int16_t ty = 0;
@@ -177,6 +184,18 @@ bool p4_touch_poll_release(int16_t *x, int16_t *y) {
 void p4_touch_begin(int, int) {}
 
 bool p4_touch_finger_down() { return false; }
+
+void p4_touch_sample(int16_t *x, int16_t *y, bool *down) {
+  if (x) {
+    *x = 0;
+  }
+  if (y) {
+    *y = 0;
+  }
+  if (down) {
+    *down = false;
+  }
+}
 
 bool p4_touch_poll_release(int16_t *x, int16_t *y) {
   (void)x;

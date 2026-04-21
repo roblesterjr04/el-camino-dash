@@ -10,5 +10,8 @@ void p4_touch_begin(int sda = 7, int scl = 8);
 // True while finger is down (GT911 or CST816).
 bool p4_touch_finger_down();
 
+// Current finger position while down (or last sampled); *down = finger down.
+void p4_touch_sample(int16_t *x, int16_t *y, bool *down);
+
 // True once per finger lift; (x,y) last position while down.
 bool p4_touch_poll_release(int16_t *x, int16_t *y);

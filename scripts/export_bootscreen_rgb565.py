@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Embed assets/bootscreen/boot2.png as RGB565 for ESP32-P4 direct framebuffer boot splash.
+"""Embed assets/bootscreen/boot3.png as RGB565 for ESP32-P4 direct framebuffer boot splash.
 
 Generates one header per panel size (contain scaling, letterboxed on black):
   - bootscreen_rgb565_800_gen.h   — 800×800 (Waveshare 3.4C / center + speedo on that panel)
@@ -19,7 +19,7 @@ except ImportError as e:  # pragma: no cover
     raise SystemExit("Install Pillow: pip install pillow") from e
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_PNG = ROOT / "assets" / "bootscreen" / "boot2.png"
+DEFAULT_PNG = ROOT / "assets" / "bootscreen" / "boot3.png"
 DEFAULT_OUT_DIR = ROOT / "firmware" / "esp32_p4_common" / "include"
 
 PRESETS: list[tuple[int, int, str]] = [

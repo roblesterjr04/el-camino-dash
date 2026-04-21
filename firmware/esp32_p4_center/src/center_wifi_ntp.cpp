@@ -3,39 +3,46 @@
 #include "center_sd_settings.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <WiFi.h>
 #include <WiFiType.h>
 #include <string.h>
 #include <time.h>
 
 static Preferences *s_prefs = nullptr;
-static bool s_sntp_started = false;
 static wl_status_t s_last_wifi = WL_NO_SHIELD;
-
-static void start_sntp_if_needed() {
-  if (s_sntp_started) {
-    return;
-  }
-  if (WiFi.status() != WL_CONNECTED) {
-    return;
-  }
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  s_sntp_started = true;
-}
 
 void center_wifi_ntp_begin(Preferences &prefs) {
   s_prefs = &prefs;
   center_wifi_reload_tz(prefs);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  s_sntp_started = false;
   s_last_wifi = (wl_status_t)WiFi.status();
 }
 
 void center_wifi_reload_tz(Preferences &prefs) {
-  String tz = prefs.getString("tz", CENTER_TZ_DEFAULT);
-  setenv("TZ", tz.c_str(), 1);
+  String t = prefs.getString("tz", CENTER_TZ_DEFAULT);
+  if (t.length() == 0) {
+    t = CENTER_TZ_DEFAULT;
+  }
+  setenv("TZ", t.c_str(), 1);
   tzset();
+}
+
+bool center_wifi_tz_build_posix_from_local_minus_utc(long local_minus_utc_sec, char *out, size_t out_cap) {
+  if (!out || out_cap < 16) {
+    return false;
+  }
+  /* Match Arduino cores/esp32/esp32-hal-time.c setTimeZone(-gmtOffset_sec, …): gmtOffset_sec is
+   * local−UTC (same as timeapi `currentUtcOffset.seconds`). */
+  const long off = -local_minus_utc_sec;
+  if (off % 3600L != 0) {
+    snprintf(out, out_cap, "UTC%ld:%02d:%02d", off / 3600L, abs((int)((off % 3600L) / 60L)),
+             abs((int)(off % 60L)));
+  } else {
+    snprintf(out, out_cap, "UTC%ld", off / 3600L);
+  }
+  return true;
 }
 
 void center_wifi_set_tz_posix(Preferences &prefs, const char *posix) {
@@ -48,12 +55,11 @@ void center_wifi_set_tz_posix(Preferences &prefs, const char *posix) {
 }
 
 void center_wifi_set_tz_utc_offset_hours(Preferences &prefs, int utc_offset_hours) {
-  char buf[20];
-  if (utc_offset_hours == 0) {
-    strncpy(buf, "GMT0", sizeof(buf) - 1);
+  char buf[40];
+  const long sec = (long)utc_offset_hours * 3600L;
+  if (!center_wifi_tz_build_posix_from_local_minus_utc(sec, buf, sizeof(buf))) {
+    strncpy(buf, CENTER_TZ_DEFAULT, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
-  } else {
-    snprintf(buf, sizeof(buf), "GMT%+d", -utc_offset_hours);
   }
   center_wifi_set_tz_posix(prefs, buf);
 }
@@ -73,17 +79,15 @@ void center_wifi_try_connect_saved() {
 }
 
 void center_ntp_after_wifi_connected() {
-  start_sntp_if_needed();
+  /* SNTP disabled: system time is set from GPS RMC (UTC). */
 }
 
 void center_wifi_ntp_loop() {
   wl_status_t st = (wl_status_t)WiFi.status();
   if (st == WL_CONNECTED && s_last_wifi != WL_CONNECTED) {
-    s_sntp_started = false;
-    start_sntp_if_needed();
-  }
-  if (st != WL_CONNECTED) {
-    s_sntp_started = false;
+    if (s_prefs) {
+      center_wifi_reload_tz(*s_prefs);
+    }
   }
   s_last_wifi = st;
 }
@@ -143,7 +147,6 @@ bool center_wifi_join_and_save(Preferences &prefs, const char *ssid, const char 
         prefs.putString("wifi_psk", "");
       }
       center_sd_settings_sync(prefs);
-      s_sntp_started = false;
       center_ntp_after_wifi_connected();
       return true;
     }
@@ -156,7 +159,6 @@ void center_wifi_forget(Preferences &prefs) {
   prefs.remove("wifi_ssid");
   prefs.remove("wifi_psk");
   WiFi.disconnect(true, true);
-  s_sntp_started = false;
   center_sd_settings_sync(prefs);
 }
 
@@ -179,8 +181,8 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: wifi <ssid> [password] | forget | tz <POSIX_TZ> | psk <wpa_password>");
-    Serial.println("Default tz if unset: " CENTER_TZ_DEFAULT " (DST: use full POSIX, e.g. tz EST5EDT,...)");
+    Serial.println("Commands: wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }
   if (line == "forget") {
@@ -189,9 +191,13 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line.startsWith("tz ")) {
-    String tz = line.substring(3);
-    tz.trim();
-    center_wifi_set_tz_posix(prefs, tz.c_str());
+    String rest = line.substring(3);
+    rest.trim();
+    if (rest.length() == 0) {
+      Serial.println("err: tz <posix> (e.g. EST5EDT,M3.2.0/2,M11.1.0 or UTC4 for UTC−4 local)");
+      return;
+    }
+    center_wifi_set_tz_posix(prefs, rest.c_str());
     Serial.println("ok: tz saved");
     return;
   }
@@ -344,7 +350,6 @@ int center_wifi_join_async_poll() {
       }
       center_sd_settings_sync(*s_join_prefs);
     }
-    s_sntp_started = false;
     center_ntp_after_wifi_connected();
     s_join_phase = JoinPhase::Idle;
     return 1;

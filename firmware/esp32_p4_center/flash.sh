@@ -66,6 +66,8 @@ if [[ -z "${_have_gxx}" ]]; then
 fi
 
 run_pio() {
+  # file://../esp32_p4_common can stay stuck on an old copy in libdeps; always reinstall from the repo.
+  rm -rf .pio/libdeps/*/el_camino_p4_common 2>/dev/null || true
   "${PY}" -m platformio run -t "${PIO_TARGET}" "${EXTRA_ARGS[@]}"
 }
 

@@ -21,7 +21,7 @@ static const uint8_t CLUSTER_REG_TSPS_CLASSIC_VARIANT = 0x03;
 
 enum class ClusterTheme : uint8_t { Classic = 0, Fallout = 1 };
 
-enum class ClusterCenterSubview : uint8_t { Tach = 0, Clock = 1, Media = 2 };
+enum class ClusterCenterSubview : uint8_t { Tach = 0, Clock = 1, Media = 2, Efficiency = 3 };
 
 enum class ClusterTspsClassicVariant : uint8_t { Classic1 = 0, Classic2 = 1 };
 
@@ -30,6 +30,7 @@ enum class ClusterTspsClassicVariant : uint8_t { Classic1 = 0, Classic2 = 1 };
 #define CLUSTER_NVS_KEY_THEME "th"
 #define CLUSTER_NVS_KEY_CENTER_SUB "cv"
 #define CLUSTER_NVS_KEY_TSPS_VAR "tv"
+#define CLUSTER_NVS_KEY_SPEEDO_ODO "odo"
 
 bool cluster_i2c_master_begin();
 bool cluster_i2c_master_write_reg(uint8_t addr7, uint8_t reg, uint8_t value);

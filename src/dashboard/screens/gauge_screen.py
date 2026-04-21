@@ -512,7 +512,7 @@ class GaugeScreen:
                 self._blit_layer_sprite(surface, dial, layer_name="dial", default_mode="fill")
             return
         palette = self._theme_data.get("fallback_palette", {})
-        bg = tuple(palette.get("background", [10, 10, 10]))
+        bg = tuple(palette.get("background", [0, 0, 0]))
         ring = tuple(palette.get("ring", [45, 45, 45]))
         pygame.draw.circle(surface, bg, (cx, cy), radius)
         pygame.draw.circle(surface, ring, (cx, cy), radius, width=max(2, radius // 24))
@@ -739,7 +739,7 @@ class GaugeScreen:
         gauge_id = self.layout.gauge_id or ""
         cfg = self._digital_render_config(gauge_id)
         palette = self._theme_data.get("digital_palette", {})
-        panel_bg = tuple(palette.get("panel_background", [6, 10, 14]))
+        panel_bg = tuple(palette.get("panel_background", [0, 0, 0]))
         panel_border = tuple(palette.get("panel_border", [36, 88, 120]))
         text_color = tuple(palette.get("text", [240, 250, 255]))
         accent_color = tuple(palette.get("accent", [72, 218, 255]))
@@ -1048,7 +1048,7 @@ class GaugeScreen:
     def _render_digital_clock(self, surface: pygame.Surface, values: dict[str, float], status: dict[str, str]) -> None:
         cfg = self._digital_render_config("clock")
         palette = self._theme_data.get("digital_palette", {})
-        panel_bg = tuple(palette.get("panel_background", [6, 10, 14]))
+        panel_bg = tuple(palette.get("panel_background", [0, 0, 0]))
         panel_border = tuple(palette.get("panel_border", [36, 88, 120]))
         text_color = tuple(palette.get("text", [240, 250, 255]))
         accent_color = tuple(palette.get("accent", [72, 218, 255]))
@@ -1328,13 +1328,23 @@ class GaugeScreen:
             pivot_x = float(max(0.0, min(1.0, pivot[0])))
             pivot_y = float(max(0.0, min(1.0, pivot[1])))
             angle_offset = float(needle_cfg.get("angle_offset_deg", -90.0))
-            self._blit_rotated_about_pivot(
-                surface=surface,
-                sprite=scaled,
-                world_pivot=(cx, cy),
-                local_pivot=(scaled.get_width() * pivot_x, scaled.get_height() * pivot_y),
-                angle_deg=math_angle_deg + angle_offset,
-            )
+            blend_deg = math_angle_deg + angle_offset
+            if gauge_id == "speedometer":
+                self._blit_rotated_about_pivot_speedo_y_arc(
+                    surface=surface,
+                    sprite=scaled,
+                    world_pivot=(cx, cy),
+                    local_pivot=(scaled.get_width() * pivot_x, scaled.get_height() * pivot_y),
+                    angle_deg=blend_deg,
+                )
+            else:
+                self._blit_rotated_about_pivot(
+                    surface=surface,
+                    sprite=scaled,
+                    world_pivot=(cx, cy),
+                    local_pivot=(scaled.get_width() * pivot_x, scaled.get_height() * pivot_y),
+                    angle_deg=blend_deg,
+                )
             return
         needle_color = tuple(self._theme_data.get("fallback_palette", {}).get("needle", [235, 70, 65]))
         tip = (cx + int(math.cos(angle) * radius * 0.72), cy - int(math.sin(angle) * radius * 0.72))
@@ -1884,7 +1894,10 @@ class GaugeScreen:
             )
             total_width = self._segments_total_width(segments)
         y_ratio = float(odometer_cfg.get("y_ratio", 0.9))
-        center_y = int(self.layout.height * y_ratio)
+        if "y_offset_from_center_px" in odometer_cfg:
+            center_y = self.layout.height // 2 + int(odometer_cfg.get("y_offset_from_center_px", 0))
+        else:
+            center_y = int(self.layout.height * y_ratio)
         total_height = max((segment.get_height() for segment in segments), default=0)
         start_x = (self.layout.width - total_width) // 2
         start_y = center_y - (total_height // 2)
@@ -1967,12 +1980,127 @@ class GaugeScreen:
         local_pivot: tuple[float, float],
         angle_deg: float,
     ) -> None:
-        initial_rect = sprite.get_rect(
-            topleft=(world_pivot[0] - local_pivot[0], world_pivot[1] - local_pivot[1])
+        """Inverse map + bilinear (matches center_cluster clock sprite; no diagonal holes)."""
+        sw, sh = sprite.get_width(), sprite.get_height()
+        if sw < 2 or sh < 2:
+            return
+        px, py = local_pivot
+        hub_x, hub_y = float(world_pivot[0]), float(world_pivot[1])
+        th = math.radians(angle_deg)
+        co, si = math.cos(th), math.sin(th)
+        wlim, hlim = surface.get_size()
+        corners_ix = (0.0, float(sw - 1), 0.0, float(sw - 1))
+        corners_iy = (0.0, 0.0, float(sh - 1), float(sh - 1))
+        min_wx = min_wy = 1e9
+        max_wx = max_wy = -1e9
+        for ix, iy in zip(corners_ix, corners_iy):
+            dx, dy = ix - px, iy - py
+            wx = hub_x + dx * co - dy * si
+            wy = hub_y - (dx * si + dy * co)
+            min_wx = min(min_wx, wx)
+            max_wx = max(max_wx, wx)
+            min_wy = min(min_wy, wy)
+            max_wy = max(max_wy, wy)
+        x0 = max(0, int(math.floor(min_wx)) - 1)
+        x1 = min(wlim - 1, int(math.ceil(max_wx)) + 1)
+        y0 = max(0, int(math.floor(min_wy)) - 1)
+        y1 = min(hlim - 1, int(math.ceil(max_wy)) + 1)
+        for wy in range(y0, y1 + 1):
+            for wx in range(x0, x1 + 1):
+                vxf = float(wx) + 0.5 - hub_x
+                vyf = float(wy) + 0.5 - hub_y
+                dx = co * vxf - si * vyf
+                dyf = -si * vxf - co * vyf
+                sx = dx + px
+                sy = dyf + py
+                r, g, b, a = self._sample_bilinear_rgba(sprite, sx, sy)
+                if a >= 4:
+                    self._blend_rgba_over(surface, wx, wy, r, g, b, a)
+
+    def _sample_bilinear_rgba(self, sprite: pygame.Surface, sx: float, sy: float) -> tuple[int, int, int, int]:
+        sw, sh = sprite.get_width(), sprite.get_height()
+        if sx < -0.5 or sy < -0.5 or sx > sw - 0.5 or sy > sh - 0.5:
+            return (0, 0, 0, 0)
+        sx = max(0.0, min(float(sw - 1), sx))
+        sy = max(0.0, min(float(sh - 1), sy))
+        x0 = int(math.floor(sx))
+        y0 = int(math.floor(sy))
+        x1 = min(x0 + 1, sw - 1)
+        y1 = min(y0 + 1, sh - 1)
+        fx = sx - x0
+        fy = sy - y0
+        w00 = (1.0 - fx) * (1.0 - fy)
+        w10 = fx * (1.0 - fy)
+        w01 = (1.0 - fx) * fy
+        w11 = fx * fy
+        c00 = sprite.get_at((x0, y0))
+        c10 = sprite.get_at((x1, y0))
+        c01 = sprite.get_at((x0, y1))
+        c11 = sprite.get_at((x1, y1))
+        r = w00 * c00.r + w10 * c10.r + w01 * c01.r + w11 * c11.r
+        g = w00 * c00.g + w10 * c10.g + w01 * c01.g + w11 * c11.g
+        b = w00 * c00.b + w10 * c10.b + w01 * c01.b + w11 * c11.b
+        a = w00 * c00.a + w10 * c10.a + w01 * c01.a + w11 * c11.a
+        if a < 4.0:
+            return (0, 0, 0, 0)
+        return (int(r + 0.5), int(g + 0.5), int(b + 0.5), int(a + 0.5))
+
+    def _blit_rotated_about_pivot_speedo_y_arc(
+        self,
+        surface: pygame.Surface,
+        sprite: pygame.Surface,
+        world_pivot: tuple[int, int],
+        local_pivot: tuple[float, float],
+        angle_deg: float,
+    ) -> None:
+        """Inverse map + bilinear; matches firmware speedo (upward sweep, no diagonal holes)."""
+        sw, sh = sprite.get_width(), sprite.get_height()
+        if sw < 2 or sh < 2:
+            return
+        px, py = local_pivot
+        hub_x, hub_y = float(world_pivot[0]), float(world_pivot[1])
+        th = math.radians(angle_deg)
+        co, si = math.cos(th), math.sin(th)
+        wlim, hlim = surface.get_size()
+        corners_ix = (0.0, float(sw - 1), 0.0, float(sw - 1))
+        corners_iy = (0.0, 0.0, float(sh - 1), float(sh - 1))
+        min_wx = min_wy = 1e9
+        max_wx = max_wy = -1e9
+        for ix, iy in zip(corners_ix, corners_iy):
+            dx, dy = ix - px, iy - py
+            wx = hub_x + dx * co - dy * si
+            wy = hub_y + dx * si + dy * co
+            min_wx = min(min_wx, wx)
+            max_wx = max(max_wx, wx)
+            min_wy = min(min_wy, wy)
+            max_wy = max(max_wy, wy)
+        x0 = max(0, int(math.floor(min_wx)) - 1)
+        x1 = min(wlim - 1, int(math.ceil(max_wx)) + 1)
+        y0 = max(0, int(math.floor(min_wy)) - 1)
+        y1 = min(hlim - 1, int(math.ceil(max_wy)) + 1)
+        for wy in range(y0, y1 + 1):
+            for wx in range(x0, x1 + 1):
+                vxf = float(wx) + 0.5 - hub_x
+                vyf = float(wy) + 0.5 - hub_y
+                dx = vxf * co + vyf * si
+                dyf = -vxf * si + vyf * co
+                sx = dx + px
+                sy = dyf + py
+                r, g, b, a = self._sample_bilinear_rgba(sprite, sx, sy)
+                if a >= 4:
+                    self._blend_rgba_over(surface, wx, wy, r, g, b, a)
+
+    @staticmethod
+    def _blend_rgba_over(surface: pygame.Surface, x: int, y: int, sr: int, sg: int, sb: int, sa: int) -> None:
+        if sa < 4:
+            return
+        dc = surface.get_at((x, y))
+        dr, dg, db = int(dc.r), int(dc.g), int(dc.b)
+        if sa > 250:
+            surface.set_at((x, y), (sr, sg, sb))
+            return
+        ia = 255 - sa
+        surface.set_at(
+            (x, y),
+            ((sr * sa + dr * ia) // 255, (sg * sa + dg * ia) // 255, (sb * sa + db * ia) // 255),
         )
-        offset = pygame.math.Vector2(world_pivot) - initial_rect.center
-        rotated_offset = offset.rotate(-angle_deg)
-        rotated_center = (world_pivot[0] - rotated_offset.x, world_pivot[1] - rotated_offset.y)
-        rotated = pygame.transform.rotate(sprite, angle_deg)
-        rotated_rect = rotated.get_rect(center=rotated_center)
-        surface.blit(rotated, rotated_rect.topleft)

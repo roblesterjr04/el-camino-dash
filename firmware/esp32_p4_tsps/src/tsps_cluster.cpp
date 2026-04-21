@@ -16,7 +16,9 @@
 #endif
 
 static const int LAYOUT_REF = 1080;
-static const uint16_t BG_565 = 0x2104;  // ~#121212
+static const uint16_t BG_565 = 0x0000;  // #000
+// Classic1: indicator dial art scaled to this fraction; gauge_mask is composited full-buffer on top of the needle.
+static const float TSPS_C1_DIAL_SCALE = 0.6f;
 
 static uint16_t rgb888_to_565(uint8_t r, uint8_t g, uint8_t b) {
   return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
@@ -137,6 +139,46 @@ static void blend_overlay_shift(uint16_t *fb, int cw, const uint16_t *ovl565, co
   }
 }
 
+/** Nearest-neighbor scale cw×cw RGBA assets into a centered dial_s×dial_s region (same mapping for dial + overlay). */
+static void blend_scaled_src_over_rect(uint16_t *fb, int cw, const uint16_t *src565, const uint8_t *alpha, int dial_s,
+                                       int mx, int my) {
+  for (int dy = 0; dy < dial_s; dy++) {
+    for (int dx = 0; dx < dial_s; dx++) {
+      int sx = (dx * cw) / dial_s;
+      int sy = (dy * cw) / dial_s;
+      if (sx >= cw) {
+        sx = cw - 1;
+      }
+      if (sy >= cw) {
+        sy = cw - 1;
+      }
+      int si = sy * cw + sx;
+      uint8_t a = alpha[si];
+      if (a < 4) {
+        continue;
+      }
+      uint16_t s = src565[si];
+      int di = (my + dy) * cw + (mx + dx);
+      uint16_t d = fb[di];
+      if (a > 250) {
+        fb[di] = s;
+        continue;
+      }
+      uint32_t sr = (s >> 11) & 0x1F;
+      uint32_t sg = (s >> 5) & 0x3F;
+      uint32_t sb = s & 0x1F;
+      uint32_t dr = (d >> 11) & 0x1F;
+      uint32_t dg = (d >> 5) & 0x3F;
+      uint32_t db = d & 0x1F;
+      uint32_t ia = 255 - a;
+      uint32_t r = (sr * a + dr * ia) / 255;
+      uint32_t g = (sg * a + dg * ia) / 255;
+      uint32_t b = (sb * a + db * ia) / 255;
+      fb[di] = (uint16_t)((r << 11) | (g << 5) | b);
+    }
+  }
+}
+
 struct SubGauge {
   float v0, v1;
   float a0, a1;
@@ -146,7 +188,8 @@ struct SubGauge {
   bool invert;
 };
 
-static void draw_sub(const SubGauge &g, float value, float layout_scale, uint16_t *fb, int cw) {
+static void draw_sub_fixed_pivot(const SubGauge &g, float value, float layout_scale, uint16_t *fb, int cw, int cx, int cy,
+                                 int len_px) {
   float ratio = (g.v1 <= g.v0) ? 0.0f : (value - g.v0) / (g.v1 - g.v0);
   if (ratio < 0.0f) {
     ratio = 0.0f;
@@ -159,11 +202,8 @@ static void draw_sub(const SubGauge &g, float value, float layout_scale, uint16_
   }
   float ang = map_angle(ratio, g.a0, g.a1);
   float mdeg = user_to_math_deg(ang) * (float)M_PI / 180.0f;
-  int cx = (int)(0.5f * LAYOUT_REF * layout_scale) + (int)((float)g.ox * layout_scale);
-  int cy = (int)(0.42f * LAYOUT_REF * layout_scale) + (int)((float)g.oy * layout_scale);
-  int len = (int)((float)LAYOUT_REF * layout_scale * g.len_ratio);
-  int tipx = cx + (int)(cosf(mdeg) * (float)len);
-  int tipy = cy - (int)(sinf(mdeg) * (float)len);
+  int tipx = cx + (int)(cosf(mdeg) * (float)len_px);
+  int tipy = cy - (int)(sinf(mdeg) * (float)len_px);
   int tw = (int)ceilf((float)g.line_w * layout_scale / 3.0f);
   if (tw < 1) {
     tw = 1;
@@ -172,6 +212,13 @@ static void draw_sub(const SubGauge &g, float value, float layout_scale, uint16_
     tw = 5;
   }
   draw_line_thick(fb, cw, cw, cx, cy, tipx, tipy, needle_color(), tw);
+}
+
+static void draw_sub(const SubGauge &g, float value, float layout_scale, uint16_t *fb, int cw) {
+  int cx = (int)(0.5f * LAYOUT_REF * layout_scale) + (int)((float)g.ox * layout_scale);
+  int cy = (int)(0.42f * LAYOUT_REF * layout_scale) + (int)((float)g.oy * layout_scale);
+  int len = (int)((float)LAYOUT_REF * layout_scale * g.len_ratio);
+  draw_sub_fixed_pivot(g, value, layout_scale, fb, cw, cx, cy, len);
 }
 
 static void scale_blit_to_screen(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h, uint16_t *fb, int cw) {
@@ -248,11 +295,6 @@ static void tsps_render_classic2(Arduino_GFX *gfx, int16_t screen_w, int16_t scr
   SubGauge temp_g = {40, 250, -20, 20, 0, 50, 0.4f, 10, true};
   SubGauge amp_g = {-100, 100, 68, 110, 0, 40, 0.41f, 10, false};
 
-  draw_sub(oil_g, oil, layout_scale, fb, cw);
-  draw_sub(fuel_g, fuel, layout_scale, fb, cw);
-  draw_sub(temp_g, temp, layout_scale, fb, cw);
-  draw_sub(amp_g, amp, layout_scale, fb, cw);
-
   size_t px = (size_t)cw * (size_t)cw;
   static uint16_t *dial565 = nullptr;
   static uint8_t *dialA = nullptr;
@@ -280,10 +322,12 @@ static void tsps_render_classic2(Arduino_GFX *gfx, int16_t screen_w, int16_t scr
   if (dial565 && dialA) {
     blend_src_over(fb, dial565, dialA, (int)px);
   }
+  draw_sub(oil_g, oil, layout_scale, fb, cw);
+  draw_sub(fuel_g, fuel, layout_scale, fb, cw);
+  draw_sub(temp_g, temp, layout_scale, fb, cw);
+  draw_sub(amp_g, amp, layout_scale, fb, cw);
   if (ovl565 && ovlA) {
-    int ox = (int)roundf(5.0f * layout_scale);
-    int oy = (int)roundf(6.0f * layout_scale);
-    blend_overlay_shift(fb, cw, ovl565, ovlA, ox, oy);
+    blend_src_over(fb, ovl565, ovlA, (int)px);
   }
 
   scale_blit_to_screen(gfx, screen_w, screen_h, fb, cw);
@@ -311,7 +355,15 @@ static void tsps_render_classic1(Arduino_GFX *gfx, int16_t screen_w, int16_t scr
   }
 
   SubGauge fuel_g = {0, 100, 145, 215, 0, 0, 0.2f, 10, false};
-  draw_sub(fuel_g, s.fuel_pct, layout_scale, fb, cw);
+  int dial_s = (int)roundf((float)cw * TSPS_C1_DIAL_SCALE);
+  if (dial_s < 2) {
+    dial_s = (cw >= 2) ? 2 : 1;
+  }
+  int mx = (cw - dial_s) / 2;
+  int my = (cw - dial_s) / 2;
+  int cx = mx + (int)roundf(0.5f * (float)dial_s);
+  int cy = my + (int)roundf(0.42f * (float)dial_s);
+  int len_px = (int)roundf((float)LAYOUT_REF * layout_scale * fuel_g.len_ratio * TSPS_C1_DIAL_SCALE);
 
   size_t px = (size_t)cw * (size_t)cw;
   static uint16_t *dial565 = nullptr;
@@ -338,12 +390,12 @@ static void tsps_render_classic1(Arduino_GFX *gfx, int16_t screen_w, int16_t scr
     }
   }
   if (dial565 && dialA) {
-    blend_src_over(fb, dial565, dialA, (int)px);
+    blend_scaled_src_over_rect(fb, cw, dial565, dialA, dial_s, mx, my);
   }
+  draw_sub_fixed_pivot(fuel_g, s.fuel_pct, layout_scale, fb, cw, cx, cy, len_px);
   if (ovl565 && ovlA) {
-    int ox = 0;
     int oy = (int)roundf(-5.0f * layout_scale);
-    blend_overlay_shift(fb, cw, ovl565, ovlA, ox, oy);
+    blend_overlay_shift(fb, cw, ovl565, ovlA, 0, oy);
   }
 
   scale_blit_to_screen(gfx, screen_w, screen_h, fb, cw);

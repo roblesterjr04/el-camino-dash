@@ -101,6 +101,9 @@
 #ifndef LITMUS_BACKLIGHT_ACTIVE_LOW
 #define LITMUS_BACKLIGHT_ACTIVE_LOW 0
 #endif
+#ifndef LITMUS_BACKLIGHT_LEVEL
+#define LITMUS_BACKLIGHT_LEVEL 51
+#endif
 
 #if (defined(LITMUS_USE_JD9365) && LITMUS_USE_JD9365) || (defined(LITMUS_WAVESHARE_3C4) && LITMUS_WAVESHARE_3C4)
 static void litmus_waveshare_p4_mipi_power_on() {
@@ -116,7 +119,7 @@ static void litmus_waveshare_p4_mipi_power_on() {
   wr(0x95, 0x17);
   wr(0x96, 0x00);
   delay(100);
-  wr(0x96, 0xFF);
+  wr(0x96, (uint8_t)LITMUS_BACKLIGHT_LEVEL);
   for (int i = 0; i < 10; i++) {
     delay(100);
     yield();
@@ -129,7 +132,7 @@ static void litmus_init_backlight() {
 #if ((defined(LITMUS_USE_JD9365) && LITMUS_USE_JD9365) || (defined(LITMUS_WAVESHARE_3C4) && LITMUS_WAVESHARE_3C4)) && LITMUS_BACKLIGHT_PIN < 0
   Wire.beginTransmission(LITMUS_WAVESHARE_PMIC_I2C_ADDR);
   Wire.write(0x96);
-  Wire.write(255);
+  Wire.write((uint8_t)LITMUS_BACKLIGHT_LEVEL);
   if (Wire.endTransmission() != 0) {
     Serial.println("litmus: WARN I2C backlight failed");
   } else {
@@ -139,7 +142,7 @@ static void litmus_init_backlight() {
   const int pin = LITMUS_BACKLIGHT_PIN;
 #if LITMUS_BACKLIGHT_USE_PWM && !LITMUS_BACKLIGHT_ACTIVE_LOW && defined(CONFIG_IDF_TARGET_ESP32P4)
   if (ledcAttach(pin, 20000, 8)) {
-    ledcWrite(pin, 255);
+    ledcWrite(pin, LITMUS_BACKLIGHT_LEVEL);
     Serial.printf("litmus: backlight PWM GPIO %d\n", pin);
     return;
   }

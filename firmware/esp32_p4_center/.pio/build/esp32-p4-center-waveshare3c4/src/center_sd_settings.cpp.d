@@ -163,5 +163,4 @@
  /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4_es/include/sdmmc/include/sd_protocol_types.h \
  /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4_es/include/sdmmc/include/sd_pwr_ctrl.h \
  /Users/rob/.platformio/packages/framework-arduinoespressif32-libs/esp32p4_es/include/esp_hw_support/dma/include/esp_dma_utils.h \
- /Users/rob/.platformio/packages/framework-arduinoespressif32/libraries/SD_MMC/src/sd_defines.h \
- src/center_wifi_ntp.h
+ /Users/rob/.platformio/packages/framework-arduinoespressif32/libraries/SD_MMC/src/sd_defines.h

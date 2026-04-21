@@ -16,6 +16,8 @@ except ImportError:  # pragma: no cover
 SYNC = b"\xAA\x55"
 LEGACY_PAYLOAD_LEN = 19
 EXTENDED_PAYLOAD_LEN = 21
+# v3: odometer (tenths of a mile) after fault word — matches sensor_pack.ino / sensor_packet.h
+ODOMETER_PAYLOAD_LEN = 25
 PI_HANDSHAKE_BYTE = b"\xA5"
 PI_HANDSHAKE_INTERVAL_S = 0.25
 # Firmware treats the link as dead if no handshake for ~1000ms (sensor_pack.ino). Keepalives
@@ -202,6 +204,7 @@ class ArduinoSerialInput:
         return (temp_c * 9.0 / 5.0) + 32.0
 
     def _parse_frame(self, payload: bytes) -> dict[str, float]:
+        odo_tenths: int | None = None
         if len(payload) == LEGACY_PAYLOAD_LEN:
             pot = int.from_bytes(payload[0:2], "big")
             therm = int.from_bytes(payload[2:4], "big")
@@ -221,6 +224,16 @@ class ArduinoSerialInput:
             engine_rpm = int.from_bytes(payload[14:18], "big")
             flags = int(payload[18])
             faults = int.from_bytes(payload[19:21], "big")
+        elif len(payload) == ODOMETER_PAYLOAD_LEN:
+            pot = int.from_bytes(payload[0:2], "big")
+            therm = int.from_bytes(payload[2:4], "big")
+            pressure = int.from_bytes(payload[4:6], "big")
+            voltage = int.from_bytes(payload[6:8], "big")
+            speed_rpm = int.from_bytes(payload[10:14], "big")
+            engine_rpm = int.from_bytes(payload[14:18], "big")
+            flags = int(payload[18])
+            faults = int.from_bytes(payload[19:21], "big")
+            odo_tenths = int.from_bytes(payload[21:25], "big")
         else:
             return {}
 
@@ -243,7 +256,7 @@ class ArduinoSerialInput:
             "indicators.ign_on": 1.0 if (flags & 0x02) else 0.0,
             "arduino.fault_word": float(faults),
         }
-        if len(payload) == EXTENDED_PAYLOAD_LEN:
+        if len(payload) in (EXTENDED_PAYLOAD_LEN, ODOMETER_PAYLOAD_LEN):
             ambient_raw = int.from_bytes(payload[8:10], "big")
             ambient_temp_f = self._thermistor_temp_f(ambient_raw)
             if ambient_temp_f is None:
@@ -251,6 +264,8 @@ class ArduinoSerialInput:
                     ambient_raw, self._ranges.ambient_temp_raw, self._ranges.ambient_temp
                 )
             out["analog_inputs.ambient_temp"] = ambient_temp_f
+        if odo_tenths is not None:
+            out["sensor_pack.odometer_miles"] = float(odo_tenths) / 10.0
         return out
 
     def _send_handshake(self, *, force: bool) -> None:
@@ -290,7 +305,7 @@ class ArduinoSerialInput:
             if len(self._buffer) < (2 + LEGACY_PAYLOAD_LEN + 1):
                 break
             frame_consumed = False
-            for payload_len in (EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN):
+            for payload_len in (ODOMETER_PAYLOAD_LEN, EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN):
                 frame_len = 2 + payload_len + 1
                 if len(self._buffer) < frame_len:
                     continue

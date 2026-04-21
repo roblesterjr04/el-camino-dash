@@ -82,4 +82,26 @@ def _prepend_riscv_toolchain() -> None:
     raise SystemExit(1)
 
 
+def _sync_file_libdeps_from_workspace() -> None:
+    """file://../esp32_p4_* are copied into .pio/libdeps/<env>/ and that copy can stay stale when sources change."""
+    proj = Path(env.subst("$PROJECT_DIR")).resolve()
+    pioenv = env.subst("$PIOENV")
+    libdeps = proj / ".pio" / "libdeps" / pioenv
+    firmware = proj.parent
+    for lib_folder_name, src_folder in (
+        ("el_camino_p4_ui", "esp32_p4_ui"),
+        ("el_camino_p4_common", "esp32_p4_common"),
+    ):
+        src = firmware / src_folder
+        if not src.is_dir():
+            continue
+        dst = libdeps / lib_folder_name
+        libdeps.mkdir(parents=True, exist_ok=True)
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst, symlinks=False)
+        print("pre: synced ../%s -> .pio/libdeps/%s/%s" % (src_folder, pioenv, lib_folder_name))
+
+
 _prepend_riscv_toolchain()
+_sync_file_libdeps_from_workspace()

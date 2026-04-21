@@ -335,4 +335,9 @@
  .pio/libdeps/esp32-p4-center-waveshare3c4/GFX\ Library\ for\ Arduino/src/display/Arduino_ST7789.h \
  .pio/libdeps/esp32-p4-center-waveshare3c4/GFX\ Library\ for\ Arduino/src/display/Arduino_ST77916.h \
  .pio/libdeps/esp32-p4-center-waveshare3c4/GFX\ Library\ for\ Arduino/src/display/Arduino_ST7796.h \
- .pio/libdeps/esp32-p4-center-waveshare3c4/GFX\ Library\ for\ Arduino/src/display/Arduino_WEA2012.h
+ .pio/libdeps/esp32-p4-center-waveshare3c4/GFX\ Library\ for\ Arduino/src/display/Arduino_WEA2012.h \
+ src/center_ui.h \
+ /Users/rob/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h \
+ .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_ui/include/p4_overlay_menu.h \
+ src/center_cluster.h \
+ .pio/libdeps/esp32-p4-center-waveshare3c4/el_camino_p4_common/include/cluster_i2c.h

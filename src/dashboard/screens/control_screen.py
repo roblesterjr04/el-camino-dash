@@ -71,16 +71,7 @@ class ControlScreen:
             surface.blit(msg_text, (20, self.layout.height - 48))
 
     def _paint_background(self, surface: pygame.Surface) -> None:
-        top = (18, 24, 36)
-        bottom = (10, 14, 22)
-        for y in range(self.layout.height):
-            mix = y / max(1, self.layout.height - 1)
-            color = (
-                int(top[0] + ((bottom[0] - top[0]) * mix)),
-                int(top[1] + ((bottom[1] - top[1]) * mix)),
-                int(top[2] + ((bottom[2] - top[2]) * mix)),
-            )
-            pygame.draw.line(surface, color, (0, y), (self.layout.width, y))
+        surface.fill((0, 0, 0))
 
     def _render_scroll_menu(self, surface: pygame.Surface, model: MenuRenderModel) -> None:
         body_top = 60

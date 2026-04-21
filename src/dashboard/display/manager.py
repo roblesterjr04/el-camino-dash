@@ -17,6 +17,7 @@ from dashboard.screens.layout import DisplayLayout
 from dashboard.screens.map_screen import MapScreen
 from dashboard.screens.menu_overlay import MenuOverlayController
 from dashboard.screens.warning_overlay import WarningOverlayScreen
+from dashboard.theme_loader import apply_center_dial_persisted
 from dashboard.theme_loader import load_theme_data
 
 
@@ -247,7 +248,14 @@ class DisplayManager:
     def _load_theme_data(self) -> dict[str, Any]:
         theme_root = Path(self._config["themes"]["theme_root"])
         theme_name = self._config["themes"]["active"]
-        return load_theme_data(theme_root=theme_root, theme_name=theme_name)
+        base = load_theme_data(theme_root=theme_root, theme_name=theme_name)
+        raw = self._config.get("system", {}).get("persisted_center_dial_mode")
+        p: str | None = None
+        if isinstance(raw, str):
+            pl = raw.strip().lower()
+            if pl in ("tach", "clock"):
+                p = pl
+        return apply_center_dial_persisted(base, p)
 
     def _resolve_render_mode(self) -> str:
         system_cfg = self._config.get("system", {})

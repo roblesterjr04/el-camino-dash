@@ -30,6 +30,7 @@ enum class ClusterTspsClassicVariant : uint8_t { Classic1 = 0, Classic2 = 1 };
 #define CLUSTER_NVS_KEY_THEME "th"
 #define CLUSTER_NVS_KEY_CENTER_SUB "cv"
 #define CLUSTER_NVS_KEY_TSPS_VAR "tv"
+#define CLUSTER_NVS_KEY_SPEEDO_ODO "odo"
 
 bool cluster_i2c_master_begin();
 bool cluster_i2c_master_write_reg(uint8_t addr7, uint8_t reg, uint8_t value);

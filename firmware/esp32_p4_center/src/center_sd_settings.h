@@ -9,5 +9,5 @@ void center_sd_settings_begin();
 // If elcamino/settings.json exists, load into NVS (call after begin, before Wi‑Fi/NTP uses prefs).
 void center_sd_settings_import(Preferences &prefs);
 
-// Write /sdcard/elcamino/settings.json (Wi‑Fi + TZ + view). Safe to call often; no‑op if SD unavailable.
+// Write /sdcard/elcamino/settings.json (Wi‑Fi + TZ + view + ctheme). Safe to call often; no‑op if SD unavailable.
 void center_sd_settings_sync(Preferences &prefs);

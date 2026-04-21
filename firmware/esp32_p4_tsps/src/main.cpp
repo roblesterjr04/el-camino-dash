@@ -62,6 +62,10 @@ void setup() {
   ESP_LOGI(kTspsTag, "setup entry");
   Serial.begin(115200);
   delay(200);
+  SensorSerial.setRxBufferSize(2048);
+  SensorSerial.begin(115200, SERIAL_8N1, SENSOR_UART_RX, SENSOR_UART_TX);
+  parser.begin(SensorSerial);
+
   Serial.println("el-camino-dash TSPS / ESP32-P4");
   ESP_LOGI(kTspsTag, "calling create_tsps_display()");
 
@@ -74,14 +78,12 @@ void setup() {
   }
   elc_boot_splash_framebuffer_write(gfx);
 
-  SensorSerial.begin(115200, SERIAL_8N1, SENSOR_UART_RX, SENSOR_UART_TX);
-  parser.begin(SensorSerial);
-
   s_classic2 = theme_load_classic2();
   theme_input_begin();
   s_prefs_cluster.begin(CLUSTER_NVS_NAMESPACE, false);
   s_theme = (s_prefs_cluster.getUChar(CLUSTER_NVS_KEY_THEME, 0) != 0) ? ClusterTheme::Fallout : ClusterTheme::Classic;
   cluster_i2c_slave_begin(CLUSTER_I2C_ADDR_TSPS, on_cluster_i2c, nullptr);
+
   Serial.printf("TSPS: theme=%s classic_%d (GPIO / 3s touch)\n", s_theme == ClusterTheme::Fallout ? "fallout" : "classic",
                 s_classic2 ? 2 : 1);
 }
@@ -153,5 +155,13 @@ void loop() {
   } else {
     tsps_render_cluster(gfx, gfx->width(), gfx->height(), d, s_classic2);
   }
+
+  SensorPacketValues post{};
+  if (parser.poll(post, true)) {
+    held = SensorPacketParser::derive(post);
+    last_pkt_ms = millis();
+    have_pkt = true;
+  }
+
   delay(15);
 }
