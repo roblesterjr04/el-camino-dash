@@ -107,6 +107,10 @@
 #define TSPS_BACKLIGHT_LEVEL 51
 #endif
 
+#if TSPS_BACKLIGHT_PIN >= 0
+static bool s_tsps_bl_ledc = false;
+#endif
+
 #if (defined(TSPS_USE_JD9365) && TSPS_USE_JD9365) || (defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4)
 static void tsps_waveshare_p4_mipi_power_on() {
   Wire.begin(TSPS_WAVESHARE_PMIC_SDA, TSPS_WAVESHARE_PMIC_SCL);
@@ -146,6 +150,7 @@ static void tsps_init_backlight() {
   const int pin = TSPS_BACKLIGHT_PIN;
 #if TSPS_BACKLIGHT_USE_PWM && !TSPS_BACKLIGHT_ACTIVE_LOW && defined(CONFIG_IDF_TARGET_ESP32P4)
   if (ledcAttach(pin, 20000, 8)) {
+    s_tsps_bl_ledc = true;
     ledcWrite(pin, TSPS_BACKLIGHT_LEVEL);
     Serial.printf("TSPS: backlight PWM on GPIO %d\n", pin);
     return;
@@ -162,6 +167,72 @@ static void tsps_init_backlight() {
   Serial.println("TSPS: backlight disabled (TSPS_BACKLIGHT_PIN=-1)");
 #endif
 }
+
+void tsps_backlight_set_level(uint8_t level) {
+#if !defined(CONFIG_IDF_TARGET_ESP32P4)
+  (void)level;
+#else
+#if ((defined(TSPS_USE_JD9365) && TSPS_USE_JD9365) || (defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4)) && TSPS_BACKLIGHT_PIN < 0
+  // Default `Wire` is also used by touch/audio on the display bus; re-select PMIC pins before each write.
+  Wire.begin(TSPS_WAVESHARE_PMIC_SDA, TSPS_WAVESHARE_PMIC_SCL);
+  Wire.setClock(100000);
+  Wire.beginTransmission(TSPS_WAVESHARE_PMIC_I2C_ADDR);
+  Wire.write(0x96);
+  Wire.write(level);
+  (void)Wire.endTransmission();
+#elif TSPS_BACKLIGHT_PIN >= 0
+  const int pin = TSPS_BACKLIGHT_PIN;
+#if TSPS_BACKLIGHT_USE_PWM && !TSPS_BACKLIGHT_ACTIVE_LOW && defined(CONFIG_IDF_TARGET_ESP32P4)
+  if (s_tsps_bl_ledc) {
+    ledcWrite(pin, level);
+    return;
+  }
+#endif
+#if TSPS_BACKLIGHT_ACTIVE_LOW
+  digitalWrite(pin, level >= 128 ? LOW : HIGH);
+#else
+  digitalWrite(pin, level >= 128 ? HIGH : LOW);
+#endif
+#else
+  (void)level;
+#endif
+#endif
+}
+
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// Default 24: labeled on Waveshare 3.4C 40-pin header (GPIO 23 is not on that silk). Not SDIO/SDMMC/RMII.
+// Avoid GPIO 15 (SDIO D1 to C6 WiFi). Override: -DELC_ILLUMINATION_GPIO=<n> or -1 to disable.
+#ifndef ELC_ILLUMINATION_GPIO
+#define ELC_ILLUMINATION_GPIO 24
+#endif
+#ifndef ELC_ILLUMINATION_DIM_LEVEL
+#define ELC_ILLUMINATION_DIM_LEVEL 64
+#endif
+#ifndef ELC_ILLUMINATION_FULL_LEVEL
+#define ELC_ILLUMINATION_FULL_LEVEL 255
+#endif
+
+void elc_illumination_gpio_poll(void) {
+#if ELC_ILLUMINATION_GPIO < 0
+  return;
+#else
+  static bool s_pin_inited = false;
+  static int8_t s_last = -1;
+  if (!s_pin_inited) {
+    pinMode(ELC_ILLUMINATION_GPIO, INPUT_PULLUP);
+    s_pin_inited = true;
+  }
+  const bool high = digitalRead(ELC_ILLUMINATION_GPIO) == HIGH;
+  const int8_t cur = high ? 1 : 0;
+  if (cur != s_last) {
+    s_last = cur;
+    tsps_backlight_set_level(high ? (uint8_t)ELC_ILLUMINATION_FULL_LEVEL : (uint8_t)ELC_ILLUMINATION_DIM_LEVEL);
+  }
+#endif
+}
+#else
+void elc_illumination_gpio_poll(void) {}
+#endif
 
 Arduino_GFX *create_tsps_display() {
 #if !defined(CONFIG_IDF_TARGET_ESP32P4)

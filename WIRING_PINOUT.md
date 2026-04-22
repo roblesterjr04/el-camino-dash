@@ -96,6 +96,10 @@ Registers (1 byte data each): **0x01** = theme (0 Classic, 1 Fallout); **0x02** 
 
 **Center:** **`TwoWire(1)`** as **master** on **47/48** to broadcast to slaves after long-press gestures.
 
+### Ambient illumination (all three round displays)
+
+**One digital input per board**, internal pull-up: **LOW** → dim backlight, **HIGH** (open) → full. Tie the same vehicle signal to **GPIO 24** on each ESP32-P4 module (silk **“24”** on the Waveshare 2×20 header). **GPIO 23** is not labeled on that header and is not used as the default harness pin. Do **not** use **GPIO 15** (SDIO to the C6 WiFi coprocessor on the 3.4C board). Override in firmware: `-DELC_ILLUMINATION_GPIO=…` / `-1` to disable.
+
 ### TSPS — bench theme GPIO (optional)
 
 **GPIO6** to GND (internal pull-up): legacy bench toggle; long-press touch is preferred for classic variant when theme is Classic.

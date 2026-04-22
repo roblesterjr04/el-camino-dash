@@ -6,7 +6,8 @@
 namespace {
 
 constexpr size_t kUartTextQ = 8;
-constexpr size_t kUartTextMax = 16;
+/** Long enough for sensor_pack ODO_FRAM* lines (e.g. "ODO_FRAM read OK v2 tenths=999999"). */
+constexpr size_t kUartTextMax = 96;
 char s_uart_text_q[kUartTextQ][kUartTextMax];
 uint8_t s_uart_text_q_head = 0;
 uint8_t s_uart_text_q_count = 0;
@@ -77,6 +78,10 @@ uint8_t SensorPacketParser::xor_payload(const uint8_t *p, size_t n) {
 bool SensorPacketParser::parse_payload(const uint8_t *payload, size_t len, SensorPacketValues &out) {
   out.has_odometer = false;
   out.odometer_tenths_mile = 0;
+  out.has_fuel_economy = false;
+  out.mpg_instant_x10 = 0;
+  out.mpg_average_x10 = 0;
+  out.dte_tenths_mile = 0;
   if (len == LEGACY_PAYLOAD_LEN) {
     out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
     out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
@@ -101,6 +106,28 @@ bool SensorPacketParser::parse_payload(const uint8_t *payload, size_t len, Senso
     out.engine_rpm = ((uint32_t)payload[14] << 24) | ((uint32_t)payload[15] << 16) | ((uint32_t)payload[16] << 8) | payload[17];
     out.flags = payload[18];
     out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
+    out.extended = true;
+    out.valid = true;
+    return true;
+  }
+  if (len == ECONOMY_PAYLOAD_LEN) {
+    out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
+    out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
+    out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
+    out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
+    out.ambient_adc = (uint16_t)((payload[8] << 8) | payload[9]);
+    out.speed_rpm = ((uint32_t)payload[10] << 24) | ((uint32_t)payload[11] << 16) | ((uint32_t)payload[12] << 8) | payload[13];
+    out.engine_rpm = ((uint32_t)payload[14] << 24) | ((uint32_t)payload[15] << 16) | ((uint32_t)payload[16] << 8) | payload[17];
+    out.flags = payload[18];
+    out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
+    out.odometer_tenths_mile =
+        ((uint32_t)payload[21] << 24) | ((uint32_t)payload[22] << 16) | ((uint32_t)payload[23] << 8) | (uint32_t)payload[24];
+    out.has_odometer = true;
+    out.mpg_instant_x10 = (uint16_t)((payload[25] << 8) | payload[26]);
+    out.mpg_average_x10 = (uint16_t)((payload[27] << 8) | payload[28]);
+    out.dte_tenths_mile =
+        ((uint32_t)payload[29] << 24) | ((uint32_t)payload[30] << 16) | ((uint32_t)payload[31] << 8) | (uint32_t)payload[32];
+    out.has_fuel_economy = true;
     out.extended = true;
     out.valid = true;
     return true;
@@ -225,7 +252,7 @@ bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_go
     }
 
     bool frame_ok = false;
-    for (size_t plen : {ODOMETER_PAYLOAD_LEN, EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN}) {
+    for (size_t plen : {ECONOMY_PAYLOAD_LEN, ODOMETER_PAYLOAD_LEN, EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN}) {
       size_t frame_len = 2 + plen + 1;
       if (_len < frame_len) {
         continue;

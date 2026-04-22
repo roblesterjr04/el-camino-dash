@@ -63,6 +63,7 @@ void setup() {
     }
   }
   elc_boot_splash_framebuffer_write(gfx);
+  elc_illumination_gpio_poll();
   s_prefs.begin("center", false);
   center_sd_settings_begin();
   center_sd_settings_import(s_prefs);
@@ -102,6 +103,7 @@ static void clamp_touch(int16_t *x, int16_t *y, int16_t w, int16_t h) {
 }
 
 void loop() {
+  elc_illumination_gpio_poll();
   center_gps_loop();
   center_shell_poll(s_prefs);
   center_wifi_ntp_loop();

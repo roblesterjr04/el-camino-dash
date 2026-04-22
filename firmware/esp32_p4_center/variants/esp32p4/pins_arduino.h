@@ -49,6 +49,10 @@ static const uint8_t T11 = 13;
 static const uint8_t T12 = 14;
 static const uint8_t T13 = 15;
 
+// Dash ambient illumination (digital in, pull-up; wire same net to all three round displays). Labeled "24" on
+// 2×20 header (GPIO 23 is not on that silk). Not SDIO/SD/RMII.
+#define ELC_ILLUMINATION_PIN 24
+
 /* ESP32-P4 EV Function board specific definitions */
 //ETH
 #define ETH_PHY_TYPE    ETH_PHY_TLK110

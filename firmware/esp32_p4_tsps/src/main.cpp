@@ -77,6 +77,7 @@ void setup() {
     }
   }
   elc_boot_splash_framebuffer_write(gfx);
+  elc_illumination_gpio_poll();
 
   s_classic2 = theme_load_classic2();
   theme_input_begin();
@@ -89,6 +90,7 @@ void setup() {
 }
 
 void loop() {
+  elc_illumination_gpio_poll();
   SensorPacketValues raw{};
   bool got = parser.poll(raw, true);
 

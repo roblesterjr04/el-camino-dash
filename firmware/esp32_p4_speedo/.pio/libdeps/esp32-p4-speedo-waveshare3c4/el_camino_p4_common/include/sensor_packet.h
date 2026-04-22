@@ -21,6 +21,8 @@ static const size_t LEGACY_PAYLOAD_LEN = 19;
 static const size_t EXTENDED_PAYLOAD_LEN = 21;
 // v3: extended payload + big-endian odometer in tenths of a mile (sensor_pack source of truth).
 static const size_t ODOMETER_PAYLOAD_LEN = 25;
+// v4: v3 + instant/trip MPG (x10) + DTE in tenths of a mile (20 gal tank model on sensor_pack).
+static const size_t ECONOMY_PAYLOAD_LEN = 33;
 
 struct SensorPacketValues {
   uint16_t pot_adc;
@@ -34,6 +36,10 @@ struct SensorPacketValues {
   uint16_t faults;
   uint32_t odometer_tenths_mile;
   bool has_odometer;
+  uint16_t mpg_instant_x10;
+  uint16_t mpg_average_x10;
+  uint32_t dte_tenths_mile;
+  bool has_fuel_economy;
   bool extended;
   bool valid;
 };

@@ -6,6 +6,9 @@
 
 #if defined(ARDUINO_ARCH_ESP32) && defined(CONFIG_IDF_TARGET_ESP32P4)
 #include <esp32-hal-ledc.h>
+#include <esp_lcd_panel_io.h>
+// Set by patched GFX Arduino_ESP32DSIPanel.cpp after esp_lcd_new_panel_io_dbi(); used for SH8601 DCS brightness.
+esp_lcd_panel_io_handle_t g_elc_dsi_panel_io = nullptr;
 #endif
 
 #if (defined(TSPS_USE_JD9365) && TSPS_USE_JD9365) || (defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4)
@@ -91,8 +94,14 @@
 #endif
 #endif
 
-// Most Waveshare / Espressif MIPI kits need the BL pin driven; without it the panel looks dead (black).
-// If your backlight is hardwired on, set TSPS_BACKLIGHT_PIN=-1 in platformio.ini build_flags.
+// --- Backlight (TSPS_BACKLIGHT_*) vs. ambient illumination (ELC_ILLUMINATION_*) ---
+// TSPS_BACKLIGHT_*: boot + driver path — GPIO PWM/digital (TSPS_BACKLIGHT_PIN ≥ 0), or PMIC I2C 0x45/0x96 (+ SH8601
+//   DCS 0x51 on 3.4C) when TSPS_BACKLIGHT_PIN is -1 on Waveshare kits. Used by tsps_init_backlight / tsps_backlight_set_level.
+// ELC_ILLUMINATION_*: vehicle digital IN on ELC_ILLUMINATION_GPIO (default 24); poll calls tsps_backlight_set_level for
+//   DIM/FULL. Must not share a GPIO with TSPS_BACKLIGHT_PIN or TSPS_LCD_RST. TSPS_BACKLIGHT_LEVEL is initial brightness only
+//   until the first illum poll updates the level.
+// Most Waveshare / Espressif MIPI kits need the BL pin driven (3.4C round kit: PWM on GPIO 26 per schematic); without it the
+// panel looks dead (black). If BL is hardwired / PMIC-only on your variant, set TSPS_BACKLIGHT_PIN=-1 in platformio.ini.
 #ifndef TSPS_BACKLIGHT_PIN
 #define TSPS_BACKLIGHT_PIN 26
 #endif
@@ -105,6 +114,36 @@
 // Backlight intensity 0–255 (PWM duty / PMIC reg 0x96). Override with -DTSPS_BACKLIGHT_LEVEL=… in platformio.ini.
 #ifndef TSPS_BACKLIGHT_LEVEL
 #define TSPS_BACKLIGHT_LEVEL 51
+#endif
+
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// Ambient illum (defaults here so boot PWM + tsps_backlight_set_level can use them). Override in platformio.ini.
+#ifndef ELC_ILLUMINATION_GPIO
+#define ELC_ILLUMINATION_GPIO 24
+#endif
+#ifndef ELC_ILLUMINATION_DIM_LEVEL
+#define ELC_ILLUMINATION_DIM_LEVEL 100
+#endif
+#ifndef ELC_ILLUMINATION_FULL_LEVEL
+#define ELC_ILLUMINATION_FULL_LEVEL 255
+#endif
+#ifndef ELC_ILLUMINATION_LOW_IS_DIM
+#define ELC_ILLUMINATION_LOW_IS_DIM 1
+#endif
+#endif
+
+#if TSPS_BACKLIGHT_PIN >= 0
+static bool s_tsps_bl_ledc = false;
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// logical: 0 = dark, 255 = bright. Many BL FETs are active-low (GPIO high = LED off).
+static uint8_t tsps_backlight_pwm_duty(uint8_t logical) {
+#if TSPS_BACKLIGHT_ACTIVE_LOW
+  return (uint8_t)(255u - (unsigned)logical);
+#else
+  return logical;
+#endif
+}
+#endif
 #endif
 
 #if (defined(TSPS_USE_JD9365) && TSPS_USE_JD9365) || (defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4)
@@ -121,7 +160,8 @@ static void tsps_waveshare_p4_mipi_power_on() {
   wr(0x95, 0x17);
   wr(0x96, 0x00);
   delay(100);
-  wr(0x96, (uint8_t)TSPS_BACKLIGHT_LEVEL);
+  // With TSPS_BACKLIGHT_PIN ≥ 0 (e.g. Waveshare 3.4C BL PWM on GPIO 26), max PMIC current; dimming is LEDC on that pin.
+  wr(0x96, (uint8_t)(TSPS_BACKLIGHT_PIN < 0 ? TSPS_BACKLIGHT_LEVEL : 255));
   for (int i = 0; i < 10; i++) {
     delay(100);
     yield();
@@ -131,6 +171,20 @@ static void tsps_waveshare_p4_mipi_power_on() {
 #endif
 
 static const char *kTspsDispTag = "tsps-disp";
+
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4
+// SH8601: init table sets 0x51 under user extension bank 0xE0=0x02 (see waveshare_3inch4_dsi_800_init.cpp).
+static void tsps_sh8601_brightness_via_dsi(uint8_t level) {
+  if (g_elc_dsi_panel_io == nullptr) {
+    return;
+  }
+  const uint8_t bank_user = 0x02;
+  (void)esp_lcd_panel_io_tx_param(g_elc_dsi_panel_io, 0xE0, &bank_user, 1);
+  (void)esp_lcd_panel_io_tx_param(g_elc_dsi_panel_io, 0x51, &level, 1);
+  const uint8_t bank_idle = 0x00;
+  (void)esp_lcd_panel_io_tx_param(g_elc_dsi_panel_io, 0xE0, &bank_idle, 1);
+}
+#endif
 
 static void tsps_init_backlight() {
 #if ((defined(TSPS_USE_JD9365) && TSPS_USE_JD9365) || (defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4)) && TSPS_BACKLIGHT_PIN < 0
@@ -142,12 +196,21 @@ static void tsps_init_backlight() {
   } else {
     Serial.println("TSPS: backlight via Waveshare PMIC I2C");
   }
+#if defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4
+  tsps_sh8601_brightness_via_dsi((uint8_t)TSPS_BACKLIGHT_LEVEL);
+#endif
 #elif TSPS_BACKLIGHT_PIN >= 0
   const int pin = TSPS_BACKLIGHT_PIN;
-#if TSPS_BACKLIGHT_USE_PWM && !TSPS_BACKLIGHT_ACTIVE_LOW && defined(CONFIG_IDF_TARGET_ESP32P4)
+#if TSPS_BACKLIGHT_USE_PWM && defined(CONFIG_IDF_TARGET_ESP32P4)
   if (ledcAttach(pin, 20000, 8)) {
-    ledcWrite(pin, TSPS_BACKLIGHT_LEVEL);
-    Serial.printf("TSPS: backlight PWM on GPIO %d\n", pin);
+    s_tsps_bl_ledc = true;
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && ELC_ILLUMINATION_GPIO >= 0
+    // Safe default until elc_illumination_gpio_poll(): visible dim, not logical "full" that is off on active-low BL.
+    ledcWrite(pin, tsps_backlight_pwm_duty((uint8_t)ELC_ILLUMINATION_DIM_LEVEL));
+#else
+    ledcWrite(pin, tsps_backlight_pwm_duty((uint8_t)TSPS_BACKLIGHT_LEVEL));
+#endif
+    Serial.printf("TSPS: backlight PWM GPIO %d active_%s\n", pin, TSPS_BACKLIGHT_ACTIVE_LOW ? "low" : "high");
     return;
   }
 #endif
@@ -162,6 +225,88 @@ static void tsps_init_backlight() {
   Serial.println("TSPS: backlight disabled (TSPS_BACKLIGHT_PIN=-1)");
 #endif
 }
+
+void tsps_backlight_set_level(uint8_t level) {
+#if !defined(CONFIG_IDF_TARGET_ESP32P4)
+  (void)level;
+#else
+#if ((defined(TSPS_USE_JD9365) && TSPS_USE_JD9365) || (defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4)) && TSPS_BACKLIGHT_PIN < 0
+  // Default `Wire` is also used by touch/audio on the display bus; re-select PMIC pins before each write.
+  Wire.begin(TSPS_WAVESHARE_PMIC_SDA, TSPS_WAVESHARE_PMIC_SCL);
+  Wire.setClock(100000);
+  Wire.beginTransmission(TSPS_WAVESHARE_PMIC_I2C_ADDR);
+  Wire.write(0x96);
+  Wire.write(level);
+  (void)Wire.endTransmission();
+#if defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4
+  tsps_sh8601_brightness_via_dsi(level);
+#endif
+#elif TSPS_BACKLIGHT_PIN >= 0
+  const int pin = TSPS_BACKLIGHT_PIN;
+#if TSPS_BACKLIGHT_USE_PWM && defined(CONFIG_IDF_TARGET_ESP32P4)
+  if (s_tsps_bl_ledc) {
+    ledcWrite(pin, tsps_backlight_pwm_duty(level));
+    return;
+  }
+#endif
+#if TSPS_BACKLIGHT_ACTIVE_LOW
+  digitalWrite(pin, level >= 128 ? LOW : HIGH);
+#else
+  digitalWrite(pin, level >= 128 ? HIGH : LOW);
+#endif
+#else
+  (void)level;
+#endif
+#endif
+}
+
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// ELC_ILLUMINATION_* defaults are near TSPS_BACKLIGHT_* above.
+
+#if TSPS_BACKLIGHT_PIN >= 0 && ELC_ILLUMINATION_GPIO >= 0 && TSPS_BACKLIGHT_PIN == ELC_ILLUMINATION_GPIO
+#error TSPS_BACKLIGHT_PIN and ELC_ILLUMINATION_GPIO must be different GPIOs (backlight out vs. illum input)
+#endif
+#if ELC_ILLUMINATION_GPIO >= 0 && TSPS_LCD_RST != GFX_NOT_DEFINED && TSPS_LCD_RST >= 0 && ELC_ILLUMINATION_GPIO == TSPS_LCD_RST
+#error ELC_ILLUMINATION_GPIO must not equal TSPS_LCD_RST (reset output vs. illum input)
+#endif
+
+void elc_illumination_gpio_poll(void) {
+#if ELC_ILLUMINATION_GPIO < 0
+  return;
+#else
+  static bool s_pin_inited = false;
+  if (!s_pin_inited) {
+    pinMode(ELC_ILLUMINATION_GPIO, INPUT_PULLUP);
+    s_pin_inited = true;
+  }
+  const bool high = digitalRead(ELC_ILLUMINATION_GPIO) == HIGH;
+  // LOW_IS_DIM 1: GPIO low = night → dim. Set -DELC_ILLUMINATION_LOW_IS_DIM=0 if your harness is inverted.
+  const uint8_t want =
+#if ELC_ILLUMINATION_LOW_IS_DIM
+      high ? (uint8_t)ELC_ILLUMINATION_FULL_LEVEL : (uint8_t)ELC_ILLUMINATION_DIM_LEVEL;
+#else
+      high ? (uint8_t)ELC_ILLUMINATION_DIM_LEVEL : (uint8_t)ELC_ILLUMINATION_FULL_LEVEL;
+#endif
+  static uint16_t s_last_level = 0xFFFFu;
+  static uint32_t s_last_apply_ms = 0;
+  const uint32_t now = millis();
+  if (s_last_level != 0xFFFFu && want == (uint8_t)s_last_level) {
+    return;
+  }
+#ifndef ELC_ILLUMINATION_DEBOUNCE_MS
+#define ELC_ILLUMINATION_DEBOUNCE_MS 25u
+#endif
+  if (s_last_level != 0xFFFFu && (now - s_last_apply_ms) < ELC_ILLUMINATION_DEBOUNCE_MS) {
+    return;
+  }
+  s_last_apply_ms = now;
+  s_last_level = want;
+  tsps_backlight_set_level(want);
+#endif
+}
+#else
+void elc_illumination_gpio_poll(void) {}
+#endif
 
 Arduino_GFX *create_tsps_display() {
 #if !defined(CONFIG_IDF_TARGET_ESP32P4)
@@ -199,6 +344,14 @@ Arduino_GFX *create_tsps_display() {
 
   ESP_LOGI(kTspsDispTag, "gfx->begin() OK, backlight");
   tsps_init_backlight();
+#if defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4 && TSPS_BACKLIGHT_PIN < 0
+  if (g_elc_dsi_panel_io == nullptr) {
+    ESP_LOGW(
+        kTspsDispTag,
+        "SH8601 DSI panel_io handle is null — run a clean build so pre_extra_script patches GFX "
+        "(PMIC-only backlight needs DCS 0x51). Check serial for pre: patched … Arduino_ESP32DSIPanel.cpp");
+  }
+#endif
   ESP_LOGI(kTspsDispTag, "create_tsps_display() done");
   return gfx;
 #endif

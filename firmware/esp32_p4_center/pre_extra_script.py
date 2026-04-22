@@ -5,6 +5,7 @@
 # ~/.platformio/packages/toolchain-riscv32-esp may be an empty stub. Scan both trees.
 import os
 import shutil
+import sys
 from os.path import expanduser
 from pathlib import Path
 from typing import List, Optional
@@ -103,5 +104,18 @@ def _sync_file_libdeps_from_workspace() -> None:
         print("pre: synced ../%s -> .pio/libdeps/%s/%s" % (src_folder, pioenv, lib_folder_name))
 
 
+def _patch_gfx_dsi_io_hook() -> None:
+    proj = Path(env.subst("$PROJECT_DIR")).resolve()
+    pioenv = env.subst("$PIOENV")
+    libdeps = proj / ".pio" / "libdeps" / pioenv
+    scripts = proj.parent / "esp32_p4_common" / "scripts"
+    if scripts.is_dir():
+        sys.path.insert(0, str(scripts))
+        from pio_pre_gfx_dsi_io_hook import apply_dsi_panel_io_hook  # noqa: E402
+
+        apply_dsi_panel_io_hook(libdeps)
+
+
 _prepend_riscv_toolchain()
 _sync_file_libdeps_from_workspace()
+_patch_gfx_dsi_io_hook()

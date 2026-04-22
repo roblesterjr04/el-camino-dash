@@ -80,6 +80,7 @@ void setup() {
     }
   }
   elc_boot_splash_framebuffer_write(gfx);
+  elc_illumination_gpio_poll();
   s_prefs.begin(CLUSTER_NVS_NAMESPACE, false);
   s_theme = (s_prefs.getUChar(CLUSTER_NVS_KEY_THEME, 0) != 0) ? ClusterTheme::Fallout : ClusterTheme::Classic;
   s_prefs.end();
@@ -90,6 +91,7 @@ void setup() {
 }
 
 void loop() {
+  elc_illumination_gpio_poll();
   SensorPacketValues raw{};
   bool got = parser.poll(raw, true);
   char uart_line[96];

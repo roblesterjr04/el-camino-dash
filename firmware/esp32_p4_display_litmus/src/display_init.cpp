@@ -119,7 +119,7 @@ static void litmus_waveshare_p4_mipi_power_on() {
   wr(0x95, 0x17);
   wr(0x96, 0x00);
   delay(100);
-  wr(0x96, (uint8_t)LITMUS_BACKLIGHT_LEVEL);
+  wr(0x96, (uint8_t)(LITMUS_BACKLIGHT_PIN < 0 ? LITMUS_BACKLIGHT_LEVEL : 255));
   for (int i = 0; i < 10; i++) {
     delay(100);
     yield();
