@@ -20,3 +20,10 @@ __pycache__/
 
 # PlatformIO .ino → .cpp conversion (temporary during builds)
 *.ino.cpp
+
+# KiCad: locks, caches, backups, per-user UI state, autorouter scratch
+*.lck
+fp-info-cache
+*-backups/
+*.kicad_prl
+temp-freerouting.dsn
