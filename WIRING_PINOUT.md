@@ -119,6 +119,30 @@ Registers (1 byte data each): **0x01** = theme (0 Classic, 1 Fallout); **0x02** 
 
 **Center:** **`TwoWire(1)`** as **master** on **47/48** to broadcast to slaves after long-press gestures.
 
+### Backup camera (center): TVP5150 video decoder module
+
+Composite video → TVP5150AM1 module (2×10 header, OV7670-style order) → 8-bit BT.656 into the center's camera (DVP)
+input. On the DigiDash board the module plugs into **J13** (2×10 socket, back side; the module hangs toward the right
+board edge so its RCA jack is reachable). Control is I2C on the **cluster bus** (GPIO47/48; TVP5150 at 0x5C/0x5D —
+kept off the touch bus, where the GT911 can also sit at 0x5D). Module VCC is the center's 3.3 V.
+
+| Module pin | Signal | Center GPIO | | Module pin | Signal | Center GPIO |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | VCC 3.3 V | — | | 2 | GND | — |
+| 3 | SCL | 48 | | 4 | SDA | 47 |
+| 5 | V (VSYNC) | 50 | | 6 | H (HSYNC) | 51 |
+| 7 | PCLK (unlabeled on the module) | 49 | | 8 | — (unlabeled) | — |
+| 9 | D7 | 28 | | 10 | D6 | 32 |
+| 11 | D5 | 31 | | 12 | D4 | 30 |
+| 13 | D3 | 29 | | 14 | D2 | 22 |
+| 15 | D1 | 21 | | 16 | D0 | 20 |
+| 17 | — (unlabeled) | 52 | | 18 | FID | 46 |
+| 19 | INT | — | | 20 | IO | — |
+
+**Reverse trigger:** reverse-lamp 12 V (J9 pin 1) → R8/Q3 → **GPIO25** on the center (active low, internal pull-up).
+GPIO25 is also a USB pin on the P4, so it carries the slow reverse signal rather than video data. GPIO34–36 are boot
+straps and are not used for the camera.
+
 ### Ambient illumination (all three round displays)
 
 **One digital input per board**, internal pull-up: **LOW** → dim backlight, **HIGH** (open) → full. Tie the same vehicle signal to **GPIO 24** on each ESP32-P4 module (silk **“24”** on the Waveshare 2×20 header). **GPIO 23** is not labeled on that header and is not used as the default harness pin. Do **not** use **GPIO 15** (SDIO to the C6 WiFi coprocessor on the 3.4C board). Override in firmware: `-DELC_ILLUMINATION_GPIO=…` / `-1` to disable.
