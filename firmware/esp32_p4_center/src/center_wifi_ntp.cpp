@@ -4,6 +4,7 @@
 #include <p4_screen.h>
 #include <p4_touch.h>
 
+#include "center_audio_link.h"
 #include "center_menu.h"
 #include <elc_gauges.h>
 
@@ -205,6 +206,14 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
       center_ui_set_view((CenterViewMode)v);
       Serial.printf("ok: view %d\n", v);
     }
+    return;
+  }
+  if (line == "audio") {  // bench: what the audio bridge (0x2A) reports
+    uint16_t el = 0, dur = 0;
+    uint8_t vol = 0;
+    const bool tr = center_audio_link_transport(&el, &dur, &vol);
+    Serial.printf("audio: link=%d line=\"%s\" transport=%d (last read %d bytes) elapsed=%us duration=%us vol=%u\n",
+                  (int)center_audio_link_ok(), center_audio_link_line(), (int)tr, center_audio_link_last_rx(), (unsigned)el, (unsigned)dur, (unsigned)vol);
     return;
   }
   if (line == "perf") {

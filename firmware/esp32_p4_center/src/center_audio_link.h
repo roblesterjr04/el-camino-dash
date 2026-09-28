@@ -10,6 +10,8 @@
 void center_audio_link_begin();
 void center_audio_link_poll();
 bool center_audio_link_ok();
+/** Bytes received by the last snapshot/transport read (-1 = no ACK), for the `audio` console command. */
+int center_audio_link_last_rx();
 const char *center_audio_link_line();
 
 // Playback transport from Pi (I2C reg 0x05): elapsed/duration seconds, volume 0–15. Returns false until first valid read.
