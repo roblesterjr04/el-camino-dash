@@ -283,7 +283,7 @@ class ModernMedia : public Face {
   }
   void build(lv_obj_t *root, const Geo &g) override {
     g_ = g;
-    art_.build(root, g.X(400), g.Y(295), g.L(300), kTrack, g.L(3));
+    art_.build(root, g.X(400), g.Y(295), g.L(280), g.L(20), kTrack, g.L(2));
     prog_ = progress(this, add<ArcFill>(root), g, 352.5f, 10, 0, 360);
     prog_->c0 = prog_->c1 = kAccent;
     prog_->tip = false;

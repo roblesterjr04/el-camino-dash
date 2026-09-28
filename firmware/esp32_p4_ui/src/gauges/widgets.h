@@ -119,13 +119,13 @@ class Scanlines : public Shape {
 };
 
 /**
- * Album art as a round disc with a thin rim. The source image is scaled (centre crop, bilinear) into
- * an RGB565+alpha image once per new art_id; Fallout gets a green phosphor tint.
+ * Album art as a square tile with rounded corners and a thin rim. The source image is scaled (centre
+ * crop, bilinear) into an RGB565+alpha image once per new art_id; Fallout gets a green phosphor tint.
  */
 class ArtDisc {
  public:
   ~ArtDisc();
-  void build(lv_obj_t *root, float cx, float cy, float d, Rgb rim, float rim_w, bool green = false,
+  void build(lv_obj_t *root, float cx, float cy, float d, float corner, Rgb rim, float rim_w, bool green = false,
              Rgb green_lo = hex(0x010a04), Rgb green_hi = hex(0x5dff8f));
   /** Returns true when the disc appeared or disappeared (the face then moves its text). */
   bool update(const uint16_t *px, int w, int h, int stride, uint32_t id);
@@ -137,6 +137,7 @@ class ArtDisc {
   lv_img_dsc_t dsc_{};
   uint8_t *buf_ = nullptr;
   int d_ = 0;
+  float corner_ = 0;
   uint32_t id_ = 0;
   bool vis_ = false;
   Rgb rim_{0, 0, 0};

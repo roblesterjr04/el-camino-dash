@@ -243,7 +243,7 @@ class FalloutMedia : public FalloutFace {
   }
   void build(lv_obj_t *root, const Geo &g) override {
     g_ = g;
-    art_.build(root, g.X(400), g.Y(290), g.L(230), kDim, g.L(3), true, kBg, kFg);
+    art_.build(root, g.X(400), g.Y(290), g.L(220), g.L(20), kDim, g.L(3), true, kBg, kFg);
     title_ = label(root, &elc_vt_72, kFg, g.X(400), g.Y(320), g.L(560), Align::Center);
     artist_ = label(root, &elc_vt_56, kDim, g.X(400), g.Y(395), g.L(540), Align::Center);
     prog_.build(root, g, 212, 470, 12, 25, 22, 6.3f);

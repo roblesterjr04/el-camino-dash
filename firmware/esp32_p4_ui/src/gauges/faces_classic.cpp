@@ -364,7 +364,7 @@ class ClassicMedia : public Face {
 
   void build(lv_obj_t *root, const Geo &g) override {
     g_ = g;
-    art_.build(root, g.X(400), g.Y(300), g.L(290), hex(0xd9dde2), g.L(5));
+    art_.build(root, g.X(400), g.Y(300), g.L(270), g.L(20), hex(0xd9dde2), g.L(3));
     title_ = label(root, &elc_bc_58, kInk, g.X(400), g.Y(368), g.L(540), Align::Center);
     artist_ = label(root, &elc_b_28, kInkDim, g.X(400), g.Y(430), g.L(500), Align::Center);
     time_ = label(root, &elc_b_22, kInkDim, g.X(400), g.Y(520), g.L(300), Align::Center);

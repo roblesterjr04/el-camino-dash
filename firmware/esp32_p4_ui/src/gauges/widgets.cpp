@@ -219,9 +219,10 @@ void Scanlines::draw(LvSurface &s) {
 
 ArtDisc::~ArtDisc() { lv_mem_free(buf_); }
 
-void ArtDisc::build(lv_obj_t *root, float cx, float cy, float d, Rgb rim, float rim_w, bool green, Rgb green_lo,
-                    Rgb green_hi) {
+void ArtDisc::build(lv_obj_t *root, float cx, float cy, float d, float corner, Rgb rim, float rim_w, bool green,
+                    Rgb green_lo, Rgb green_hi) {
   d_ = (int)lroundf(d);
+  corner_ = corner;
   rim_ = rim;
   rim_w_ = rim_w;
   green_ = green;
@@ -274,8 +275,9 @@ void ArtDisc::render(const uint16_t *px, int w, int h, int stride) {
     uint8_t *o = buf_ + (size_t)y * (size_t)d_ * 3;
     for (int x = 0; x < d_; x++, o += 3) {
       const float dx = (float)x + 0.5f - r, dy = (float)y + 0.5f - r;
-      const float dist = sqrtf(dx * dx + dy * dy);
-      const float a = clampf(r - dist, 0.0f, 1.0f);
+      // Distance inside the rounded square (negative inside), like sd_round_rect.
+      const float edge = sd_round_rect((float)x + 0.5f, (float)y + 0.5f, 0.0f, 0.0f, (float)d_, (float)d_, corner_);
+      const float a = clampf(0.5f - edge, 0.0f, 1.0f);
       if (a <= 0.0f) {
         o[0] = o[1] = o[2] = 0;
         continue;
@@ -296,7 +298,7 @@ void ArtDisc::render(const uint16_t *px, int w, int h, int stride) {
         c = mix(g_lo_, g_hi_, clampf(lum * 1.15f, 0.0f, 1.0f));
       }
       if (rim_w_ > 0.0f) {
-        c = mix(c, rim_, clampf(dist - (r - rim_w_) + 0.5f, 0.0f, 1.0f));
+        c = mix(c, rim_, clampf(edge + rim_w_ + 0.5f, 0.0f, 1.0f));
       }
       const lv_color_t lc = to_lv(c);
       o[0] = (uint8_t)(lc.full & 0xFF);
