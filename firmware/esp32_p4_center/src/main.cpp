@@ -1,12 +1,15 @@
 #include <Arduino.h>
+#include <cstring>
 #include <Arduino_GFX_Library.h>
 #include <Preferences.h>
+#include <esp_timer.h>
 
 #include <boot_splash.h>
 #include <cluster_i2c.h>
 #include <display_setup.h>
 #include <el_camino_speed.h>
 #include <p4_overlay_menu.h>
+#include <p4_screen.h>
 #include <p4_touch.h>
 #include <elc_watchdog.h>
 #include <sensor_link.h>
@@ -40,6 +43,17 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 #endif
 
 static SensorLink s_link;
+
+// Console-injected touch (`tap x y ms`), used to drive the UI on the bench without a finger.
+static int16_t s_inject_x = 0;
+static int16_t s_inject_y = 0;
+static uint32_t s_inject_until_ms = 0;
+
+void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms) {
+  s_inject_x = x;
+  s_inject_y = y;
+  s_inject_until_ms = millis() + (hold_ms ? hold_ms : 1);
+}
 static Arduino_GFX *gfx = nullptr;
 static Preferences s_prefs;
 static P4OverlayMenu s_menu;
@@ -52,14 +66,16 @@ void setup() {
 
   Serial.println("el-camino-dash CENTER / ESP32-P4 (WiFi+GPS time+BLE+I2C host UI)");
 
-  gfx = create_tsps_display();
-  if (!gfx) {
+  Arduino_GFX *panel = create_tsps_display();
+  if (!panel) {
     Serial.println("FATAL: display init failed");
     while (true) {
       delay(1000);
     }
   }
-  elc_boot_splash_framebuffer_write(gfx);
+  elc_boot_splash_framebuffer_write(panel);
+  // LVGL owns the panel from here; existing drawing code targets the legacy layer it returns.
+  gfx = p4_screen_begin(panel);
   elc_illumination_gpio_poll();
   s_prefs.begin("center", false);
   center_sd_settings_begin();
@@ -93,6 +109,61 @@ static void poll_sensor_link() {
   while (s_link.takeTextLine(uart_line, sizeof(uart_line))) {
     center_ui_on_sensor_uart_line(uart_line);
   }
+}
+
+static uint32_t fnv(uint32_t h, const void *data, size_t n) {
+  const uint8_t *p = (const uint8_t *)data;
+  for (size_t i = 0; i < n; i++) {
+    h = (h ^ p[i]) * 16777619u;
+  }
+  return h;
+}
+
+template <typename T>
+static uint32_t fnv_v(uint32_t h, T v) {
+  return fnv(h, &v, sizeof(v));
+}
+
+/** Everything the gauge views draw, quantized to what is visible. Equal signature → same pixels. */
+static uint32_t gauge_signature(CenterViewMode view, ClusterTheme theme, const CenterGaugeInputs &g, bool ui_block) {
+  uint32_t h = 2166136261u;
+  h = fnv_v(h, (uint8_t)view);
+  h = fnv_v(h, (uint8_t)theme);
+  h = fnv_v(h, ui_block);
+  h = fnv_v(h, g.sensor_valid);
+  h = fnv_v(h, g.engine_rpm / 10u);
+  h = fnv_v(h, (int32_t)(elc_speed_rpm_to_mph(g.speed_rpm, WHEEL_CIRCUMFERENCE_M, 1.0f) * 2.0f));
+  h = fnv_v(h, (int32_t)(g.fuel_pct * 2.0f));
+  h = fnv_v(h, (int32_t)g.coolant_temp_f);
+  h = fnv_v(h, (int32_t)g.system_amp);
+  h = fnv_v(h, g.odometer_valid);
+  h = fnv_v(h, (int32_t)(g.odometer_mi * 10.0f));
+  h = fnv_v(h, (int32_t)(g.trip_mi * 10.0f));
+  h = fnv_v(h, g.gear_num);
+  h = fnv_v(h, g.fuel_economy_valid);
+  h = fnv_v(h, (int32_t)(g.mpg_average * 10.0f));
+  h = fnv_v(h, (int32_t)(g.mpg_instant * 10.0f));
+  h = fnv_v(h, g.dte_tenths_mile);
+  h = fnv_v(h, g.clock_wall);
+  h = fnv_v(h, g.clock_wall ? (uint32_t)(g.epoch_ms / 1000u) : g.millis_boot / 1000u);  // hands move per second
+  if (g.current_street) {
+    h = fnv(h, g.current_street, strlen(g.current_street));
+  }
+  const char *np = center_audio_link_line();
+  if (np) {
+    h = fnv(h, np, strlen(np));
+  }
+  h = fnv_v(h, center_audio_link_ok());
+  uint16_t el = 0, dur = 0;
+  uint8_t vol = 0;
+  if (center_audio_link_transport(&el, &dur, &vol)) {
+    h = fnv_v(h, el);
+    h = fnv_v(h, dur);
+  }
+  if (view == CenterViewMode::Media) {
+    h = fnv_v(h, millis() / 100u);  // progress needle interpolates between whole seconds
+  }
+  return h;
 }
 
 static void clamp_touch(int16_t *x, int16_t *y, int16_t w, int16_t h) {
@@ -147,6 +218,14 @@ void loop() {
   int16_t ty = 0;
   bool finger_down = false;
   p4_touch_sample(&tx, &ty, &finger_down);
+  if (s_inject_until_ms && (int32_t)(now - s_inject_until_ms) < 0) {
+    tx = s_inject_x;
+    ty = s_inject_y;
+    finger_down = true;
+  } else {
+    s_inject_until_ms = 0;
+  }
+  p4_screen_touch(tx, ty, finger_down);
 
   static bool s_was_down = false;
   static uint32_t s_down_ms = 0;
@@ -225,24 +304,36 @@ void loop() {
 
   /* Poll AVRCP/transport immediately before paint so the cluster sees fresh I2C data. */
   center_audio_link_poll();
+  const int64_t draw_t0 = esp_timer_get_time();
 
-  if (!ui_block) {
-    center_render(gfx, gfx->width(), gfx->height(), view, theme, &gin);
-    if (theme == ClusterTheme::Classic && view != CenterViewMode::Media) {
-      center_audio_link_draw(gfx, gfx->width(), gfx->height());
-    }
-  }
   const bool overlay_open = center_ui_overlay_open();
-  center_media_lvgl_sync_overlay(overlay_open && (center_ui_view_mode() == CenterViewMode::Media));
+  // The gauge renderers redraw the whole 480² buffer and rescale it (~125 ms), so only run them when
+  // something they show has changed. Menus and full-screen pages still draw every frame.
+  const uint32_t sig = gauge_signature(view, theme, gin, ui_block);
+  static uint32_t s_last_sig = 0;
+  static bool s_have_sig = false;
+  const bool redraw = ui_block || !s_have_sig || sig != s_last_sig;
+  s_last_sig = sig;
+  s_have_sig = true;
 
-  if (center_ui_fullscreen()) {
-    center_ui_draw_fullscreen(gfx);
-  } else if (overlay_open) {
-    center_ui_draw_overlay();
+  if (redraw) {
+    if (!ui_block) {
+      center_render(gfx, gfx->width(), gfx->height(), view, theme, &gin);
+      if (theme == ClusterTheme::Classic && view != CenterViewMode::Media) {
+        center_audio_link_draw(gfx, gfx->width(), gfx->height());
+      }
+    }
+    center_media_lvgl_sync_overlay(overlay_open && (center_ui_view_mode() == CenterViewMode::Media));
+    if (center_ui_fullscreen()) {
+      center_ui_draw_fullscreen(gfx);
+    } else if (overlay_open) {
+      center_ui_draw_overlay();
+    }
+    // Legacy layer → LVGL → panel (LVGL redraws only the row bands that changed).
+    p4_screen_note_app_us((uint32_t)(esp_timer_get_time() - draw_t0));
+    p4_screen_legacy_dirty();
   }
-  /* DSI draws use auto_flush per primitive; flush(true) was forcing a full-frame cache msync every
-   * loop (~66 Hz) and caused visible pulsing. flush(false) skips redundant full sync when auto_flush. */
-  gfx->flush(false);
+  p4_screen_frame();
 
   poll_sensor_link();
 

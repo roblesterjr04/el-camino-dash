@@ -1,5 +1,10 @@
 #include "center_wifi_ntp.h"
 
+#include <esp_heap_caps.h>
+#include <p4_screen.h>
+
+#include "center_ui.h"
+
 #include "center_sd_settings.h"
 
 #include <stdio.h>
@@ -141,8 +146,34 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
   if (line.length() == 0) {
     return;
   }
+  if (line == "shot" || line == "shot legacy") {
+    // Screenshot of what the panel shows (or the legacy drawing layer); tools/screenshot.py drives this.
+    p4_screen_shot(Serial, &Serial, 2000000, 115200, line == "shot legacy");
+    return;
+  }
+  if (line.startsWith("tap ")) {  // bench: simulate a touch, "tap <x> <y> [hold_ms]"
+    int x = 0, y = 0;
+    unsigned long hold = 80;
+    if (sscanf(line.c_str() + 4, "%d %d %lu", &x, &y, &hold) >= 2) {
+      center_inject_touch((int16_t)x, (int16_t)y, (uint32_t)hold);
+      Serial.printf("ok: tap %d,%d for %lu ms\n", x, y, hold);
+    } else {
+      Serial.println("err: tap <x> <y> [hold_ms]");
+    }
+    return;
+  }
+  if (line == "perf") {
+    const P4ScreenStats st = p4_screen_stats();
+    Serial.printf("ui: view=%d theme=%d overlay=%d fullscreen=%d\n", (int)center_ui_view_mode(), (int)center_ui_cluster_theme(),
+                  (int)center_ui_overlay_open(), (int)center_ui_fullscreen());
+    Serial.printf("perf: %.1f fps, drawing %.1f ms + LVGL %.1f ms per frame, %.1f of 50 bands changed/frame, %lu rows/s written back, heap %lu KB internal / %lu KB PSRAM free\n",
+                  (double)st.fps, (double)st.app_ms, (double)st.lvgl_ms, (double)st.bands_changed, (unsigned long)st.flushed_rows,
+                  (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+                  (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+    return;
+  }
   if (line == "help") {
-    Serial.println("Commands: wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | tap <x> <y> [ms] | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }

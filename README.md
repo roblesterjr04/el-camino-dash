@@ -35,6 +35,7 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
 | `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |
 | `scripts/export_*_rgb565_assets.py` | Regenerate the `*_gen.h` image headers from `assets/` |
 | `docs/protocols` | Wire formats: sensor UART, cluster/audio I2C, encoder UART |
+| `tools/screenshot.py` | Screenshot a display over its USB console (`shot` command) |
 | `WIRING_PINOUT.md` | Vehicle harness |
 
 ## Build and flash

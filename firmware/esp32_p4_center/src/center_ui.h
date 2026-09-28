@@ -9,6 +9,8 @@
 struct SensorPacketValues;
 
 void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs, P4OverlayMenu *menu);
+/** Bench/console: simulate a finger on the screen for hold_ms (implemented in main.cpp). */
+void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms);
 
 // Call from main after each good sensor_pack frame (Serial1); MORE → SERIAL shows a rolling log.
 void center_ui_on_sensor_packet(const SensorPacketValues &v);

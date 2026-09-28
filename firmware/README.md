@@ -64,6 +64,23 @@ See each `platformio.ini` for env names and asset regeneration commands.
 
 **sensor_pack TX** → **all three ESP32 UART RX** in parallel (same 115200 8N1 stream). Only the **center** sends the 0xA5 keepalive back (its GPIO 4 → sensor RX); speedo and TSPS never transmit. See [WIRING_PINOUT.md](../WIRING_PINOUT.md) for the full vehicle harness.
 
+## Center display: LVGL screen layer
+
+The center app hands the panel to LVGL (`esp32_p4_ui/p4_screen.*`). LVGL renders in direct mode into the DSI
+framebuffer and writes back only the rows it touched. The existing Arduino_GFX gauge and menu code draws into an
+off-screen "legacy layer" canvas, which is the bottom LVGL object; new LVGL UI goes on `p4_screen_ui_parent()`.
+The gauge renderers only run when something they show changes (`gauge_signature()` in `main.cpp`), and the layer is
+compared band by band so LVGL redraws only what differs.
+
+Console on the flashing USB port (115200, `Serial` = UART0): `help`, `perf` (fps and timing), `shot` (screenshot),
+`tap <x> <y> [ms]` (simulated touch), plus the Wi-Fi/TZ commands. Grab a screenshot from the Mac with:
+
+```bash
+python3 tools/screenshot.py --port /dev/cu.usbmodem… -o center.png
+```
+
+The tool never toggles DTR/RTS: on these boards the CH343 auto-reset circuit reboots the ESP32 when one changes.
+
 ## Runtime behavior
 
 - **Stale data:** no frame for 400 ms → gauges dim at rest with a red **NO DATA** stamp; odometer shows dashes.
