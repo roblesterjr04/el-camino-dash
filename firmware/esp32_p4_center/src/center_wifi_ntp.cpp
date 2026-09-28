@@ -2,6 +2,7 @@
 
 #include <esp_heap_caps.h>
 #include <p4_screen.h>
+#include <p4_touch.h>
 
 #include "center_menu.h"
 #include <elc_gauges.h>
@@ -211,6 +212,9 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     const SensorPacketParser &sp = center_sensor_link().parser();
     Serial.printf("sensor: %lu frames/s, totals ok=%lu bad=%lu skipped=%lu bytes\n", (unsigned long)center_sensor_link().framesPerSec(),
                   (unsigned long)sp.framesOk(), (unsigned long)sp.framesBad(), (unsigned long)sp.bytesSkipped());
+    const P4TouchStats ts = p4_touch_stats();
+    Serial.printf("touch: %lu reads, %lu without news, %lu I2C errors, %lu brief lifts ignored\n", (unsigned long)ts.reads,
+                  (unsigned long)ts.no_news, (unsigned long)ts.errors, (unsigned long)ts.glitches_ignored);
     Serial.printf("flip: wait %.1f ms, sync %.1f ms (%s, %.0f rows), %.1f areas per flip\n", (double)st.flip_wait_ms,
                   (double)st.flip_sync_ms, st.dma_sync ? "DMA" : "CPU", (double)st.sync_rows_per_flip, (double)st.areas_per_flip);
     Serial.printf("ui: view=%d theme=%d overlay=%d fullscreen=%d, last dial paint %lu ms\n", (int)center_ui_view_mode(),

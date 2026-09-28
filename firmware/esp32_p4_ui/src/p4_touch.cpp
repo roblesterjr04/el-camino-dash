@@ -77,47 +77,108 @@ static bool cst816_read(int16_t *x, int16_t *y, bool *down) {
   return true;
 }
 
-static bool gt911_read_points(int16_t *x, int16_t *y, bool *down) {
+/** What one read of the controller said. */
+enum class Raw : uint8_t { NoNews, Down, Up, Error };
+
+static Raw gt911_read_points(int16_t *x, int16_t *y) {
   uint8_t st = 0;
   if (!wire_read_reg(s_addr, 0x814E, &st, 1)) {
-    *down = false;
-    return false;
+    return Raw::Error;
   }
   if ((st & 0x80) == 0) {
-    *down = false;
-    return true;
+    return Raw::NoNews;  // no new report since the last read: the finger has NOT necessarily lifted
   }
-  uint8_t n = st & 0x0F;
+  const uint8_t n = st & 0x0F;
   if (n == 0 || n > 5) {
     wire_write8(s_addr, 0x814E, 0);
-    *down = false;
-    return true;
+    return Raw::Up;
   }
   uint8_t buf[8];
   if (!wire_read_reg(s_addr, 0x814F, buf, 8)) {
-    *down = false;
-    return false;
+    return Raw::Error;
   }
   // Registers 8150–8153: X; 8152–8153: Y (16-bit LE per Goodix / esp_lcd_touch_gt911)
-  uint16_t xi = (uint16_t)buf[1] | ((uint16_t)buf[2] << 8);
-  uint16_t yi = (uint16_t)buf[3] | ((uint16_t)buf[4] << 8);
-  *x = (int16_t)xi;
-  *y = (int16_t)yi;
-  *down = true;
+  *x = (int16_t)((uint16_t)buf[1] | ((uint16_t)buf[2] << 8));
+  *y = (int16_t)((uint16_t)buf[3] | ((uint16_t)buf[4] << 8));
   wire_write8(s_addr, 0x814E, 0);
-  return true;
+  return Raw::Down;
 }
 
-static bool sample_finger(int16_t *x, int16_t *y, bool *down) {
+static Raw read_raw(int16_t *x, int16_t *y) {
   if (s_chip == P4TouchChip::Gt911) {
-    return gt911_read_points(x, y, down);
+    return gt911_read_points(x, y);
   }
   if (s_chip == P4TouchChip::Cst816) {
-    return cst816_read(x, y, down);
+    bool d = false;
+    if (!cst816_read(x, y, &d)) {
+      return Raw::Error;
+    }
+    return d ? Raw::Down : Raw::Up;
   }
-  *down = false;
-  return false;
+  return Raw::Up;
 }
+
+// Debounced finger state. A lift only counts after the controller has said "up" for kReleaseMs (a
+// single stray "up" mid-drag would otherwise become a tap), and reads with no news or I2C errors
+// keep the last state. If a finger is down but the controller goes quiet for kStaleMs, assume the
+// release report was lost.
+static constexpr uint32_t kReleaseMs = 40;
+static constexpr uint32_t kStaleMs = 300;
+static bool s_down = false;
+static int16_t s_x = 0, s_y = 0;
+static uint32_t s_up_since = 0;    // first "up" report of a pending release (0 = none)
+static uint32_t s_last_news = 0;   // last Down/Up report
+static P4TouchStats s_stats{};
+
+static bool sample_finger(int16_t *x, int16_t *y, bool *down) {
+  int16_t rx = 0, ry = 0;
+  const Raw r = read_raw(&rx, &ry);
+  const uint32_t now = millis();
+  switch (r) {
+    case Raw::Down:
+      s_last_news = now;
+      if (s_up_since) {
+        s_stats.glitches_ignored++;  // lifted briefly and came back: not a release
+      }
+      s_up_since = 0;
+      s_down = true;
+      s_x = rx;
+      s_y = ry;
+      break;
+    case Raw::Up:
+      s_last_news = now;
+      if (s_down) {
+        if (!s_up_since) {
+          s_up_since = now;
+        } else if (now - s_up_since >= kReleaseMs) {
+          s_down = false;
+          s_up_since = 0;
+        }
+      }
+      break;
+    case Raw::NoNews:
+      s_stats.no_news++;
+      if (s_down && s_up_since && now - s_up_since >= kReleaseMs) {
+        s_down = false;
+        s_up_since = 0;
+      }
+      break;
+    case Raw::Error:
+      s_stats.errors++;
+      break;
+  }
+  if (s_down && now - s_last_news >= kStaleMs) {
+    s_down = false;  // lost release report
+    s_up_since = 0;
+  }
+  s_stats.reads++;
+  *x = s_x;
+  *y = s_y;
+  *down = s_down;
+  return r != Raw::Error;
+}
+
+P4TouchStats p4_touch_stats() { return s_stats; }
 
 void p4_touch_begin(int sda, int scl) {
   Wire.begin(sda, scl);
@@ -144,6 +205,7 @@ void p4_touch_begin(int sda, int scl) {
     }
   }
   s_was_down = false;
+  Serial.printf("[touch] %s\n", s_chip == P4TouchChip::Gt911 ? "GT911" : (s_chip == P4TouchChip::Cst816 ? "CST816" : "none"));
 }
 
 bool p4_touch_finger_down() {
@@ -202,5 +264,7 @@ bool p4_touch_poll_release(int16_t *x, int16_t *y) {
   (void)y;
   return false;
 }
+
+P4TouchStats p4_touch_stats() { return P4TouchStats{}; }
 
 #endif
