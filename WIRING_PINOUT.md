@@ -144,7 +144,9 @@ Use **`arduino/sketches/esp32_audio_bridge/esp32_audio_bridge.ino`** (or `firmwa
 Optional: connect ESP32-D to the **cluster** bus (**47/48**) as slave **0x3E** to mirror the global **theme** byte in NVS (see firmware).
 
 **I2S amplifier** (MAX98357A, `esp32dev_external_i2s` build): DIN = **GPIO27**, BCLK = **GPIO14**, LRC = **GPIO25**, VIN = 5 V,
-GND. GAIN can float (9 dB). On the DigiDash board this is **J14**. The DevKit's own 3V3 pin must not be tied to the
+GND. GAIN can float (9 dB). On the DigiDash board: **J14** (Amp L) and **J15** (Amp R), 7-pin sockets in the
+Adafruit breakout order LRC, BCLK, DIN, GAIN, SD, GND, Vin. Each amp is mono; SD selects the channel: JP1 closed puts
+J14 on the left channel (open = L+R mix, for a single speaker); R25 (680 kΩ) puts J15 on the right. The DevKit's own 3V3 pin must not be tied to the
 center's 3V3 (two regulators); it runs from its 5V pin.
 
 ---

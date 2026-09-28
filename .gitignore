@@ -27,3 +27,6 @@ fp-info-cache
 *-backups/
 *.kicad_prl
 temp-freerouting.dsn
+
+# KiCad autosave files
+_autosave-*
