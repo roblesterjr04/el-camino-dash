@@ -156,7 +156,10 @@ AnalogAudioStream audio_output;
 #else
 I2SStream audio_output;
 #endif
-BluetoothA2DPSink a2dp_sink(audio_output);
+/* Created in setup(), not as a global: its constructor allocates through audio-tools' global
+ * allocator, which lives in another file and may not be constructed yet (static init order) — the
+ * global version crashed at boot with LoadProhibited in Allocator::allocate. */
+static BluetoothA2DPSink *a2dp_sink = nullptr;
 
 static void rebuild_track_line() {
   s_meta_artist[kMaxTrackLen] = '\0';
@@ -444,18 +447,19 @@ void setup() {
   Wire1.onReceive(on_cluster_theme_receive);
 #endif
 
-  a2dp_sink.set_avrc_metadata_attribute_mask(
+  a2dp_sink = new BluetoothA2DPSink(audio_output);
+  a2dp_sink->set_avrc_metadata_attribute_mask(
       ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM |
       ESP_AVRC_MD_ATTR_TRACK_NUM | ESP_AVRC_MD_ATTR_NUM_TRACKS | ESP_AVRC_MD_ATTR_GENRE |
       ESP_AVRC_MD_ATTR_PLAYING_TIME);
-  a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
-  a2dp_sink.set_avrc_rn_playstatus_callback(avrc_play_status_cb);
+  a2dp_sink->set_avrc_metadata_callback(avrc_metadata_callback);
+  a2dp_sink->set_avrc_rn_playstatus_callback(avrc_play_status_cb);
   /* Default in library was 10s between position notifications — too coarse for a dash. */
-  a2dp_sink.set_avrc_rn_play_pos_callback(avrc_play_pos_cb, 1);
-  a2dp_sink.set_avrc_rn_volumechange(avrc_volume_cb);
-  a2dp_sink.set_on_connection_state_changed(a2dp_connection_cb);
-  a2dp_sink.set_auto_reconnect(true);
-  a2dp_sink.start(BT_DEVICE_NAME);
+  a2dp_sink->set_avrc_rn_play_pos_callback(avrc_play_pos_cb, 1);
+  a2dp_sink->set_avrc_rn_volumechange(avrc_volume_cb);
+  a2dp_sink->set_on_connection_state_changed(a2dp_connection_cb);
+  a2dp_sink->set_auto_reconnect(true);
+  a2dp_sink->start(BT_DEVICE_NAME);
 
   Serial.print(F("BT name: "));
   Serial.println(BT_DEVICE_NAME);
@@ -472,8 +476,16 @@ void setup() {
 }
 
 void loop() {
+  // The AVRCP play-status notification only fires on a change, so after a reboot mid-song it never
+  // comes. The A2DP stream itself is the reliable signal: audio flowing = playing.
+  const bool streaming = a2dp_sink && a2dp_sink->get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED;
   // Keep the elapsed estimate in the reply buffer moving between AVRCP events.
   portENTER_CRITICAL(&s_track_mux);
+  if (streaming != s_playing) {
+    apply_elapsed_estimate_unlocked();
+    s_playing = streaming;
+    anchor_position_unlocked(s_elapsed_s);
+  }
   rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 #if AUDIO_BRIDGE_SERIAL_METADATA
