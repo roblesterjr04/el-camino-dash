@@ -1,9 +1,0 @@
-{
-  "name": "classic 1 rect",
-  "extends": "classic_1",
-  "display_overrides": {
-    "_all": {
-      "shape": "round"
-    }
-  }
-}

@@ -1,8 +1,0 @@
-[Plymouth Theme]
-Name=chevy
-Description=El Camino Chevy boot splash
-ModuleName=script
-
-[script]
-ImageDir=/usr/share/plymouth/themes/chevy
-ScriptFile=/usr/share/plymouth/themes/chevy/chevy.script
