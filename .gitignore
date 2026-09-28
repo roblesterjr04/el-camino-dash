@@ -1,9 +1,19 @@
-/work
-/build-artifacts
-/keys/pi_authorized_key.pub
-/tmp
-/firmware/esp32_p4_tsps/.venv
-/firmware/esp32_p4_tsps/.venv-assets
-/firmware/esp32_p4_tsps/.pio
-/.venv-tsps-assets
-/.venv-assets
+# Build output
+.pio/
+build/
+*.bin
+*.elf
+*.map
+
+# Python environments / caches (asset scripts, flash helpers)
+.venv*/
+__pycache__/
+*.pyc
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local secrets
+/keys/
