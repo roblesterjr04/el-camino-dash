@@ -5,7 +5,7 @@
 This document covers only:
 
 - **Sensor pack** (ATmega328P, `arduino/sketches/sensor_pack/sensor_pack.ino`)
-- **Encoder controller** (RP2040 Pico `encoder_controller.ino`, or legacy ATmega328P)
+- **Encoder controller** (RP2040 Pico `encoder_controller.ino`, or legacy ATmega328P). **Not yet connected to any ESP32 firmware.**
 - **ESP32-P4** round displays ×3 (speedo, center, TSPS)
 - **ESP32-D** (classic Bluetooth audio + AVRCP metadata)
 
@@ -17,9 +17,15 @@ Logic is **3.3 V** unless noted (sensor ATmega may run at **5 V**; level-shift t
 
 **UART** to the vehicle: **115200 8N1**, binary frames per [`sensor_packet.h`](firmware/esp32_p4_common/include/sensor_packet.h) / `sensor_pack.ino`.
 
-**Fan-out to gauges:** One **TX** from the sensor MCU may drive **three ESP32-P4 UART RX** in parallel (speedo, center, TSPS). **3.3 V**, common **GND**. Do not tie multiple ESP **TX** lines onto the same sensor **RX** without a designed combiner.
+**Fan-out to gauges:** One **TX** from the sensor MCU may drive **three ESP32-P4 UART RX** in parallel (speedo, center, TSPS). **3.3 V**, common **GND**.
 
-Default ESP32 UART (PlatformIO): **RX = GPIO5**, **TX = GPIO4** (sensor handshake / keepalive).
+**Return path:** wire only the **center's** GPIO4 (TX) to the sensor MCU RX. The center is the only board that sends the 0xA5 keepalive (`SENSOR_LINK_KEEPALIVE=1`); speedo and TSPS never write to the UART.
+
+Default ESP32 UART (PlatformIO): **RX = GPIO5**, **TX = GPIO4**.
+
+**Level shifting:** a 5 V ATmega TX into 3.3 V ESP32 RX needs a divider or level shifter.
+
+**D11 (demo mode):** HIGH makes the sensor pack send a slow fake sweep instead of real data. It is a plain input with no pull resistor — tie it to GND in the vehicle harness (or fit a pull-down); strap HIGH only on the bench.
 
 Analog and digital pin map, thermistor math, and fault behavior: see comments and tables in `arduino/sketches/sensor_pack/sensor_pack.ino`.
 
@@ -63,6 +69,15 @@ OLED: SSD1322 256×64 (see sketch for U8g2 profile and `ELC_OLED_*` overrides).
 
 - **115200 8N1**, **RX = GPIO5**, **TX = GPIO4** (defaults).
 - Connects to **sensor_pack** TX (and optional return path per harness design).
+
+### Center-only peripherals
+
+| Function | GPIO | Notes |
+| -------- | ---- | ----- |
+| GPS NMEA RX (GPS TX →) | 2 | UART2, 9600 8N1 (NEO-6M default; `GPS_UART_BAUD`) |
+| GPS TX (→ GPS RX) | 3 | optional |
+| Backlight PWM (3.4C) | 26 | `TSPS_BACKLIGHT_PIN`, active-low |
+| TF card (SDIO, 3.4C) | 39–44 | on-board slot: `/sdcard/elcamino/settings.json` |
 
 ### Display / local I2C (per board)
 

@@ -1,6 +1,6 @@
 # ESP32-P4 gauge firmware (Pi-less / vehicle displays)
 
-This tree is **firmware-first** for round MIPI displays: **sensor_pack** UART (`arduino/sketches/sensor_pack/sensor_pack.ino`) feeds one or more ESP32-P4 boards. The Python HDMI dashboard under `src/dashboard/` remains for bench/development; it is not required for the three-display ESP32 layout.
+Firmware for the three round MIPI displays: the **sensor_pack** UART (`arduino/sketches/sensor_pack/sensor_pack.ino`) feeds all three ESP32-P4 boards. Wire formats are in [`docs/protocols/`](../docs/protocols/).
 
 ## Themes and gestures (Classic + Fallout)
 
@@ -31,7 +31,7 @@ Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
 
 | Directory | Role |
 |-----------|------|
-| `esp32_p4_common/` | Shared **library**: `sensor_packet`, MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `el_camino_speed.h` (wheel → MPH). |
+| `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, "NO DATA" stamp), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
 | `esp32_p4_ui/` | Shared **touch + modal overlays**: `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), `P4OverlayMenu`. |
 | `esp32_p4_speedo/` | **LEFT**: speedometer (MPH from Hall `speed_rpm` + wheel constants). |
 | `esp32_p4_center/` | **MIDDLE**: Classic tach / clock / media + Fallout screen; long-press gestures; I2C cluster master. |
@@ -62,7 +62,13 @@ See each `platformio.ini` for env names and asset regeneration commands.
 
 ## UART wiring
 
-**sensor_pack TX** → **all three ESP32 UART RX** in parallel (same 115200 8N1 stream). See [WIRING_PINOUT.md](../WIRING_PINOUT.md) for the full vehicle harness (sensor pack, encoder, three P4 displays, ESP32-D).
+**sensor_pack TX** → **all three ESP32 UART RX** in parallel (same 115200 8N1 stream). Only the **center** sends the 0xA5 keepalive back (its GPIO 4 → sensor RX); speedo and TSPS never transmit. See [WIRING_PINOUT.md](../WIRING_PINOUT.md) for the full vehicle harness.
+
+## Runtime behavior
+
+- **Stale data:** no frame for 400 ms → gauges dim at rest with a red **NO DATA** stamp; odometer shows dashes.
+- **Watchdog:** each display reboots if `loop()` stalls for 8 s. Anything slow (HTTPS lookups, Wi-Fi joins) runs asynchronously on the center.
+- **Theme sync:** the center rebroadcasts theme/sub-view every 5 s.
 
 ## Fallout asset export (optional bitmaps)
 

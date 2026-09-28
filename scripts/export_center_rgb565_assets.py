@@ -8,7 +8,6 @@ Outputs:
 Search order for each PNG (first match wins):
   1. assets/gauges/classic_1/  (classic_1 clock quadrant, silver dial, needle, tach)
   2. assets/gauges/classic_2_rect/
-  3. themes/classic_2/
 
 Required: tach_base.png somewhere in the search path.
 Optional clock bundle: needle.png, clock-dial-cover.png, clock-face.png
@@ -35,7 +34,6 @@ except ImportError as e:  # pragma: no cover
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ASSET_CLASSIC1 = ROOT / "assets" / "gauges" / "classic_1"
 ASSET_DIR = ROOT / "assets" / "gauges" / "classic_2_rect"
-THEME_CLASSIC2 = ROOT / "themes" / "classic_2"
 DIAL_FILE = "tach_base.png"
 NEEDLE_FILE = "needle.png"
 MUSIC_BASE_FILE = "music_base.png"
@@ -53,7 +51,6 @@ DEFAULT_EDGE = 480
 SEARCH_DIRS = (
     ASSET_CLASSIC1,
     ASSET_DIR,
-    THEME_CLASSIC2,
 )
 
 
@@ -186,7 +183,7 @@ def export_tach_header(out_h: pathlib.Path, edge: int) -> None:
     p = resolve_png(DIAL_FILE)
     if p is None:
         raise SystemExit(
-            f"Missing {DIAL_FILE} under {ASSET_DIR} or {THEME_CLASSIC2} "
+            f"Missing {DIAL_FILE} under {ASSET_CLASSIC1} or {ASSET_DIR} "
             "(copy from your theme pack or sync assets/gauges/classic_2_rect)."
         )
 
@@ -204,7 +201,7 @@ def export_music_assets(out_h: pathlib.Path, edge: int) -> None:
     needle_p = resolve_png(NEEDLE_FILE)
     if base_p is None:
         raise SystemExit(
-            f"Missing {MUSIC_BASE_FILE} under assets/gauges/classic_1 (or classic_2_rect / themes/classic_2)."
+            f"Missing {MUSIC_BASE_FILE} under assets/gauges/classic_1 (or classic_2_rect)."
         )
     if needle_p is None:
         raise SystemExit(f"Missing {NEEDLE_FILE} for music needle (same search path as tach/clock).")

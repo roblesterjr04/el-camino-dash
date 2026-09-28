@@ -13,14 +13,12 @@ Arduino assets and tooling for the El Camino Dash project live here.
 - `arduino/scripts/upload_esp32_sketch.sh` — compile + upload any ESP32 sketch over **native USB** (default FQBN `esp32:esp32:esp32s3`).
 - `arduino/scripts/upload_rp2040_sketch.sh` — compile + upload any RP2040 sketch over **native USB** (default FQBN **`rp2040:rp2040:rpipico`**, Earle Philhower core).
 - `arduino/scripts/deploy_encoder_icsp.sh` — compatibility wrapper for `encoder_controller` that now targets Pi Pico USB upload.
-- `arduino/scripts/deploy_attiny_usbisp.sh` — ATtiny **power_control** via **usbtinyisp** (forwards to `program_power_control_attiny.sh`).
 - `arduino/scripts/deploy_esp32_audio_usb.sh` — **esp32_audio_bridge** over USB.
-- `arduino/scripts/program_power_control_attiny.sh` — build + flash ATtiny power controller (avr-g++ + avrdude; Pi SPI, USBasp, Arduino-as-ISP, etc.).
 - `arduino/scripts/sh_common.inc.sh` — shared helpers (core install check, serial port auto-detect).
 - `arduino/scripts/detect_serial_port.py` — used when upload scripts omit the port.
-- `arduino/scripts/monitor_sensor_pack.py` — decode binary packets from the sensor pack.
+- `arduino/scripts/monitor_sensor_pack.py` — live decoder for the sensor pack UART (v4 frames + text lines).
 
-**Sensor pack ↔ Pi:** shipping dashboard configs use **`inputs.arduino_serial`** (UART binary from `sensor_pack.ino` on **Pi UART1**). The **ATmega328P sensor MCU is not on I2C to the Pi** in those builds (5V logic; no Pi↔sensor-pack I2C without level shifters). Optional **`inputs.sensor_pack_i2c`** exists for legacy 3.3V I2C-slave bench setups only.
+The sensor pack streams binary frames over UART to the three ESP32-P4 displays; the format is in [`docs/protocols/sensor_uart.md`](../docs/protocols/sensor_uart.md).
 
 ## Quick Start (macOS + Homebrew)
 
@@ -82,28 +80,13 @@ bash arduino/scripts/upload_avr_sketch.sh encoder_controller usb arduino:avr:uno
 
 Programmer IDs match what **avrdude** / Arduino expect (e.g. `usbtinyisp`, `usbasp`, `stk500v2`). Use `arduino-cli upload --help` and your programmer’s docs.
 
-## ATtiny power control (ICSP)
-
-Default **USBtinyISP**:
-
-```bash
-bash arduino/scripts/deploy_attiny_usbisp.sh
-```
-
-Other programmers and wiring:
-
-```bash
-bash arduino/scripts/program_power_control_attiny.sh --wiring
-bash arduino/scripts/program_power_control_attiny.sh --programmer usbtinyisp --bitclock 50
-```
-
 ## ESP32 over native USB
 
 Generic uploads default to **ESP32-S3** (`esp32:esp32:esp32s3`) in `upload_esp32_sketch.sh` when you omit `--fqbn`.
 
 **esp32_audio_bridge** is different: it uses **Bluetooth Classic A2DP + AVRCP**, which requires a **classic ESP32** (`esp32:esp32:esp32`), not ESP32-S3 / C3 / S2 (those do not support BR/EDR audio). Install **ESP32-A2DP** and **arduino-audio-tools** via `install_arduino_cli.sh` (git URLs).
 
-Flash **esp32_audio_bridge** (I2C + BT media hub for `Esp32AudioLink` on the Pi). With no arguments, auto-selects a serial port and uses `esp32:esp32:esp32`:
+Flash **esp32_audio_bridge** (BT media hub; the center display reads now-playing over I2C 0x2A). With no arguments, auto-selects a serial port and uses `esp32:esp32:esp32`. The pinned PlatformIO build in `firmware/esp32_classic_bt_audio` is preferred:
 
 ```bash
 bash arduino/scripts/deploy_esp32_audio_usb.sh

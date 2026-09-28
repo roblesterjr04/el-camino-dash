@@ -1,4 +1,6 @@
-# Nano UART Protocol
+# Encoder controller UART (Nano / Pico)
+
+> **Status:** this protocol was written for the shelved Raspberry Pi dashboard, and the Pi-side sections below (YAML keys, `/dev/ttyAMA4`, `NanoBridge`) no longer exist. The encoder firmware (`arduino/sketches/encoder_controller`) still speaks it. Nothing in `firmware/` consumes it yet; the likely host is a spare UART on the center ESP32-P4. The frame formats below still describe what the encoder sends and accepts.
 
 The Pi and encoder ATmega328P exchange newline-delimited UTF-8 frames on the **serial device configured in YAML** (vehicle install: **UART4**, e.g. `/dev/ttyAMA4` — not necessarily the primary `/dev/serial0`). Baud **115200** unless you change both sides.
 

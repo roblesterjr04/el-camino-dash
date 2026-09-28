@@ -17,3 +17,6 @@ __pycache__/
 
 # Local secrets
 /keys/
+
+# PlatformIO .ino → .cpp conversion (temporary during builds)
+*.ino.cpp

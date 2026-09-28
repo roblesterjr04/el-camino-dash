@@ -1,248 +1,74 @@
-# El Camino Dash (Pygame)
+# El Camino Dash
 
-Config-first multi-screen dashboard scaffold for Raspberry Pi.
+Digital gauge cluster for a 1964 El Camino: three round MIPI-DSI displays driven by ESP32-P4 boards, fed by an ATmega328P sensor pack, with a classic-ESP32 Bluetooth audio bridge.
 
-## What this scaffold includes
+The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git tag `pi-pygame-final`.
 
-- 3 display definitions driven by external YAML:
-  - 2x round `1080x1080`
-  - 1x round `720x720`
-- Marlin-style single master config: `config/dashboard.yaml`
-- Sensor adapters:
-  - Rotary encoder (GPIO)
-  - Analog ADC inputs (MCP3008 via SPI)
-  - Speed pulse sensor (GPIO edge counting)
-  - Keyboard simulation controls for development
-- Theme and gauge sprite support with procedural fallback rendering
-- Navit/media/Bluetooth metadata integration adapters
-- Image-first Raspberry Pi provisioning with `rpi-image-gen` + fast deploy sync script
+## System
 
-## Run locally (dev simulation)
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-PYTHONPATH=src DISPLAY_MODE=hardware python src/main.py --config config/dashboard.dev.yaml
+```
+ vehicle senders ──► sensor_pack (ATmega328P) ── UART 115200, 36-byte frames ──┬──► speedo  (ESP32-P4, left)
+ (fuel, temp, oil,      │  FRAM (MB85RC @0x50):                                 ├──► center  (ESP32-P4, middle)
+  hall, coil, IGN, ALT) │  odometer, A/B slots                                  └──► TSPS    (ESP32-P4, right)
+                                                                                        ▲  ▲
+ GPS (NEO-6M, NMEA 9600) ─────────────────────────────────── UART2 ─────────────── center │
+ phone ── A2DP/AVRCP ──► ESP32-D audio bridge ── I2C 0x2A (display bus) ───────── center  │
+                                               center ── cluster I2C (theme) ──► speedo 0x3C, TSPS 0x3D, ESP32-D 0x3E
+ encoder controller (RP2040: knobs, IR, SSD1322 OLED) ── UART ──► (not yet connected to an ESP32 — see Status)
 ```
 
-Keyboard simulation mappings are defined in `inputs.keyboard_sim.mappings` inside config.
-`bash scripts/run_sim.sh` still defaults to `config/dashboard.dev.yaml` for a single-window local run.
+- **sensor_pack** is the source of truth for all readings and the odometer. One TX fans out to all three displays; only the center sends the 0xA5 keepalive back.
+- **center** also owns GPS time/location, Wi-Fi (NTP, street name, time zone), touch menu, BLE, SD settings, and theme sync to the other two displays.
+- If sensor data stops arriving for 400 ms, the gauges dim and show **NO DATA** instead of reading zero.
 
-### Hardware X11 launcher
+## Repository
 
-```bash
-bash scripts/run_hw.sh config/dashboard.vehicle.yaml
-```
+| Path | What |
+| --- | --- |
+| `firmware/esp32_p4_speedo`, `_center`, `_tsps` | Display apps (PlatformIO, Arduino framework) |
+| `firmware/esp32_p4_common` | Shared library: sensor UART (`SensorLink`), display setup, cluster I2C, watchdog, boot splash. Host tests in `test/host/` |
+| `firmware/esp32_p4_ui` | Touch + overlay menu |
+| `firmware/esp32_classic_bt_audio` | PlatformIO wrapper that builds `arduino/sketches/esp32_audio_bridge` |
+| `firmware/esp32_p4_display_litmus` | Panel bring-up test |
+| `arduino/sketches/sensor_pack` | ATmega328P sensor + odometer firmware |
+| `arduino/sketches/encoder_controller` | RP2040 knobs / IR / OLED |
+| `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |
+| `scripts/export_*_rgb565_assets.py` | Regenerate the `*_gen.h` image headers from `assets/` |
+| `docs/protocols` | Wire formats: sensor UART, cluster/audio I2C, encoder UART |
+| `WIRING_PINOUT.md` | Vehicle harness |
 
-This runs through the same environment bootstrap as `run_sim.sh`, but forces `DISPLAY_MODE=hardware` for X11 desktop sessions.
+## Build and flash
 
-### Display mode selection
-
-`src/main.py` supports these modes via `--display-mode` or `DISPLAY_MODE`:
-
-- `hardware`: requires `DISPLAY` to be present (recommended default on Pi).
-- `auto`: uses `DISPLAY` if present; otherwise exits with guidance.
-
-Headless operation can be forced with `--headless` or `HEADLESS=1` (used for SPI panel output/service mode).
-
-Render topology can be selected via `--render-mode` or `DISPLAY_RENDER_MODE`:
-
-- `single_window`: current compositor behavior (all logical displays in one OS window).
-- `multi_window`: one OS window per configured display (X11-oriented).
-
-## Config model
-
-All configurable values are externalized in `config/dashboard.yaml`:
-
-- `system`: app mode, fps, title
-  - `system.left_to_right_preview` places all displays in a single left-to-right row for simulation
-  - `system.left_to_right_spacing_px` controls spacing between simulated displays
-  - `system.menu_schema_path` points to menu definition YAML for the overlay menu
-  - `system.menu_display_id` selects which display receives knob-driven menu overlays
-- `displays`: shape/resolution/layout/fps/role per screen
-  - Optional per-display window mapping keys:
-    - `monitor_index` (explicit X11 display index target for multi-window mode)
-    - `windowed` / `fullscreen` (window policy for multi-window mode)
-- `themes`: active theme, asset roots, fallback policy
-  - `display_overrides` in a theme can override `displays` entries by display `id` (applied automatically when that theme is active)
-- `gauges`: source mapping + min/max + smoothing
-- `inputs`: rotary, analog ADC, speed sensors, keyboard simulation
-  - `inputs.simulated_data.enabled` toggles continuous synthetic telemetry for gauge motion
-  - `inputs.rotary_encoders` supports multiple encoders (menu + aux)
-  - `inputs.keyboard_sim.rotate_repeat_ms` controls keyboard rotary sensitivity
-  - `inputs.ir_remote` supports Linux IR key events via `evdev` with profile mappings in `config/remotes/*.yaml`
-- `integrations`: Navit/media/Bluetooth feature toggles + settings
-  - Optional `integrations.bluetooth_audio` can auto-connect a BT device and route PulseAudio output to it
-  - `integrations.fm_radio.chip` selects FM frontend (`si4703` current strategy, `si4737` legacy)
-  - `integrations.audio_router` controls PT2314 source selection between Pi DAC and FM feed
-
-The app validates config strictly at startup and exits on schema/key/type errors.
-
-### IR remote profiles
-
-- Profile file example: `config/remotes/remote_1.yaml`
-- Select profile in dashboard config:
-  - `inputs.ir_remote.profile_path: config/remotes/remote_1.yaml`
-- Set either `inputs.ir_remote.device_path` (for example `/dev/input/event2`) or `inputs.ir_remote.device_name`
-- Optional protocol lock (recommended for NEC remotes on Pi):
-  - `inputs.ir_remote.protocol: nec`
-  - `inputs.ir_remote.rc_device: rc0`
-  - `inputs.ir_remote.apply_protocol: true`
-- Preferred profile format uses `remote.controls` (action -> `KEY_*`), with empty values for unmapped controls
-- Profiles can also map raw scancodes directly with `remote.scancodes` (`0x...` -> action)
-- Diagnostics monitor trigger:
-  - 10 quick identical pulses opens IR diagnostics (`inputs.ir_remote.diagnostics_*` controls threshold/timing)
-- Action names supported in profile mappings:
-  - `menu_left`, `menu_right`, `menu_press`, `aux_left`, `aux_right`, `aux_press`
-  - `volume_up`, `volume_down`, `theme_next`, `map_toggle`, `center_toggle`, `tune_up`, `tune_down`
-
-`config/dashboard.dev.yaml` keeps `display_render_mode: single_window` for local development.
-`config/dashboard.vehicle.yaml` includes `display_render_mode: multi_window` with explicit `monitor_index` examples.
-`config/dashboard.spi.yaml` is kept for legacy/reference SPI setups (currently dormant in installer flow).
-`config/dashboard.hdmi5.yaml` targets a single 5" 800x480 HDMI rectangle display.
-`WIRING_PINOUT.md` documents current Pi/Arduino/MCP23017/ATtiny pin assignments.
-
-## HDMI 5" run helper
-
-For manual testing in an interactive Pi desktop session:
+Display boards (pick the env that matches the panel: `-waveshare3c4` = 3.4" 800×800, `-waveshare4c` = 4" 720×720):
 
 ```bash
-DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority bash scripts/run_hw.sh config/dashboard.hdmi5.yaml
+cd firmware/esp32_p4_center
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+./flash.sh -e esp32-p4-center-waveshare3c4 --upload-port /dev/cu.usbmodem…
 ```
 
-## Knob-driven overlay menu
+Or build only: `pio run -e esp32-p4-center-waveshare3c4`. Platform and library versions are pinned in each `platformio.ini`.
 
-- Menu schema file: `config/menu_schema.yaml`
-- Supported row types: `action`, `toggle`, `range`, `submenu`, `info`
-- Home-page submenu items render as icon tokens in a horizontal carousel
-- Rotary behavior:
-  - first press: open full-screen menu overlay on `system.menu_display_id`
-  - turn: move through carousel items or list rows
-  - press on range: enter/exit adjust mode
-  - turn in adjust mode: change value
-  - press on action: execute command
-- `apply_mode: immediate` applies config changes right away
-- `apply_mode: staged` marks unsaved edits; use **Save Config** menu action to persist
-- UI includes highlighted selections and list rendering for submenu pages
-
-## Sprite drop-in layout
-
-Place optional sprite files here:
-
-- `assets/gauges/<theme_name>/<gauge_id>/dial.png`
-- `assets/gauges/<theme_name>/<gauge_id>/needle.png`
-- `assets/gauges/<theme_name>/<gauge_id>/overlay.png`
-
-If any file is missing, that specific layer falls back to procedural drawing.
-If theme files are missing, gauges still render with fallback visuals.
-
-Theme files can also override needle mapping and calibration visually per gauge:
-
-- `gauge_visuals.<gauge_id>.visual_min` / `visual_max` (needle sweep bounds)
-- `gauge_visuals.<gauge_id>.angle_min_deg` / `angle_max_deg` (physical needle start/end angles)
-- `gauge_visuals.<gauge_id>.calibration.scale` / `offset` (value correction)
-
-This lets each theme tune visual ranges without changing global gauge config.
-
-Themes can also override display layout/shape/resolution by display id:
-
-- `display_overrides._all` (optional defaults for all displays)
-- `display_overrides.<display_id>` (per-display override, e.g. `width`, `height`, `position`, `enabled`, `shape`, `fps`, `role`, `gauge_id`)
-
-Theme files can define indicator lights per gauge with on/off sprites:
-
-- `indicator_elements.<gauge_id>[]`
-  - `source`: value key in runtime map (for example `analog_inputs.fuel_level`)
-  - `on_condition.operator`: one of `>`, `>=`, `<`, `<=`, `==`, `!=`
-  - `on_condition.value`: threshold target for the operator
-  - `on_sprite` / `off_sprite`: sprite filenames in `assets/gauges/<theme>/`
-  - `show_when_off`: if `false`, indicator is hidden when off
-  - `center_ratio`: `[x, y]` placement in gauge local coordinates
-  - `size_ratio`: icon size relative to gauge size
-
-## Raspberry Pi scripts
-
-Provisioning is image-first. Build an image using the in-repo image project:
-
-```bash
-bash scripts/build_image.sh --docker
-```
-
-Image config and hooks live under `image/el-camino-dash/`.
-`scripts/build_image.sh` supports Docker, remote SSH builder, and local Linux modes.
-
-For day-to-day code updates on a provisioned Pi, deploy directly to `/opt/el-camino-dash`:
-
-```bash
-bash scripts/deploy_to_pi.sh pi@<host>
-```
-
-Optional dependency refresh:
-
-```bash
-bash scripts/deploy_to_pi.sh pi@<host> --with-pip
-```
-
-Install or refresh tracked runtime services when needed:
-
-```bash
-sudo bash scripts/install_runtime_services.sh
-```
-
-Image-era verification:
-
-```bash
-bash scripts/verify_install.sh
-```
-
-## Arduino sketches and flashing
-
-Arduino firmware and helper tooling now live under `arduino/`.
-
-- Entry point docs: `arduino/README.md`
-- First sketch: `arduino/sketches/sensor_pack/sensor_pack.ino`
-- CLI setup script (Homebrew): `arduino/scripts/install_arduino_cli.sh`
-- Compile helper: `arduino/scripts/compile_sensor_pack.sh`
-- Upload helper: `arduino/scripts/upload_sensor_pack.sh`
-
-Quick start:
+Sensor pack (ATmega328P):
 
 ```bash
 bash arduino/scripts/install_arduino_cli.sh
-bash arduino/scripts/compile_sensor_pack.sh
 bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
+python3 arduino/scripts/monitor_sensor_pack.py --port /dev/cu.usbmodem101
 ```
 
-## Troubleshooting
+BT audio bridge (classic ESP32 only): `cd firmware/esp32_classic_bt_audio && pio run -e esp32dev -t upload`.
 
-- Service status: `systemctl status gauge-cluster-hdmi.service`
-- Service logs: `journalctl -u gauge-cluster-hdmi.service -f`
-- Hardware X11 run helper: `bash scripts/run_hw.sh config/dashboard.vehicle.yaml`
-- HDMI 5" run helper:
-  - `DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority bash scripts/run_hw.sh config/dashboard.hdmi5.yaml`
-- Legacy SPI config run helper (dormant path):
-  - `HEADLESS=1 SDL_VIDEODRIVER=dummy PYTHONPATH=src .venv/bin/python src/main.py --config config/dashboard.spi.yaml --render-mode spi --headless`
-- HDMI service status: `systemctl status gauge-cluster-hdmi.service`
-- HDMI service logs: `journalctl -u gauge-cluster-hdmi.service -f`
-- IR raw pulse monitor: `sudo mode2 -d /dev/lirc0`
-- IR decode monitor: `sudo ir-keytable -s rc0 -p nec -t`
-- Verify install for Pi hardware mode:
-  - `bash scripts/verify_install.sh --target pi --display-mode hardware`
-- Validate config manually:
-  - `PYTHONPATH=src .venv/bin/python -c "from dashboard.config import load_dashboard_config; load_dashboard_config('config/dashboard.yaml')"`
+**The sensor pack and the three displays must be flashed together** when the wire format changes (see `docs/protocols/sensor_uart.md`).
 
-## Bluetooth audio
+## Tests
 
-Bluetooth audio routing is configured in `integrations.bluetooth_audio`:
+```bash
+firmware/esp32_p4_common/test/host/run_tests.sh   # sensor UART parser, runs on the host with ASan/UBSan
+```
 
-- `enabled`: turns Bluetooth audio management on/off
-- `device_mac`: target device MAC (`AA:BB:CC:DD:EE:FF`)
-- `auto_connect`: connect automatically at app start
-- `pair_on_connect`: attempt pairing during connect flow
-- `trust_device`: mark device trusted before connect
-- `set_default_sink`: set PulseAudio default sink to the BT sink
-- `sink_name`: optional explicit PulseAudio sink name (auto-discovered from MAC when empty)
-- `refresh_interval_s`: reconnect/status poll interval
+## Status / open items
 
-The app also exposes command `bluetooth_audio.reconnect` for manual reconnect from menu actions.
+- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`); it needs a host (likely a spare UART on the center) and a decision on what the knobs and OLED do.
+- **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
+- **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.
