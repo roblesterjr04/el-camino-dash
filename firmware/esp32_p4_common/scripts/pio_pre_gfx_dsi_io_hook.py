@@ -21,9 +21,13 @@ def apply_dsi_panel_io_hook(libdeps: Path) -> None:
         if needle_lf not in normalized:
             print("pre: WARN DSI io hook: pattern missing in %s (skip)" % cpp)
             continue
-        inc = "#include <esp_lcd_panel_io.h>\n"
-        if inc not in normalized:
-            print("pre: WARN DSI io hook: include not found in %s (skip)" % cpp)
+        # GFX <= 1.6.x included esp_lcd_panel_io.h directly; 1.6.5 gets it via its own header.
+        inc = next(
+            (i for i in ("#include <esp_lcd_panel_io.h>\n", '#include "Arduino_ESP32DSIPanel.h"\n') if i in normalized),
+            None,
+        )
+        if inc is None:
+            print("pre: WARN DSI io hook: no include anchor in %s (skip)" % cpp)
             continue
         normalized = normalized.replace(
             inc,
