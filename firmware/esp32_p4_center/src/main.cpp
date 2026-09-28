@@ -48,15 +48,21 @@ static SensorLink s_link;
 static int16_t s_inject_x = 0;
 static int16_t s_inject_y = 0;
 static uint32_t s_inject_until_ms = 0;
+static uint32_t s_inject_start_ms = 0;
+static int16_t s_inject_y2 = 0;  // drag end (== s_inject_y for a tap)
 
 void center_set_demo(bool on) { s_link.setDemo(on); }
 
 const SensorLink &center_sensor_link() { return s_link; }
 
-void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms) {
+void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms) { center_inject_drag(x, y, y, hold_ms); }
+
+void center_inject_drag(int16_t x, int16_t y1, int16_t y2, uint32_t ms) {
   s_inject_x = x;
-  s_inject_y = y;
-  s_inject_until_ms = millis() + (hold_ms ? hold_ms : 1);
+  s_inject_y = y1;
+  s_inject_y2 = y2;
+  s_inject_start_ms = millis();
+  s_inject_until_ms = s_inject_start_ms + (ms ? ms : 1);
 }
 static Arduino_GFX *gfx = nullptr;
 static Preferences s_prefs;
@@ -219,8 +225,10 @@ void loop() {
   bool finger_down = false;
   p4_touch_sample(&tx, &ty, &finger_down);
   if (s_inject_until_ms && (int32_t)(now - s_inject_until_ms) < 0) {
+    const uint32_t span = s_inject_until_ms - s_inject_start_ms;
+    const float f = span ? (float)(now - s_inject_start_ms) / (float)span : 1.0f;
     tx = s_inject_x;
-    ty = s_inject_y;
+    ty = (int16_t)(s_inject_y + (s_inject_y2 - s_inject_y) * (f > 1.0f ? 1.0f : f));
     finger_down = true;
   } else {
     s_inject_until_ms = 0;
@@ -337,5 +345,10 @@ void loop() {
 
   poll_sensor_link();
 
-  delay(15);
+  // Pace to ~60 fps: sleep only for what is left of a 16 ms frame (a fixed delay(15) added 15 ms to
+  // every frame, capping heavy frames far below that). Always yield at least 1 ms.
+  static uint32_t s_frame_start_ms = 0;
+  const uint32_t spent = millis() - s_frame_start_ms;
+  delay(spent < 15 ? 16 - spent : 1);
+  s_frame_start_ms = millis();
 }

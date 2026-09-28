@@ -103,6 +103,10 @@ constexpr int kNumItems = sizeof(kItems) / sizeof(kItems[0]);
 
 struct WheelItem {
   lv_obj_t *box, *ring, *icon, *label, *sub;
+  int8_t big;    // -1 unknown, 0 neighbour style, 1 centred style
+  int8_t tone;   // -1 unknown, else cached colour state (setting a style repaints the object)
+  bool hidden;
+  lv_coord_t x, y;
 };
 
 Preferences *s_prefs = nullptr;
@@ -120,6 +124,9 @@ int s_target = 0;
 bool s_dragging = false;
 lv_coord_t s_press_y = 0;
 float s_press_pos = 0.0f;
+
+bool s_dots_valid = false;
+int s_dots_for = -1;
 
 // pages
 lv_obj_t *s_wifi_status = nullptr, *s_wifi_status2 = nullptr, *s_wifi_list = nullptr, *s_wifi_scan_lbl = nullptr;
@@ -279,30 +286,58 @@ void layout_wheel() {
     WheelItem &w = s_wheel[i];
     const float off = (float)i - s_pos;
     const float ao = fabsf(off);
-    if (ao > 2.6f) {
-      lv_obj_add_flag(w.box, LV_OBJ_FLAG_HIDDEN);
+    if (ao > 1.6f) {  // centred item + one neighbour each side: less to repaint while scrolling
+      if (!w.hidden) {
+        w.hidden = true;
+        lv_obj_add_flag(w.box, LV_OBJ_FLAG_HIDDEN);
+      }
       continue;
     }
-    lv_obj_clear_flag(w.box, LV_OBJ_FLAG_HIDDEN);
+    if (w.hidden) {
+      w.hidden = false;
+      lv_obj_clear_flag(w.box, LV_OBJ_FLAG_HIDDEN);
+    }
     const float dy = off * (float)kItemGap;
     const float xs = fabsf(dy) < kCurveR ? kCurveR - sqrtf(kCurveR * kCurveR - dy * dy) : kCurveR;
-    float scale = 1.0f - 0.34f * fminf(ao, 1.0f);
-    if (ao > 1.0f) {
-      scale *= 1.0f - 0.2f * fminf(ao - 1.0f, 1.0f);
+    const lv_coord_t nx = (lv_coord_t)(170 + xs), ny = (lv_coord_t)(kH / 2 - 60 + dy);
+    if (nx != w.x || ny != w.y) {
+      w.x = nx;
+      w.y = ny;
+      lv_obj_set_pos(w.box, nx, ny);
     }
-    const float opa = fmaxf(0.0f, 1.0f - ao * 0.42f);
-    lv_obj_set_pos(w.box, (lv_coord_t)(170 + xs), (lv_coord_t)(kH / 2 - 60 + dy));
-    lv_obj_set_style_transform_zoom(w.box, (lv_coord_t)(256 * scale), 0);
-    lv_obj_set_style_opa(w.box, (lv_opa_t)(255 * opa), 0);
+    // No transforms or group opacity here: those force per-item layer renders in software and made
+    // dragging choppy. The centred item uses the big font and ring; neighbours are smaller and dimmer.
+    const bool big = ao < 0.5f;
     const bool sel = (i == s_target);
+    if (w.big != big) {
+      w.big = big;
+      lv_obj_set_style_text_font(w.label, big ? T.label : T.body, 0);
+      lv_obj_set_size(w.ring, big ? 100 : 72, big ? 100 : 72);
+      lv_obj_set_pos(w.ring, big ? 0 : 14, big ? 10 : 24);
+      lv_obj_set_style_text_font(w.icon, big ? &elc_icons_56 : &elc_icons_34, 0);
+      lv_obj_align(w.label, LV_ALIGN_LEFT_MID, big ? 124 : 104, big ? -16 : 0);
+      if (big) lv_obj_clear_flag(w.sub, LV_OBJ_FLAG_HIDDEN);
+      else lv_obj_add_flag(w.sub, LV_OBJ_FLAG_HIDDEN);
+    }
+    const bool showing = kItems[i].act == Act::View && (uint8_t)center_ui_view_mode() == kItems[i].arg;
+    const int8_t tone = (int8_t)((sel ? 1 : 0) | (ao < 1.5f ? 2 : 0) | (showing ? 4 : 0));
+    if (tone == w.tone) {
+      continue;
+    }
+    w.tone = tone;
+    const lv_color_t fade = ao < 1.5f ? T.dim : T.faint;
     lv_obj_set_style_border_color(w.ring, sel ? T.accent : T.line, 0);
     lv_obj_set_style_border_width(w.ring, sel ? 3 : 2, 0);
     lv_obj_set_style_bg_opa(w.ring, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_set_style_text_color(w.icon, sel ? T.accent : T.dim, 0);
-    lv_obj_set_style_text_color(w.label, sel ? T.text : T.dim, 0);
-    const bool showing = kItems[i].act == Act::View && (uint8_t)center_ui_view_mode() == kItems[i].arg;
+    lv_obj_set_style_text_color(w.icon, sel ? T.accent : fade, 0);
+    lv_obj_set_style_text_color(w.label, sel ? T.text : fade, 0);
     lv_obj_set_style_text_color(w.sub, sel && showing ? T.accent : T.faint, 0);
   }
+  if (s_dots_valid && s_dots_for == s_target) {
+    return;
+  }
+  s_dots_valid = true;
+  s_dots_for = s_target;
   for (int i = 0; i < kNumItems; i++) {
     const bool on = (i == s_target);
     const int d = on ? 14 : 8;
@@ -342,15 +377,14 @@ void wheel_event(lv_event_t *e) {
       s_dragging = false;
       return;  // the timer eases s_pos to s_target
     }
-    const int idx = (int)lroundf(s_pos + (float)(p.y - kH / 2) / (float)kItemGap);
+    const int idx = (int)lroundf(s_pos + (float)(s_press_y - kH / 2) / (float)kItemGap);  // a tap: where it landed
     if (idx < 0 || idx >= kNumItems) {
       return;
     }
-    if (idx == s_target) {
-      activate(idx);
-    } else {
-      s_target = idx;
-    }
+    // A tap on any visible item opens it (stepping one item at a time is for the knob).
+    s_target = idx;
+    s_pos = (float)idx;
+    activate(idx);
   }
 }
 
@@ -366,10 +400,11 @@ void build_home(lv_obj_t *page) {
 
   for (int i = 0; i < kNumItems; i++) {
     WheelItem &w = s_wheel[i];
-    w.box = box(page, 0, 0, 560, 120);
-    lv_obj_clear_flag(w.box, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_transform_pivot_x(w.box, 0, 0);
-    lv_obj_set_style_transform_pivot_y(w.box, 60, 0);
+    w.box = box(page, 0, 0, 470, 120);
+    w.big = -1;
+    w.tone = -1;
+    w.hidden = false;
+    w.x = w.y = -32000;
     w.ring = box(w.box, 0, 10, 100, 100);
     lv_obj_set_style_radius(w.ring, LV_RADIUS_CIRCLE, 0);
     fill(w.ring, T.surface, LV_OPA_TRANSP);
@@ -386,6 +421,7 @@ void build_home(lv_obj_t *page) {
     lv_obj_set_style_radius(s_dots[i], LV_RADIUS_CIRCLE, 0);
   }
   round_btn(page, IC_CLOSE, kW / 2, 716, 72, [](lv_event_t *) { center_menu_close(); });
+  s_dots_valid = false;
   layout_wheel();
 }
 
@@ -800,14 +836,12 @@ void center_menu_open(CenterMenuPage page) {
   const bool was_open = s_root != nullptr;
   if (!s_root) {
     T = theme_for(center_ui_cluster_theme());
+    p4_screen_set_tear_free(false);  // menu motion is big; favour frame rate over tear-free flips
     s_root = box(p4_screen_ui_parent(), 0, 0, kW, kH);
-    fill(s_root, T.bg, (lv_opa_t)246);  // the gauge only just shows through
-    lv_obj_set_style_radius(s_root, LV_RADIUS_CIRCLE, 0);
+    // Opaque square backdrop: LVGL skips the frozen gauge layer underneath, and a square (not a
+    // circle) avoids an anti-aliased radius mask on every repainted row. The panel is round anyway.
+    fill(s_root, T.bg);
     lv_obj_add_flag(s_root, LV_OBJ_FLAG_CLICKABLE);  // swallow taps outside controls
-    lv_obj_t *rim = box(s_root, 14, 14, kW - 28, kH - 28);
-    lv_obj_set_style_radius(rim, LV_RADIUS_CIRCLE, 0);
-    outline(rim, T.line, 2);
-    lv_obj_clear_flag(rim, LV_OBJ_FLAG_CLICKABLE);
     s_timer = lv_timer_create(tick, 16, nullptr);
   } else if (T.label != theme_for(center_ui_cluster_theme()).label) {
     center_menu_close();  // theme changed while open: rebuild everything
@@ -852,6 +886,7 @@ void center_menu_close() {
   s_root = nullptr;
   s_page = nullptr;
   clear_page_refs();
+  p4_screen_set_tear_free(true);
   s_dragging = false;
   s_scanning = false;
 }

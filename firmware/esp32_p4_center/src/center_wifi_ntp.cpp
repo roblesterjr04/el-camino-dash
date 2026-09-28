@@ -169,6 +169,17 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     Serial.printf("ok: %s\n", line.c_str());
     return;
   }
+  if (line.startsWith("drag ")) {  // bench: "drag <x> <y1> <y2> <ms>"
+    int x = 0, y1 = 0, y2 = 0;
+    unsigned long ms = 400;
+    if (sscanf(line.c_str() + 5, "%d %d %d %lu", &x, &y1, &y2, &ms) >= 3) {
+      center_inject_drag((int16_t)x, (int16_t)y1, (int16_t)y2, (uint32_t)ms);
+      Serial.printf("ok: drag %d,%d -> %d over %lu ms\n", x, y1, y2, ms);
+    } else {
+      Serial.println("err: drag <x> <y1> <y2> [ms]");
+    }
+    return;
+  }
   if (line.startsWith("tap ")) {  // bench: simulate a touch, "tap <x> <y> [hold_ms]"
     int x = 0, y = 0;
     unsigned long hold = 80;
@@ -185,6 +196,8 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     const SensorPacketParser &sp = center_sensor_link().parser();
     Serial.printf("sensor: %lu frames/s, totals ok=%lu bad=%lu skipped=%lu bytes\n", (unsigned long)center_sensor_link().framesPerSec(),
                   (unsigned long)sp.framesOk(), (unsigned long)sp.framesBad(), (unsigned long)sp.bytesSkipped());
+    Serial.printf("flip: wait %.1f ms, sync %.1f ms (%s, %.0f rows), %.1f areas per flip\n", (double)st.flip_wait_ms,
+                  (double)st.flip_sync_ms, st.dma_sync ? "DMA" : "CPU", (double)st.sync_rows_per_flip, (double)st.areas_per_flip);
     Serial.printf("ui: view=%d theme=%d overlay=%d fullscreen=%d\n", (int)center_ui_view_mode(), (int)center_ui_cluster_theme(),
                   (int)center_ui_overlay_open(), (int)center_ui_fullscreen());
     Serial.printf("perf: %.1f fps, drawing %.1f ms + LVGL %.1f ms per frame, %.1f of 50 bands changed/frame, %lu rows/s written back, %s (%lu flips/s), heap %lu KB internal / %lu KB PSRAM free\n",

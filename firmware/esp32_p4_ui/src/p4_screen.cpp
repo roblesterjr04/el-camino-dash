@@ -6,6 +6,7 @@
 #include <display/Arduino_DSI_Display.h>
 
 #if defined(ESP_PLATFORM)
+#include <esp_async_memcpy.h>
 #include <esp_cache.h>
 #include <esp_lcd_mipi_dsi.h>
 #include <esp_lcd_panel_ops.h>
@@ -49,12 +50,26 @@ uint16_t *s_fb = nullptr;  // framebuffer the panel is showing (front)
 // the rows LVGL touched are copied into the new back buffer so both stay identical.
 bool s_double = false;
 uint16_t *s_fbs[2] = {nullptr, nullptr};
+uint16_t *s_back = nullptr;  // hidden framebuffer that flushed strips are copied into
+bool s_tear_free = true;     // false: strips go straight into the visible buffer (s_fb)
+bool s_resync = false;       // back buffer is stale after a stretch without tear-free
+// LVGL renders strips into these small on-chip SRAM buffers (much faster than drawing straight into
+// PSRAM), then flush_cb copies each strip into the hidden framebuffer.
+constexpr int kStripRows = 48;
 SemaphoreHandle_t s_flip_done = nullptr;
 constexpr int kMaxDirty = 32;
 lv_area_t s_dirty[kMaxDirty];
 int s_ndirty = 0;
 bool s_dirty_overflow = false;
 uint32_t s_flips = 0;
+uint64_t s_wait_us = 0;   // waiting for the panel to release the old buffer
+uint64_t s_sync_us = 0;   // copying redrawn areas into the other buffer
+uint32_t s_areas = 0;
+uint32_t s_sync_rows = 0;
+#if defined(ESP_PLATFORM)
+async_memcpy_handle_t s_dma = nullptr;  // AXI GDMA: copies redrawn rows between the two framebuffers
+SemaphoreHandle_t s_dma_done = nullptr;
+#endif
 int16_t s_w = 0;
 int16_t s_h = 0;
 
@@ -62,6 +77,7 @@ lv_disp_draw_buf_t s_draw_buf;
 lv_disp_drv_t s_disp_drv;
 lv_disp_t *s_disp = nullptr;
 lv_indev_drv_t s_indev_drv;
+lv_indev_t *s_indev = nullptr;
 lv_img_dsc_t s_legacy_dsc;
 lv_obj_t *s_legacy_img = nullptr;
 lv_obj_t *s_ui = nullptr;
@@ -94,6 +110,26 @@ void writeback_rows(uint16_t *buf, int32_t y1, int32_t y2) {
 }
 
 #if defined(ESP_PLATFORM)
+bool IRAM_ATTR on_dma_done(async_memcpy_handle_t, async_memcpy_event_t *, void *) {
+  BaseType_t woken = pdFALSE;
+  xSemaphoreGiveFromISR(s_dma_done, &woken);
+  return woken == pdTRUE;
+}
+
+/** Copy whole rows [y1, y2] from src to dst (full-width rows are contiguous and cache-line aligned). */
+void copy_rows(uint16_t *dst, const uint16_t *src, int32_t y1, int32_t y2, int *pending) {
+  const size_t off = (size_t)y1 * (size_t)s_w;
+  const size_t bytes = (size_t)(y2 - y1 + 1) * (size_t)s_w * sizeof(uint16_t);
+  if (s_dma && esp_async_memcpy(s_dma, dst + off, (void *)(src + off), bytes, on_dma_done, nullptr) == ESP_OK) {
+    (*pending)++;
+    return;
+  }
+  memcpy(dst + off, src + off, bytes);
+  writeback_rows(dst, y1, y2);
+}
+#endif
+
+#if defined(ESP_PLATFORM)
 bool IRAM_ATTR on_fb_complete(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *) {
   BaseType_t woken = pdFALSE;
   xSemaphoreGiveFromISR(s_flip_done, &woken);
@@ -102,14 +138,26 @@ bool IRAM_ATTR on_fb_complete(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_da
 #endif
 
 void flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
-  // Direct mode: LVGL already drew into the buffer; push those rows out of the cache for the DMA.
-  uint16_t *buf = (uint16_t *)color_p;
+  uint16_t *buf = (uint16_t *)color_p;  // direct mode: the framebuffer; strip mode: an SRAM strip
   const int32_t y1 = area->y1 < 0 ? 0 : area->y1;
   const int32_t y2 = area->y2 >= s_h ? s_h - 1 : area->y2;
-  if (y2 >= y1) {
+  uint16_t *target = (s_double && !s_tear_free) ? s_fb : s_back;
+  if (y2 >= y1 && s_double) {
+    // Strip mode: copy the strip into the target framebuffer, then push those rows out of the cache.
+    const int32_t x1 = area->x1 < 0 ? 0 : area->x1;
+    const int32_t x2 = area->x2 >= s_w ? s_w - 1 : area->x2;
+    const int32_t aw = area->x2 - area->x1 + 1;
+    const size_t row_bytes = (size_t)(x2 - x1 + 1) * sizeof(uint16_t);
+    for (int32_t y = y1; y <= y2; y++) {
+      memcpy(target + (size_t)y * (size_t)s_w + (size_t)x1, buf + (size_t)(y - area->y1) * (size_t)aw + (size_t)(x1 - area->x1), row_bytes);
+    }
+    writeback_rows(target, y1, y2);
+  } else if (y2 >= y1) {
     writeback_rows(buf, y1, y2);
+  }
+  if (y2 >= y1) {
     s_rows += (uint32_t)(y2 - y1 + 1);
-    if (s_double) {
+    if (s_double && s_tear_free) {  // remembered so the other buffer can be brought up to date after the flip
       if (s_ndirty < kMaxDirty) {
         s_dirty[s_ndirty++] = *area;
       } else {
@@ -118,36 +166,72 @@ void flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
     }
   }
 #if defined(ESP_PLATFORM)
-  if (s_double && lv_disp_flush_is_last(drv)) {
+  if (s_double && !s_tear_free) {
+    s_resync = true;
+  }
+  if (s_double && s_tear_free && lv_disp_flush_is_last(drv)) {
     // Flip: the panel starts showing `buf` at the next frame; wait until the old front is free.
+    const int64_t tw = esp_timer_get_time();
     xSemaphoreTake(s_flip_done, 0);
+    buf = s_back;
     esp_lcd_panel_draw_bitmap(g_elc_dpi_panel, 0, 0, s_w, s_h, buf);
     xSemaphoreTake(s_flip_done, pdMS_TO_TICKS(60));
+    const int64_t ts = esp_timer_get_time();
+    s_wait_us += (uint64_t)(ts - tw);
+    s_areas += (uint32_t)s_ndirty;
     s_flips++;
     uint16_t *other = (buf == s_fbs[0]) ? s_fbs[1] : s_fbs[0];
     s_fb = buf;
-    // Bring the new back buffer up to date with what LVGL just drew.
+    s_back = other;
+    // Bring the new back buffer up to date with what LVGL just drew: merge the redrawn areas into
+    // row bands and copy them by DMA (a CPU copy between two PSRAM buffers took ~75 ms per frame).
+    int32_t band_y1[kMaxDirty], band_y2[kMaxDirty];
+    int nb = 0;
     if (s_dirty_overflow) {
-      memcpy(other, buf, (size_t)s_w * (size_t)s_h * sizeof(uint16_t));
-      writeback_rows(other, 0, s_h - 1);
+      band_y1[0] = 0;
+      band_y2[0] = s_h - 1;
+      nb = 1;
     } else {
       for (int i = 0; i < s_ndirty; i++) {
-        const lv_area_t &a = s_dirty[i];
-        const int32_t ax1 = a.x1 < 0 ? 0 : a.x1, ax2 = a.x2 >= s_w ? s_w - 1 : a.x2;
-        const int32_t ay1 = a.y1 < 0 ? 0 : a.y1, ay2 = a.y2 >= s_h ? s_h - 1 : a.y2;
-        if (ax2 < ax1 || ay2 < ay1) {
-          continue;
+        int32_t y1 = s_dirty[i].y1 < 0 ? 0 : s_dirty[i].y1;
+        int32_t y2 = s_dirty[i].y2 >= s_h ? s_h - 1 : s_dirty[i].y2;
+        if (y2 < y1) continue;
+        // insert, merging overlapping/adjacent bands
+        for (int j = 0; j < nb;) {
+          if (y1 <= band_y2[j] + 1 && y2 >= band_y1[j] - 1) {
+            y1 = y1 < band_y1[j] ? y1 : band_y1[j];
+            y2 = y2 > band_y2[j] ? y2 : band_y2[j];
+            band_y1[j] = band_y1[nb - 1];
+            band_y2[j] = band_y2[nb - 1];
+            nb--;
+          } else {
+            j++;
+          }
         }
-        const size_t row_bytes = (size_t)(ax2 - ax1 + 1) * sizeof(uint16_t);
-        for (int32_t y = ay1; y <= ay2; y++) {
-          const size_t off = (size_t)y * (size_t)s_w + (size_t)ax1;
-          memcpy(other + off, buf + off, row_bytes);
-        }
-        writeback_rows(other, ay1, ay2);
+        band_y1[nb] = y1;
+        band_y2[nb] = y2;
+        nb++;
+      }
+    }
+    int pending = 0;
+    xSemaphoreTake(s_dma_done, 0);
+    for (int i = 0; i < nb; i++) {
+      copy_rows(other, buf, band_y1[i], band_y2[i], &pending);
+      s_sync_rows += (uint32_t)(band_y2[i] - band_y1[i] + 1);
+    }
+    for (int i = 0; i < pending; i++) {
+      xSemaphoreTake(s_dma_done, pdMS_TO_TICKS(50));
+    }
+    if (pending) {
+      // DMA wrote memory behind the cache: drop any stale cached copy of those rows.
+      for (int i = 0; i < nb; i++) {
+        esp_cache_msync(other + (size_t)band_y1[i] * (size_t)s_w,
+                        (size_t)(band_y2[i] - band_y1[i] + 1) * (size_t)s_w * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_M2C);
       }
     }
     s_ndirty = 0;
     s_dirty_overflow = false;
+    s_sync_us += (uint64_t)(esp_timer_get_time() - ts);
   }
 #endif
   lv_disp_flush_ready(drv);
@@ -196,11 +280,24 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
       writeback_rows(s_fbs[1], 0, s_h - 1);
       s_fb = s_fbs[0];
       s_double = true;
+      // DMA row copies need 64-byte aligned rows (cache line); 800 px × 2 B = 1600 B = 25 lines.
+      const bool aligned = ((uintptr_t)fb0 % 64 == 0) && ((uintptr_t)fb1 % 64 == 0) && ((s_w * 2) % 64 == 0);
+      s_dma_done = xSemaphoreCreateCounting(64, 0);
+      async_memcpy_config_t mcfg = ASYNC_MEMCPY_DEFAULT_CONFIG();
+      mcfg.backlog = 32;
+      mcfg.dma_burst_size = 64;
+      if (!aligned || !s_dma_done || esp_async_memcpy_install_gdma_axi(&mcfg, &s_dma) != ESP_OK) {
+        s_dma = nullptr;
+      }
     }
   }
 #endif
   if (s_double) {
-    lv_disp_draw_buf_init(&s_draw_buf, s_fbs[1], s_fbs[0], (uint32_t)s_w * (uint32_t)s_h);  // draw into the back first
+    const size_t strip_px = (size_t)s_w * kStripRows;
+    auto *b1 = (lv_color_t *)heap_caps_aligned_alloc(64, strip_px * sizeof(lv_color_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    auto *b2 = (lv_color_t *)heap_caps_aligned_alloc(64, strip_px * sizeof(lv_color_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    s_back = s_fbs[1];
+    lv_disp_draw_buf_init(&s_draw_buf, b1, b2, (uint32_t)strip_px);
   } else {
     lv_disp_draw_buf_init(&s_draw_buf, s_fb, nullptr, (uint32_t)s_w * (uint32_t)s_h);
   }
@@ -209,13 +306,13 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
   s_disp_drv.ver_res = s_h;
   s_disp_drv.flush_cb = flush_cb;
   s_disp_drv.draw_buf = &s_draw_buf;
-  s_disp_drv.direct_mode = 1;
+  s_disp_drv.direct_mode = s_double ? 0 : 1;  // double: SRAM strips; single: draw straight into the panel
   s_disp = lv_disp_drv_register(&s_disp_drv);
 
   lv_indev_drv_init(&s_indev_drv);
   s_indev_drv.type = LV_INDEV_TYPE_POINTER;
   s_indev_drv.read_cb = touch_cb;
-  lv_indev_drv_register(&s_indev_drv);
+  s_indev = lv_indev_drv_register(&s_indev_drv);
 
   lv_obj_t *scr = lv_scr_act();
   lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
@@ -242,11 +339,34 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
 
   s_stat_t0 = millis();
   Serial.printf("[screen] LVGL direct mode %dx%d, %s buffered, legacy layer %p\n", (int)s_w, (int)s_h,
-                s_double ? "double" : "single", (void *)s_legacy->getFramebuffer());
+                s_double ? (s_dma ? "double (DMA sync)" : "double (CPU sync)") : "single", (void *)s_legacy->getFramebuffer());
   return s_legacy;
 }
 
 void p4_screen_legacy_dirty() { s_legacy_dirty = true; }
+
+void p4_screen_set_tear_free(bool on) {
+  if (on == s_tear_free || !s_double) {
+    s_tear_free = on;
+    return;
+  }
+  if (on && s_resync) {
+    // The visible buffer moved on while tear-free was off: bring the hidden one level with it.
+#if defined(ESP_PLATFORM)
+    int pending = 0;
+    xSemaphoreTake(s_dma_done, 0);
+    copy_rows(s_back, s_fb, 0, s_h - 1, &pending);
+    for (int i = 0; i < pending; i++) {
+      xSemaphoreTake(s_dma_done, pdMS_TO_TICKS(100));
+    }
+    if (pending) {
+      esp_cache_msync(s_back, (size_t)s_w * (size_t)s_h * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+    }
+#endif
+    s_resync = false;
+  }
+  s_tear_free = on;
+}
 
 void p4_screen_note_app_us(uint32_t us) { s_app_us += us; }
 
@@ -295,8 +415,12 @@ static void invalidate_changed_bands() {
 }
 
 void p4_screen_touch(int16_t x, int16_t y, bool down) {
-  s_tx = x;
-  s_ty = y;
+  // The touch controller reports (0, 0) once the finger lifts; LVGL expects the release at the last
+  // touched point (widgets read it on RELEASED/CLICKED), so only take coordinates while down.
+  if (down) {
+    s_tx = x;
+    s_ty = y;
+  }
   s_tdown = down;
 }
 
@@ -308,6 +432,10 @@ void p4_screen_frame() {
   if (s_legacy_dirty && s_legacy_img) {
     invalidate_changed_bands();
     s_legacy_dirty = false;
+  }
+  // Read touch every frame (LVGL's own read timer runs every 30 ms and can miss a quick tap).
+  if (s_indev && s_indev->driver && s_indev->driver->read_timer) {
+    lv_indev_read_timer_cb(s_indev->driver->read_timer);
   }
   lv_timer_handler();
   lv_refr_now(s_disp);  // draw this loop's legacy frame now, not on LVGL's 30 ms timer
@@ -326,7 +454,17 @@ void p4_screen_frame() {
     s_stats.flushed_rows = s_rows;
     s_stats.double_buffered = s_double;
     s_stats.flips = s_flips;
+    s_stats.flip_wait_ms = s_flips ? (float)s_wait_us / 1000.0f / (float)s_flips : 0.0f;
+    s_stats.flip_sync_ms = s_flips ? (float)s_sync_us / 1000.0f / (float)s_flips : 0.0f;
+    s_stats.areas_per_flip = s_flips ? (float)s_areas / (float)s_flips : 0.0f;
+    s_stats.sync_rows_per_flip = s_flips ? (float)s_sync_rows / (float)s_flips : 0.0f;
+    s_sync_rows = 0;
+#if defined(ESP_PLATFORM)
+    s_stats.dma_sync = s_dma != nullptr;
+#endif
     s_flips = 0;
+    s_wait_us = s_sync_us = 0;
+    s_areas = 0;
     s_frames = 0;
     s_rows = 0;
     s_lvgl_us = 0;

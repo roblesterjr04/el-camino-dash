@@ -34,7 +34,11 @@ esp_lcd_panel_handle_t g_elc_dpi_panel = nullptr;
 #define TSPS_DSI_VPW 4
 #define TSPS_DSI_VBP 12
 #define TSPS_DSI_VFP 24
+// 880 × 840 total → 80 MHz ≈ 108 Hz refresh. That continuous scan-out takes ~140 MB/s of PSRAM bandwidth;
+// the center overrides it to ~65 Hz (-DTSPS_DSI_DPI_HZ=48000000L) to leave room for drawing.
+#ifndef TSPS_DSI_DPI_HZ
 #define TSPS_DSI_DPI_HZ 80000000L
+#endif
 #define TSPS_DSI_LANE_MBPS 1500
 #elif defined(TSPS_USE_JD9365) && TSPS_USE_JD9365
 #define TSPS_LCD_W 720

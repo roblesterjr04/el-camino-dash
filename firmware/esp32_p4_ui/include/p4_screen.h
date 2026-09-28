@@ -29,6 +29,14 @@ void p4_screen_touch(int16_t x, int16_t y, bool down);
 /** Run LVGL: timers, input, and redraw of whatever is invalid. */
 void p4_screen_frame();
 
+/**
+ * Tear-free (default): draw into the hidden buffer, flip on refresh, then sync the other buffer.
+ * Off: finished strips are copied straight into the visible buffer (no flip wait, no sync), roughly
+ * doubling the frame rate for big moving content such as the menu wheel, at the cost of possible
+ * tearing. Turning it back on re-syncs the hidden buffer once.
+ */
+void p4_screen_set_tear_free(bool on);
+
 /** Parent object for LVGL UI above the legacy layer. */
 lv_obj_t *p4_screen_ui_parent();
 
@@ -44,6 +52,11 @@ struct P4ScreenStats {
   float bands_changed;    // average legacy-layer bands (16 rows) that changed per frame
   bool double_buffered;   // panel flips between two framebuffers (no tearing)
   uint32_t flips;         // buffer flips in the last second
+  float flip_wait_ms;     // per flip: waiting for the panel to let go of the old buffer
+  float flip_sync_ms;     // per flip: copying redrawn areas into the other buffer
+  float areas_per_flip;
+  bool dma_sync;          // buffer sync uses the AXI DMA (else CPU memcpy)
+  float sync_rows_per_flip;
 };
 P4ScreenStats p4_screen_stats();
 
