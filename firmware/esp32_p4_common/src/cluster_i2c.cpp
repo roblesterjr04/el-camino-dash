@@ -11,6 +11,7 @@ static bool s_cluster_ready = false;
 bool cluster_i2c_master_begin() {
   if (!s_cluster_ready) {
     s_cluster_wire.begin(CLUSTER_I2C_SDA, CLUSTER_I2C_SCL, 100000u);
+    s_cluster_wire.setTimeOut(20);  // ms: an unpowered/stuck slave must not stall the render loop
     s_cluster_ready = true;
   }
   return s_cluster_ready;

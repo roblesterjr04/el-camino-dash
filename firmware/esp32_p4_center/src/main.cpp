@@ -8,7 +8,8 @@
 #include <el_camino_speed.h>
 #include <p4_overlay_menu.h>
 #include <p4_touch.h>
-#include <sensor_packet.h>
+#include <elc_watchdog.h>
+#include <sensor_link.h>
 
 #include "center_audio_link.h"
 #include "center_ble.h"
@@ -28,19 +29,17 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 #define SENSOR_UART_TX 4
 #endif
 
-#ifndef SENSOR_PACKET_STALE_MS
-#define SENSOR_PACKET_STALE_MS 400u
-#endif
-
 #ifndef WHEEL_CIRCUMFERENCE_M
 #define WHEEL_CIRCUMFERENCE_M 2.1f
 #endif
-#ifndef SPEED_PULSES_PER_REV
-#define SPEED_PULSES_PER_REV 1.0f
+
+/** Re-send theme/sub-view to the other displays this often, so a board that booted late or
+ *  browned out during cranking picks up the current state. */
+#ifndef CLUSTER_REBROADCAST_MS
+#define CLUSTER_REBROADCAST_MS 5000u
 #endif
 
-HardwareSerial &SensorSerial = Serial1;
-static SensorPacketParser parser;
+static SensorLink s_link;
 static Arduino_GFX *gfx = nullptr;
 static Preferences s_prefs;
 static P4OverlayMenu s_menu;
@@ -49,9 +48,7 @@ void setup() {
   Serial.begin(115200);
   delay(200);
   // Sensor UART before long display/touch init so packets are not missed during boot.
-  SensorSerial.setRxBufferSize(2048);
-  SensorSerial.begin(115200, SERIAL_8N1, SENSOR_UART_RX, SENSOR_UART_TX);
-  parser.begin(SensorSerial);
+  s_link.begin(Serial1, SENSOR_UART_RX, SENSOR_UART_TX);
 
   Serial.println("el-camino-dash CENTER / ESP32-P4 (WiFi+GPS time+BLE+I2C host UI)");
 
@@ -85,6 +82,17 @@ void setup() {
 
   cluster_i2c_master_begin();
   center_ui_sync_cluster_bus();
+  elc_loop_watchdog_begin();
+}
+
+static void poll_sensor_link() {
+  if (s_link.poll()) {
+    center_ui_on_sensor_packet(s_link.last());
+  }
+  char uart_line[128];
+  while (s_link.takeTextLine(uart_line, sizeof(uart_line))) {
+    center_ui_on_sensor_uart_line(uart_line);
+  }
 }
 
 static void clamp_touch(int16_t *x, int16_t *y, int16_t w, int16_t h) {
@@ -110,46 +118,29 @@ void loop() {
   center_ble_loop();
   center_ui_loop();
 
-  SensorPacketValues raw{};
-  bool got = parser.poll(raw, true);
-  {
-    char uart_line[128];
-    while (parser.takePendingTextLine(uart_line, sizeof(uart_line))) {
-      center_ui_on_sensor_uart_line(uart_line);
-    }
-  }
-  static uint32_t last_keepalive_ms = 0;
-  uint32_t now = millis();
-  if (now - last_keepalive_ms >= 350) {
-    SensorSerial.write(PI_HANDSHAKE_BYTE);
-    last_keepalive_ms = now;
+  poll_sensor_link();
+  const uint32_t now = millis();
+
+  static uint32_t s_last_rebroadcast_ms = 0;
+  if (now - s_last_rebroadcast_ms >= CLUSTER_REBROADCAST_MS) {
+    s_last_rebroadcast_ms = now;
+    center_ui_sync_cluster_bus();
   }
 
-  static SensorPacketValues held{};
-  static uint32_t last_pkt = 0;
-  static bool have = false;
-  if (got) {
-    held = raw;
-    last_pkt = now;
-    have = true;
-    center_ui_on_sensor_packet(raw);
-  }
+  const bool fresh = s_link.fresh();
+  const SensorPacketValues &held = s_link.last();
+  const SensorDerived derived = s_link.derived();
+  const uint32_t rpm = fresh ? held.engine_rpm : 0;
+  const uint32_t speed_rpm = fresh ? held.speed_rpm : 0;
 
-  SensorDerived derived{};
-  if (have && (now - last_pkt) <= SENSOR_PACKET_STALE_MS) {
-    derived = SensorPacketParser::derive(held);
-  } else {
-    derived.valid = false;
-    derived.fuel_pct = 0.0f;
-    derived.coolant_temp_f = 100.0f;
-    derived.system_amp = 0.0f;
-  }
-
-  uint32_t rpm = 0;
-  uint32_t speed_rpm = 0;
-  if (have && (now - last_pkt) <= SENSOR_PACKET_STALE_MS) {
-    rpm = held.engine_rpm;
-    speed_rpm = held.speed_rpm;
+  // Trip = miles since the first odometer reading this power cycle (sensor_pack is the source of truth).
+  static bool s_trip_base_set = false;
+  static float s_trip_base_mi = 0.0f;
+  float odometer_mi = 0.0f;
+  const bool odo_ok = s_link.odometerMiles(&odometer_mi);
+  if (odo_ok && !s_trip_base_set) {
+    s_trip_base_mi = odometer_mi;
+    s_trip_base_set = true;
   }
 
   int16_t tx = 0;
@@ -198,7 +189,7 @@ void loop() {
   const uint32_t render_rpm = ui_block ? frozen_rpm : rpm;
   const uint32_t render_ms = ui_block ? frozen_ms : now;
 
-  const float mph = elc_speed_rpm_to_mph(speed_rpm, WHEEL_CIRCUMFERENCE_M, SPEED_PULSES_PER_REV);
+  const float mph = elc_speed_rpm_to_mph(speed_rpm, WHEEL_CIRCUMFERENCE_M, 1.0f);
   int gear = 2;
   if (mph < 4.0f) {
     gear = 1;
@@ -212,18 +203,20 @@ void loop() {
   gin.millis_boot = render_ms;
   gin.epoch_ms = clock_wall ? epoch_ms : 0ull;
   gin.clock_wall = clock_wall;
-  gin.fuel_pct = derived.valid ? derived.fuel_pct : 0.0f;
-  gin.coolant_temp_f = derived.valid ? derived.coolant_temp_f : 100.0f;
-  gin.system_amp = derived.valid ? derived.system_amp : 0.0f;
-  gin.trip_mi = s_prefs.getFloat("trip_mi", 113.0f);
-  gin.odometer_mi = s_prefs.getFloat("odo_mi", 45782.0f);
+  gin.sensor_valid = fresh;
+  gin.fuel_pct = derived.fuel_pct;
+  gin.coolant_temp_f = derived.coolant_temp_f;
+  gin.system_amp = derived.system_amp;
+  gin.odometer_valid = odo_ok;
+  gin.odometer_mi = odometer_mi;
+  gin.trip_mi = (odo_ok && s_trip_base_set) ? (odometer_mi - s_trip_base_mi) : 0.0f;
   gin.gear_num = gear;
   gin.mpg_average = 0.f;
   gin.mpg_instant = 0.f;
   gin.dte_tenths_mile = 0;
   gin.fuel_economy_valid = false;
   gin.current_street = center_gps_street_line();
-  if (have && (now - last_pkt) <= SENSOR_PACKET_STALE_MS && held.has_fuel_economy) {
+  if (fresh && held.has_fuel_economy) {
     gin.fuel_economy_valid = true;
     gin.mpg_average = (float)held.mpg_average_x10 * 0.1f;
     gin.mpg_instant = (float)held.mpg_instant_x10 * 0.1f;
@@ -251,19 +244,7 @@ void loop() {
    * loop (~66 Hz) and caused visible pulsing. flush(false) skips redundant full sync when auto_flush. */
   gfx->flush(false);
 
-  SensorPacketValues post{};
-  if (parser.poll(post, true)) {
-    held = post;
-    last_pkt = millis();
-    have = true;
-    center_ui_on_sensor_packet(post);
-  }
-  {
-    char uart_line[128];
-    while (parser.takePendingTextLine(uart_line, sizeof(uart_line))) {
-      center_ui_on_sensor_uart_line(uart_line);
-    }
-  }
+  poll_sensor_link();
 
   delay(15);
 }

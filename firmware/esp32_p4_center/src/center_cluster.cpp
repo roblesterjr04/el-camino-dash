@@ -1,5 +1,7 @@
 #include "center_cluster.h"
 
+#include <sensor_link.h>
+
 #include "center_media_ui.h"
 #include "center_fallout.h"
 
@@ -819,6 +821,10 @@ void center_render(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h, CenterV
 #endif
   }
 
+  // The clock doesn't depend on the sensor pack; tach and efficiency do.
+  if (!inputs->sensor_valid && mode != CenterViewMode::Clock) {
+    elc_fb_stamp_no_data(gfx, fb, cw);
+  }
   center_gauge_scale_blit(gfx, screen_w, screen_h, fb, cw);
   if (mode == CenterViewMode::Efficiency) {
     draw_mpg_dte_readout(gfx, screen_w, screen_h, inputs->fuel_economy_valid, inputs->dte_tenths_mile);

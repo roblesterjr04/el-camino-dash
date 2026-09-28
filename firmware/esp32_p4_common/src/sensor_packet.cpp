@@ -67,6 +67,10 @@ static float thermistor_temp_f(uint16_t raw_adc) {
   return (temp_c * 9.0f / 5.0f) + 32.0f;
 }
 
+static uint32_t be32(const uint8_t *p) {
+  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
 uint8_t SensorPacketParser::xor_payload(const uint8_t *p, size_t n) {
   uint8_t c = 0;
   for (size_t i = 0; i < n; i++) {
@@ -76,107 +80,79 @@ uint8_t SensorPacketParser::xor_payload(const uint8_t *p, size_t n) {
 }
 
 bool SensorPacketParser::parse_payload(const uint8_t *payload, size_t len, SensorPacketValues &out) {
-  out.has_odometer = false;
-  out.odometer_tenths_mile = 0;
-  out.has_fuel_economy = false;
-  out.mpg_instant_x10 = 0;
-  out.mpg_average_x10 = 0;
-  out.dte_tenths_mile = 0;
-  if (len == LEGACY_PAYLOAD_LEN) {
-    out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
-    out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
-    out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
-    out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
-    out.ambient_adc = 0;
-    out.speed_rpm = ((uint32_t)payload[8] << 24) | ((uint32_t)payload[9] << 16) | ((uint32_t)payload[10] << 8) | payload[11];
-    out.engine_rpm = ((uint32_t)payload[12] << 24) | ((uint32_t)payload[13] << 16) | ((uint32_t)payload[14] << 8) | payload[15];
-    out.flags = payload[16];
-    out.faults = (uint16_t)((payload[17] << 8) | payload[18]);
-    out.extended = false;
-    out.valid = true;
-    return true;
+  if (len != ECONOMY_PAYLOAD_LEN) {
+    return false;
   }
-  if (len == EXTENDED_PAYLOAD_LEN) {
-    out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
-    out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
-    out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
-    out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
-    out.ambient_adc = (uint16_t)((payload[8] << 8) | payload[9]);
-    out.speed_rpm = ((uint32_t)payload[10] << 24) | ((uint32_t)payload[11] << 16) | ((uint32_t)payload[12] << 8) | payload[13];
-    out.engine_rpm = ((uint32_t)payload[14] << 24) | ((uint32_t)payload[15] << 16) | ((uint32_t)payload[16] << 8) | payload[17];
-    out.flags = payload[18];
-    out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
-    out.extended = true;
-    out.valid = true;
-    return true;
+  out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
+  out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
+  out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
+  out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
+  out.ambient_adc = (uint16_t)((payload[8] << 8) | payload[9]);
+  out.speed_rpm = be32(payload + 10);
+  out.engine_rpm = be32(payload + 14);
+  out.flags = payload[18];
+  out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
+  out.odometer_tenths_mile = be32(payload + 21);
+  // 0xFFFFFFFF = sensor_pack could not read its FRAM (odometer unknown).
+  out.has_odometer = out.odometer_tenths_mile != ODOMETER_UNKNOWN;
+  if (!out.has_odometer) {
+    out.odometer_tenths_mile = 0;
   }
-  if (len == ECONOMY_PAYLOAD_LEN) {
-    out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
-    out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
-    out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
-    out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
-    out.ambient_adc = (uint16_t)((payload[8] << 8) | payload[9]);
-    out.speed_rpm = ((uint32_t)payload[10] << 24) | ((uint32_t)payload[11] << 16) | ((uint32_t)payload[12] << 8) | payload[13];
-    out.engine_rpm = ((uint32_t)payload[14] << 24) | ((uint32_t)payload[15] << 16) | ((uint32_t)payload[16] << 8) | payload[17];
-    out.flags = payload[18];
-    out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
-    out.odometer_tenths_mile =
-        ((uint32_t)payload[21] << 24) | ((uint32_t)payload[22] << 16) | ((uint32_t)payload[23] << 8) | (uint32_t)payload[24];
-    out.has_odometer = true;
-    out.mpg_instant_x10 = (uint16_t)((payload[25] << 8) | payload[26]);
-    out.mpg_average_x10 = (uint16_t)((payload[27] << 8) | payload[28]);
-    out.dte_tenths_mile =
-        ((uint32_t)payload[29] << 24) | ((uint32_t)payload[30] << 16) | ((uint32_t)payload[31] << 8) | (uint32_t)payload[32];
-    out.has_fuel_economy = true;
-    out.extended = true;
-    out.valid = true;
-    return true;
-  }
-  if (len == ODOMETER_PAYLOAD_LEN) {
-    out.pot_adc = (uint16_t)((payload[0] << 8) | payload[1]);
-    out.therm_adc = (uint16_t)((payload[2] << 8) | payload[3]);
-    out.pressure_adc = (uint16_t)((payload[4] << 8) | payload[5]);
-    out.voltage_adc = (uint16_t)((payload[6] << 8) | payload[7]);
-    out.ambient_adc = (uint16_t)((payload[8] << 8) | payload[9]);
-    out.speed_rpm = ((uint32_t)payload[10] << 24) | ((uint32_t)payload[11] << 16) | ((uint32_t)payload[12] << 8) | payload[13];
-    out.engine_rpm = ((uint32_t)payload[14] << 24) | ((uint32_t)payload[15] << 16) | ((uint32_t)payload[16] << 8) | payload[17];
-    out.flags = payload[18];
-    out.faults = (uint16_t)((payload[19] << 8) | payload[20]);
-    out.odometer_tenths_mile =
-        ((uint32_t)payload[21] << 24) | ((uint32_t)payload[22] << 16) | ((uint32_t)payload[23] << 8) | (uint32_t)payload[24];
-    out.has_odometer = true;
-    out.extended = true;
-    out.valid = true;
-    return true;
-  }
-  return false;
+  out.mpg_instant_x10 = (uint16_t)((payload[25] << 8) | payload[26]);
+  out.mpg_average_x10 = (uint16_t)((payload[27] << 8) | payload[28]);
+  out.dte_tenths_mile = be32(payload + 29);
+  out.has_fuel_economy = true;
+  out.extended = true;
+  out.valid = true;
+  return true;
 }
 
+/** Index of the first AA 55 at or after `from`, or _len if none. */
+size_t SensorPacketParser::find_sync(size_t from) const {
+  for (size_t i = from; i + 1 < _len; i++) {
+    if (_buf[i] == SENSOR_SYNC0 && _buf[i + 1] == SENSOR_SYNC1) {
+      return i;
+    }
+  }
+  return _len;
+}
+
+void SensorPacketParser::consume(size_t n) {
+  if (n >= _len) {
+    _len = 0;
+    return;
+  }
+  memmove(_buf, _buf + n, _len - n);
+  _len -= n;
+}
+
+/**
+ * Consume complete text lines (sensor_pack boot banner, FRAM status) at the front of the buffer.
+ * Stops at a frame sync. Bytes before a sync that are not a newline-terminated line are dropped as
+ * noise — a 0x0A inside a following binary frame can no longer swallow that frame.
+ */
 void SensorPacketParser::stripLeadingUartTextLines() {
   while (_len > 0) {
-    if (_len >= 2 && _buf[0] == SENSOR_SYNC0 && _buf[1] == SENSOR_SYNC1) {
-      break;
-    }
-    if (_len >= 1 && _buf[0] == SENSOR_SYNC0) {
-      break;
+    if (_buf[0] == SENSOR_SYNC0 && (_len == 1 || _buf[1] == SENSOR_SYNC1)) {
+      return;  // frame (or possible frame start) at the front
     }
     size_t nl = 0;
     while (nl < _len && _buf[nl] != '\n') {
       nl++;
     }
+    const size_t sync = find_sync(1);
+    if (sync < nl) {
+      consume(sync);  // unterminated junk before a frame
+      continue;
+    }
     if (nl >= _len) {
-      break;
+      return;  // partial line: wait for more bytes
     }
     size_t ll = nl;
     if (ll > 0 && _buf[ll - 1] == '\r') {
       ll--;
     }
-    if (ll == 0) {
-      memmove(_buf, _buf + nl + 1, _len - nl - 1);
-      _len -= nl + 1;
-      continue;
-    }
-    bool printable = true;
+    bool printable = ll > 0;
     for (size_t i = 0; i < ll; i++) {
       unsigned char c = _buf[i];
       if (c < 0x20 || c > 0x7e) {
@@ -194,8 +170,7 @@ void SensorPacketParser::stripLeadingUartTextLines() {
       tmp[copy] = 0;
       uart_text_q_push(tmp);
     }
-    memmove(_buf, _buf + nl + 1, _len - nl - 1);
-    _len -= nl + 1;
+    consume(nl + 1);
   }
 }
 
@@ -228,63 +203,45 @@ bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_go
       break;
     }
     if (_len >= sizeof(_buf)) {
-      const size_t keep = 64;
-      memmove(_buf, _buf + (_len - keep), keep);
-      _len = keep;
+      consume(_len - 64);  // overflow: keep the tail and resync
     }
     _buf[_len++] = (uint8_t)c;
   }
 
-  stripLeadingUartTextLines();
-
-  bool got = false;
-  while (_len >= (2 + LEGACY_PAYLOAD_LEN + 1)) {
-    size_t sync_idx = 0;
-    while (sync_idx + 1 < _len && (_buf[sync_idx] != SENSOR_SYNC0 || _buf[sync_idx + 1] != SENSOR_SYNC1)) {
-      sync_idx++;
+  // Returns after the first good frame so callers can loop; leftover bytes stay buffered.
+  constexpr size_t kFrameLen = 2 + ECONOMY_PAYLOAD_LEN + 1;
+  for (;;) {
+    stripLeadingUartTextLines();
+    if (_len < 2) {
+      return false;
     }
-    if (sync_idx > 0) {
-      memmove(_buf, _buf + sync_idx, _len - sync_idx);
-      _len -= sync_idx;
-    }
-    if (_len < (2 + LEGACY_PAYLOAD_LEN + 1)) {
-      break;
-    }
-
-    bool frame_ok = false;
-    for (size_t plen : {ECONOMY_PAYLOAD_LEN, ODOMETER_PAYLOAD_LEN, EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN}) {
-      size_t frame_len = 2 + plen + 1;
-      if (_len < frame_len) {
+    if (_buf[0] != SENSOR_SYNC0 || _buf[1] != SENSOR_SYNC1) {
+      // Partial text line or junk with no sync yet: wait, unless it can never become a line.
+      if (_len > kUartTextMax + kFrameLen) {
+        consume(1);
         continue;
       }
-      const uint8_t *payload = _buf + 2;
-      uint8_t crc_rx = _buf[2 + plen];
-      if (xor_payload(payload, plen) != crc_rx) {
-        continue;
-      }
-      SensorPacketValues tmp;
-      if (!parse_payload(payload, plen, tmp)) {
-        continue;
-      }
-      out = tmp;
-      got = true;
-      frame_ok = true;
-      memmove(_buf, _buf + frame_len, _len - frame_len);
-      _len -= frame_len;
-      break;
+      return false;
     }
-    if (frame_ok) {
-      continue;
+    // Only full v4 frames are accepted: waiting for all 36 bytes means a frame that is still
+    // arriving can no longer be misread as an older, shorter layout.
+    if (_len < kFrameLen) {
+      return false;
     }
-    // Bad sync candidate — drop one byte and rescan (matches Python).
-    memmove(_buf, _buf + 1, _len - 1);
-    _len--;
+    const uint8_t *payload = _buf + 2;
+    if (xor_payload(payload, ECONOMY_PAYLOAD_LEN) == _buf[2 + ECONOMY_PAYLOAD_LEN]) {
+      SensorPacketValues tmp{};
+      if (parse_payload(payload, ECONOMY_PAYLOAD_LEN, tmp)) {
+        consume(kFrameLen);
+        out = tmp;
+        if (send_handshake_on_good) {
+          _ser->write(PI_HANDSHAKE_BYTE);
+        }
+        return true;
+      }
+    }
+    consume(1);  // bad candidate: skip this sync byte and rescan
   }
-
-  if (got && send_handshake_on_good) {
-    _ser->write(PI_HANDSHAKE_BYTE);
-  }
-  return got;
 }
 
 SensorDerived SensorPacketParser::derive(const SensorPacketValues &p) {

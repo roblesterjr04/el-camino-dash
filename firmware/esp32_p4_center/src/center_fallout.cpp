@@ -1,6 +1,7 @@
 #include "center_fallout.h"
 
 #include <el_camino_speed.h>
+#include <sensor_link.h>
 #include <stdio.h>
 
 static uint16_t fo_rgb(uint8_t r, uint8_t g, uint8_t b) {
@@ -28,7 +29,10 @@ void center_draw_fallout(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h, c
   gfx->setCursor((int16_t)(screen_w / 2 - 54), 28);
   gfx->print("- SPEED -");
 
-  const float mph = elc_speed_rpm_to_mph(in.speed_rpm, 2.1f, 1.0f);
+#ifndef WHEEL_CIRCUMFERENCE_M
+#define WHEEL_CIRCUMFERENCE_M 2.1f
+#endif
+  const float mph = elc_speed_rpm_to_mph(in.speed_rpm, WHEEL_CIRCUMFERENCE_M, 1.0f);
   int mph_i = (int)(mph + 0.5f);
   if (mph_i < 0) {
     mph_i = 0;
@@ -76,16 +80,28 @@ void center_draw_fallout(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h, c
   gfx->setCursor(28, 276);
   gfx->print("TRIP");
   gfx->setCursor((int16_t)(screen_w - 120), 276);
-  snprintf(line, sizeof(line), "%.0f MI", (double)in.trip_mi);
+  if (in.odometer_valid) {
+    snprintf(line, sizeof(line), "%.1f MI", (double)in.trip_mi);
+  } else {
+    snprintf(line, sizeof(line), "--- MI");
+  }
   gfx->print(line);
 
   gfx->setCursor(28, 312);
   gfx->print("ODO");
   gfx->setCursor((int16_t)(screen_w - 140), 312);
-  snprintf(line, sizeof(line), "%.0f MI", (double)in.odometer_mi);
+  if (in.odometer_valid) {
+    snprintf(line, sizeof(line), "%.0f MI", (double)in.odometer_mi);
+  } else {
+    snprintf(line, sizeof(line), "----- MI");
+  }
   gfx->print(line);
 
   gfx->setTextColor(dim);
   gfx->setCursor(24, (int16_t)(screen_h - 36));
   gfx->print(".. DATA . MENU . STAT");
+
+  if (!in.sensor_valid) {
+    elc_gfx_draw_no_data(gfx, screen_w, screen_h);
+  }
 }

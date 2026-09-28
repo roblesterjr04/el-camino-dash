@@ -1,5 +1,7 @@
 #include "speedo_cluster.h"
 
+#include <sensor_link.h>
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -350,8 +352,8 @@ static void draw_speedo_odometer_into_fb(uint16_t *fb, int cw, Arduino_GFX *gfx,
   if (uart_boot_line && uart_boot_line[0]) {
     snprintf(buf, sizeof(buf), "%s", uart_boot_line);
   } else if (!sensor_pack_odometer_valid) {
-    // Placeholder only when UART has not delivered a v3 odometer (stale link or legacy packet).
-    snprintf(buf, sizeof(buf), "000000");
+    // No fresh odometer: stale link, or sensor_pack could not read its FRAM.
+    snprintf(buf, sizeof(buf), "------");
   } else {
     if (miles_m < 0.0f) {
       miles_m = 0.0f;
@@ -455,7 +457,7 @@ static void scale_blit(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h, uin
 }
 
 void speedo_render(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h, float mph, float odometer_miles,
-                   bool sensor_pack_odometer_valid, const char *uart_banner) {
+                   bool sensor_pack_odometer_valid, const char *uart_banner, bool data_fresh) {
   const int cw = SPEEDO_ASSET_EDGE;
   static uint16_t *fb = nullptr;
   if (!fb) {
@@ -533,6 +535,9 @@ void speedo_render(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h, float m
   }
 
   draw_speedo_odometer_into_fb(fb, cw, gfx, odometer_miles, sensor_pack_odometer_valid, uart_banner);
+  if (!data_fresh) {
+    elc_fb_stamp_no_data(gfx, fb, cw);
+  }
   scale_blit(gfx, screen_w, screen_h, fb, cw);
   gfx->flush(true);
 }

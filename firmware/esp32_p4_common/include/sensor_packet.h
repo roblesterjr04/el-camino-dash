@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-// Matches src/dashboard/input/arduino_serial.py and arduino/sketches/sensor_pack/sensor_pack.ino
+// Wire format produced by arduino/sketches/sensor_pack/sensor_pack.ino (see docs/protocols/sensor_uart.md).
 //
 // UART wiring (all three ESP32-P4 gauge boards use the same pins by default):
 //   sensor_pack TX →  ESP32 UART RX pin (SENSOR_UART_RX, default GPIO 5) — packets in
@@ -17,12 +17,10 @@
 static const uint8_t SENSOR_SYNC0 = 0xAA;
 static const uint8_t SENSOR_SYNC1 = 0x55;
 static const uint8_t PI_HANDSHAKE_BYTE = 0xA5;
-static const size_t LEGACY_PAYLOAD_LEN = 19;
-static const size_t EXTENDED_PAYLOAD_LEN = 21;
-// v3: extended payload + big-endian odometer in tenths of a mile (sensor_pack source of truth).
-static const size_t ODOMETER_PAYLOAD_LEN = 25;
-// v4: v3 + instant/trip MPG (x10) + DTE in tenths of a mile (20 gal tank model on sensor_pack).
+// v4 payload (the only layout accepted): ADCs, speed/engine RPM, flags, faults, odometer (tenths of a
+// mile), instant/trip MPG (x10), DTE (tenths of a mile). Frame = AA 55 + 33-byte payload + XOR = 36 bytes.
 static const size_t ECONOMY_PAYLOAD_LEN = 33;
+static const uint32_t ODOMETER_UNKNOWN = 0xFFFFFFFFu;
 
 struct SensorPacketValues {
   uint16_t pot_adc;
@@ -68,6 +66,8 @@ class SensorPacketParser {
   size_t _len = 0;
 
   void stripLeadingUartTextLines();
+  size_t find_sync(size_t from) const;
+  void consume(size_t n);
 
   static uint8_t xor_payload(const uint8_t *p, size_t n);
   static bool parse_payload(const uint8_t *payload, size_t len, SensorPacketValues &out);

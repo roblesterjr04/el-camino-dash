@@ -10,6 +10,8 @@
 enum class CenterViewMode : uint8_t { Tach = 0, Clock = 1, Media = 2, Efficiency = 3 };
 
 struct CenterGaugeInputs {
+  /** Fresh sensor_pack data; when false gauges are drawn at rest and marked "NO DATA". */
+  bool sensor_valid;
   uint32_t engine_rpm;
   uint32_t speed_rpm;
   uint32_t millis_boot;
@@ -20,6 +22,8 @@ struct CenterGaugeInputs {
   float system_amp;
   float trip_mi;
   float odometer_mi;
+  /** False when the link is stale or the sensor pack reports its odometer as unknown. */
+  bool odometer_valid;
   int gear_num;
   /** Trip average MPG (0..40+ for needle sweep); invalid if fuel_economy_valid is false. */
   float mpg_average;

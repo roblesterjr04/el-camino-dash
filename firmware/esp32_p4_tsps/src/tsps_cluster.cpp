@@ -1,5 +1,7 @@
 #include "tsps_cluster.h"
 
+#include <sensor_link.h>
+
 #include <cmath>
 #include <cstring>
 
@@ -330,6 +332,9 @@ static void tsps_render_classic2(Arduino_GFX *gfx, int16_t screen_w, int16_t scr
     blend_src_over(fb, ovl565, ovlA, (int)px);
   }
 
+  if (!s.valid) {
+    elc_fb_stamp_no_data(gfx, fb, cw);
+  }
   scale_blit_to_screen(gfx, screen_w, screen_h, fb, cw);
 }
 
@@ -398,6 +403,9 @@ static void tsps_render_classic1(Arduino_GFX *gfx, int16_t screen_w, int16_t scr
     blend_overlay_shift(fb, cw, ovl565, ovlA, 0, oy);
   }
 
+  if (!s.valid) {
+    elc_fb_stamp_no_data(gfx, fb, cw);
+  }
   scale_blit_to_screen(gfx, screen_w, screen_h, fb, cw);
 }
 
