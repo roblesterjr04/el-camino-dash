@@ -4,23 +4,23 @@
  * - A2DP sink: phone / portable player streams stereo audio to the ESP32 **internal** DAC
  *   (GPIO25 / GPIO26 — classic ESP32 only) by default; optional I2S → external DAC/amp via define.
  * - AVRCP 1.x: title, artist, album, track #, genre, duration (typical car-infotainment metadata).
- * - I2C slave for the Raspberry Pi (Esp32AudioLink): Pi can push a short line (local media),
- *   or read back the current line (SMBus-style block read on register 0x01).
+ * - I2C slave @ 0x2A for the center ESP32-P4: it reads a 48-byte snapshot (register 0x0F) with the
+ *   "now playing" line + elapsed/duration/volume. Registers 0x01 / 0x05 remain for older hosts.
  *
  * HARDWARE: Bluetooth Classic (A2DP) exists on the original ESP32 only — not ESP32-S3 / C3 / S2.
  * Use a module such as ESP32-WROOM-32 and set FQBN to esp32:esp32:esp32 when building.
  *
- * Default I2C address 0x2A matches config integrations.esp32_audio_link.address.
  * External I2S: wire BCK/WS/DOUT per I2S_PIN_* and build with AUDIO_BRIDGE_USE_INTERNAL_DAC=0
  * (see firmware/esp32_classic_bt_audio/platformio.ini env esp32dev_external_i2s).
  *
  * ESP32-P4 center (Waveshare): connect this chip's I2C to the **same bus** as the round
- * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (default Arduino ESP32: SDA=GPIO21,
- * SCL=GPIO22). Re-map I2S or I2C in #defines if GPIO 22 is used twice below.
+ * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (this chip: SDA=GPIO21, SCL=GPIO22).
+ *
+ * Threading: AVRCP callbacks (BT task) update state and rebuild a prebuilt reply buffer under a
+ * spinlock; the I2C onRequest handler only copies that buffer, so it answers quickly.
  */
 
 #include <Arduino.h>
-#include <Preferences.h>
 #include <Wire.h>
 #include <cstring>
 
@@ -70,15 +70,20 @@
 #define AUDIO_BRIDGE_USE_INTERNAL_DAC 1
 #endif
 
-// I2S to external DAC (override per your PCB; ignored when AUDIO_BRIDGE_USE_INTERNAL_DAC=1)
+// I2S to external DAC (override per your PCB; ignored when AUDIO_BRIDGE_USE_INTERNAL_DAC=1).
+// Avoid GPIO 21/22 (I2C to the center) and strapping pins (0, 2, 5, 12, 15).
 #ifndef I2S_PIN_BCK
 #define I2S_PIN_BCK 14
 #endif
 #ifndef I2S_PIN_WS
-#define I2S_PIN_WS 15
+#define I2S_PIN_WS 25
 #endif
 #ifndef I2S_PIN_DATA
-#define I2S_PIN_DATA 22
+#define I2S_PIN_DATA 27
+#endif
+#if I2S_PIN_DATA == 22 || I2S_PIN_WS == 22 || I2S_PIN_BCK == 22 || I2S_PIN_DATA == 21 || I2S_PIN_WS == 21 || \
+    I2S_PIN_BCK == 21
+#error "I2S pins collide with the I2C link to the center display (GPIO 21/22)"
 #endif
 
 static constexpr uint8_t kRegMetadata = 0x01;
@@ -86,10 +91,16 @@ static constexpr uint8_t kRegTransport = 0x05;
 /** P4 center: one atomic read for title + transport (avoids s_i2c_cmd / onRequest races). Pi keeps using 0x01/0x05. */
 static constexpr uint8_t kRegSnapshot = 0x0F;
 static constexpr size_t kMaxTrackLen = 32;
+/** Snapshot layout: [mlen][meta:32][0xA5][5][e0][e1][d0][d1][vol][pad:8] = 48 bytes. The metadata
+ *  reply (0x01) is bytes 0..32 and the transport reply (0x05) is bytes 34..39 of the same buffer. */
+static constexpr size_t kSnapshotLen = 48;
+static constexpr size_t kSnapTransportOff = 34;
+static constexpr size_t kTransportLen = 6;
 
 static char s_track[kMaxTrackLen + 1];
 static volatile size_t s_track_len;
 static volatile uint8_t s_i2c_cmd = kRegMetadata;
+static uint8_t s_snapshot[kSnapshotLen];
 
 static uint16_t s_elapsed_s;
 static uint16_t s_duration_s;
@@ -99,47 +110,42 @@ static char s_meta_artist[kMaxTrackLen + 1];
 static char s_meta_title[kMaxTrackLen + 1];
 static portMUX_TYPE s_track_mux = portMUX_INITIALIZER_UNLOCKED;
 
-/* Elapsed when the phone does not send play-position notifications (common) or only rarely. */
-static uint32_t s_track_start_ms;
+/* Elapsed estimate when the phone sends play-position notifications rarely (common): count only
+ * time spent playing, starting from the last known position (s_pos_base_s at s_pos_anchor_ms). */
+static uint32_t s_pos_anchor_ms;
+static uint16_t s_pos_base_s;
 static uint32_t s_last_play_pos_wall_ms;
 static bool s_playing;
 static char s_prev_track_for_elapsed[kMaxTrackLen + 1];
 
 static void apply_elapsed_estimate_unlocked() {
-  const uint32_t now = millis();
   if (!s_playing || s_duration_s == 0) {
     return;
   }
+  const uint32_t now = millis();
   if (now - s_last_play_pos_wall_ms < 2000u) {
     return;
   }
-  uint32_t est = (now - s_track_start_ms) / 1000u;
+  uint32_t est = (uint32_t)s_pos_base_s + (now - s_pos_anchor_ms) / 1000u;
   if (est > (uint32_t)s_duration_s) {
     est = s_duration_s;
   }
   s_elapsed_s = (est > 65535u) ? 65535 : (uint16_t)est;
 }
 
-#if CLUSTER_THEME_I2C_ENABLE
-static Preferences s_cluster_prefs;
+/** Re-anchor the estimate at the current elapsed value (on play/pause, position, track change). */
+static void anchor_position_unlocked(uint16_t pos_s) {
+  s_pos_base_s = pos_s;
+  s_pos_anchor_ms = millis();
+  s_elapsed_s = pos_s;
+}
 
-static void on_cluster_theme_receive(int num_bytes) {
-  if (num_bytes < 2) {
-    while (Wire1.available()) {
-      (void)Wire1.read();
-    }
-    return;
-  }
-  const uint8_t reg = Wire1.read();
-  const uint8_t val = Wire1.read();
+#if CLUSTER_THEME_I2C_ENABLE
+/* The center broadcasts the cluster theme to 0x3E; nothing on this board uses it yet, so it is
+ * only acknowledged (keeps the center's broadcast from logging NACKs). */
+static void on_cluster_theme_receive(int) {
   while (Wire1.available()) {
     (void)Wire1.read();
-  }
-  if (reg == CLUSTER_REG_THEME) {
-    s_cluster_prefs.putUChar(CLUSTER_NVS_KEY_THEME, val);
-  } else if (reg == CLUSTER_REG_CENTER_SUBVIEW) {
-    // Optional: store if you later want the ESP32-D to react to center sub-view.
-    (void)val;
   }
 }
 #endif
@@ -177,6 +183,22 @@ static void rebuild_track_line() {
     s_track[0] = '\0';
   }
   s_track_len = strnlen(s_track, kMaxTrackLen);
+}
+
+/** Rebuild the I2C reply buffer from current state. Caller holds s_track_mux. */
+static void rebuild_snapshot_unlocked() {
+  apply_elapsed_estimate_unlocked();
+  const uint8_t mlen = static_cast<uint8_t>((s_track_len < kMaxTrackLen) ? s_track_len : kMaxTrackLen);
+  memset(s_snapshot, 0, sizeof(s_snapshot));
+  s_snapshot[0] = mlen;
+  memcpy(s_snapshot + 1, s_track, mlen);
+  s_snapshot[33] = 0xA5;
+  s_snapshot[kSnapTransportOff + 0] = 5;
+  s_snapshot[kSnapTransportOff + 1] = static_cast<uint8_t>(s_elapsed_s & 0xffu);
+  s_snapshot[kSnapTransportOff + 2] = static_cast<uint8_t>((s_elapsed_s >> 8) & 0xffu);
+  s_snapshot[kSnapTransportOff + 3] = static_cast<uint8_t>(s_duration_s & 0xffu);
+  s_snapshot[kSnapTransportOff + 4] = static_cast<uint8_t>((s_duration_s >> 8) & 0xffu);
+  s_snapshot[kSnapTransportOff + 5] = s_vol_0_15;
 }
 
 #if AUDIO_BRIDGE_SERIAL_METADATA
@@ -226,25 +248,27 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
   if (strncmp(s_track, s_prev_track_for_elapsed, kMaxTrackLen + 1) != 0) {
     strncpy(s_prev_track_for_elapsed, s_track, kMaxTrackLen + 1);
     s_prev_track_for_elapsed[kMaxTrackLen] = '\0';
-    s_track_start_ms = millis();
+    anchor_position_unlocked(0);
   }
+  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
-#if AUDIO_BRIDGE_SERIAL_METADATA
-  serial_log_metadata_line();
-#endif
 }
 
 static void avrc_play_pos_cb(uint32_t play_pos_ms) {
   portENTER_CRITICAL(&s_track_mux);
   s_last_play_pos_wall_ms = millis();
   const uint32_t sec = play_pos_ms / 1000u;
-  s_elapsed_s = (sec > 65535u) ? 65535 : (uint16_t)sec;
+  anchor_position_unlocked((sec > 65535u) ? 65535 : (uint16_t)sec);
+  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
 
 static void avrc_play_status_cb(esp_avrc_playback_stat_t st) {
   portENTER_CRITICAL(&s_track_mux);
+  apply_elapsed_estimate_unlocked();  // settle elapsed before the state flips
   s_playing = (st == ESP_AVRC_PLAYBACK_PLAYING);
+  anchor_position_unlocked(s_elapsed_s);
+  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -258,6 +282,24 @@ static void avrc_volume_cb(int vol_0_127) {
   }
   portENTER_CRITICAL(&s_track_mux);
   s_vol_0_15 = (uint8_t)((v * 15 + 63) / 127);
+  rebuild_snapshot_unlocked();
+  portEXIT_CRITICAL(&s_track_mux);
+}
+
+/** Phone disconnected: clear now-playing so the center doesn't keep showing a stale track. */
+static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
+  if (state != ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
+    return;
+  }
+  portENTER_CRITICAL(&s_track_mux);
+  s_meta_artist[0] = '\0';
+  s_meta_title[0] = '\0';
+  s_prev_track_for_elapsed[0] = '\0';
+  rebuild_track_line();
+  s_playing = false;
+  s_duration_s = 0;
+  anchor_position_unlocked(0);
+  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -303,9 +345,10 @@ void onReceive(int numBytes) {
         (void)Wire.read();
       }
       portENTER_CRITICAL(&s_track_mux);
-      s_elapsed_s = (uint16_t)((uint16_t)e0 | ((uint16_t)e1 << 8));
+      anchor_position_unlocked((uint16_t)((uint16_t)e0 | ((uint16_t)e1 << 8)));
       s_duration_s = (uint16_t)((uint16_t)d0 | ((uint16_t)d1 << 8));
       s_vol_0_15 = vv > 15 ? 15 : vv;
+      rebuild_snapshot_unlocked();
       portEXIT_CRITICAL(&s_track_mux);
     } else {
       while (Wire.available()) {
@@ -334,61 +377,17 @@ void onReceive(int numBytes) {
 void onRequest() {
   /* Read once: on some ESP32 slave stacks onRequest can race with onReceive updating s_i2c_cmd. */
   const uint8_t cmd = s_i2c_cmd;
+  uint8_t out[kSnapshotLen];
+  portENTER_CRITICAL(&s_track_mux);
+  memcpy(out, s_snapshot, sizeof(out));
+  portEXIT_CRITICAL(&s_track_mux);
 
   if (cmd == kRegSnapshot) {
-    portENTER_CRITICAL(&s_track_mux);
-    apply_elapsed_estimate_unlocked();
-    rebuild_track_line();
-    const size_t tn = s_track_len;
-    const uint8_t mlen = static_cast<uint8_t>((tn < kMaxTrackLen) ? tn : kMaxTrackLen);
-    Wire.write(mlen);
-    for (uint8_t i = 0; i < 32; i++) {
-      Wire.write(i < mlen ? static_cast<uint8_t>(s_track[i]) : 0);
-    }
-    Wire.write(0xA5);
-    Wire.write(5);
-    Wire.write(static_cast<uint8_t>(s_elapsed_s & 0xffu));
-    Wire.write(static_cast<uint8_t>((s_elapsed_s >> 8) & 0xffu));
-    Wire.write(static_cast<uint8_t>(s_duration_s & 0xffu));
-    Wire.write(static_cast<uint8_t>((s_duration_s >> 8) & 0xffu));
-    Wire.write(s_vol_0_15);
-    for (int p = 0; p < 8; p++) {
-      Wire.write(0);
-    }
-    portEXIT_CRITICAL(&s_track_mux);
-    return;
-  }
-
-  if (cmd == kRegMetadata) {
-    portENTER_CRITICAL(&s_track_mux);
-    apply_elapsed_estimate_unlocked();
-    /* Recompute from s_meta_* so I2C never serves a stale/empty s_track if AVRCP updated it. */
-    rebuild_track_line();
-    const size_t n = s_track_len;
-    const uint8_t len = static_cast<uint8_t>(min(n, kMaxTrackLen));
-    Wire.write(len);
-    for (uint8_t i = 0; i < len; ++i) {
-      Wire.write(static_cast<uint8_t>(s_track[i]));
-    }
-    /* Center (P4) clocks 33 bytes per read; pad so the slave response length matches the master
-     * request — short slave replies caused flaky metadata on some stacks. */
-    for (int pad = 1 + (int)len; pad < 33; pad++) {
-      Wire.write(0);
-    }
-    portEXIT_CRITICAL(&s_track_mux);
-    return;
-  }
-  if (cmd == kRegTransport) {
-    portENTER_CRITICAL(&s_track_mux);
-    apply_elapsed_estimate_unlocked();
-    Wire.write(5);
-    Wire.write(static_cast<uint8_t>(s_elapsed_s & 0xffu));
-    Wire.write(static_cast<uint8_t>((s_elapsed_s >> 8) & 0xffu));
-    Wire.write(static_cast<uint8_t>(s_duration_s & 0xffu));
-    Wire.write(static_cast<uint8_t>((s_duration_s >> 8) & 0xffu));
-    Wire.write(s_vol_0_15);
-    portEXIT_CRITICAL(&s_track_mux);
-    return;
+    Wire.write(out, kSnapshotLen);
+  } else if (cmd == kRegMetadata) {
+    Wire.write(out, 1 + kMaxTrackLen);  // [len][32 bytes, zero padded] — hosts clock 33 bytes
+  } else if (cmd == kRegTransport) {
+    Wire.write(out + kSnapTransportOff, kTransportLen);
   }
 }
 
@@ -410,9 +409,10 @@ void setup() {
   s_elapsed_s = 0;
   s_duration_s = 0;
   s_vol_0_15 = 0;
-  s_track_start_ms = millis();
   s_last_play_pos_wall_ms = 0;
   s_playing = false;
+  anchor_position_unlocked(0);
+  rebuild_snapshot_unlocked();
 
   {
 #if AUDIO_BRIDGE_USE_INTERNAL_DAC
@@ -440,7 +440,6 @@ void setup() {
   Wire.onRequest(onRequest);
 
 #if CLUSTER_THEME_I2C_ENABLE
-  s_cluster_prefs.begin(CLUSTER_NVS_NAMESPACE, false);
   Wire1.begin(static_cast<uint8_t>(CLUSTER_THEME_I2C_ADDR), CLUSTER_THEME_SDA, CLUSTER_THEME_SCL, 100000U);
   Wire1.onReceive(on_cluster_theme_receive);
 #endif
@@ -454,6 +453,7 @@ void setup() {
   /* Default in library was 10s between position notifications — too coarse for a dash. */
   a2dp_sink.set_avrc_rn_play_pos_callback(avrc_play_pos_cb, 1);
   a2dp_sink.set_avrc_rn_volumechange(avrc_volume_cb);
+  a2dp_sink.set_on_connection_state_changed(a2dp_connection_cb);
   a2dp_sink.set_auto_reconnect(true);
   a2dp_sink.start(BT_DEVICE_NAME);
 
@@ -472,5 +472,12 @@ void setup() {
 }
 
 void loop() {
-  delay(10);
+  // Keep the elapsed estimate in the reply buffer moving between AVRCP events.
+  portENTER_CRITICAL(&s_track_mux);
+  rebuild_snapshot_unlocked();
+  portEXIT_CRITICAL(&s_track_mux);
+#if AUDIO_BRIDGE_SERIAL_METADATA
+  serial_log_metadata_line();
+#endif
+  delay(250);
 }

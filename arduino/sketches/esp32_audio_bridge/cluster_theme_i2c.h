@@ -12,12 +12,3 @@
 #ifndef CLUSTER_REG_CENTER_SUBVIEW
 #define CLUSTER_REG_CENTER_SUBVIEW 0x02
 #endif
-
-// NVS namespace/key for theme mirror (Preferences).
-#ifndef CLUSTER_NVS_NAMESPACE
-#define CLUSTER_NVS_NAMESPACE "cluster"
-#endif
-
-#ifndef CLUSTER_NVS_KEY_THEME
-#define CLUSTER_NVS_KEY_THEME "th"
-#endif
