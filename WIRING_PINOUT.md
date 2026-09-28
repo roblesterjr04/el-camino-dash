@@ -25,7 +25,11 @@ Default ESP32 UART (PlatformIO): **RX = GPIO5**, **TX = GPIO4**.
 
 **Level shifting:** a 5 V ATmega TX into 3.3 V ESP32 RX needs a divider or level shifter.
 
-**D11 (demo mode):** HIGH makes the sensor pack send a slow fake sweep instead of real data. It is a plain input with no pull resistor — tie it to GND in the vehicle harness (or fit a pull-down); strap HIGH only on the bench.
+**D11 (demo mode):** HIGH makes the sensor pack send a slow fake sweep instead of real data. It is a plain input with no pull resistor — tie it to GND in the vehicle harness (or fit a pull-down); strap HIGH only on the bench. The DigiDash board has a 10 kΩ pull-down (R17).
+
+**DigiDash board inputs:** D6 ignition sense = ignition 12 V (J7 pin 3) through 22 kΩ / 10 kΩ; D4 alternator "L" =
+J3 pin 4 through 22 kΩ / 10 kΩ; D10 (charge-channel power monitor) pulled up to 5 V (that channel has no supply of its
+own; low would report a sensor-power fault); A1 pull-down 100 kΩ (100k NTC); A2 pull-down 1 kΩ (match your sender).
 
 Analog and digital pin map, thermistor math, and fault behavior: see comments and tables in `arduino/sketches/sensor_pack/sensor_pack.ino`.
 
@@ -94,6 +98,10 @@ Theme and sub-view state are pushed from the **center** display as **I2C master*
 
 Override with `-DCLUSTER_I2C_SDA=…` / `-DCLUSTER_I2C_SCL=…` in PlatformIO if your PCB uses other pins.
 
+**DigiDash carrier board** (`DigiDash/`): nets `CL_SDA` / `CL_SCL` join GPIO47 / GPIO48 on the three screen headers
+(J1 center, J4 right, J5 left), with 4.7 kΩ pull-ups (R15/R16) to the center's 3V3 pin. The screens plug face-down
+onto the headers, so each header row is mirrored relative to the Waveshare pin order; the symbol labels account for that.
+
 **7-bit addresses** (do not collide with touch/audio on the display bus):
 
 | Device | Address | Notes |
@@ -134,6 +142,10 @@ Use **`arduino/sketches/esp32_audio_bridge/esp32_audio_bridge.ino`** (or `firmwa
 **I2S** from the audio module to your DAC: assign **non-colliding** BCK/WS/DATA pins in the audio sketch (default I2S pins may conflict with I2C on some modules).
 
 Optional: connect ESP32-D to the **cluster** bus (**47/48**) as slave **0x3E** to mirror the global **theme** byte in NVS (see firmware).
+
+**I2S amplifier** (MAX98357A, `esp32dev_external_i2s` build): DIN = **GPIO27**, BCLK = **GPIO14**, LRC = **GPIO25**, VIN = 5 V,
+GND. GAIN can float (9 dB). On the DigiDash board this is **J14**. The DevKit's own 3V3 pin must not be tied to the
+center's 3V3 (two regulators); it runs from its 5V pin.
 
 ---
 
