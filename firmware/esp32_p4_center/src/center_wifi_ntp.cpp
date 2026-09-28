@@ -151,6 +151,11 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     p4_screen_shot(Serial, &Serial, 2000000, 115200, line == "shot legacy");
     return;
   }
+  if (line == "demo on" || line == "demo off") {
+    center_set_demo(line == "demo on");
+    Serial.println(line == "demo on" ? "ok: demo drive cycle on (sensor pack frames ignored)" : "ok: demo off (live sensor data)");
+    return;
+  }
   if (line.startsWith("tap ")) {  // bench: simulate a touch, "tap <x> <y> [hold_ms]"
     int x = 0, y = 0;
     unsigned long hold = 80;
@@ -174,7 +179,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | tap <x> <y> [ms] | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | tap <x> <y> [ms] | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }

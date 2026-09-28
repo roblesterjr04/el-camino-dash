@@ -49,6 +49,8 @@ static int16_t s_inject_x = 0;
 static int16_t s_inject_y = 0;
 static uint32_t s_inject_until_ms = 0;
 
+void center_set_demo(bool on) { s_link.setDemo(on); }
+
 void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms) {
   s_inject_x = x;
   s_inject_y = y;

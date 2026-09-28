@@ -15,12 +15,19 @@ bool SensorLink::poll() {
   }
   bool got = false;
   SensorPacketValues v{};
+  const uint32_t now = millis();
   // Drain everything buffered; keep the newest frame.
   while (_parser.poll(v, false)) {
-    _held = v;
+    if (!_demo) {
+      _held = v;
+      got = true;
+    }
+  }
+  if (_demo && (int32_t)(now - _demo_next_ms) >= 0) {
+    _demo_next_ms = now + 50;
+    _drive.frame(now, _held);
     got = true;
   }
-  const uint32_t now = millis();
   if (got) {
     _last_ms = now;
     _have = true;
@@ -32,6 +39,20 @@ bool SensorLink::poll() {
   }
 #endif
   return got;
+}
+
+void SensorLink::setDemo(bool on) {
+  if (on == _demo) {
+    return;
+  }
+  _demo = on;
+  if (on) {
+    // Continue from the real odometer if we have one, so the numbers look plausible.
+    _drive.start(millis(), (_have && _held.has_odometer) ? _held.odometer_tenths_mile : 966486u);
+    _demo_next_ms = millis();
+  } else {
+    _have = false;  // show NO DATA until the next real frame instead of the last demo values
+  }
 }
 
 bool SensorLink::fresh() const { return _have && (millis() - _last_ms) <= SENSOR_PACKET_STALE_MS; }

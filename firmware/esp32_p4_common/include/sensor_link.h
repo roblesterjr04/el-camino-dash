@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include <demo_drive.h>
 #include <sensor_packet.h>
 
 class Arduino_GFX;
@@ -47,7 +48,15 @@ class SensorLink {
 
   bool takeTextLine(char *out, size_t cap) { return _parser.takePendingTextLine(out, cap); }
 
+  /** Bench demo: replace sensor-pack frames with a simulated 60 s drive cycle (20 Hz). The UART is still
+   *  drained so nothing piles up; real frames are ignored until demo is switched off. */
+  void setDemo(bool on);
+  bool demo() const { return _demo; }
+
  private:
+  DemoDrive _drive;
+  bool _demo = false;
+  uint32_t _demo_next_ms = 0;
   SensorPacketParser _parser;
   HardwareSerial *_ser = nullptr;
   SensorPacketValues _held{};
