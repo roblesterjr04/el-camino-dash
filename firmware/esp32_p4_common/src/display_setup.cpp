@@ -272,8 +272,38 @@ void tsps_backlight_set_level(uint8_t level) {
 #error ELC_ILLUMINATION_GPIO must not equal TSPS_LCD_RST (reset output vs. illum input)
 #endif
 
+static uint8_t s_user_pct = 100;   // menu brightness (10..100)
+static bool s_follow_lights = true;  // dim when the illumination input says headlights are on
+static int8_t s_night = -1;          // debounced illumination state (-1 = not read yet)
+static int16_t s_applied = -1;
+
+static void elc_backlight_apply(void) {
+  const bool dim = s_follow_lights && s_night == 1;
+  const uint32_t base = dim ? (uint32_t)ELC_ILLUMINATION_DIM_LEVEL : (uint32_t)ELC_ILLUMINATION_FULL_LEVEL;
+  uint32_t level = base * s_user_pct / 100u;
+  if (level < 8u) {
+    level = 8u;
+  }
+  if ((int16_t)level != s_applied) {
+    s_applied = (int16_t)level;
+    tsps_backlight_set_level((uint8_t)level);
+  }
+}
+
+void elc_backlight_set_user(uint8_t pct, bool follow_lights) {
+  s_user_pct = pct < 10 ? 10 : (pct > 100 ? 100 : pct);
+  s_follow_lights = follow_lights;
+  elc_backlight_apply();
+}
+
+bool elc_illumination_is_night(void) { return s_night == 1; }
+
 void elc_illumination_gpio_poll(void) {
 #if ELC_ILLUMINATION_GPIO < 0
+  if (s_applied < 0) {
+    s_night = 0;
+    elc_backlight_apply();
+  }
   return;
 #else
   static bool s_pin_inited = false;
@@ -283,45 +313,45 @@ void elc_illumination_gpio_poll(void) {
   }
   const bool high = digitalRead(ELC_ILLUMINATION_GPIO) == HIGH;
   // LOW_IS_DIM 1: GPIO low = night → dim. Set -DELC_ILLUMINATION_LOW_IS_DIM=0 if your harness is inverted.
-  const uint8_t want =
 #if ELC_ILLUMINATION_LOW_IS_DIM
-      high ? (uint8_t)ELC_ILLUMINATION_FULL_LEVEL : (uint8_t)ELC_ILLUMINATION_DIM_LEVEL;
+  const int8_t night = high ? 0 : 1;
 #else
-      high ? (uint8_t)ELC_ILLUMINATION_DIM_LEVEL : (uint8_t)ELC_ILLUMINATION_FULL_LEVEL;
+  const int8_t night = high ? 1 : 0;
 #endif
-  static uint16_t s_last_level = 0xFFFFu;
-  static uint16_t s_candidate = 0xFFFFu;
+  static int8_t s_candidate = -1;
   static uint32_t s_candidate_since_ms = 0;
   const uint32_t now = millis();
-  if (s_last_level == 0xFFFFu) {  // first call: apply immediately
-    s_last_level = want;
-    tsps_backlight_set_level(want);
+  if (s_night < 0) {  // first call: apply immediately
+    s_night = night;
+    elc_backlight_apply();
     return;
   }
-  if (want == (uint8_t)s_last_level) {
-    s_candidate = 0xFFFFu;
+  if (night == s_night) {
+    s_candidate = -1;
     return;
   }
 #ifndef ELC_ILLUMINATION_DEBOUNCE_MS
 #define ELC_ILLUMINATION_DEBOUNCE_MS 150u
 #endif
-  // Debounce: the new level must hold steadily (a PWM'd dash-light feed or ignition noise would
+  // Debounce: the new state must hold steadily (a PWM'd dash-light feed or ignition noise would
   // otherwise flicker the backlight).
-  if (s_candidate != want) {
-    s_candidate = want;
+  if (s_candidate != night) {
+    s_candidate = night;
     s_candidate_since_ms = now;
     return;
   }
   if (now - s_candidate_since_ms < ELC_ILLUMINATION_DEBOUNCE_MS) {
     return;
   }
-  s_candidate = 0xFFFFu;
-  s_last_level = want;
-  tsps_backlight_set_level(want);
+  s_candidate = -1;
+  s_night = night;
+  elc_backlight_apply();
 #endif
 }
 #else
 void elc_illumination_gpio_poll(void) {}
+void elc_backlight_set_user(uint8_t, bool) {}
+bool elc_illumination_is_night(void) { return false; }
 #endif
 
 Arduino_GFX *create_tsps_display() {

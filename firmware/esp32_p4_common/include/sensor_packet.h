@@ -60,10 +60,18 @@ class SensorPacketParser {
 
   static SensorDerived derive(const SensorPacketValues &p);
 
+  /** Running totals: good frames, frames rejected by the checksum, bytes skipped while resyncing. */
+  uint32_t framesOk() const { return _ok; }
+  uint32_t framesBad() const { return _bad; }
+  uint32_t bytesSkipped() const { return _skipped; }
+
  private:
   HardwareSerial *_ser = nullptr;
   uint8_t _buf[1024];
   size_t _len = 0;
+  uint32_t _ok = 0;
+  uint32_t _bad = 0;
+  uint32_t _skipped = 0;
 
   void stripLeadingUartTextLines();
   size_t find_sync(size_t from) const;

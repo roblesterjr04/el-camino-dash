@@ -32,7 +32,7 @@ Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
 | Directory | Role |
 |-----------|------|
 | `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, "NO DATA" stamp), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
-| `esp32_p4_ui/` | Shared **touch + modal overlays**: `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), `P4OverlayMenu`. |
+| `esp32_p4_ui/` | Shared **screen + touch**: `p4_screen` (LVGL direct-mode, double-buffered panel, legacy GFX layer, screenshot), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
 | `esp32_p4_speedo/` | **LEFT**: speedometer (MPH from Hall `speed_rpm` + wheel constants). |
 | `esp32_p4_center/` | **MIDDLE**: Classic tach / clock / media + Fallout screen; long-press gestures; I2C cluster master. |
 | `esp32_p4_tsps/` | **RIGHT**: TSPS cluster; Classic layouts + Fallout; **3 s hold** for classic_1 vs classic_2 when theme is Classic. |
@@ -72,8 +72,12 @@ off-screen "legacy layer" canvas, which is the bottom LVGL object; new LVGL UI g
 The gauge renderers only run when something they show changes (`gauge_signature()` in `main.cpp`), and the layer is
 compared band by band so LVGL redraws only what differs.
 
+The center menu (`center_menu.cpp`) is pure LVGL: a scaled wheel on the home page, and Wi-Fi, Brightness, Theme and
+Service pages. It is rebuilt in the active theme's colors and fonts (`src/fonts/`) each time it opens. The Wi-Fi
+password keyboard, sensor log, GPS data and Phone pages are still the older Arduino_GFX full-screen pages.
+
 Console on the flashing USB port (115200, `Serial` = UART0): `help`, `perf` (fps and timing), `shot` (screenshot),
-`tap <x> <y> [ms]` (simulated touch), plus the Wi-Fi/TZ commands. Grab a screenshot from the Mac with:
+`tap <x> <y> [ms]` (simulated touch), `knob left|right|press` (encoder), `demo on|off`, plus the Wi-Fi/TZ commands. Grab a screenshot from the Mac with:
 
 ```bash
 python3 tools/screenshot.py --port /dev/cu.usbmodem… -o center.png

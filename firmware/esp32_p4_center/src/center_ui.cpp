@@ -18,6 +18,7 @@
 #include "FreeSansBold12pt7b.h"
 #include "center_ble.h"
 #include "center_gps.h"
+#include "center_menu.h"
 #include "center_sd_settings.h"
 #include "center_wifi_ntp.h"
 
@@ -32,30 +33,12 @@ static uint16_t ui_rgb565(uint8_t r, uint8_t g, uint8_t b) {
 enum class UiPage : uint8_t {
   Closed = 0,
   Home,
-  WifiTools,
-  WifiList,
   FsPhone,
   FsPsk,
   FsSerial,
   FsGpsDiag,
   FsWifiScan,
   FsWifiConn,
-};
-
-enum : int {
-  CID_H_CLOCK = 1,
-  CID_H_TACH = 2,
-  CID_H_BT = 3,
-  CID_H_PHONE = 4,
-  CID_H_THEME = 5,
-  CID_H_WIFI = 6,
-  CID_H_ECON = 7,
-  CID_W_USE = 10,
-  CID_W_SCAN = 11,
-  CID_W_BACK = 12,
-  CID_W_SERIAL = 14,
-  CID_W_GPS = 15,
-  CID_SS_BASE = 100,
 };
 
 enum KSpec : int16_t {
@@ -78,7 +61,6 @@ static int s_key_n = 0;
 
 static Arduino_GFX *s_gfx = nullptr;
 static Preferences *s_prefs = nullptr;
-static P4OverlayMenu *s_menu = nullptr;
 static UiPage s_page = UiPage::Closed;
 static CenterViewMode s_view = CenterViewMode::Tach;
 static ClusterTheme s_theme = ClusterTheme::Classic;
@@ -102,9 +84,6 @@ static uint32_t s_last_sensor_pkt_ms = 0;
 static uint32_t s_sensor_pkts_since_stats = 0;
 static uint32_t s_last_sensor_stats_ms = 0;
 
-static int16_t s_touch_drag_accum = 0;
-static int16_t s_touch_last_y = -1;
-static bool s_touch_prev_down = false;
 
 static void sensor_log_push_line(const char *line) {
   if (s_sensor_log_count < kSensorLogLines) {
@@ -234,60 +213,16 @@ static bool hit_cancel_bar(int16_t tx, int16_t ty, int16_t sw, int16_t sh) {
   return tx >= bx && tx < bx + bw && ty >= by && ty < by + bh;
 }
 
-static void menu_open_home() {
-  s_page = UiPage::Home;
-  s_menu->setScreenSize(s_gfx->width(), s_gfx->height());
-  s_menu->setBackdropColor(0x0000);
-  static const int kHomeIds[] = {CID_H_CLOCK, CID_H_TACH, CID_H_ECON, CID_H_BT, CID_H_PHONE, CID_H_THEME, CID_H_WIFI};
-  static const char *const kHomeLbl[] = {"Clock",      "Tachometer",      "Efficiency (MPG)",
-                                         "Bluetooth Audio", "Phone", "Theme Toggle", "WiFi Settings"};
-  s_menu->setupHomeTranslateList(kHomeIds, kHomeLbl, 7, kLayoutInset);
-  s_menu->open();
-}
-
-static void menu_wifi_tools() {
-  s_page = UiPage::WifiTools;
-  const int16_t sw = s_gfx->width();
-  const int16_t sh = s_gfx->height();
-  const int16_t m = kLayoutInset;
-  const int16_t gap = 8;
-  const int rows = 5;
-  const int16_t h = (int16_t)((sh - 2 * m - (rows - 1) * gap) / rows);
-  s_menu->clearItems();
-  s_menu->addItem({CID_W_USE, m, m, (int16_t)(sw - 2 * m), h, "SAVED"});
-  s_menu->addItem({CID_W_SCAN, m, (int16_t)(m + 1 * (h + gap)), (int16_t)(sw - 2 * m), h, "SCAN"});
-  s_menu->addItem({CID_W_SERIAL, m, (int16_t)(m + 2 * (h + gap)), (int16_t)(sw - 2 * m), h, "SENSOR LOG"});
-  s_menu->addItem({CID_W_GPS, m, (int16_t)(m + 3 * (h + gap)), (int16_t)(sw - 2 * m), h, "GPS UART"});
-  s_menu->addItem({CID_W_BACK, m, (int16_t)(m + 4 * (h + gap)), (int16_t)(sw - 2 * m), h, "BACK"});
-  s_menu->open();
-}
-
-static void menu_wifi_list() {
-  s_page = UiPage::WifiList;
-  const int16_t sw = s_gfx->width();
-  const int16_t sh = s_gfx->height();
-  const int16_t m = kLayoutInset;
-  const int16_t back_h = 48;
-  const int16_t n = (int16_t)s_scan_n;
-  if (n <= 0) {
-    s_menu->clearItems();
-    s_menu->addItem({CID_W_BACK, m, (int16_t)(sh - m - back_h), (int16_t)(sw - 2 * m), back_h, "BACK"});
-    s_menu->open();
-    return;
-  }
-  const int16_t avail = (int16_t)(sh - 2 * m - back_h - 8);
-  const int16_t row = (int16_t)(avail / n);
-  s_menu->clearItems();
-  for (int i = 0; i < s_scan_n; i++) {
-    const int16_t y = (int16_t)(m + i * row);
-    s_menu->addItem({CID_SS_BASE + i, m, y, (int16_t)(sw - 2 * m), (int16_t)(row - 4), s_scan_ssid[i]});
-  }
-  s_menu->addItem({CID_W_BACK, m, (int16_t)(sh - m - back_h), (int16_t)(sw - 2 * m), back_h, "BACK"});
-  s_menu->open();
+/** Leave any legacy full-screen page and show the LVGL menu. */
+static void menu_open_home(CenterMenuPage page = CenterMenuPage::Home) {
+  s_page = UiPage::Closed;
+  s_kb_shift = false;
+  center_shell_set_wifi_psk_pending(nullptr);
+  center_menu_open(page);
 }
 
 static void close_to_gauge() {
-  s_menu->close();
+  center_menu_close();
   s_page = UiPage::Closed;
   s_kb_shift = false;
   center_shell_set_wifi_psk_pending(nullptr);
@@ -336,10 +271,10 @@ void center_ui_on_sensor_packet(const SensorPacketValues &v) {
   sensor_log_push_line(line);
 }
 
-void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs, P4OverlayMenu *menu) {
+void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs) {
   s_gfx = gfx;
   s_prefs = prefs;
-  s_menu = menu;
+  center_menu_begin(prefs);
   if (prefs) {
     s_theme = (prefs->getUChar("ctheme", 0) != 0) ? ClusterTheme::Fallout : ClusterTheme::Classic;
     uint8_t v = prefs->getUChar("view", 0);
@@ -362,138 +297,70 @@ void center_ui_sync_cluster_bus() {
   cluster_i2c_broadcast_center_theme(s_theme, (ClusterCenterSubview)(uint8_t)s_view);
 }
 
+void center_ui_set_view(CenterViewMode v) {
+  s_view = v;
+  if (s_prefs) {
+    s_prefs->putUChar("view", (uint8_t)v);
+    center_sd_settings_sync(*s_prefs);
+  }
+  center_ui_sync_cluster_bus();
+}
+
+void center_ui_set_theme(ClusterTheme t) {
+  s_theme = t;
+  if (s_prefs) {
+    s_prefs->putUChar("ctheme", (uint8_t)t);
+    center_sd_settings_sync(*s_prefs);
+  }
+  center_ui_sync_cluster_bus();
+}
+
+void center_ui_open_legacy_page(CenterLegacyPage p) {
+  center_menu_close();
+  s_page = p == CenterLegacyPage::Phone ? UiPage::FsPhone : (p == CenterLegacyPage::SensorLog ? UiPage::FsSerial : UiPage::FsGpsDiag);
+}
+
+void center_ui_open_wifi_password(const char *ssid) {
+  center_menu_close();
+  strncpy(s_pending_ssid, ssid ? ssid : "", 32);
+  s_pending_ssid[32] = '\0';
+  center_shell_set_wifi_psk_pending(s_pending_ssid);
+  s_pwd_len = 0;
+  s_pwd[0] = '\0';
+  s_kb_shift = false;
+  s_page = UiPage::FsPsk;
+  layout_wifi_keyboard(s_gfx->width(), s_gfx->height());
+}
+
 void center_ui_process_touch_gesture(uint32_t duration_ms, int16_t x, int16_t y) {
-  if (!s_menu || !s_gfx || !s_prefs) {
-    return;
+  if (!s_gfx || !s_prefs || center_menu_is_open()) {
+    return;  // the LVGL menu handles its own touches
   }
   if (!touch_in_circle(x, y)) {
     return;
   }
-  if (center_ui_fullscreen() || center_ui_overlay_open()) {
+  if (center_ui_fullscreen()) {
     if (duration_ms < 3000u) {
       center_ui_on_touch_release(x, y);
     }
     return;
   }
-
   if (duration_ms >= 10000u) {
-    s_theme = (s_theme == ClusterTheme::Classic) ? ClusterTheme::Fallout : ClusterTheme::Classic;
-    s_prefs->putUChar("ctheme", (uint8_t)s_theme);
-    center_sd_settings_sync(*s_prefs);
-    center_ui_sync_cluster_bus();
+    center_ui_set_theme(s_theme == ClusterTheme::Classic ? ClusterTheme::Fallout : ClusterTheme::Classic);
     return;
   }
   if (duration_ms >= 3000u && s_theme == ClusterTheme::Classic) {
-    uint8_t v = (uint8_t)s_view;
-    v = (uint8_t)((v + 1u) % 4u);
-    s_view = (CenterViewMode)v;
-    s_prefs->putUChar("view", v);
-    center_sd_settings_sync(*s_prefs);
-    center_ui_sync_cluster_bus();
+    center_ui_set_view((CenterViewMode)(((uint8_t)s_view + 1u) % 4u));
     return;
   }
   center_ui_on_touch_release(x, y);
 }
 
-bool center_ui_overlay_open() { return s_menu && s_menu->isOpen(); }
+bool center_ui_overlay_open() { return center_menu_is_open(); }
 
 bool center_ui_fullscreen() {
   return s_page == UiPage::FsPsk || s_page == UiPage::FsSerial || s_page == UiPage::FsGpsDiag ||
          s_page == UiPage::FsWifiScan || s_page == UiPage::FsWifiConn || s_page == UiPage::FsPhone;
-}
-
-static void draw_wifi_tools_status(Arduino_GFX *g) {
-  if (!g) {
-    return;
-  }
-  const int16_t sw = g->width();
-  const int16_t sh = g->height();
-  (void)sh;
-  char line[48];
-  g->setFont(&FreeSansBold10pt7b);
-  g->setTextSize(1);
-
-  auto line_y = [&](int idx) -> int16_t { return (int16_t)(28 + idx * 22); };
-
-  auto print_centered = [&](const char *s, int idx) {
-    int16_t bx = 0, by = 0;
-    uint16_t tw = 0, th = 0;
-    g->getTextBounds(s, 0, 0, &bx, &by, &tw, &th);
-    const int16_t x = (int16_t)((sw - (int16_t)tw) / 2);
-    g->setCursor(x, line_y(idx));
-    g->print(s);
-  };
-
-  const wl_status_t st = WiFi.status();
-  if (st == WL_CONNECTED) {
-    g->setTextColor(ui_rgb565(140, 220, 140));
-    print_centered("Wi-Fi connected", 0);
-
-    String ss = WiFi.SSID();
-    if (ss.length() > 30) {
-      ss = ss.substring(0, 27) + "...";
-    }
-    g->setTextColor(0xFFFFu);
-    print_centered(ss.c_str(), 1);
-
-    snprintf(line, sizeof(line), "IP  %s", WiFi.localIP().toString().c_str());
-    g->setTextColor(ui_rgb565(170, 200, 255));
-    print_centered(line, 2);
-
-    const int rssi = WiFi.RSSI();
-    snprintf(line, sizeof(line), "%d dBm", rssi);
-    g->setTextColor(ui_rgb565(160, 180, 160));
-    print_centered(line, 3);
-  } else {
-    g->setTextColor(ui_rgb565(220, 180, 120));
-    const char *msg = "Wi-Fi disconnected";
-    if (st == WL_IDLE_STATUS) {
-      msg = "Wi-Fi idle";
-    } else if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL) {
-      msg = "Wi-Fi: network unavailable";
-    } else if (st != WL_DISCONNECTED) {
-      snprintf(line, sizeof(line), "Wi-Fi status %d", (int)st);
-      msg = line;
-    }
-    print_centered(msg, 0);
-
-    if (s_prefs) {
-      String saved = s_prefs->getString("wifi_ssid", "");
-      if (saved.length() > 0) {
-        g->setTextColor(ui_rgb565(140, 140, 150));
-        if (saved.length() > 32) {
-          saved = saved.substring(0, 29) + "...";
-        }
-        snprintf(line, sizeof(line), "Saved: %s", saved.c_str());
-        print_centered(line, 1);
-      }
-    }
-  }
-  g->setFont(nullptr);
-}
-
-void center_ui_draw_overlay() {
-  if (!s_menu || !s_menu->isOpen()) {
-    return;
-  }
-  int hi = -999;
-  if (s_view == CenterViewMode::Tach) {
-    hi = CID_H_TACH;
-  } else if (s_view == CenterViewMode::Clock) {
-    hi = CID_H_CLOCK;
-  } else if (s_view == CenterViewMode::Efficiency) {
-    hi = CID_H_ECON;
-  } else if (s_view == CenterViewMode::Media) {
-    hi = CID_H_BT;
-  }
-  if (s_page == UiPage::Home) {
-    s_menu->draw((int16_t)hi);
-  } else {
-    s_menu->draw(-999);
-  }
-  if (s_page == UiPage::WifiTools && s_gfx) {
-    draw_wifi_tools_status(s_gfx);
-  }
 }
 
 static void draw_scan_progress(Arduino_GFX *t, int16_t sw, int16_t sh, uint32_t ms, float phase01) {
@@ -915,39 +782,6 @@ void center_ui_draw_fullscreen(Arduino_GFX *gfx) {
   blit_round_canvas(gfx);
 }
 
-void center_ui_touch_sample(int16_t x, int16_t y, bool finger_down) {
-  (void)x;
-  if (!s_menu || !s_menu->isOpen() || center_ui_fullscreen()) {
-    if (!finger_down) {
-      s_touch_prev_down = false;
-      s_touch_last_y = -1;
-    }
-    return;
-  }
-  if (finger_down && !s_touch_prev_down) {
-    s_touch_drag_accum = 0;
-    s_touch_last_y = -1;
-  }
-  if (finger_down) {
-    if (s_touch_last_y < 0) {
-      s_touch_last_y = y;
-      if (s_page == UiPage::Home && s_menu->isHomeTranslateList()) {
-        s_menu->homeListBeginDrag(y);
-      }
-    } else {
-      const int dy = (int)y - (int)s_touch_last_y;
-      s_touch_drag_accum = (int16_t)(s_touch_drag_accum + (dy < 0 ? -dy : dy));
-      s_touch_last_y = y;
-      if (s_page == UiPage::Home && s_menu->isHomeTranslateList()) {
-        s_menu->homeListDragTo(y);
-      }
-    }
-  } else {
-    s_touch_last_y = -1;
-  }
-  s_touch_prev_down = finger_down;
-}
-
 void center_ui_loop() {
   const uint32_t now = millis();
   /* Rolling 2 s window: reset even when log is closed so the next open shows a fresh rate. */
@@ -1000,33 +834,19 @@ void center_ui_loop() {
     }
   }
 
-  if (s_page == UiPage::FsWifiScan) {
-    int nout = 0;
-    const int pr = center_wifi_scan_async_poll(s_scan_ssid, s_scan_enc, 8, &nout);
-    if (pr != 0) {
-      s_scan_n = nout;
-      menu_wifi_list();
-    }
-  }
   if (s_page == UiPage::FsWifiConn) {
     const int r = center_wifi_join_async_poll();
     if (r == 1) {
       center_ble_set_info_line("WiFi OK");
       close_to_gauge();
     } else if (r == 2) {
-      menu_wifi_tools();
+      menu_open_home(CenterMenuPage::Wifi);
     }
   }
 }
 
-static void start_fs_scan() {
-  s_page = UiPage::FsWifiScan;
-  s_menu->close();
-  center_wifi_scan_async_start();
-}
-
 void center_ui_on_touch_release(int16_t x, int16_t y) {
-  if (!s_menu || !s_gfx || !s_prefs) {
+  if (!s_gfx || !s_prefs) {
     return;
   }
   if (!touch_in_circle(x, y)) {
@@ -1056,11 +876,9 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
     if (s_page == UiPage::FsPsk) {
       const int16_t h = hit_key(x, y);
       if (h == KK_CANCEL) {
-        center_shell_set_wifi_psk_pending(nullptr);
         s_pwd_len = 0;
         s_pwd[0] = '\0';
-        s_kb_shift = false;
-        menu_open_home();
+        menu_open_home(CenterMenuPage::Wifi);
         return;
       }
       if (h == KK_SHIFT) {
@@ -1101,111 +919,5 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
     return;
   }
 
-  if (!s_menu->isOpen()) {
-    menu_open_home();
-    return;
-  }
-
-  const int16_t drag = s_touch_drag_accum;
-  if (s_page == UiPage::Home && s_menu->isHomeTranslateList() && drag > 20) {
-    s_menu->homeListSnap();
-    s_touch_drag_accum = 0;
-    return;
-  }
-
-  const int pick = s_menu->onRelease(x, y, drag);
-  s_touch_drag_accum = 0;
-  if (pick == -2) {
-    close_to_gauge();
-    return;
-  }
-  if (pick == -3) {
-    return;
-  }
-
-  if (s_page == UiPage::Home) {
-    if (pick == CID_H_TACH) {
-      s_view = CenterViewMode::Tach;
-      s_prefs->putUChar("view", 0);
-      center_sd_settings_sync(*s_prefs);
-      center_ui_sync_cluster_bus();
-      close_to_gauge();
-    } else if (pick == CID_H_CLOCK) {
-      s_view = CenterViewMode::Clock;
-      s_prefs->putUChar("view", 1);
-      center_sd_settings_sync(*s_prefs);
-      center_ui_sync_cluster_bus();
-      close_to_gauge();
-    } else if (pick == CID_H_ECON) {
-      s_view = CenterViewMode::Efficiency;
-      s_prefs->putUChar("view", 3);
-      center_sd_settings_sync(*s_prefs);
-      center_ui_sync_cluster_bus();
-      close_to_gauge();
-    } else if (pick == CID_H_BT) {
-      s_view = CenterViewMode::Media;
-      s_prefs->putUChar("view", 2);
-      center_sd_settings_sync(*s_prefs);
-      center_ui_sync_cluster_bus();
-      close_to_gauge();
-    } else if (pick == CID_H_PHONE) {
-      s_page = UiPage::FsPhone;
-      s_menu->close();
-    } else if (pick == CID_H_THEME) {
-      s_theme = (s_theme == ClusterTheme::Classic) ? ClusterTheme::Fallout : ClusterTheme::Classic;
-      s_prefs->putUChar("ctheme", (uint8_t)s_theme);
-      center_sd_settings_sync(*s_prefs);
-      center_ui_sync_cluster_bus();
-      close_to_gauge();
-    } else if (pick == CID_H_WIFI) {
-      menu_wifi_tools();
-    }
-    return;
-  }
-
-  if (s_page == UiPage::WifiTools) {
-    if (pick == CID_W_BACK) {
-      menu_open_home();
-    } else if (pick == CID_W_USE) {
-      s_page = UiPage::FsWifiConn;
-      s_menu->close();
-      center_wifi_join_saved_async_start(*s_prefs);
-    } else if (pick == CID_W_SCAN) {
-      start_fs_scan();
-    } else if (pick == CID_W_SERIAL) {
-      s_page = UiPage::FsSerial;
-      s_menu->close();
-    } else if (pick == CID_W_GPS) {
-      s_page = UiPage::FsGpsDiag;
-      s_menu->close();
-    }
-    return;
-  }
-
-  if (s_page == UiPage::WifiList) {
-    if (pick == CID_W_BACK) {
-      menu_wifi_tools();
-    } else if (pick >= CID_SS_BASE && pick < CID_SS_BASE + s_scan_n) {
-      const int idx = pick - CID_SS_BASE;
-      strncpy(s_pending_ssid, s_scan_ssid[idx], 32);
-      s_pending_ssid[32] = '\0';
-      const uint8_t enc = s_scan_enc[idx];
-      const bool is_open = (enc == (uint8_t)WIFI_AUTH_OPEN);
-      if (is_open) {
-        s_page = UiPage::FsWifiConn;  // center_ui_loop polls the async join and closes on success
-        s_menu->close();
-        center_wifi_join_async_start(*s_prefs, s_pending_ssid, "");
-      } else {
-        center_shell_set_wifi_psk_pending(s_pending_ssid);
-        s_pwd_len = 0;
-        s_pwd[0] = '\0';
-        s_kb_shift = false;
-        s_menu->close();
-        s_page = UiPage::FsPsk;
-        layout_wifi_keyboard(s_gfx->width(), s_gfx->height());
-      }
-    }
-    return;
-  }
-
+  center_menu_open(CenterMenuPage::Home);
 }

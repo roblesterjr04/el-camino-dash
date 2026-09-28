@@ -8,7 +8,6 @@
 #include <cluster_i2c.h>
 #include <display_setup.h>
 #include <el_camino_speed.h>
-#include <p4_overlay_menu.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
 #include <elc_watchdog.h>
@@ -16,6 +15,7 @@
 
 #include "center_audio_link.h"
 #include "center_ble.h"
+#include "center_menu.h"
 #include "center_cluster.h"
 #include "center_gps.h"
 #include "center_media_ui.h"
@@ -51,6 +51,8 @@ static uint32_t s_inject_until_ms = 0;
 
 void center_set_demo(bool on) { s_link.setDemo(on); }
 
+const SensorLink &center_sensor_link() { return s_link; }
+
 void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms) {
   s_inject_x = x;
   s_inject_y = y;
@@ -58,7 +60,6 @@ void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms) {
 }
 static Arduino_GFX *gfx = nullptr;
 static Preferences s_prefs;
-static P4OverlayMenu s_menu;
 
 void setup() {
   Serial.begin(115200);
@@ -87,16 +88,13 @@ void setup() {
   p4_touch_begin();
   center_audio_link_begin();
 
-  s_menu.begin(gfx);
-  s_menu.setScreenSize(gfx->width(), gfx->height());
-  s_menu.setBackdropColor(0x0000);
 
   center_wifi_ntp_begin(s_prefs);
   center_gps_begin(s_prefs);
   center_wifi_try_connect_saved();
   center_ble_begin();
   center_ble_set_info_line("ElCamino center");
-  center_ui_begin(gfx, &s_prefs, &s_menu);
+  center_ui_begin(gfx, &s_prefs);
 
   cluster_i2c_master_begin();
   center_ui_sync_cluster_bus();
@@ -242,7 +240,6 @@ void loop() {
     s_lx = tx;
     s_ly = ty;
   }
-  center_ui_touch_sample(tx, ty, finger_down);
 
   if (!finger_down && s_was_down) {
     const uint32_t dur = now - s_down_ms;
@@ -250,6 +247,9 @@ void loop() {
     center_ui_process_touch_gesture(dur, s_lx, s_ly);
   }
   s_was_down = finger_down;
+  // Progress ring while holding on the gauge screen (3 s = next view, 10 s = next theme).
+  center_menu_hold_feedback(finger_down ? now - s_down_ms : 0,
+                            finger_down && !center_menu_is_open() && !center_ui_fullscreen());
 
   uint64_t epoch_ms = 0;
   const bool wall_ok = center_wall_epoch_ms(&epoch_ms);
@@ -318,18 +318,16 @@ void loop() {
   s_last_sig = sig;
   s_have_sig = true;
 
-  if (redraw) {
+  // While the LVGL menu is open it covers the gauge, so the gauge layer is left frozen.
+  if (redraw && !(overlay_open && !center_ui_fullscreen())) {
     if (!ui_block) {
       center_render(gfx, gfx->width(), gfx->height(), view, theme, &gin);
       if (theme == ClusterTheme::Classic && view != CenterViewMode::Media) {
         center_audio_link_draw(gfx, gfx->width(), gfx->height());
       }
     }
-    center_media_lvgl_sync_overlay(overlay_open && (center_ui_view_mode() == CenterViewMode::Media));
     if (center_ui_fullscreen()) {
       center_ui_draw_fullscreen(gfx);
-    } else if (overlay_open) {
-      center_ui_draw_overlay();
     }
     // Legacy layer → LVGL → panel (LVGL redraws only the row bands that changed).
     p4_screen_note_app_us((uint32_t)(esp_timer_get_time() - draw_t0));

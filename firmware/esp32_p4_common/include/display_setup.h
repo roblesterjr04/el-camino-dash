@@ -16,3 +16,8 @@ void tsps_backlight_set_level(uint8_t level);
 // Set -DELC_ILLUMINATION_GPIO=-1 to disable. -DELC_ILLUMINATION_LOW_IS_DIM=0 if harness inverts day/night sense.
 // GPIO BL (e.g. 26): use -DTSPS_BACKLIGHT_ACTIVE_LOW=1 when FET is active-low. PMIC-only 3.4C: GFX patch for SH8601 DCS.
 void elc_illumination_gpio_poll(void);
+
+// User brightness from the menu (10..100 %) applied on top of the illumination dim/full level;
+// follow_lights=false keeps full brightness regardless of the headlight input.
+void elc_backlight_set_user(uint8_t pct, bool follow_lights);
+bool elc_illumination_is_night(void);

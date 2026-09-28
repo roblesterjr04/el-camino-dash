@@ -2,13 +2,22 @@
 
 #include <Arduino_GFX_Library.h>
 #include <Preferences.h>
-#include <p4_overlay_menu.h>
 
 #include "center_cluster.h"
 
 struct SensorPacketValues;
+class SensorLink;
 
-void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs, P4OverlayMenu *menu);
+void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs);
+
+/** Sensor link owned by main.cpp (read-only access for the Service page). */
+const SensorLink &center_sensor_link();
+
+enum class CenterLegacyPage : uint8_t { Phone, SensorLog, GpsDiag };
+void center_ui_set_view(CenterViewMode v);    // persists + syncs the cluster bus
+void center_ui_set_theme(ClusterTheme t);     // persists + syncs the cluster bus
+void center_ui_open_legacy_page(CenterLegacyPage p);
+void center_ui_open_wifi_password(const char *ssid);
 /** Bench/console: simulate a finger on the screen for hold_ms (implemented in main.cpp). */
 void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms);
 /** Bench/console: simulated drive cycle instead of sensor-pack data (implemented in main.cpp). */
@@ -27,9 +36,6 @@ void center_ui_loop();
 
 void center_ui_on_touch_release(int16_t x, int16_t y);
 
-/** Call each frame with touch position; drives home menu scroll drag. */
-void center_ui_touch_sample(int16_t x, int16_t y, bool finger_down);
-
 // Long-press handling: duration is finger-down time until release (ms). Replaces direct
 // p4_touch_poll_release when using continuous sampling in main.
 void center_ui_process_touch_gesture(uint32_t duration_ms, int16_t x, int16_t y);
@@ -39,8 +45,6 @@ void center_ui_sync_cluster_bus();
 bool center_ui_overlay_open();
 
 bool center_ui_fullscreen();
-
-void center_ui_draw_overlay();
 
 void center_ui_draw_fullscreen(Arduino_GFX *gfx);
 

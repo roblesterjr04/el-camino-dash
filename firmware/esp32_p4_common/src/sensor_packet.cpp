@@ -142,6 +142,7 @@ void SensorPacketParser::stripLeadingUartTextLines() {
     }
     const size_t sync = find_sync(1);
     if (sync < nl) {
+      _skipped += sync;
       consume(sync);  // unterminated junk before a frame
       continue;
     }
@@ -233,6 +234,7 @@ bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_go
       SensorPacketValues tmp{};
       if (parse_payload(payload, ECONOMY_PAYLOAD_LEN, tmp)) {
         consume(kFrameLen);
+        _ok++;
         out = tmp;
         if (send_handshake_on_good) {
           _ser->write(PI_HANDSHAKE_BYTE);
@@ -240,6 +242,8 @@ bool SensorPacketParser::poll(SensorPacketValues &out, bool send_handshake_on_go
         return true;
       }
     }
+    _bad++;
+    _skipped++;
     consume(1);  // bad candidate: skip this sync byte and rescan
   }
 }

@@ -3,6 +3,10 @@
 #include <esp_heap_caps.h>
 #include <p4_screen.h>
 
+#include "center_menu.h"
+
+#include <sensor_link.h>
+
 #include "center_ui.h"
 
 #include "center_sd_settings.h"
@@ -156,6 +160,15 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     Serial.println(line == "demo on" ? "ok: demo drive cycle on (sensor pack frames ignored)" : "ok: demo off (live sensor data)");
     return;
   }
+  if (line == "knob left" || line == "knob right" || line == "knob press") {  // bench: encoder knob
+    if (line == "knob press") {
+      center_menu_press();
+    } else {
+      center_menu_rotate(line == "knob right" ? 1 : -1);
+    }
+    Serial.printf("ok: %s\n", line.c_str());
+    return;
+  }
   if (line.startsWith("tap ")) {  // bench: simulate a touch, "tap <x> <y> [hold_ms]"
     int x = 0, y = 0;
     unsigned long hold = 80;
@@ -169,6 +182,9 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
   }
   if (line == "perf") {
     const P4ScreenStats st = p4_screen_stats();
+    const SensorPacketParser &sp = center_sensor_link().parser();
+    Serial.printf("sensor: %lu frames/s, totals ok=%lu bad=%lu skipped=%lu bytes\n", (unsigned long)center_sensor_link().framesPerSec(),
+                  (unsigned long)sp.framesOk(), (unsigned long)sp.framesBad(), (unsigned long)sp.bytesSkipped());
     Serial.printf("ui: view=%d theme=%d overlay=%d fullscreen=%d\n", (int)center_ui_view_mode(), (int)center_ui_cluster_theme(),
                   (int)center_ui_overlay_open(), (int)center_ui_fullscreen());
     Serial.printf("perf: %.1f fps, drawing %.1f ms + LVGL %.1f ms per frame, %.1f of 50 bands changed/frame, %lu rows/s written back, %s (%lu flips/s), heap %lu KB internal / %lu KB PSRAM free\n",
@@ -179,7 +195,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | tap <x> <y> [ms] | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }

@@ -21,16 +21,23 @@ bool SensorLink::poll() {
     if (!_demo) {
       _held = v;
       got = true;
+      _fps_count++;
     }
   }
   if (_demo && (int32_t)(now - _demo_next_ms) >= 0) {
     _demo_next_ms = now + 50;
     _drive.frame(now, _held);
     got = true;
+    _fps_count++;
   }
   if (got) {
     _last_ms = now;
     _have = true;
+  }
+  if (now - _fps_t0 >= 1000) {
+    _fps = _fps_count;
+    _fps_count = 0;
+    _fps_t0 = now;
   }
 #if SENSOR_LINK_KEEPALIVE
   if (now - _last_keepalive_ms >= SENSOR_LINK_KEEPALIVE_MS) {

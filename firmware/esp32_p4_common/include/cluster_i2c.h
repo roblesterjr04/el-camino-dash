@@ -37,4 +37,7 @@ bool cluster_i2c_master_write_reg(uint8_t addr7, uint8_t reg, uint8_t value);
 
 // Center is master: pushes theme + center sub-view to speedo/TSPS (and optional ESP32-D). Does not set TSPS
 // classic layout — that stays local on the right gauge (3 s hold).
+/** Whether that slave acknowledged the most recent broadcast. */
+bool cluster_i2c_last_ack(uint8_t addr7);
+
 bool cluster_i2c_broadcast_center_theme(ClusterTheme theme, ClusterCenterSubview center_sub);

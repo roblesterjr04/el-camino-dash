@@ -1,5 +1,7 @@
 #include "p4_screen.h"
 
+#include "lv_mem_psram.h"
+
 #include <canvas/Arduino_Canvas.h>
 #include <display/Arduino_DSI_Display.h>
 
@@ -15,6 +17,18 @@
 #endif
 
 #if defined(ESP_PLATFORM)
+#include <esp_heap_caps.h>
+
+extern "C" void *lv_psram_malloc(size_t size) {
+  void *p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return p ? p : heap_caps_malloc(size, MALLOC_CAP_8BIT);
+}
+extern "C" void lv_psram_free(void *p) { heap_caps_free(p); }
+extern "C" void *lv_psram_realloc(void *p, size_t size) {
+  void *q = heap_caps_realloc(p, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return q ? q : heap_caps_realloc(p, size, MALLOC_CAP_8BIT);
+}
+
 extern esp_lcd_panel_handle_t g_elc_dpi_panel;  // display_setup.cpp, set by the patched GFX DSI panel
 #endif
 

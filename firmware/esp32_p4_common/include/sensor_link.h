@@ -46,6 +46,10 @@ class SensorLink {
   /** Odometer from the sensor pack, if fresh and known. */
   bool odometerMiles(float *out) const;
 
+  /** Frames received in the last full second. */
+  uint32_t framesPerSec() const { return _fps; }
+  const SensorPacketParser &parser() const { return _parser; }
+
   bool takeTextLine(char *out, size_t cap) { return _parser.takePendingTextLine(out, cap); }
 
   /** Bench demo: replace sensor-pack frames with a simulated 60 s drive cycle (20 Hz). The UART is still
@@ -55,6 +59,9 @@ class SensorLink {
 
  private:
   DemoDrive _drive;
+  uint32_t _fps = 0;
+  uint32_t _fps_count = 0;
+  uint32_t _fps_t0 = 0;
   bool _demo = false;
   uint32_t _demo_next_ms = 0;
   SensorPacketParser _parser;
