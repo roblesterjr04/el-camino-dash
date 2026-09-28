@@ -2,7 +2,8 @@
  * sensor_pack.ino
  *
  * Reads sensors for a classic car gauge cluster with fault detection.
- * Transmits binary packets over hardware serial to a Raspberry Pi.
+ * Transmits binary packets over hardware serial to the ESP32-P4 gauge displays
+ * (one TX fanned out to all three RX pins).
  *
  * Wiring notes:
  *
@@ -70,11 +71,16 @@
  *                              Total:         36 bytes
  *
  * Odometer: integrated from wheel speed into miles (g_odo_tenths + g_odo_frac_miles). Each 0.1 mi
- * boundary bumps g_odo_tenths and stamps FRAM. Sub-0.1 mi progress is stored in FRAM (v2: 12-byte
- * blob with fractional part) and throttled ~2 s while moving so bench / short hall tests survive
- * reboot without crossing a full tenth. Legacy 8-byte FRAM is upgraded on load. Boot retries reads;
- * factory seed 96648.5 mi = 966485 tenths only if FRAM is missing or invalid. On boot, ASCII lines
- * (------ … ###### then 6-digit odometer tenths) print at 500 ms on Serial before binary packets.
+ * boundary bumps g_odo_tenths and stamps FRAM; sub-0.1 mi progress is stamped every ~2 s while moving.
+ * FRAM layout (v3): two 20-byte slots (A @ 0x10, B @ 0x30), each with a sequence number and CRC-8.
+ * Writes alternate slots; boot loads the newest valid one, so a write torn by power loss is harmless.
+ * Legacy v1/v2 single blobs at address 0 are migrated on first boot.
+ * Factory seed (ODO_INITIAL_TENTHS) is written ONLY when the chip answers and reads fully blank.
+ * If the FRAM cannot be read, the odometer is sent as ODO_UNKNOWN_TENTHS (0xFFFFFFFF), fault bit
+ * FAULT_ODO_STORE is set, nothing is written, and loading is retried every 5 s. Distance driven
+ * meanwhile is added once the stored value loads.
+ * On boot, ASCII lines (------ … ###### then 6-digit odometer tenths) print at 500 ms on Serial
+ * before binary packets.
  * FRAM rd/wr UART lines use short text (often two lines: status + t=…) so cluster UART parsers with small
  * line buffers still work; read summary is deferred until link (0xA5) or 6s so the center log sees it.
  * FRAM @ 0x50: hardware `Wire` only (100 kHz); pins follow the MCU (328P: A4/A5, Mega: 20/21). Set
@@ -117,15 +123,17 @@
 #define DEMO_SWEEP_HALF_TICKS  600
 #define DEMO_SPEED_RPM_MAX     2400UL
 #define DEMO_ENGINE_RPM_MAX    6500UL
-#define PI_HANDSHAKE_BYTE       0xA5
+#define PI_HANDSHAKE_BYTE       0xA5  // keepalive byte from the center ESP32 (name kept for history)
 #define PI_HANDSHAKE_TIMEOUT_MS 1000UL
 
 // Odometer: tenths of a mile (uint32 on wire). Wheel model matches ESP32 `el_camino_speed` / Pi defaults.
 #ifndef ODO_INITIAL_TENTHS
-#define ODO_INITIAL_TENTHS  966486UL  // 96648.5 mi
+#define ODO_INITIAL_TENTHS  966486UL  // 96648.6 mi — written only to a blank FRAM
 #endif
+#define ODO_MAX_TENTHS      99999990UL
+/** Sent in the odometer field when FRAM could not be read (displays show dashes). */
+#define ODO_UNKNOWN_TENTHS  0xFFFFFFFFUL
 #define ODO_WHEEL_CIRC_M    2.1f
-#define ODO_SPEED_PPR       1.0f
 
 /** Fuel economy: tank size for DTE and level-derived burn rate (gallons). */
 #define FUEL_TANK_GALLONS     20.0f
@@ -143,6 +151,11 @@
 #define ODO_FRAM_VER_LEGACY 0x01
 /** 12-byte blob: tenths + fractional miles (nanoseconds-of-mile as uint32) so sub-0.1 mi survives reboot. */
 #define ODO_FRAM_VER_FRAC   0x02
+/** v3 A/B slots: [E1 D0 03 00][seq u32][tenths u32][frac_nano u32][3 reserved][crc8] */
+#define ODO_FRAM_VER_SLOT    0x03
+#define ODO_FRAM_SLOT_LEN    20
+#define ODO_FRAM_SLOT_A_ADDR 0x0010
+#define ODO_FRAM_SLOT_B_ADDR 0x0030
 
 #define HALL_PULSES_PER_REV   1
 #define COIL_PULSES_PER_REV_DEFAULT 8
@@ -185,6 +198,12 @@
 #define FAULT_TEMP_POWER    (1 << 12)  // A1 sensor-side fuse monitor low
 #define FAULT_PRESS_POWER   (1 << 13)  // A2 sensor-side fuse monitor low
 #define FAULT_VOLT_POWER    (1 << 14)  // D10 voltage-rail fuse monitor low (optional)
+#define FAULT_ODO_STORE     (1 << 15)  // FRAM unreadable/corrupt: odometer unknown, not being saved
+
+// Hall "missing" can't be told apart from idling at a stop, so it is off unless you opt in.
+#ifndef SENSORPACK_HALL_MISSING_FAULT
+#define SENSORPACK_HALL_MISSING_FAULT 0
+#endif
 
 // Voltage Divider Scaling
 #define VDIV_R1        27000.0
@@ -211,6 +230,13 @@
 
 // Forward declaration for Arduino IDE auto-generated prototypes.
 struct AnalogFault;
+
+/** Result of one FRAM odometer load attempt (declared early for auto-generated prototypes). */
+enum FramLoadResult : uint8_t {
+  FRAM_LOAD_OK = 0,
+  FRAM_LOAD_NO_CHIP = 1,  // no ACK / read error: retry later, never write
+  FRAM_LOAD_CORRUPT = 2,  // chip answers but holds non-blank data we can't validate: never write
+};
 
 volatile unsigned long hallLastPulseUs = 0;
 volatile unsigned long hallPeriodUs    = 0;
@@ -394,7 +420,9 @@ uint16_t buildFaultWord(bool ignOn, uint32_t engineRpm, uint32_t speedRpm) {
   } else {
     hallMissingCount = 0;
   }
+#if SENSORPACK_HALL_MISSING_FAULT
   if (hallMissingCount >= HALL_MISSING_THRESH) faults |= FAULT_HALL_MISSING;
+#endif
 
   if (ignOn && engineRpm == 0) {
     if (coilMissingCount < 0xFFFF) coilMissingCount++;
@@ -420,6 +448,11 @@ static const uint8_t SYNC[] = { 0xAA, 0x55 };
 /** Running odometer: miles×10 (uint32 on wire). Initialized only by framLoadOdometer() in setup(). */
 static uint32_t g_odo_tenths = 0;
 static double g_odo_frac_miles = 0.0;
+/** False until a stored odometer is loaded (or seeded on a blank chip); gates every FRAM write. */
+static bool g_odo_known = false;
+/** Last slot written/loaded (0 = A, 1 = B) and its sequence number. */
+static uint8_t s_odo_fram_slot = 1;
+static uint32_t s_odo_fram_seq = 0;
 /** FRAM load result for UART: deferred until ESP32 link. Two short lines (≤14 chars) so old ESP parsers with
  *  16-byte text caps still show full text; tenths on line 2. */
 static char s_fram_read_l1[20];
@@ -518,19 +551,36 @@ static bool framReadBytes(uint16_t memAddr, uint8_t *buf, uint8_t len) {
 
 #endif
 
-// Snapshot g_odo_tenths + g_odo_frac_miles to FRAM (v2: 12 bytes). Retries on failed write only.
-static void framStampOdometer(uint8_t why) {
 #if SENSORPACK_ODOMETER_FRAM
-  uint8_t b[12];
-  b[0] = ODO_FRAM_HDR0;
-  b[1] = ODO_FRAM_HDR1;
-  b[2] = ODO_FRAM_VER_FRAC;
-  b[3] = 0;
-  b[4] = (uint8_t)(g_odo_tenths >> 24);
-  b[5] = (uint8_t)(g_odo_tenths >> 16);
-  b[6] = (uint8_t)(g_odo_tenths >> 8);
-  b[7] = (uint8_t)g_odo_tenths;
-  double frac = g_odo_frac_miles;
+static uint8_t crc8(const uint8_t *p, uint8_t n) {
+  uint8_t crc = 0;
+  for (uint8_t i = 0; i < n; i++) {
+    crc ^= p[i];
+    for (uint8_t b = 0; b < 8; b++) {
+      crc = (crc & 0x80) ? (uint8_t)((crc << 1) ^ 0x07) : (uint8_t)(crc << 1);
+    }
+  }
+  return crc;
+}
+
+static void putBe32(uint8_t *p, uint32_t v) {
+  p[0] = (uint8_t)(v >> 24);
+  p[1] = (uint8_t)(v >> 16);
+  p[2] = (uint8_t)(v >> 8);
+  p[3] = (uint8_t)v;
+}
+
+static uint32_t getBe32(const uint8_t *p) {
+  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
+/** True if the FRAM ACKs its address (chip present and powered). */
+static bool framProbe() {
+  Wire.beginTransmission((uint8_t)FRAM_I2C_ADDR);
+  return Wire.endTransmission() == 0;
+}
+
+static uint32_t fracMilesToNano(double frac) {
   if (frac < 0.0) {
     frac = 0.0;
   }
@@ -538,16 +588,51 @@ static void framStampOdometer(uint8_t why) {
     frac = 0.099999999;
   }
   uint32_t fn = (uint32_t)(frac * 1.0e9);
-  if (fn > 99999999UL) {
-    fn = 99999999UL;
+  return (fn > 99999999UL) ? 99999999UL : fn;
+}
+
+/** Decode a v3 slot; returns false on bad header/version/CRC or out-of-range values. */
+static bool framDecodeSlot(const uint8_t *b, uint32_t *seq, uint32_t *tenths, uint32_t *frac_nano) {
+  if (b[0] != ODO_FRAM_HDR0 || b[1] != ODO_FRAM_HDR1 || b[2] != ODO_FRAM_VER_SLOT) {
+    return false;
   }
-  b[8] = (uint8_t)(fn >> 24);
-  b[9] = (uint8_t)(fn >> 16);
-  b[10] = (uint8_t)(fn >> 8);
-  b[11] = (uint8_t)fn;
+  if (crc8(b, ODO_FRAM_SLOT_LEN - 1) != b[ODO_FRAM_SLOT_LEN - 1]) {
+    return false;
+  }
+  *seq = getBe32(b + 4);
+  *tenths = getBe32(b + 8);
+  *frac_nano = getBe32(b + 12);
+  return *tenths <= ODO_MAX_TENTHS && *frac_nano <= 99999999UL;
+}
+#endif
+
+// Snapshot g_odo_tenths + g_odo_frac_miles to FRAM. Writes alternate between two CRC-protected
+// slots with an increasing sequence number, so a write torn by power loss leaves the other slot
+// intact. Never writes while the odometer is unknown (FRAM unreadable) — that is what protects
+// the real mileage from being overwritten by a placeholder.
+static void framStampOdometer(uint8_t why) {
+#if SENSORPACK_ODOMETER_FRAM
+  if (!g_odo_known) {
+    return;
+  }
+  uint8_t b[ODO_FRAM_SLOT_LEN];
+  b[0] = ODO_FRAM_HDR0;
+  b[1] = ODO_FRAM_HDR1;
+  b[2] = ODO_FRAM_VER_SLOT;
+  b[3] = 0;
+  const uint32_t seq = s_odo_fram_seq + 1;
+  putBe32(b + 4, seq);
+  putBe32(b + 8, g_odo_tenths);
+  putBe32(b + 12, fracMilesToNano(g_odo_frac_miles));
+  b[16] = 0;
+  b[17] = 0;
+  b[18] = 0;
+  b[ODO_FRAM_SLOT_LEN - 1] = crc8(b, ODO_FRAM_SLOT_LEN - 1);
+  const uint8_t slot = (uint8_t)(s_odo_fram_slot ^ 1);
+  const uint16_t addr = slot ? ODO_FRAM_SLOT_B_ADDR : ODO_FRAM_SLOT_A_ADDR;
   bool ok = false;
   for (uint8_t attempt = 0; attempt < 5; attempt++) {
-    if (framWriteBytes(0, b, 12)) {
+    if (framWriteBytes(addr, b, ODO_FRAM_SLOT_LEN)) {
       ok = true;
       break;
     }
@@ -557,6 +642,8 @@ static void framStampOdometer(uint8_t why) {
     Serial.println(F("FRAM wr ERR"));
     return;
   }
+  s_odo_fram_seq = seq;
+  s_odo_fram_slot = slot;
   if (why == FRAM_STAMP_SILENT) {
     return;
   }
@@ -595,99 +682,159 @@ static void emitOdometerBootBanner() {
   if (o > 999999UL) {
     o = 999999UL;
   }
-  snprintf(buf, sizeof(buf), "%06lu", (unsigned long)o);
+  if (g_odo_known) {
+    snprintf(buf, sizeof(buf), "%06lu", (unsigned long)o);
+  } else {
+    snprintf(buf, sizeof(buf), "??????");
+  }
   Serial.println(buf);
   Serial.flush();
 }
 
+/** Adopt a stored odometer, keeping any distance driven while it was still unknown. */
+static void odometerAdopt(uint32_t tenths, double frac_miles) {
+  const uint32_t pending_tenths = g_odo_tenths;
+  g_odo_tenths = tenths + pending_tenths;
+  g_odo_frac_miles += frac_miles;
+  while (g_odo_frac_miles >= 0.1 && g_odo_tenths < ODO_MAX_TENTHS) {
+    g_odo_frac_miles -= 0.1;
+    g_odo_tenths++;
+  }
+  g_odo_known = true;
+}
+
+#if SENSORPACK_ODOMETER_FRAM
+/**
+ * One load attempt. Order: v3 A/B slots (newest valid seq) → legacy v2/v1 blob at 0 (migrated to a
+ * slot) → factory seed, but ONLY if the chip answers and the whole odometer area reads blank.
+ */
+static FramLoadResult framTryLoadOdometer() {
+  if (!framProbe()) {
+    return FRAM_LOAD_NO_CHIP;
+  }
+  uint8_t a[ODO_FRAM_SLOT_LEN];
+  uint8_t b[ODO_FRAM_SLOT_LEN];
+  if (!framReadBytes(ODO_FRAM_SLOT_A_ADDR, a, ODO_FRAM_SLOT_LEN) ||
+      !framReadBytes(ODO_FRAM_SLOT_B_ADDR, b, ODO_FRAM_SLOT_LEN)) {
+    return FRAM_LOAD_NO_CHIP;
+  }
+  uint32_t seq_a = 0, tenths_a = 0, frac_a = 0;
+  uint32_t seq_b = 0, tenths_b = 0, frac_b = 0;
+  const bool ok_a = framDecodeSlot(a, &seq_a, &tenths_a, &frac_a);
+  const bool ok_b = framDecodeSlot(b, &seq_b, &tenths_b, &frac_b);
+  if (ok_a || ok_b) {
+    // Serial-number compare so the sequence may wrap.
+    const bool use_b = ok_b && (!ok_a || (int32_t)(seq_b - seq_a) > 0);
+    s_odo_fram_slot = use_b ? 1 : 0;
+    s_odo_fram_seq = use_b ? seq_b : seq_a;
+    odometerAdopt(use_b ? tenths_b : tenths_a, (double)(use_b ? frac_b : frac_a) / 1.0e9);
+    setFramReadUartPair((ok_a && ok_b) ? "FRAM rd v3 OK" : "FRAM rd v3 1slot", g_odo_tenths);
+    return FRAM_LOAD_OK;
+  }
+
+  // Legacy single-blob formats at address 0 (v2: 12 bytes w/ fraction, v1: 8 bytes).
+  uint8_t l[12];
+  if (!framReadBytes(0, l, sizeof(l))) {
+    return FRAM_LOAD_NO_CHIP;
+  }
+  if (l[0] == ODO_FRAM_HDR0 && l[1] == ODO_FRAM_HDR1 &&
+      (l[2] == ODO_FRAM_VER_FRAC || l[2] == ODO_FRAM_VER_LEGACY)) {
+    const uint32_t tenths = getBe32(l + 4);
+    uint32_t fn = (l[2] == ODO_FRAM_VER_FRAC) ? getBe32(l + 8) : 0;
+    if (tenths <= ODO_MAX_TENTHS) {
+      if (fn > 99999999UL) {
+        fn = 0;
+      }
+      s_odo_fram_slot = 1;  // first stamp goes to slot A
+      s_odo_fram_seq = 0;
+      odometerAdopt(tenths, (double)fn / 1.0e9);
+      setFramReadUartPair("FRAM rd legacy", g_odo_tenths);
+      framStampOdometer(FRAM_STAMP_INIT);
+      return FRAM_LOAD_OK;
+    }
+  }
+
+  // Seed only a genuinely blank chip (all 0x00 or all 0xFF across legacy + both slots).
+  bool all00 = true;
+  bool allFF = true;
+  const uint8_t *regions[3] = {l, a, b};
+  const uint8_t lens[3] = {sizeof(l), ODO_FRAM_SLOT_LEN, ODO_FRAM_SLOT_LEN};
+  for (uint8_t r = 0; r < 3; r++) {
+    for (uint8_t i = 0; i < lens[r]; i++) {
+      all00 = all00 && regions[r][i] == 0x00;
+      allFF = allFF && regions[r][i] == 0xFF;
+    }
+  }
+  if (!all00 && !allFF) {
+    return FRAM_LOAD_CORRUPT;
+  }
+  s_odo_fram_slot = 1;
+  s_odo_fram_seq = 0;
+  odometerAdopt(ODO_INITIAL_TENTHS, 0.0);
+  setFramReadUartTwo("FRAM blank", "factory seed");
+  framStampOdometer(FRAM_STAMP_INIT);
+  return FRAM_LOAD_OK;
+}
+#endif
+
+/** Boot-time load: retries for ~2 s so a slow-to-power FRAM is not mistaken for a blank one. */
 static void framLoadOdometer() {
 #if SENSORPACK_ODOMETER_FRAM
-  uint8_t b[12];
-  for (uint8_t boot_try = 0; boot_try < 25; boot_try++) {
-    if (!framReadBytes(0, b, 12)) {
-      delay(10);
-      continue;
-    }
-    if (b[0] != ODO_FRAM_HDR0 || b[1] != ODO_FRAM_HDR1) {
-      delay(10);
-      continue;
-    }
-    uint32_t tenths =
-        ((uint32_t)b[4] << 24) | ((uint32_t)b[5] << 16) | ((uint32_t)b[6] << 8) | (uint32_t)b[7];
-    if (b[2] == ODO_FRAM_VER_FRAC) {
-      g_odo_tenths = tenths;
-      uint32_t fn =
-          ((uint32_t)b[8] << 24) | ((uint32_t)b[9] << 16) | ((uint32_t)b[10] << 8) | (uint32_t)b[11];
-      g_odo_frac_miles = (double)fn / 1.0e9;
-      while (g_odo_frac_miles >= 0.1 && g_odo_tenths < 99999990UL) {
-        g_odo_frac_miles -= 0.1;
-        g_odo_tenths++;
-      }
-      setFramReadUartPair("FRAM rd v2 OK", g_odo_tenths);
+  FramLoadResult r = FRAM_LOAD_NO_CHIP;
+  for (uint8_t boot_try = 0; boot_try < 20; boot_try++) {
+    r = framTryLoadOdometer();
+    if (r == FRAM_LOAD_OK) {
       return;
     }
-    if (b[2] == ODO_FRAM_VER_LEGACY) {
-      g_odo_tenths = tenths;
-      g_odo_frac_miles = 0.0;
-      setFramReadUartPair("FRAM rd v1 OK", g_odo_tenths);
-      return;
-    }
-    // Header OK but unknown version: accept tenths only if in range, then upgrade blob on disk.
-    if (tenths <= 99999990UL) {
-      g_odo_tenths = tenths;
-      g_odo_frac_miles = 0.0;
-      setFramReadUartPair("FRAM rd fix OK", g_odo_tenths);
-      framStampOdometer(FRAM_STAMP_INIT);
-      return;
-    }
-    delay(10);
+    delay(100);
   }
-  // Legacy 8-byte image: read again as 8 bytes (older firmware only wrote 8).
-  uint8_t b8[8];
-  for (uint8_t boot_try = 0; boot_try < 4; boot_try++) {
-    if (!framReadBytes(0, b8, 8)) {
-      delay(5);
-      continue;
-    }
-    if (b8[0] == ODO_FRAM_HDR0 && b8[1] == ODO_FRAM_HDR1 && b8[2] == ODO_FRAM_VER_LEGACY) {
-      g_odo_tenths =
-          ((uint32_t)b8[4] << 24) | ((uint32_t)b8[5] << 16) | ((uint32_t)b8[6] << 8) | (uint32_t)b8[7];
-      g_odo_frac_miles = 0.0;
-      setFramReadUartPair("FRAM rd L8 OK", g_odo_tenths);
-      framStampOdometer(FRAM_STAMP_INIT);
-      return;
-    }
-    delay(5);
-  }
-  g_odo_tenths = ODO_INITIAL_TENTHS;
+  // Unknown: odometer is sent as ODO_UNKNOWN_TENTHS and FAULT_ODO_STORE is set. Distance keeps
+  // accumulating in RAM and is added on top once a later retry in loop() succeeds.
+  g_odo_tenths = 0;
   g_odo_frac_miles = 0.0;
-  setFramReadUartTwo("FRAM rd FAIL", "factory");
-  framStampOdometer(FRAM_STAMP_INIT);
+  setFramReadUartTwo("FRAM rd FAIL", r == FRAM_LOAD_CORRUPT ? "corrupt" : "no chip");
 #else
-  g_odo_tenths = ODO_INITIAL_TENTHS;
-  g_odo_frac_miles = 0.0;
+  odometerAdopt(ODO_INITIAL_TENTHS, 0.0);
   setFramReadUartOne("FRAM HW off");
 #endif
 }
 
+/** While the odometer is unknown, retry loading every few seconds (e.g. a loose FRAM connector). */
+static void framRetryLoadIfUnknown(uint32_t now) {
+#if SENSORPACK_ODOMETER_FRAM
+  static uint32_t s_last_try_ms = 0;
+  if (g_odo_known || now - s_last_try_ms < 5000UL) {
+    return;
+  }
+  s_last_try_ms = now;
+  if (framTryLoadOdometer() == FRAM_LOAD_OK) {
+    Serial.println(F("FRAM rd late OK"));
+  }
+#else
+  (void)now;
+#endif
+}
+
+/** speedRpm is wheel RPM: calcRpm() has already divided by HALL_PULSES_PER_REV. */
 static float speedRpmToMph(uint32_t speedRpm) {
   if (speedRpm == 0) {
     return 0.0f;
   }
-  float wheel_rps = (((float)speedRpm) / ODO_SPEED_PPR) / 60.0f;
+  float wheel_rps = ((float)speedRpm) / 60.0f;
   float speed_mps = wheel_rps * ODO_WHEEL_CIRC_M;
   return speed_mps * 2.236936f;
 }
 
-static void odometerAccumulateFromSpeed(uint32_t speedRpm) {
+/** Integrate distance over the measured interval since the previous sample (dt_ms). */
+static void odometerAccumulateFromSpeed(uint32_t speedRpm, uint32_t dt_ms) {
   float mph = speedRpmToMph(speedRpm);
   if (mph <= 0.05f) {
     return;
   }
-  const double dt_h = (double)SEND_INTERVAL / 3600000.0;
+  const double dt_h = (double)dt_ms / 3600000.0;
   g_odo_frac_miles += (double)mph * dt_h;
   // Miles since last whole tenth = g_odo_frac_miles; crossing 0.1 bumps odometer and stamps FRAM.
-  while (g_odo_frac_miles >= 0.1 && g_odo_tenths < 99999990UL) {
+  while (g_odo_frac_miles >= 0.1 && g_odo_tenths < ODO_MAX_TENTHS) {
     g_odo_frac_miles -= 0.1;
     g_odo_tenths++;
     framStampOdometer(FRAM_STAMP_TENTH);
@@ -696,7 +843,7 @@ static void odometerAccumulateFromSpeed(uint32_t speedRpm) {
   // Persist sub-0.1 mi progress so a reboot does not lose hall-faked distance before the next tenth.
   {
     uint32_t ms = millis();
-    if (g_odo_frac_miles > 1e-9 && (ms - s_last_odo_fram_ms >= 2000UL)) {
+    if (g_odo_known && g_odo_frac_miles > 1e-9 && (ms - s_last_odo_fram_ms >= 2000UL)) {
       s_last_odo_fram_ms = ms;
       framStampOdometer(FRAM_STAMP_FRAC);
     }
@@ -742,7 +889,11 @@ static void fuelEconomyUpdate(uint16_t potRaw, uint32_t speedRpm, bool ignOn, ui
     s_mpg_inst_ring_count++;
   }
 
-  if (ignOn && !s_prev_ign) {
+  // Key-on, or the stored odometer just loaded late (value jumped): start a fresh trip baseline.
+  static bool s_prev_odo_known = false;
+  const bool odo_just_loaded = g_odo_known && !s_prev_odo_known;
+  s_prev_odo_known = g_odo_known;
+  if ((ignOn && !s_prev_ign) || odo_just_loaded) {
     s_trip_odo_tenths0 = g_odo_tenths;
     s_trip_odo_frac0 = g_odo_frac_miles;
     s_trip_fuel_frac0 = fuel_frac;
@@ -882,9 +1033,14 @@ void sendPacket(uint16_t pot, uint16_t therm, uint16_t pressure,
 
 uint32_t calcRpm(unsigned long periodUs, unsigned long lastPulseUs,
                  uint8_t pulsesPerRev) {
-  if (periodUs == 0) return 0;
-  if ((micros() - lastPulseUs) > PULSE_TIMEOUT_US) return 0;
-  return 60000000UL / (periodUs * pulsesPerRev);
+  if (periodUs == 0 || pulsesPerRev == 0) return 0;
+  const unsigned long sinceLast = micros() - lastPulseUs;
+  if (sinceLast > PULSE_TIMEOUT_US) return 0;
+  // While slowing, the next pulse is at least `sinceLast` away: use it so speed/RPM fall smoothly
+  // instead of holding the last value until the 2 s timeout (which also inflated the odometer).
+  if (sinceLast > periodUs) periodUs = sinceLast;
+  // Divide in two steps: 60e6 / ppr is exact for 1/4/6/8 PPR and avoids periodUs * ppr overflow.
+  return (60000000UL / pulsesPerRev) / periodUs;
 }
 
 // 0..1023 triangle vs monotonic tick (period 2 * DEMO_SWEEP_HALF_TICKS steps).
@@ -1006,6 +1162,8 @@ void setup() {
 #if SENSORPACK_ODOMETER_FRAM
   Wire.begin();
   Wire.setClock(100000);
+  // A stuck bus must not freeze the packet stream (AVR core >= 1.8.3).
+  Wire.setWireTimeout(3000 /* us */, true /* reset bus on timeout */);
   delay(100);
 #endif
   framLoadOdometer();
@@ -1025,7 +1183,12 @@ void loop() {
   tickDeferredFramReadUart();
 
   if (now - lastSend < SEND_INTERVAL) return;
+  // Measured interval for odometer integration; clamp so the first pass / a stall can't add a jump.
+  uint32_t dtMs = now - lastSend;
+  if (dtMs > 250UL) dtMs = SEND_INTERVAL;
   lastSend = now;
+  framRetryLoadIfUnknown(now);
+  const uint32_t odoOnWire = g_odo_known ? g_odo_tenths : ODO_UNKNOWN_TENTHS;
 
   bool faultLoggingDisabled = (digitalRead(PIN_FAULT_DISABLE) == HIGH);
   if (faultLoggingDisabled) {
@@ -1056,7 +1219,7 @@ void loop() {
 
     uint8_t flags = FLAG_ALT_OK | FLAG_IGN_ON;
     sendPacket(potGaugeRaw, thermRawCal, presRaw, voltRaw, ambientThermRawCal, speedRpm, engineRpm, flags,
-               0, g_odo_tenths, demo_mpg_i, demo_mpg_a, demo_dte);
+               0, odoOnWire, demo_mpg_i, demo_mpg_a, demo_dte);
     return;
   }
 
@@ -1115,8 +1278,9 @@ void loop() {
   if (ignOn) flags |= FLAG_IGN_ON;
 
   uint16_t faults = buildFaultWord(ignOn, engineRpm, speedRpm);
+  if (!g_odo_known) faults |= FAULT_ODO_STORE;
 
-  odometerAccumulateFromSpeed(speedRpm);
+  odometerAccumulateFromSpeed(speedRpm, dtMs);
 
   uint16_t mpg_ix10 = 0;
   uint16_t mpg_ax10 = 0;
@@ -1124,5 +1288,5 @@ void loop() {
   fuelEconomyUpdate(potGaugeRaw, speedRpm, ignOn, &mpg_ix10, &mpg_ax10, &dte_tenths);
 
   sendPacket(potGaugeRaw, thermRawCal, presRaw, voltRaw, ambientThermRawCal, speedRpm, engineRpm, flags,
-             faults, g_odo_tenths, mpg_ix10, mpg_ax10, dte_tenths);
+             faults, g_odo_known ? g_odo_tenths : ODO_UNKNOWN_TENTHS, mpg_ix10, mpg_ax10, dte_tenths);
 }
