@@ -548,6 +548,17 @@
         "via_diameter": 0.6,
         "via_drill": 0.3,
         "wire_width": 6
+      },
+      {
+        "clearance": 0.2,
+        "name": "Ground",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": 0,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 1.0,
+        "tuning_profile": "",
+        "via_diameter": 1.0,
+        "via_drill": 0.6
       }
     ],
     "meta": {
@@ -566,15 +577,15 @@
       },
       {
         "netclass": "Power",
-        "pattern": "GND"
-      },
-      {
-        "netclass": "Power",
         "pattern": "/REG_SW"
       },
       {
         "netclass": "Supply3V3",
         "pattern": "3.3V"
+      },
+      {
+        "netclass": "Ground",
+        "pattern": "GND"
       }
     ]
   },
