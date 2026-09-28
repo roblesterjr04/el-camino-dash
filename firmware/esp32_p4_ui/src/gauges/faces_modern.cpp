@@ -282,6 +282,8 @@ class ModernMedia : public Face {
     text(c, &elc_icons_56, IC_MUSIC, g.X(400), g.Y(262), Align::Center, kDim);
   }
   void build(lv_obj_t *root, const Geo &g) override {
+    g_ = g;
+    art_.build(root, g.X(400), g.Y(295), g.L(300), kTrack, g.L(3));
     prog_ = progress(this, add<ArcFill>(root), g, 352.5f, 10, 0, 360);
     prog_->c0 = prog_->c1 = kAccent;
     prog_->tip = false;
@@ -290,6 +292,12 @@ class ModernMedia : public Face {
     time_ = label(root, &elc_sm_22, kFaint, g.X(400), g.Y(520), g.L(300), Align::Center);
   }
   void update(const GaugeData &d, float) override {
+    if (art_.update(d.media_connected ? d.art_px : nullptr, d.art_w, d.art_h, d.art_stride, d.art_id)) {
+      const bool a = art_.visible();
+      move_label(title_, g_.Y(a ? 512 : 380));
+      move_label(artist_, g_.Y(a ? 568 : 440));
+      move_label(time_, g_.Y(a ? 622 : 520));
+    }
     set_text(title_, media_title(d));
     set_text(artist_, media_artist(d));
     const bool t = d.media_connected && d.media_duration > 0;
@@ -304,6 +312,8 @@ class ModernMedia : public Face {
   }
 
  private:
+  Geo g_;
+  ArtDisc art_;
   ArcFill *prog_ = nullptr;
   lv_obj_t *title_ = nullptr, *artist_ = nullptr, *time_ = nullptr;
 };

@@ -363,6 +363,8 @@ class ClassicMedia : public Face {
   }
 
   void build(lv_obj_t *root, const Geo &g) override {
+    g_ = g;
+    art_.build(root, g.X(400), g.Y(300), g.L(290), hex(0xd9dde2), g.L(5));
     title_ = label(root, &elc_bc_58, kInk, g.X(400), g.Y(368), g.L(540), Align::Center);
     artist_ = label(root, &elc_b_28, kInkDim, g.X(400), g.Y(430), g.L(500), Align::Center);
     time_ = label(root, &elc_b_22, kInkDim, g.X(400), g.Y(520), g.L(300), Align::Center);
@@ -379,6 +381,12 @@ class ClassicMedia : public Face {
   }
 
   void update(const GaugeData &d, float) override {
+    if (art_.update(d.media_connected ? d.art_px : nullptr, d.art_w, d.art_h, d.art_stride, d.art_id)) {
+      const bool a = art_.visible();  // with art, the text moves below the disc
+      move_label(title_, g_.Y(a ? 505 : 368));
+      move_label(artist_, g_.Y(a ? 558 : 430));
+      move_label(time_, g_.Y(a ? 612 : 520));
+    }
     set_text(title_, media_title(d));
     set_text(artist_, media_artist(d));
     const bool t = d.media_connected && d.media_duration > 0;
@@ -393,6 +401,8 @@ class ClassicMedia : public Face {
   }
 
  private:
+  Geo g_;
+  ArtDisc art_;
   lv_obj_t *title_ = nullptr, *artist_ = nullptr, *time_ = nullptr;
   ArcFill *prog_ = nullptr;
 };

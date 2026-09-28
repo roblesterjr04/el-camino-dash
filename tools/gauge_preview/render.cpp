@@ -47,6 +47,28 @@ static GaugeData sample(int step) {
   d.media_artist = "Stephen Wilson Jr.";
   d.media_elapsed = 83 + step;
   d.media_duration = 215;
+  // A synthetic 200×200 cover (sunset gradient, sun, stripes) in a 208-px stride like the P4 decoder's.
+  static uint16_t art[208 * 200];
+  static bool made = false;
+  if (!made) {
+    made = true;
+    for (int y = 0; y < 200; y++) {
+      for (int x = 0; x < 208; x++) {
+        float r = 40 + 200 * y / 200.0f, g = 30 + 90 * (1 - y / 200.0f), b = 120 - 80 * y / 200.0f;
+        const float dx = x - 100, dy = y - 120;
+        if (dx * dx + dy * dy < 45 * 45) { r = 255; g = 200; b = 80; }
+        if (y > 150 && ((y / 6) % 2 == 0)) { r *= 0.4f; g *= 0.4f; b *= 0.6f; }
+        art[y * 208 + x] = (uint16_t)((((int)r >> 3) << 11) | (((int)g >> 2) << 5) | ((int)b >> 3));
+      }
+    }
+  }
+  if (getenv("ART")) {
+    d.art_px = art;
+    d.art_w = 200;
+    d.art_h = 200;
+    d.art_stride = 208;
+    d.art_id = 1;
+  }
   return d;
 }
 

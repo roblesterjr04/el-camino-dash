@@ -29,6 +29,11 @@ void header(Canvas888 &c, const Geo &g, const char *s) {
 /** Row of block segments; only repaints when the number of lit segments changes. */
 class SegBar {
  public:
+  void move_y(const Geo &g, float y) {
+    for (int i = 0; i < n_; i++) {
+      lv_obj_set_y(seg_[i], (lv_coord_t)lroundf(g.Y(y)));
+    }
+  }
   void build(lv_obj_t *root, const Geo &g, float x, float y, int n, float w, float h, float gap) {
     n_ = n < kMax ? n : kMax;
     for (int i = 0; i < n_; i++) {
@@ -237,6 +242,8 @@ class FalloutMedia : public FalloutFace {
     header(c, g, "- RADIO -");
   }
   void build(lv_obj_t *root, const Geo &g) override {
+    g_ = g;
+    art_.build(root, g.X(400), g.Y(290), g.L(230), kDim, g.L(3), true, kBg, kFg);
     title_ = label(root, &elc_vt_72, kFg, g.X(400), g.Y(320), g.L(560), Align::Center);
     artist_ = label(root, &elc_vt_56, kDim, g.X(400), g.Y(395), g.L(540), Align::Center);
     prog_.build(root, g, 212, 470, 12, 25, 22, 6.3f);
@@ -244,6 +251,13 @@ class FalloutMedia : public FalloutFace {
     scanlines(root, g);
   }
   void update(const GaugeData &d, float) override {
+    if (art_.update(d.media_connected ? d.art_px : nullptr, d.art_w, d.art_h, d.art_stride, d.art_id)) {
+      const bool a = art_.visible();
+      move_label(title_, g_.Y(a ? 462 : 320));
+      move_label(artist_, g_.Y(a ? 522 : 395));
+      prog_.move_y(g_, a ? 560 : 470);
+      move_label(time_, g_.Y(a ? 632 : 565));
+    }
     set_text(title_, media_title(d));
     set_text(artist_, media_artist(d));
     const bool t = d.media_connected && d.media_duration > 0;
@@ -258,6 +272,8 @@ class FalloutMedia : public FalloutFace {
   }
 
  private:
+  Geo g_;
+  ArtDisc art_;
   lv_obj_t *title_ = nullptr, *artist_ = nullptr, *time_ = nullptr;
   SegBar prog_;
 };

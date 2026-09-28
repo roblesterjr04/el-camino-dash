@@ -118,12 +118,41 @@ class Scanlines : public Shape {
   void draw(LvSurface &s) override;
 };
 
+/**
+ * Album art as a round disc with a thin rim. The source image is scaled (centre crop, bilinear) into
+ * an RGB565+alpha image once per new art_id; Fallout gets a green phosphor tint.
+ */
+class ArtDisc {
+ public:
+  ~ArtDisc();
+  void build(lv_obj_t *root, float cx, float cy, float d, Rgb rim, float rim_w, bool green = false,
+             Rgb green_lo = hex(0x010a04), Rgb green_hi = hex(0x5dff8f));
+  /** Returns true when the disc appeared or disappeared (the face then moves its text). */
+  bool update(const uint16_t *px, int w, int h, int stride, uint32_t id);
+  bool visible() const { return vis_; }
+
+ private:
+  void render(const uint16_t *px, int w, int h, int stride);
+  lv_obj_t *img_ = nullptr;
+  lv_img_dsc_t dsc_{};
+  uint8_t *buf_ = nullptr;
+  int d_ = 0;
+  uint32_t id_ = 0;
+  bool vis_ = false;
+  Rgb rim_{0, 0, 0};
+  float rim_w_ = 0;
+  bool green_ = false;
+  Rgb g_lo_{0, 0, 0}, g_hi_{0, 0, 0};
+};
+
 // ---------------------------------------------------------------- LVGL helpers
 
 /** Label whose line box is centred on (cx, cy) with a fixed width, so text changes never move it. */
 lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, Rgb color, float cx, float cy, float w, Align align);
 /** Set text only if it differs (setting text always repaints the label). */
 void set_text(lv_obj_t *lbl, const char *s);
+/** Move a label made by label() so its line box is centred on cy. */
+void move_label(lv_obj_t *lbl, float cy);
 void set_color(lv_obj_t *lbl, Rgb c);
 /** Plain filled rectangle (Fallout bar segments, pills). */
 lv_obj_t *rect(lv_obj_t *parent, float x, float y, float w, float h, Rgb c, float radius = 0, float opa = 1.0f);

@@ -91,11 +91,36 @@ static constexpr uint8_t kRegTransport = 0x05;
 /** P4 center: one atomic read for title + transport (avoids s_i2c_cmd / onRequest races). Pi keeps using 0x01/0x05. */
 static constexpr uint8_t kRegSnapshot = 0x0F;
 static constexpr size_t kMaxTrackLen = 32;
-/** Snapshot layout: [mlen][meta:32][0xA5][5][e0][e1][d0][d1][vol][pad:8] = 48 bytes. The metadata
- *  reply (0x01) is bytes 0..32 and the transport reply (0x05) is bytes 34..39 of the same buffer. */
+/** Snapshot layout: [mlen][meta:32][0xA5][5][e0][e1][d0][d1][vol][0xC7][art_id][len0][len1][art_state][pad:3]
+ *  = 48 bytes. The metadata reply (0x01) is bytes 0..32 and the transport reply (0x05) is bytes 34..39
+ *  of the same buffer; bytes 40..44 describe the album art (hosts that predate it ignore them). */
 static constexpr size_t kSnapshotLen = 48;
 static constexpr size_t kSnapTransportOff = 34;
 static constexpr size_t kTransportLen = 6;
+static constexpr size_t kSnapArtOff = 40;
+
+/* Album art (AVRCP 1.6 cover art, the phone's 200×200 JPEG thumbnail). The host reads it in chunks:
+ * write [0x10][idx_lo][idx_hi], then read [0xC7][art_id][idx_lo][idx_hi][n][n data bytes] (kArtChunk
+ * max). art_id is 0 while no complete image is available; the host checks the header of each chunk. */
+static constexpr uint8_t kRegArtChunk = 0x10;
+static constexpr uint8_t kArtMagic = 0xC7;
+static constexpr size_t kArtChunk = 120;
+static constexpr size_t kArtMax = 36 * 1024;
+enum : uint8_t { kArtNone = 0, kArtLoading = 1, kArtReady = 2 };
+static uint8_t *s_art = nullptr;          // JPEG bytes
+static volatile size_t s_art_rx = 0;      // bytes received so far / final size when ready
+static volatile uint8_t s_art_state = kArtNone;
+static volatile uint8_t s_art_id = 0;     // bumps for every completed image (never 0 when ready)
+static volatile bool s_art_overflow = false;
+static volatile bool s_ca_supported = false;  // phone offers cover art
+static volatile bool s_ca_connected = false;
+static bool s_ca_connecting = false;
+static uint32_t s_ca_connect_ms = 0;
+static uint32_t s_art_req_ms = 0;
+static char s_art_want[8];                // handle from the latest metadata ("" = none)
+static char s_art_have[8];                // handle requested / shown
+static volatile uint16_t s_art_chunk_req = 0;
+static constexpr uint8_t kMetadataTl = 7;  // AVRCP transaction label for our own metadata request
 
 static char s_track[kMaxTrackLen + 1];
 static volatile size_t s_track_len;
@@ -161,6 +186,119 @@ I2SStream audio_output;
  * global version crashed at boot with LoadProhibited in Allocator::allocate. */
 static BluetoothA2DPSink *a2dp_sink = nullptr;
 
+/** Cover art data arrives in pieces on the BT task; copy it out before the callback returns. */
+static void on_cover_art_data(const esp_avrc_ct_cb_param_t *p) {
+  if (p->cover_art_data.status != ESP_BT_STATUS_SUCCESS) {
+    s_art_state = kArtNone;
+    return;
+  }
+  const size_t n = p->cover_art_data.data_len;
+  if (s_art && !s_art_overflow && n && p->cover_art_data.p_data) {
+    if (s_art_rx + n <= kArtMax) {
+      memcpy(s_art + s_art_rx, p->cover_art_data.p_data, n);
+      s_art_rx += n;
+    } else {
+      s_art_overflow = true;
+    }
+  }
+  if (p->cover_art_data.final) {
+    if (!s_art_overflow && s_art_rx > 0) {
+      s_art_id = static_cast<uint8_t>(s_art_id == 255 ? 1 : s_art_id + 1);
+      s_art_state = kArtReady;
+    } else {
+      s_art_state = kArtNone;
+    }
+  }
+}
+
+/** The library's sink plus AVRCP cover art (it does not handle the cover-art events itself). */
+class CoverArtSink : public BluetoothA2DPSink {
+ public:
+  explicit CoverArtSink(audio_tools::AudioStream &out) : BluetoothA2DPSink(out) {}
+
+ protected:
+  void app_rc_ct_callback(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) override {
+    switch (event) {
+      case ESP_AVRC_CT_REMOTE_FEATURES_EVT:
+        s_ca_supported = (param->rmt_feats.tg_feat_flag & ESP_AVRC_FEAT_FLAG_TG_COVER_ART) != 0;
+        Serial.printf("AVRCP remote features 0x%lx, TG flags 0x%x: cover art %s\n", (unsigned long)param->rmt_feats.feat_mask,
+                      (unsigned)param->rmt_feats.tg_feat_flag, s_ca_supported ? "offered" : "not offered");
+        break;  // the library handles the rest
+      case ESP_AVRC_CT_CONNECTION_STATE_EVT:
+        if (!param->conn_stat.connected) {
+          s_ca_supported = false;
+          s_ca_connected = false;
+        }
+        break;
+      case ESP_AVRC_CT_COVER_ART_STATE_EVT:
+        s_ca_connected = param->cover_art_state.state == ESP_AVRC_COVER_ART_CONNECTED;
+        Serial.printf("cover art channel %s (reason %d)\n", s_ca_connected ? "connected" : "disconnected",
+                      (int)param->cover_art_state.reason);
+        return;
+      case ESP_AVRC_CT_COVER_ART_DATA_EVT:
+        on_cover_art_data(param);
+        return;
+      default:
+        break;
+    }
+    BluetoothA2DPSink::app_rc_ct_callback(event, param);
+  }
+};
+
+/** Loop: open the cover-art channel when the phone offers it, and fetch art for new handles. */
+static void cover_art_poll() {
+  const uint32_t now = millis();
+  if (!s_ca_supported) {
+    s_ca_connecting = false;
+    s_art_have[0] = '\0';
+    return;
+  }
+  if (!s_ca_connected) {
+    if (!s_ca_connecting || now - s_ca_connect_ms > 5000u) {
+      s_ca_connecting = esp_avrc_ct_cover_art_connect(ESP_AVRC_CA_MTU_MAX) == ESP_OK;
+      s_ca_connect_ms = now;
+    }
+    s_art_have[0] = '\0';  // re-request once connected
+    return;
+  }
+  if (s_ca_connecting) {
+    // Phones (iOS in particular) only put the cover-art handle in track metadata once this channel
+    // is open, and the library asked for metadata at connect time, before it was: ask again.
+    esp_avrc_ct_send_metadata_cmd(kMetadataTl, ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST |
+                                                   ESP_AVRC_MD_ATTR_PLAYING_TIME | ESP_AVRC_MD_ATTR_COVER_ART);
+  }
+  s_ca_connecting = false;
+  static uint8_t s_logged_id = 0;
+  if (s_art_state == kArtReady && s_art_id != s_logged_id) {
+    s_logged_id = s_art_id;
+    Serial.printf("cover art #%u: %u bytes (%s)\n", (unsigned)s_art_id, (unsigned)s_art_rx, s_art_have);
+  }
+  if (s_art_state == kArtLoading && now - s_art_req_ms < 10000u) {
+    return;  // transfer in progress
+  }
+  char want[8];
+  portENTER_CRITICAL(&s_track_mux);
+  memcpy(want, s_art_want, sizeof(want));
+  portEXIT_CRITICAL(&s_track_mux);
+  if (strcmp(want, s_art_have) == 0 && s_art_state != kArtLoading) {
+    return;
+  }
+  memcpy(s_art_have, want, sizeof(want));
+  if (!want[0]) {
+    s_art_state = kArtNone;  // this track has no art
+    return;
+  }
+  s_art_rx = 0;
+  s_art_overflow = false;
+  s_art_state = kArtLoading;
+  s_art_req_ms = now;
+  const esp_err_t err = esp_avrc_ct_cover_art_get_linked_thumbnail(reinterpret_cast<uint8_t *>(s_art_have));
+  Serial.printf("cover art: requesting thumbnail %s (%s)\n", s_art_have, esp_err_to_name(err));
+  if (err != ESP_OK) {
+    s_art_state = kArtNone;
+  }
+}
+
 static void rebuild_track_line() {
   s_meta_artist[kMaxTrackLen] = '\0';
   s_meta_title[kMaxTrackLen] = '\0';
@@ -202,6 +340,12 @@ static void rebuild_snapshot_unlocked() {
   s_snapshot[kSnapTransportOff + 3] = static_cast<uint8_t>(s_duration_s & 0xffu);
   s_snapshot[kSnapTransportOff + 4] = static_cast<uint8_t>((s_duration_s >> 8) & 0xffu);
   s_snapshot[kSnapTransportOff + 5] = s_vol_0_15;
+  const bool ready = s_art_state == kArtReady;
+  s_snapshot[kSnapArtOff + 0] = kArtMagic;
+  s_snapshot[kSnapArtOff + 1] = ready ? s_art_id : 0;
+  s_snapshot[kSnapArtOff + 2] = static_cast<uint8_t>(ready ? (s_art_rx & 0xffu) : 0);
+  s_snapshot[kSnapArtOff + 3] = static_cast<uint8_t>(ready ? ((s_art_rx >> 8) & 0xffu) : 0);
+  s_snapshot[kSnapArtOff + 4] = s_art_state;
 }
 
 #if AUDIO_BRIDGE_SERIAL_METADATA
@@ -237,6 +381,10 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
     case ESP_AVRC_MD_ATTR_ALBUM:
       // Keep album out of the short OLED line; title/artist are enough for 32 chars.
       break;
+    case ESP_AVRC_MD_ATTR_COVER_ART:
+      strncpy(s_art_want, reinterpret_cast<const char *>(text), sizeof(s_art_want) - 1);
+      s_art_want[sizeof(s_art_want) - 1] = '\0';
+      break;
     case ESP_AVRC_MD_ATTR_PLAYING_TIME: {
       /* Decimal milliseconds string from phone; drives duration for P4 transport read (reg 0x05). */
       const unsigned long ms = strtoul(reinterpret_cast<const char *>(text), nullptr, 10);
@@ -252,6 +400,9 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
     strncpy(s_prev_track_for_elapsed, s_track, kMaxTrackLen + 1);
     s_prev_track_for_elapsed[kMaxTrackLen] = '\0';
     anchor_position_unlocked(0);
+    if (id != ESP_AVRC_MD_ATTR_COVER_ART) {
+      s_art_want[0] = '\0';  // new track: its cover art handle (if any) follows in this response
+    }
   }
   rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
@@ -306,7 +457,7 @@ static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
   portEXIT_CRITICAL(&s_track_mux);
 }
 
-void onReceive(int numBytes) {
+static void on_receive_impl(int numBytes) {
   if (numBytes < 1) {
     return;
   }
@@ -319,6 +470,16 @@ void onReceive(int numBytes) {
   }
 
   if (reg == kRegSnapshot) {
+    while (Wire.available()) {
+      (void)Wire.read();
+    }
+    return;
+  }
+
+  if (reg == kRegArtChunk) {
+    const int lo = Wire.read();
+    const int hi = Wire.available() ? Wire.read() : 0;
+    s_art_chunk_req = static_cast<uint16_t>((lo & 0xff) | ((hi & 0xff) << 8));
     while (Wire.available()) {
       (void)Wire.read();
     }
@@ -377,22 +538,49 @@ void onReceive(int numBytes) {
   }
 }
 
-void onRequest() {
-  /* Read once: on some ESP32 slave stacks onRequest can race with onReceive updating s_i2c_cmd. */
-  const uint8_t cmd = s_i2c_cmd;
+static void preload_reply(uint8_t reg);
+
+void onReceive(int numBytes) {
+  on_receive_impl(numBytes);
+  preload_reply(s_i2c_cmd);
+}
+
+/** Build the reply for register `reg` and load it into the slave TX FIFO right away. On the classic
+ *  ESP32 the Arduino slave only calls onRequest() *after* a read has finished, so whatever it writes
+ *  goes out on the next read (every reply one behind). Preloading from onReceive(), when the register
+ *  select arrives, makes each read return its own reply; the host waits ~1 ms before reading. */
+static void preload_reply(uint8_t reg) {
   uint8_t out[kSnapshotLen];
   portENTER_CRITICAL(&s_track_mux);
   memcpy(out, s_snapshot, sizeof(out));
   portEXIT_CRITICAL(&s_track_mux);
-
-  if (cmd == kRegSnapshot) {
-    Wire.write(out, kSnapshotLen);
-  } else if (cmd == kRegMetadata) {
-    Wire.write(out, 1 + kMaxTrackLen);  // [len][32 bytes, zero padded] — hosts clock 33 bytes
-  } else if (cmd == kRegTransport) {
-    Wire.write(out + kSnapTransportOff, kTransportLen);
+  if (reg == kRegSnapshot) {
+    Wire.slaveWrite(out, kSnapshotLen);
+  } else if (reg == kRegMetadata) {
+    Wire.slaveWrite(out, 1 + kMaxTrackLen);  // [len][32 bytes, zero padded] — hosts clock 33 bytes
+  } else if (reg == kRegTransport) {
+    Wire.slaveWrite(out + kSnapTransportOff, kTransportLen);
+  } else if (reg == kRegArtChunk) {
+    uint8_t buf[5 + kArtChunk];
+    const uint16_t idx = s_art_chunk_req;
+    const bool ready = s_art_state == kArtReady && s_art;
+    const size_t off = (size_t)idx * kArtChunk;
+    const size_t n = (ready && off < s_art_rx) ? ((s_art_rx - off) < kArtChunk ? (s_art_rx - off) : kArtChunk) : 0;
+    buf[0] = kArtMagic;
+    buf[1] = ready ? s_art_id : 0;
+    buf[2] = static_cast<uint8_t>(idx & 0xffu);
+    buf[3] = static_cast<uint8_t>(idx >> 8);
+    buf[4] = static_cast<uint8_t>(n);
+    memset(buf + 5, 0, kArtChunk);
+    if (n) {
+      memcpy(buf + 5, s_art + off, n);
+    }
+    Wire.slaveWrite(buf, sizeof(buf));
   }
 }
+
+/** Replies are preloaded in onReceive(); see preload_reply(). */
+void onRequest() {}
 
 void setup() {
   Serial.begin(115200);
@@ -447,11 +635,12 @@ void setup() {
   Wire1.onReceive(on_cluster_theme_receive);
 #endif
 
-  a2dp_sink = new BluetoothA2DPSink(audio_output);
+  s_art = static_cast<uint8_t *>(malloc(kArtMax));
+  a2dp_sink = new CoverArtSink(audio_output);
   a2dp_sink->set_avrc_metadata_attribute_mask(
       ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM |
       ESP_AVRC_MD_ATTR_TRACK_NUM | ESP_AVRC_MD_ATTR_NUM_TRACKS | ESP_AVRC_MD_ATTR_GENRE |
-      ESP_AVRC_MD_ATTR_PLAYING_TIME);
+      ESP_AVRC_MD_ATTR_PLAYING_TIME | ESP_AVRC_MD_ATTR_COVER_ART);
   a2dp_sink->set_avrc_metadata_callback(avrc_metadata_callback);
   a2dp_sink->set_avrc_rn_playstatus_callback(avrc_play_status_cb);
   /* Default in library was 10s between position notifications — too coarse for a dash. */
@@ -463,6 +652,7 @@ void setup() {
 
   Serial.print(F("BT name: "));
   Serial.println(BT_DEVICE_NAME);
+  Serial.printf("cover art buffer %s, heap %u bytes free\n", s_art ? "ok" : "FAILED", (unsigned)ESP.getFreeHeap());
   Serial.print(F("I2C metadata 0x"));
   Serial.println(I2C_SLAVE_ADDR, HEX);
 #if CLUSTER_THEME_I2C_ENABLE
@@ -488,6 +678,7 @@ void loop() {
   }
   rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
+  cover_art_poll();
 #if AUDIO_BRIDGE_SERIAL_METADATA
   serial_log_metadata_line();
 #endif

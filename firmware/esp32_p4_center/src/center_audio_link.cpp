@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <cstdio>
 #include <cstring>
+#include <driver/jpeg_decode.h>
 
 #ifndef CENTER_AUDIO_I2C_ADDR
 #define CENTER_AUDIO_I2C_ADDR 0x2A
@@ -29,6 +30,11 @@ static uint16_t s_elapsed_s;
 static uint16_t s_duration_s;
 static uint8_t s_vol_0_15;
 static bool s_tr_valid;
+
+// Album art as announced by the latest snapshot.
+static uint8_t s_art_snap_id;
+static uint16_t s_art_snap_len;
+static uint8_t s_art_snap_state;  // 0 none, 1 loading, 2 ready
 
 /** One slow line in MORE → SERIAL (sensor UART scrolls fast). */
 static uint32_t s_last_audio_sensor_summary_ms;
@@ -74,7 +80,7 @@ static bool poll_snapshot() {
     s_last_tr_rx = -1;
     return false;
   }
-  delayMicroseconds(100);
+  delayMicroseconds(1000);  // the bridge loads its reply when the register select arrives
   const int n = Wire.requestFrom((int)CENTER_AUDIO_I2C_ADDR, (int)CENTER_AUDIO_SNAPSHOT_BYTES);
   s_last_tr_rx = n;
   s_last_meta_rx = n;
@@ -115,7 +121,20 @@ static bool poll_snapshot() {
     drain_wire();
     return false;
   }
+  // Album art description (bridges from 2026-09 on): [0xC7][art_id][len0][len1][state]
+  int art[5] = {-1, -1, -1, -1, -1};
+  for (int &a : art) {
+    a = Wire.available() ? Wire.read() : -1;
+  }
   drain_wire();
+  if (art[0] == 0xC7) {
+    s_art_snap_id = (uint8_t)art[1];
+    s_art_snap_len = (uint16_t)(art[2] | (art[3] << 8));
+    s_art_snap_state = (uint8_t)art[4];
+  } else {
+    s_art_snap_id = 0;
+    s_art_snap_state = 0;
+  }
 
   if (magic != 0xA5 || trhdr != 5) {
     return false;
@@ -158,8 +177,160 @@ void center_audio_link_begin() {
   (void)Wire.setBufferSize(128);
 }
 
+// ---------------------------------------------------------------- album art
+//
+// The bridge fetches the phone's cover-art thumbnail (JPEG) and serves it in chunks: write
+// [0x10][idx_lo][idx_hi], read [0xC7][art_id][idx_lo][idx_hi][n][120 data bytes]. One chunk is read
+// per frame (~13 ms of I2C at 100 kHz, shared with touch) so the gauges keep moving; a 20 KB image
+// takes about 3 s. Every chunk header is checked (the slave can answer with a stale reply), and the
+// P4's hardware JPEG decoder turns the result into RGB565.
+
+static constexpr uint8_t kArtReg = 0x10;
+static constexpr int kArtChunk = 120;
+static constexpr size_t kArtInCap = 48 * 1024;
+
+static uint8_t *s_jpg = nullptr;       // download buffer (DMA-capable, from the JPEG driver)
+static size_t s_jpg_cap = 0;
+static uint8_t s_fetch_id = 0;         // image being downloaded (0 = none)
+static uint16_t s_fetch_len = 0;
+static uint16_t s_fetch_next = 0;      // next chunk index
+static uint16_t s_fetch_fails = 0;
+static uint8_t s_art_done_id = 0;      // last image decoded (or given up on)
+static uint16_t *s_art_px = nullptr;   // decoded RGB565
+static int s_art_w = 0, s_art_h = 0, s_art_stride = 0;
+static uint32_t s_art_serial = 0;      // bumps per decoded image
+static bool s_art_valid = false;
+static jpeg_decoder_handle_t s_jpeg = nullptr;
+
+static bool art_decode(const uint8_t *jpg, size_t len) {
+  if (!s_jpeg) {
+    jpeg_decode_engine_cfg_t ec = {};
+    ec.timeout_ms = 200;
+    if (jpeg_new_decoder_engine(&ec, &s_jpeg) != ESP_OK) {
+      s_jpeg = nullptr;
+      return false;
+    }
+  }
+  jpeg_decode_picture_info_t info = {};
+  if (jpeg_decoder_get_info(jpg, len, &info) != ESP_OK || info.width == 0 || info.height == 0 || info.width > 1024 ||
+      info.height > 1024) {
+    return false;
+  }
+  // The decoder writes whole MCUs: 16 px wide for 4:2:0 / 4:2:2, 8 for 4:4:4 / gray; 16 px tall for 4:2:0.
+  const bool wide = info.sample_method == JPEG_DOWN_SAMPLING_YUV420 || info.sample_method == JPEG_DOWN_SAMPLING_YUV422;
+  const int mw = wide ? 16 : 8, mh = info.sample_method == JPEG_DOWN_SAMPLING_YUV420 ? 16 : 8;
+  const int aw = ((int)info.width + mw - 1) / mw * mw, ah = ((int)info.height + mh - 1) / mh * mh;
+  jpeg_decode_memory_alloc_cfg_t mc = {};
+  mc.buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER;
+  size_t cap = 0;
+  uint16_t *out = (uint16_t *)jpeg_alloc_decoder_mem((size_t)aw * ah * 2, &mc, &cap);
+  if (!out) {
+    return false;
+  }
+  jpeg_decode_cfg_t cfg = {};
+  cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
+  cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
+  cfg.conv_std = JPEG_YUV_RGB_CONV_STD_BT601;
+  uint32_t out_size = 0;
+  if (jpeg_decoder_process(s_jpeg, &cfg, jpg, (uint32_t)len, (uint8_t *)out, (uint32_t)cap, &out_size) != ESP_OK) {
+    free(out);
+    return false;
+  }
+  free(s_art_px);  // nothing keeps a pointer to the old image: the face copies it on a new serial
+  s_art_px = out;
+  s_art_w = (int)info.width;
+  s_art_h = (int)info.height;
+  s_art_stride = aw;
+  s_art_serial++;
+  s_art_valid = true;
+  return true;
+}
+
+/** Read one chunk of the image being fetched; decode when the last one is in. */
+static void art_pump() {
+  if (s_art_snap_id == 0 && s_art_valid) {
+    s_art_valid = false;  // new track: no art, or its art is still on the way from the phone
+    s_art_done_id = 0;
+  }
+  if (s_art_snap_state != 2 || s_art_snap_id == 0 || s_art_snap_id == s_art_done_id) {
+    return;
+  }
+  if (s_fetch_id != s_art_snap_id) {
+    if (!s_jpg) {
+      jpeg_decode_memory_alloc_cfg_t mc = {};
+      mc.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER;
+      s_jpg = (uint8_t *)jpeg_alloc_decoder_mem(kArtInCap, &mc, &s_jpg_cap);
+    }
+    if (!s_jpg || s_art_snap_len == 0 || s_art_snap_len > s_jpg_cap) {
+      s_art_done_id = s_art_snap_id;  // cannot take this one
+      return;
+    }
+    s_fetch_id = s_art_snap_id;
+    s_fetch_len = s_art_snap_len;
+    s_fetch_next = 0;
+    s_fetch_fails = 0;
+  }
+  Wire.beginTransmission(CENTER_AUDIO_I2C_ADDR);
+  Wire.write(kArtReg);
+  Wire.write((uint8_t)(s_fetch_next & 0xFF));
+  Wire.write((uint8_t)(s_fetch_next >> 8));
+  bool ok = Wire.endTransmission(true) == 0;
+  if (ok) {
+    delayMicroseconds(1000);  // the bridge loads its reply when the register select arrives
+    const int n = Wire.requestFrom((int)CENTER_AUDIO_I2C_ADDR, 5 + kArtChunk);
+    uint8_t h[5];
+    for (int i = 0; i < 5; i++) {
+      const int c = Wire.read();
+      h[i] = (uint8_t)c;
+      ok = ok && c >= 0;
+    }
+    const uint16_t idx = (uint16_t)(h[2] | (h[3] << 8));
+    const size_t off = (size_t)s_fetch_next * kArtChunk;
+    const int want = (int)((s_fetch_len - off) < (size_t)kArtChunk ? (s_fetch_len - off) : (size_t)kArtChunk);
+    ok = ok && n >= 5 + kArtChunk && h[0] == 0xC7 && h[1] == s_fetch_id && idx == s_fetch_next && h[4] == want;
+    if (ok) {
+      for (int i = 0; i < want; i++) {
+        s_jpg[off + i] = (uint8_t)Wire.read();
+      }
+      s_fetch_next++;
+    }
+    drain_wire();
+  }
+  if (!ok && ++s_fetch_fails > 80) {
+    s_fetch_id = 0;  // give up; retried when the next snapshot still announces it
+    return;
+  }
+  if ((size_t)s_fetch_next * kArtChunk >= s_fetch_len) {
+    const bool decoded = art_decode(s_jpg, s_fetch_len);
+    Serial.printf("[audio] album art #%u: %u bytes, %s %dx%d\n", (unsigned)s_fetch_id, (unsigned)s_fetch_len,
+                  decoded ? "decoded" : "decode FAILED", s_art_w, s_art_h);
+    s_art_done_id = s_fetch_id;
+    s_fetch_id = 0;
+  }
+}
+
+void center_audio_art_status(char *out, size_t n) {
+  snprintf(out, n, "announced id=%u len=%u state=%u, fetching id=%u chunk %u (fails %u), decoded #%u %s %dx%d",
+           (unsigned)s_art_snap_id, (unsigned)s_art_snap_len, (unsigned)s_art_snap_state, (unsigned)s_fetch_id,
+           (unsigned)s_fetch_next, (unsigned)s_fetch_fails, (unsigned)s_art_done_id, s_art_valid ? "shown" : "none",
+           s_art_w, s_art_h);
+}
+
+bool center_audio_art(const uint16_t **px, int *w, int *h, int *stride, uint32_t *serial) {
+  if (!s_art_valid || !s_art_px) {
+    return false;
+  }
+  *px = s_art_px;
+  *w = s_art_w;
+  *h = s_art_h;
+  *stride = s_art_stride;
+  *serial = s_art_serial;
+  return true;
+}
+
 void center_audio_link_poll() {
   const uint32_t now = millis();
+  art_pump();
   // Metadata changes slowly; polling every frame kept the shared touch/display I2C bus busy and a
   // missing or unpowered ESP32-D could stall rendering on each attempt.
   static uint32_t s_last_poll_ms = 0;

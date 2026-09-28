@@ -214,6 +214,9 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     const bool tr = center_audio_link_transport(&el, &dur, &vol);
     Serial.printf("audio: link=%d line=\"%s\" transport=%d (last read %d bytes) elapsed=%us duration=%us vol=%u\n",
                   (int)center_audio_link_ok(), center_audio_link_line(), (int)tr, center_audio_link_last_rx(), (unsigned)el, (unsigned)dur, (unsigned)vol);
+    char art[160];
+    center_audio_art_status(art, sizeof(art));
+    Serial.printf("audio: art %s\n", art);
     return;
   }
   if (line == "perf") {

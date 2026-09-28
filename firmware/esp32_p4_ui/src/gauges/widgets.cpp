@@ -215,6 +215,97 @@ void Scanlines::draw(LvSurface &s) {
   }
 }
 
+// ---------------------------------------------------------------- ArtDisc
+
+ArtDisc::~ArtDisc() { lv_mem_free(buf_); }
+
+void ArtDisc::build(lv_obj_t *root, float cx, float cy, float d, Rgb rim, float rim_w, bool green, Rgb green_lo,
+                    Rgb green_hi) {
+  d_ = (int)lroundf(d);
+  rim_ = rim;
+  rim_w_ = rim_w;
+  green_ = green;
+  g_lo_ = green_lo;
+  g_hi_ = green_hi;
+  buf_ = (uint8_t *)lv_mem_alloc((size_t)d_ * (size_t)d_ * 3);
+  dsc_ = {};
+  dsc_.header.always_zero = 0;
+  dsc_.header.w = (uint32_t)d_;
+  dsc_.header.h = (uint32_t)d_;
+  dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
+  dsc_.data_size = (uint32_t)d_ * (uint32_t)d_ * 3u;
+  dsc_.data = buf_;
+  img_ = lv_img_create(root);
+  lv_obj_set_pos(img_, (lv_coord_t)lroundf(cx - d_ * 0.5f), (lv_coord_t)lroundf(cy - d_ * 0.5f));
+  lv_obj_set_size(img_, d_, d_);
+  lv_obj_clear_flag(img_, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(img_, LV_OBJ_FLAG_HIDDEN);
+}
+
+bool ArtDisc::update(const uint16_t *px, int w, int h, int stride, uint32_t id) {
+  const bool want = px && w > 0 && h > 0 && buf_;
+  if (want && id != id_) {
+    id_ = id;
+    render(px, w, h, stride);
+    lv_img_set_src(img_, &dsc_);
+    lv_obj_invalidate(img_);
+  }
+  if (want == vis_) {
+    return false;
+  }
+  vis_ = want;
+  show(img_, want);
+  return true;
+}
+
+void ArtDisc::render(const uint16_t *px, int w, int h, int stride) {
+  const float r = d_ * 0.5f;
+  const float scale = (float)(w < h ? w : h) / (float)d_;  // centre crop to a square
+  const float ox = (float)w * 0.5f, oy = (float)h * 0.5f;
+  auto at = [&](int x, int y, float *c) {
+    x = x < 0 ? 0 : (x >= w ? w - 1 : x);
+    y = y < 0 ? 0 : (y >= h ? h - 1 : y);
+    const uint16_t v = px[(size_t)y * (size_t)stride + (size_t)x];
+    c[0] = (float)((v >> 11) & 31) * (255.0f / 31.0f);
+    c[1] = (float)((v >> 5) & 63) * (255.0f / 63.0f);
+    c[2] = (float)(v & 31) * (255.0f / 31.0f);
+  };
+  for (int y = 0; y < d_; y++) {
+    uint8_t *o = buf_ + (size_t)y * (size_t)d_ * 3;
+    for (int x = 0; x < d_; x++, o += 3) {
+      const float dx = (float)x + 0.5f - r, dy = (float)y + 0.5f - r;
+      const float dist = sqrtf(dx * dx + dy * dy);
+      const float a = clampf(r - dist, 0.0f, 1.0f);
+      if (a <= 0.0f) {
+        o[0] = o[1] = o[2] = 0;
+        continue;
+      }
+      const float sx = ox + dx * scale - 0.5f, sy = oy + dy * scale - 0.5f;
+      const int ix = (int)floorf(sx), iy = (int)floorf(sy);
+      const float tx = sx - (float)ix, ty = sy - (float)iy;
+      float c00[3], c10[3], c01[3], c11[3];
+      at(ix, iy, c00);
+      at(ix + 1, iy, c10);
+      at(ix, iy + 1, c01);
+      at(ix + 1, iy + 1, c11);
+      Rgb c{lerpf(lerpf(c00[0], c10[0], tx), lerpf(c01[0], c11[0], tx), ty),
+            lerpf(lerpf(c00[1], c10[1], tx), lerpf(c01[1], c11[1], tx), ty),
+            lerpf(lerpf(c00[2], c10[2], tx), lerpf(c01[2], c11[2], tx), ty)};
+      if (green_) {
+        const float lum = (0.30f * c.r + 0.59f * c.g + 0.11f * c.b) / 255.0f;
+        c = mix(g_lo_, g_hi_, clampf(lum * 1.15f, 0.0f, 1.0f));
+      }
+      if (rim_w_ > 0.0f) {
+        c = mix(c, rim_, clampf(dist - (r - rim_w_) + 0.5f, 0.0f, 1.0f));
+      }
+      const lv_color_t lc = to_lv(c);
+      o[0] = (uint8_t)(lc.full & 0xFF);
+      o[1] = (uint8_t)(lc.full >> 8);
+      o[2] = (uint8_t)(a * 255.0f);
+    }
+  }
+}
+
 // ---------------------------------------------------------------- LVGL helpers
 
 lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, Rgb color, float cx, float cy, float w, Align align) {
@@ -236,6 +327,14 @@ lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, Rgb color, float cx, fl
 void set_text(lv_obj_t *lbl, const char *s) {
   if (strcmp(lv_label_get_text(lbl), s) != 0) {
     lv_label_set_text(lbl, s);
+  }
+}
+
+void move_label(lv_obj_t *lbl, float cy) {
+  const lv_font_t *f = lv_obj_get_style_text_font(lbl, 0);
+  const lv_coord_t y = (lv_coord_t)lroundf(cy - f->line_height * 0.5f);
+  if (lv_obj_get_y(lbl) != y) {
+    lv_obj_set_y(lbl, y);
   }
 }
 

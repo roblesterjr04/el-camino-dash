@@ -201,6 +201,10 @@ static void fill_media(GaugeData &d, uint32_t now) {
   }
   d.media_title = title;
   d.media_artist = artist;
+  uint32_t art_id = 0;
+  if (center_audio_art(&d.art_px, &d.art_w, &d.art_h, &d.art_stride, &art_id)) {
+    d.art_id = art_id;
+  }
 
   static uint16_t s_el = 0xFFFF;
   static uint32_t s_el_ms = 0;

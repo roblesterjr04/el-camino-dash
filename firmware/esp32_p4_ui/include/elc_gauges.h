@@ -59,6 +59,11 @@ struct GaugeData {
   const char *media_title = nullptr;
   const char *media_artist = nullptr;
   float media_elapsed = 0, media_duration = 0;
+  /** Album art, RGB565 with rows of art_stride pixels; nullptr when there is none. art_id changes with
+   *  every new image (the face copies and scales it once). */
+  const uint16_t *art_px = nullptr;
+  int art_w = 0, art_h = 0, art_stride = 0;
+  uint32_t art_id = 0;
 
   /** Short text for the speedometer's odometer slot (sensor-pack messages); nullptr = odometer. */
   const char *banner = nullptr;
