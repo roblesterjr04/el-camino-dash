@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
+"""Live decoder for the sensor_pack UART stream (bench tool).
+
+Wire format: docs/protocols/sensor_uart.md — AA 55 + 33-byte big-endian payload + XOR = 36 bytes.
+Text lines (boot banner, FRAM status) between frames are printed below the dashboard.
+"""
 from __future__ import annotations
 
 import argparse
 import glob
 import math
-import os
-import shutil
-import subprocess
 import sys
 import time
 
@@ -18,10 +20,9 @@ except Exception as exc:  # pragma: no cover
 
 
 SYNC = b"\xAA\x55"
-LEGACY_PAYLOAD_LEN = 19
-EXTENDED_PAYLOAD_LEN = 21
-LEGACY_FRAME_LEN = 2 + LEGACY_PAYLOAD_LEN + 1
-EXTENDED_FRAME_LEN = 2 + EXTENDED_PAYLOAD_LEN + 1
+PAYLOAD_LEN = 33
+FRAME_LEN = 2 + PAYLOAD_LEN + 1
+ODOMETER_UNKNOWN = 0xFFFFFFFF
 
 FAULT_BITS: list[tuple[int, str]] = [
     (0, "POT_OPEN"),
@@ -39,18 +40,8 @@ FAULT_BITS: list[tuple[int, str]] = [
     (12, "TEMP_POWER"),
     (13, "PRESS_POWER"),
     (14, "VOLT_POWER"),
+    (15, "ODO_STORE"),
 ]
-
-APP_SERVICE_UNITS: tuple[str, ...] = (
-    "gauge-cluster.service",
-    "gauge-cluster-hdmi.service",
-)
-
-APP_PROCESS_PATTERNS: tuple[str, ...] = (
-    "src/main.py",
-    "scripts/run_hw.sh",
-    "scripts/run_sim.sh",
-)
 
 MAC_PORT_GLOBS: tuple[str, ...] = (
     "/dev/cu.usbmodem*",
@@ -61,41 +52,30 @@ MAC_PORT_GLOBS: tuple[str, ...] = (
 
 
 def parse_frame(payload: bytes) -> dict[str, int | None]:
-    if len(payload) == LEGACY_PAYLOAD_LEN:
-        return {
-            "pot": int.from_bytes(payload[0:2], "big"),
-            "therm": int.from_bytes(payload[2:4], "big"),
-            "pressure": int.from_bytes(payload[4:6], "big"),
-            "voltage": int.from_bytes(payload[6:8], "big"),
-            "ambient_therm": None,
-            "speed_rpm": int.from_bytes(payload[8:12], "big"),
-            "engine_rpm": int.from_bytes(payload[12:16], "big"),
-            "flags": payload[16],
-            "faults": int.from_bytes(payload[17:19], "big"),
-        }
-
-    if len(payload) == EXTENDED_PAYLOAD_LEN:
-        return {
-            "pot": int.from_bytes(payload[0:2], "big"),
-            "therm": int.from_bytes(payload[2:4], "big"),
-            "pressure": int.from_bytes(payload[4:6], "big"),
-            "voltage": int.from_bytes(payload[6:8], "big"),
-            "ambient_therm": int.from_bytes(payload[8:10], "big"),
-            "speed_rpm": int.from_bytes(payload[10:14], "big"),
-            "engine_rpm": int.from_bytes(payload[14:18], "big"),
-            "flags": payload[18],
-            "faults": int.from_bytes(payload[19:21], "big"),
-        }
-
-    raise ValueError(f"Unexpected payload length: {len(payload)}")
+    if len(payload) != PAYLOAD_LEN:
+        raise ValueError(f"Unexpected payload length: {len(payload)}")
+    be = lambda lo, hi: int.from_bytes(payload[lo:hi], "big")  # noqa: E731
+    odo = be(21, 25)
+    return {
+        "pot": be(0, 2),
+        "therm": be(2, 4),
+        "pressure": be(4, 6),
+        "voltage": be(6, 8),
+        "ambient_therm": be(8, 10),
+        "speed_rpm": be(10, 14),
+        "engine_rpm": be(14, 18),
+        "flags": payload[18],
+        "faults": be(19, 21),
+        "odo_tenths": None if odo == ODOMETER_UNKNOWN else odo,
+        "mpg_inst_x10": be(25, 27),
+        "mpg_avg_x10": be(27, 29),
+        "dte_tenths": be(29, 33),
+    }
 
 
-def to_system_voltage(raw_adc: int) -> float:
-    vdiv_r1 = 27000.0
-    vdiv_r2 = 10000.0
-    vref = 5.0
-    ratio = vdiv_r2 / (vdiv_r1 + vdiv_r2)
-    return ((float(raw_adc) / 1023.0) * vref) / ratio
+def charge_band(raw_adc: int) -> str:
+    # sensor_pack synthesizes this slot from IGN + ALT "L" (no voltage divider): 400 / 530 / 720.
+    return {400: "key off", 530: "ign on, not charging", 720: "charging"}.get(raw_adc, f"raw {raw_adc}")
 
 
 def thermistor_temp_c(raw_adc: int) -> float:
@@ -171,29 +151,7 @@ def resolve_port(port_arg: str | None) -> str | None:
     return ports[0]
 
 
-def stop_app_services() -> None:
-    if not sys.platform.startswith("linux"):
-        return
-
-    if shutil.which("systemctl"):
-        use_sudo = os.geteuid() != 0 and shutil.which("sudo") is not None
-        for unit in APP_SERVICE_UNITS:
-            cmd = ["systemctl", "stop", unit]
-            if use_sudo:
-                cmd = ["sudo", "-n"] + cmd
-            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    if shutil.which("pkill"):
-        for pattern in APP_PROCESS_PATTERNS:
-            subprocess.run(
-                ["pkill", "-f", pattern],
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-
-def render_dashboard(fields: dict[str, int | None]) -> None:
+def render_dashboard(fields: dict[str, int | None], text_lines: list[str]) -> None:
     flags = int(fields["flags"] or 0)
     faults_word = int(fields["faults"] or 0)
     voltage_raw = int(fields["voltage"] or 0)
@@ -203,7 +161,6 @@ def render_dashboard(fields: dict[str, int | None]) -> None:
     engine_rpm = int(fields["engine_rpm"] or 0)
     alt_ok = bool(flags & 0x01)
     ign_on = bool(flags & 0x02)
-    volts = to_system_voltage(voltage_raw)
     faults = decode_faults(faults_word)
 
     lines: list[str] = []
@@ -222,13 +179,22 @@ def render_dashboard(fields: dict[str, int | None]) -> None:
     lines.append("")
     lines.append("Computed:")
     lines.append(
-        "  speed_rpm={speed_rpm:5d}  engine_rpm={engine_rpm:5d}  system_voltage={volts:5.2f}V".format(
+        "  speed_rpm={speed_rpm:5d}  engine_rpm={engine_rpm:5d}  charge={charge}".format(
             speed_rpm=speed_rpm,
             engine_rpm=engine_rpm,
-            volts=volts,
+            charge=charge_band(voltage_raw),
         )
     )
     lines.append(f"  engine_temp={fmt_temp(therm_raw)}  ambient_temp={fmt_temp(ambient_raw)}")
+    odo = fields["odo_tenths"]
+    lines.append(
+        "  odometer={odo}  mpg_inst={mi:.1f}  mpg_avg={ma:.1f}  dte={dte:.1f} mi".format(
+            odo="UNKNOWN (FRAM)" if odo is None else f"{int(odo) / 10:.1f} mi",
+            mi=int(fields["mpg_inst_x10"] or 0) / 10,
+            ma=int(fields["mpg_avg_x10"] or 0) / 10,
+            dte=int(fields["dte_tenths"] or 0) / 10,
+        )
+    )
     lines.append(
         "  flags=0x{flags:02X}  alt_ok={alt_ok}  ign_on={ign_on}".format(
             flags=flags,
@@ -244,11 +210,49 @@ def render_dashboard(fields: dict[str, int | None]) -> None:
             lines.append(f"  - {name}")
     else:
         lines.append("  none (fault_word=0x0000)")
+    if text_lines:
+        lines.append("")
+        lines.append("Recent text lines:")
+        lines.extend(f"  {t}" for t in text_lines[-8:])
 
     # Redraw in-place without scrolling.
     sys.stdout.write("\x1b[H\x1b[2J")
     sys.stdout.write("\n".join(lines) + "\n")
     sys.stdout.flush()
+
+
+def drain_buffer(buf: bytearray) -> list[tuple[str, object]]:
+    """Consume complete frames and text lines from the front of `buf` (mirrors sensor_packet.cpp)."""
+    out: list[tuple[str, object]] = []
+    while buf:
+        if buf[:2] == SYNC or buf == SYNC[:1]:
+            if len(buf) < FRAME_LEN:
+                break
+            payload = bytes(buf[2 : 2 + PAYLOAD_LEN])
+            crc = 0
+            for b in payload:
+                crc ^= b
+            if crc == buf[2 + PAYLOAD_LEN]:
+                out.append(("frame", parse_frame(payload)))
+                del buf[:FRAME_LEN]
+            else:
+                del buf[0]
+            continue
+        nl = buf.find(b"\n")
+        sync = buf.find(SYNC, 1)
+        if sync >= 0 and (nl < 0 or sync < nl):
+            del buf[:sync]  # unterminated junk before a frame
+            continue
+        if nl < 0:
+            if len(buf) > 256:
+                del buf[0]
+                continue
+            break
+        line = bytes(buf[:nl]).rstrip(b"\r")
+        del buf[: nl + 1]
+        if line and all(0x20 <= c <= 0x7E for c in line):
+            out.append(("text", line.decode("ascii")))
+    return out
 
 
 def main() -> int:
@@ -269,11 +273,6 @@ def main() -> int:
         type=float,
         default=10.0,
         help="Dashboard refresh rate in Hz (default: 10)",
-    )
-    parser.add_argument(
-        "--no-stop-services",
-        action="store_true",
-        help="Do not stop dashboard services/processes before opening serial",
     )
     args = parser.parse_args()
 
@@ -296,11 +295,6 @@ def main() -> int:
         )
         return 1
 
-    if not args.no_stop_services:
-        stop_app_services()
-        # Give systemd/process teardown a brief moment to release serial handles.
-        time.sleep(0.5)
-
     try:
         ser = serial.Serial(port, baudrate=args.baud, timeout=args.timeout)
     except Exception as exc:
@@ -312,48 +306,25 @@ def main() -> int:
     last_render = 0.0
     refresh_interval = 1.0 / max(1.0, args.refresh_hz)
     latest_fields: dict[str, int | None] | None = None
+    text_lines: list[str] = []
 
     try:
         while True:
             chunk = ser.read(256)
             if chunk:
                 buf.extend(chunk)
-            while len(buf) >= LEGACY_FRAME_LEN:
-                sync_idx = buf.find(SYNC)
-                if sync_idx < 0:
-                    buf.clear()
-                    break
-                if sync_idx > 0:
-                    del buf[:sync_idx]
-                if len(buf) < LEGACY_FRAME_LEN:
-                    break
-
-                frame_consumed = False
-                for payload_len in (EXTENDED_PAYLOAD_LEN, LEGACY_PAYLOAD_LEN):
-                    frame_len = 2 + payload_len + 1
-                    if len(buf) < frame_len:
-                        continue
-                    payload = bytes(buf[2 : 2 + payload_len])
-                    recv_crc = buf[2 + payload_len]
-
-                    calc_crc = 0
-                    for b in payload:
-                        calc_crc ^= b
-                    if recv_crc != calc_crc:
-                        continue
-
-                    del buf[:frame_len]
-                    latest_fields = parse_frame(payload)
-                    frame_consumed = True
-                    break
-
-                if not frame_consumed:
-                    # Bad sync candidate; drop one byte and keep searching.
-                    del buf[0]
+            for kind, value in drain_buffer(buf):
+                if kind == "frame":
+                    latest_fields = value
+                else:
+                    text_lines.append(value)
+                    del text_lines[:-50]
+                    if latest_fields is None:
+                        print(value)
 
             now = time.time()
             if latest_fields is not None and (now - last_render) >= refresh_interval:
-                render_dashboard(latest_fields)
+                render_dashboard(latest_fields, text_lines)
                 last_render = now
     except KeyboardInterrupt:
         print("\nStopped.")
