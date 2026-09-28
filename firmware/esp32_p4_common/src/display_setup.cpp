@@ -9,6 +9,8 @@
 #include <esp_lcd_panel_io.h>
 // Set by patched GFX Arduino_ESP32DSIPanel.cpp after esp_lcd_new_panel_io_dbi(); used for SH8601 DCS brightness.
 esp_lcd_panel_io_handle_t g_elc_dsi_panel_io = nullptr;
+/** DPI panel handle, set by the patched GFX DSI panel (see scripts/pio_pre_gfx_dsi_io_hook.py). */
+esp_lcd_panel_handle_t g_elc_dpi_panel = nullptr;
 #endif
 
 #if (defined(TSPS_USE_JD9365) && TSPS_USE_JD9365) || (defined(TSPS_WAVESHARE_3C4) && TSPS_WAVESHARE_3C4)

@@ -5,9 +5,17 @@
 
 #if defined(ESP_PLATFORM)
 #include <esp_cache.h>
+#include <esp_lcd_mipi_dsi.h>
+#include <esp_lcd_panel_ops.h>
 #include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <esp_rom_crc.h>
 #include <esp_task_wdt.h>
+#endif
+
+#if defined(ESP_PLATFORM)
+extern esp_lcd_panel_handle_t g_elc_dpi_panel;  // display_setup.cpp, set by the patched GFX DSI panel
 #endif
 
 namespace {
@@ -21,7 +29,18 @@ class LegacyLayer : public Arduino_Canvas {
 
 Arduino_DSI_Display *s_panel = nullptr;
 LegacyLayer *s_legacy = nullptr;
-uint16_t *s_fb = nullptr;
+uint16_t *s_fb = nullptr;  // framebuffer the panel is showing (front)
+
+// Double buffering: LVGL draws into the back buffer; the panel flips to it after a full refresh, then
+// the rows LVGL touched are copied into the new back buffer so both stay identical.
+bool s_double = false;
+uint16_t *s_fbs[2] = {nullptr, nullptr};
+SemaphoreHandle_t s_flip_done = nullptr;
+constexpr int kMaxDirty = 32;
+lv_area_t s_dirty[kMaxDirty];
+int s_ndirty = 0;
+bool s_dirty_overflow = false;
+uint32_t s_flips = 0;
 int16_t s_w = 0;
 int16_t s_h = 0;
 
@@ -53,18 +72,70 @@ uint64_t s_app_us = 0;
 uint32_t s_bands_changed = 0;
 P4ScreenStats s_stats{};
 
-void flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *) {
-  // Direct mode: LVGL already wrote into the panel framebuffer; push those rows out of the cache.
+void writeback_rows(uint16_t *buf, int32_t y1, int32_t y2) {
+#if defined(ESP_PLATFORM)
+  esp_cache_msync(buf + (size_t)y1 * (size_t)s_w, (size_t)(y2 - y1 + 1) * (size_t)s_w * sizeof(uint16_t),
+                  ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+#endif
+}
+
+#if defined(ESP_PLATFORM)
+bool IRAM_ATTR on_fb_complete(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t *, void *) {
+  BaseType_t woken = pdFALSE;
+  xSemaphoreGiveFromISR(s_flip_done, &woken);
+  return woken == pdTRUE;
+}
+#endif
+
+void flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
+  // Direct mode: LVGL already drew into the buffer; push those rows out of the cache for the DMA.
+  uint16_t *buf = (uint16_t *)color_p;
   const int32_t y1 = area->y1 < 0 ? 0 : area->y1;
   const int32_t y2 = area->y2 >= s_h ? s_h - 1 : area->y2;
   if (y2 >= y1) {
-#if defined(ESP_PLATFORM)
-    uint16_t *start = s_fb + (size_t)y1 * (size_t)s_w;
-    const size_t bytes = (size_t)(y2 - y1 + 1) * (size_t)s_w * sizeof(uint16_t);
-    esp_cache_msync(start, bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
-#endif
+    writeback_rows(buf, y1, y2);
     s_rows += (uint32_t)(y2 - y1 + 1);
+    if (s_double) {
+      if (s_ndirty < kMaxDirty) {
+        s_dirty[s_ndirty++] = *area;
+      } else {
+        s_dirty_overflow = true;
+      }
+    }
   }
+#if defined(ESP_PLATFORM)
+  if (s_double && lv_disp_flush_is_last(drv)) {
+    // Flip: the panel starts showing `buf` at the next frame; wait until the old front is free.
+    xSemaphoreTake(s_flip_done, 0);
+    esp_lcd_panel_draw_bitmap(g_elc_dpi_panel, 0, 0, s_w, s_h, buf);
+    xSemaphoreTake(s_flip_done, pdMS_TO_TICKS(60));
+    s_flips++;
+    uint16_t *other = (buf == s_fbs[0]) ? s_fbs[1] : s_fbs[0];
+    s_fb = buf;
+    // Bring the new back buffer up to date with what LVGL just drew.
+    if (s_dirty_overflow) {
+      memcpy(other, buf, (size_t)s_w * (size_t)s_h * sizeof(uint16_t));
+      writeback_rows(other, 0, s_h - 1);
+    } else {
+      for (int i = 0; i < s_ndirty; i++) {
+        const lv_area_t &a = s_dirty[i];
+        const int32_t ax1 = a.x1 < 0 ? 0 : a.x1, ax2 = a.x2 >= s_w ? s_w - 1 : a.x2;
+        const int32_t ay1 = a.y1 < 0 ? 0 : a.y1, ay2 = a.y2 >= s_h ? s_h - 1 : a.y2;
+        if (ax2 < ax1 || ay2 < ay1) {
+          continue;
+        }
+        const size_t row_bytes = (size_t)(ax2 - ax1 + 1) * sizeof(uint16_t);
+        for (int32_t y = ay1; y <= ay2; y++) {
+          const size_t off = (size_t)y * (size_t)s_w + (size_t)ax1;
+          memcpy(other + off, buf + off, row_bytes);
+        }
+        writeback_rows(other, ay1, ay2);
+      }
+    }
+    s_ndirty = 0;
+    s_dirty_overflow = false;
+  }
+#endif
   lv_disp_flush_ready(drv);
 }
 
@@ -98,7 +169,27 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
   memcpy(s_legacy->getFramebuffer(), s_fb, (size_t)s_w * (size_t)s_h * sizeof(uint16_t));
 
   lv_init();
-  lv_disp_draw_buf_init(&s_draw_buf, s_fb, nullptr, (uint32_t)s_w * (uint32_t)s_h);
+#if defined(ESP_PLATFORM)
+  void *fb0 = nullptr, *fb1 = nullptr;
+  if (g_elc_dpi_panel && esp_lcd_dpi_panel_get_frame_buffer(g_elc_dpi_panel, 2, &fb0, &fb1) == ESP_OK && fb0 && fb1) {
+    s_flip_done = xSemaphoreCreateBinary();
+    esp_lcd_dpi_panel_event_callbacks_t cbs = {};
+    cbs.on_frame_buf_complete = on_fb_complete;
+    if (s_flip_done && esp_lcd_dpi_panel_register_event_callbacks(g_elc_dpi_panel, &cbs, nullptr) == ESP_OK) {
+      s_fbs[0] = (uint16_t *)fb0;  // showing the boot splash
+      s_fbs[1] = (uint16_t *)fb1;
+      memcpy(s_fbs[1], s_fbs[0], (size_t)s_w * (size_t)s_h * sizeof(uint16_t));
+      writeback_rows(s_fbs[1], 0, s_h - 1);
+      s_fb = s_fbs[0];
+      s_double = true;
+    }
+  }
+#endif
+  if (s_double) {
+    lv_disp_draw_buf_init(&s_draw_buf, s_fbs[1], s_fbs[0], (uint32_t)s_w * (uint32_t)s_h);  // draw into the back first
+  } else {
+    lv_disp_draw_buf_init(&s_draw_buf, s_fb, nullptr, (uint32_t)s_w * (uint32_t)s_h);
+  }
   lv_disp_drv_init(&s_disp_drv);
   s_disp_drv.hor_res = s_w;
   s_disp_drv.ver_res = s_h;
@@ -136,8 +227,8 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
   lv_obj_clear_flag(s_ui, LV_OBJ_FLAG_CLICKABLE);
 
   s_stat_t0 = millis();
-  Serial.printf("[screen] LVGL direct mode %dx%d: panel fb %p, legacy layer %p (fb %p)\n", (int)s_w, (int)s_h,
-                (void *)s_fb, (void *)s_legacy, (void *)s_legacy->getFramebuffer());
+  Serial.printf("[screen] LVGL direct mode %dx%d, %s buffered, legacy layer %p\n", (int)s_w, (int)s_h,
+                s_double ? "double" : "single", (void *)s_legacy->getFramebuffer());
   return s_legacy;
 }
 
@@ -219,6 +310,9 @@ void p4_screen_frame() {
     s_stats.bands_changed = s_frames ? (float)s_bands_changed / (float)s_frames : 0.0f;
     s_bands_changed = 0;
     s_stats.flushed_rows = s_rows;
+    s_stats.double_buffered = s_double;
+    s_stats.flips = s_flips;
+    s_flips = 0;
     s_frames = 0;
     s_rows = 0;
     s_lvgl_us = 0;

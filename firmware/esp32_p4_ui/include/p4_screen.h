@@ -42,6 +42,8 @@ struct P4ScreenStats {
   float lvgl_ms;          // average p4_screen_frame() time (change detection + LVGL render)
   uint32_t flushed_rows;  // rows written back to the panel in the last second
   float bands_changed;    // average legacy-layer bands (16 rows) that changed per frame
+  bool double_buffered;   // panel flips between two framebuffers (no tearing)
+  uint32_t flips;         // buffer flips in the last second
 };
 P4ScreenStats p4_screen_stats();
 

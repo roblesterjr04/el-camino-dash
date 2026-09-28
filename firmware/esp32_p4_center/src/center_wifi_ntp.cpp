@@ -166,8 +166,9 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     const P4ScreenStats st = p4_screen_stats();
     Serial.printf("ui: view=%d theme=%d overlay=%d fullscreen=%d\n", (int)center_ui_view_mode(), (int)center_ui_cluster_theme(),
                   (int)center_ui_overlay_open(), (int)center_ui_fullscreen());
-    Serial.printf("perf: %.1f fps, drawing %.1f ms + LVGL %.1f ms per frame, %.1f of 50 bands changed/frame, %lu rows/s written back, heap %lu KB internal / %lu KB PSRAM free\n",
+    Serial.printf("perf: %.1f fps, drawing %.1f ms + LVGL %.1f ms per frame, %.1f of 50 bands changed/frame, %lu rows/s written back, %s (%lu flips/s), heap %lu KB internal / %lu KB PSRAM free\n",
                   (double)st.fps, (double)st.app_ms, (double)st.lvgl_ms, (double)st.bands_changed, (unsigned long)st.flushed_rows,
+                  st.double_buffered ? "double-buffered" : "single-buffered", (unsigned long)st.flips,
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     return;
