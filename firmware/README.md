@@ -2,16 +2,36 @@
 
 Firmware for the three round MIPI displays: the **sensor_pack** UART (`arduino/sketches/sensor_pack/sensor_pack.ino`) feeds all three ESP32-P4 boards. Wire formats are in [`docs/protocols/`](../docs/protocols/).
 
-## Themes and gestures (Classic + Fallout)
+## Themes and gestures (Classic, Modern, Fallout)
 
 | Gesture | Scope | Effect |
 |--------|--------|--------|
-| Short touch release (center) | Center | Opens overlay menu (unchanged). |
-| Hold center **≥ 10 s** | Global | Toggles **Classic** vs **Fallout** on all gauges; center **I2C-broadcasts** theme to speedo, TSPS, and optional ESP32-D; stored in **NVS** on each board. Release does not open the menu. |
-| Hold center **≥ 3 s** (Classic only) | Center | Cycles sub-view: **Tach → Clock → Media**; NVS + I2C sync. |
-| Hold TSPS **≥ 3 s** (Classic only) | TSPS | Toggles **classic_1 / classic_2** (NVS); short tap no longer switches layout. GPIO bench toggle may remain (see TSPS `platformio.ini`). |
+| Short touch release (center) | Center | Opens the menu. |
+| Hold center **≥ 10 s** | Global | Next theme (**Classic → Modern → Fallout**) on all gauges; center **I2C-broadcasts** theme to speedo, TSPS, and optional ESP32-D; stored in **NVS** on each board. Release does not open the menu. |
+| Hold center **≥ 3 s** | Center | Next view: **Tach → Clock → Media → Efficiency**; NVS + I2C sync. |
+| Hold TSPS **≥ 3 s** (Classic only) | TSPS | Toggles **classic_1 / classic_2** (NVS). GPIO bench toggle may remain (see TSPS `platformio.ini`). |
 
-**Fallout** uses fixed Pip-Boy–style layouts per gauge (no center sub-view cycling). **Speedo** follows global theme only (no sub-views).
+Every face exists in all three themes. **Speedo** follows the global theme only (no sub-views).
+
+## Gauge faces (vector, LVGL)
+
+All faces are drawn by `esp32_p4_ui/src/gauges/` (API: `elc_gauges.h`); there are no bitmap assets. The static
+dial of a face (scale, numerals, chrome rings, spun-aluminium caps, gradients) is painted once in software with
+anti-aliased shapes when the face is shown (0.3–0.8 s on the P4), then cached; needles, arcs, lamps and readouts are
+live LVGL objects that repaint only the pixels that change. Faces are designed on an 800-unit square and scale to
+the panel (720×720, 800×800, or the centred 600×600 of a 1024×600 panel).
+
+- `faces_classic.cpp`: black glass, cream numerals, chrome, red needles (layouts follow the original Classic art in
+  `assets/gauges/`).
+- `faces_modern.cpp`: flat dark glass with an orange progress arc (the cluster prototype's Modern theme).
+- `faces_fallout.cpp`: green phosphor terminal with segment bars and scanlines.
+
+The faces render on a Mac too, with the same code, which is how layouts are iterated without flashing:
+
+```bash
+tools/gauge_preview/build.sh                                  # needs one PlatformIO build of the center (for LVGL)
+python3 tools/gauge_preview/preview.py faces.png 0,1,0 2,1,0 1,1,0   # theme,face,variant — see the script
+```
 
 ## Cluster I2C (center master)
 
@@ -21,8 +41,8 @@ Firmware for the three round MIPI displays: the **sensor_pack** UART (`arduino/s
 
 | Register | Meaning |
 |----------|---------|
-| `0x01` | Theme: `0` = Classic, `1` = Fallout |
-| `0x02` | Center sub-view: `0` Tach, `1` Clock, `2` Media (ignored on speedo/TSPS for layout; may still be stored) |
+| `0x01` | Theme: `0` = Classic, `1` = Fallout, `2` = Modern (unknown values fall back to Classic) |
+| `0x02` | Center sub-view: `0` Tach, `1` Clock, `2` Media, `3` Efficiency (ignored on speedo/TSPS) |
 | `0x03` | TSPS classic variant: `0` classic_1, `1` classic_2 (TSPS local; not broadcast from center) |
 
 Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
@@ -31,11 +51,11 @@ Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
 
 | Directory | Role |
 |-----------|------|
-| `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, "NO DATA" stamp), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
-| `esp32_p4_ui/` | Shared **screen + touch**: `p4_screen` (LVGL direct-mode, double-buffered panel, legacy GFX layer, screenshot), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
+| `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, demo drive), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
+| `esp32_p4_ui/` | Shared **screen, touch and faces**: `p4_screen` (LVGL, double-buffered panel, optional legacy GFX layer, screenshot), `gauges/` (all gauge faces), `fonts/` (LVGL fonts), `gauge_console` (bench console for speedo/TSPS), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
 | `esp32_p4_speedo/` | **LEFT**: speedometer (MPH from Hall `speed_rpm` + wheel constants). |
-| `esp32_p4_center/` | **MIDDLE**: Classic tach / clock / media + Fallout screen; long-press gestures; I2C cluster master. |
-| `esp32_p4_tsps/` | **RIGHT**: TSPS cluster; Classic layouts + Fallout; **3 s hold** for classic_1 vs classic_2 when theme is Classic. |
+| `esp32_p4_center/` | **MIDDLE**: tach / clock / media / efficiency faces, LVGL menu, long-press gestures; I2C cluster master. |
+| `esp32_p4_tsps/` | **RIGHT**: fuel / oil / coolant / charge; Classic has two layouts (**3 s hold** switches). |
 | `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + I2C metadata `0x2A` + optional cluster theme `0x3E` on `Wire1`). |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
@@ -58,26 +78,30 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ./flash.sh -e esp32-p4-tsps-waveshare3c4 --upload-port /dev/cu.usbmodem…
 ```
 
-See each `platformio.ini` for env names and asset regeneration commands.
+See each `platformio.ini` for env names.
 
 ## UART wiring
 
 **sensor_pack TX** → **all three ESP32 UART RX** in parallel (same 115200 8N1 stream). Only the **center** sends the 0xA5 keepalive back (its GPIO 4 → sensor RX); speedo and TSPS never transmit. See [WIRING_PINOUT.md](../WIRING_PINOUT.md) for the full vehicle harness.
 
-## Center display: LVGL screen layer
+## LVGL screen layer
 
-The center app hands the panel to LVGL (`esp32_p4_ui/p4_screen.*`). LVGL renders in direct mode into the DSI
-framebuffer and writes back only the rows it touched. The existing Arduino_GFX gauge and menu code draws into an
-off-screen "legacy layer" canvas, which is the bottom LVGL object; new LVGL UI goes on `p4_screen_ui_parent()`.
-The gauge renderers only run when something they show changes (`gauge_signature()` in `main.cpp`), and the layer is
-compared band by band so LVGL redraws only what differs.
+All three apps hand the panel to LVGL (`esp32_p4_ui/p4_screen.*`). LVGL renders strips in on-chip RAM into the
+hidden one of two DSI framebuffers, the panel flips on each refresh, and the redrawn rows are copied into the other
+buffer by DMA, so nothing tears. Layers, bottom to top: the optional legacy Arduino_GFX canvas (center only, for
+its older full-screen pages), the gauge faces (`p4_screen_gauge_parent()`), and UI (`p4_screen_ui_parent()`).
 
-The center menu (`center_menu.cpp`) is pure LVGL: a scaled wheel on the home page, and Wi-Fi, Brightness, Theme and
-Service pages. It is rebuilt in the active theme's colors and fonts (`src/fonts/`) each time it opens. The Wi-Fi
-password keyboard, sensor log, GPS data and Phone pages are still the older Arduino_GFX full-screen pages.
+The center menu (`center_menu.cpp`) is pure LVGL: a wheel on the home page, and Wi-Fi, Brightness, Theme and
+Service pages, rebuilt in the active theme's colors and fonts each time it opens. The Wi-Fi password keyboard,
+sensor log, GPS data and Phone pages are still the older Arduino_GFX full-screen pages.
 
-Console on the flashing USB port (115200, `Serial` = UART0): `help`, `perf` (fps and timing), `shot` (screenshot),
-`tap <x> <y> [ms]` (simulated touch), `knob left|right|press` (encoder), `demo on|off`, plus the Wi-Fi/TZ commands. Grab a screenshot from the Mac with:
+Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
+
+- center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
+  `drag <x> <y1> <y2> <ms>`, `knob left|right|press`, plus the Wi-Fi/TZ commands;
+- speedo / TSPS: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (TSPS).
+
+Grab a screenshot from the Mac with:
 
 ```bash
 python3 tools/screenshot.py --port /dev/cu.usbmodem… -o center.png
@@ -87,10 +111,6 @@ The tool never toggles DTR/RTS: on these boards the CH343 auto-reset circuit reb
 
 ## Runtime behavior
 
-- **Stale data:** no frame for 400 ms → gauges dim at rest with a red **NO DATA** stamp; odometer shows dashes.
+- **Stale data:** no frame for 400 ms → needles fall to rest, the face dims and shows **NO DATA**; odometer shows dashes.
 - **Watchdog:** each display reboots if `loop()` stalls for 8 s. Anything slow (HTTPS lookups, Wi-Fi joins) runs asynchronously on the center.
 - **Theme sync:** the center rebroadcasts theme/sub-view every 5 s.
-
-## Fallout asset export (optional bitmaps)
-
-Procedural Fallout UIs need no PNGs. To add sprites, place PNGs under `assets/gauges/fallout/` and run `scripts/export_fallout_rgb565_assets.py` (see `assets/gauges/fallout/README.md`).

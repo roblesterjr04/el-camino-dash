@@ -16,8 +16,11 @@
  * touch sample, then p4_screen_frame() once.
  */
 
-/** Takes over the panel. Returns the legacy-layer canvas to hand to existing drawing code. */
-Arduino_GFX *p4_screen_begin(Arduino_GFX *panel);
+/**
+ * Takes over the panel. Returns the legacy-layer canvas to hand to existing drawing code; with
+ * legacy_layer=false no canvas is made (saves 1.3 MB of PSRAM) and the panel is returned.
+ */
+Arduino_GFX *p4_screen_begin(Arduino_GFX *panel, bool legacy_layer = true);
 
 /** The legacy layer may have changed; the next frame compares it band by band and redraws only
  *  what differs (Arduino_Canvas::flush() on the layer also marks this). */
@@ -39,6 +42,12 @@ void p4_screen_set_tear_free(bool on);
 
 /** Parent object for LVGL UI above the legacy layer. */
 lv_obj_t *p4_screen_ui_parent();
+
+/** Full-screen layer for the gauge faces: above the legacy layer, below the UI layer. */
+lv_obj_t *p4_screen_gauge_parent();
+
+/** Hide the legacy layer while gauges cover the screen (skips its change detection too). */
+void p4_screen_set_legacy_visible(bool visible);
 
 /** Report how long the app spent drawing the legacy layer this loop (shown by `perf`). */
 void p4_screen_note_app_us(uint32_t us);

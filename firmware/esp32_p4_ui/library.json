@@ -1,7 +1,7 @@
 {
   "name": "el_camino_p4_ui",
-  "version": "1.4.0",
-  "description": "Shared CST816 touch + modal overlay menus for ESP32-P4 round display firmwares",
+  "version": "2.0.0",
+  "description": "Shared LVGL screen layer, vector gauge faces, fonts and touch for the ESP32-P4 round displays",
   "frameworks": "arduino",
   "platforms": "espressif32",
   "dependencies": [

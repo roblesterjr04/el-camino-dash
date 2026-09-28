@@ -3,7 +3,9 @@
 #include <Arduino_GFX_Library.h>
 #include <Preferences.h>
 
-#include "center_cluster.h"
+#include <cluster_i2c.h>
+
+#include "center_views.h"
 
 struct SensorPacketValues;
 class SensorLink;
@@ -52,3 +54,5 @@ void center_ui_draw_fullscreen(Arduino_GFX *gfx);
 CenterViewMode center_ui_view_mode();
 
 ClusterTheme center_ui_cluster_theme();
+/** Theme order for the 10 s hold: Classic → Modern → Fallout → Classic. */
+ClusterTheme center_ui_next_theme(ClusterTheme t);

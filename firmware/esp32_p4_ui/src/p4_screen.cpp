@@ -80,6 +80,7 @@ lv_indev_drv_t s_indev_drv;
 lv_indev_t *s_indev = nullptr;
 lv_img_dsc_t s_legacy_dsc;
 lv_obj_t *s_legacy_img = nullptr;
+lv_obj_t *s_gauges = nullptr;
 lv_obj_t *s_ui = nullptr;
 bool s_legacy_dirty = true;
 
@@ -245,7 +246,7 @@ void touch_cb(lv_indev_drv_t *, lv_indev_data_t *data) {
 
 }  // namespace
 
-Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
+Arduino_GFX *p4_screen_begin(Arduino_GFX *panel, bool legacy_layer) {
   if (!panel) {
     return nullptr;
   }
@@ -257,14 +258,16 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
     return panel;  // no framebuffer: keep drawing straight to the panel
   }
 
-  s_legacy = new LegacyLayer(s_w, s_h, panel);
-  if (!s_legacy->begin(GFX_SKIP_OUTPUT_BEGIN)) {
-    delete s_legacy;
-    s_legacy = nullptr;
-    return panel;
+  if (legacy_layer) {
+    s_legacy = new LegacyLayer(s_w, s_h, panel);
+    if (!s_legacy->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+      delete s_legacy;
+      s_legacy = nullptr;
+      return panel;
+    }
+    // Start from what the panel shows now (boot splash) so the first LVGL frame doesn't flash black.
+    memcpy(s_legacy->getFramebuffer(), s_fb, (size_t)s_w * (size_t)s_h * sizeof(uint16_t));
   }
-  // Start from what the panel shows now (boot splash) so the first LVGL frame doesn't flash black.
-  memcpy(s_legacy->getFramebuffer(), s_fb, (size_t)s_w * (size_t)s_h * sizeof(uint16_t));
 
   lv_init();
 #if defined(ESP_PLATFORM)
@@ -319,17 +322,25 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
   lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-  s_legacy_dsc = {};
-  s_legacy_dsc.header.always_zero = 0;
-  s_legacy_dsc.header.w = (uint32_t)s_w;
-  s_legacy_dsc.header.h = (uint32_t)s_h;
-  s_legacy_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
-  s_legacy_dsc.data_size = (uint32_t)s_w * (uint32_t)s_h * LV_COLOR_SIZE / 8;
-  s_legacy_dsc.data = (const uint8_t *)s_legacy->getFramebuffer();
-  s_legacy_img = lv_img_create(scr);
-  lv_img_set_src(s_legacy_img, &s_legacy_dsc);
-  lv_obj_set_pos(s_legacy_img, 0, 0);
-  lv_obj_clear_flag(s_legacy_img, LV_OBJ_FLAG_CLICKABLE);
+  if (s_legacy) {
+    s_legacy_dsc = {};
+    s_legacy_dsc.header.always_zero = 0;
+    s_legacy_dsc.header.w = (uint32_t)s_w;
+    s_legacy_dsc.header.h = (uint32_t)s_h;
+    s_legacy_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+    s_legacy_dsc.data_size = (uint32_t)s_w * (uint32_t)s_h * LV_COLOR_SIZE / 8;
+    s_legacy_dsc.data = (const uint8_t *)s_legacy->getFramebuffer();
+    s_legacy_img = lv_img_create(scr);
+    lv_img_set_src(s_legacy_img, &s_legacy_dsc);
+    lv_obj_set_pos(s_legacy_img, 0, 0);
+    lv_obj_clear_flag(s_legacy_img, LV_OBJ_FLAG_CLICKABLE);
+  }
+
+  s_gauges = lv_obj_create(scr);
+  lv_obj_remove_style_all(s_gauges);
+  lv_obj_set_size(s_gauges, s_w, s_h);
+  lv_obj_clear_flag(s_gauges, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(s_gauges, LV_OBJ_FLAG_CLICKABLE);
 
   s_ui = lv_obj_create(scr);
   lv_obj_remove_style_all(s_ui);
@@ -338,9 +349,9 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel) {
   lv_obj_clear_flag(s_ui, LV_OBJ_FLAG_CLICKABLE);
 
   s_stat_t0 = millis();
-  Serial.printf("[screen] LVGL direct mode %dx%d, %s buffered, legacy layer %p\n", (int)s_w, (int)s_h,
-                s_double ? (s_dma ? "double (DMA sync)" : "double (CPU sync)") : "single", (void *)s_legacy->getFramebuffer());
-  return s_legacy;
+  Serial.printf("[screen] LVGL %dx%d, %s buffered, legacy layer %s\n", (int)s_w, (int)s_h,
+                s_double ? (s_dma ? "double (DMA sync)" : "double (CPU sync)") : "single", s_legacy ? "on" : "off");
+  return s_legacy ? (Arduino_GFX *)s_legacy : panel;
 }
 
 void p4_screen_legacy_dirty() { s_legacy_dirty = true; }
@@ -429,7 +440,7 @@ void p4_screen_frame() {
     return;
   }
   const int64_t t0 = esp_timer_get_time();
-  if (s_legacy_dirty && s_legacy_img) {
+  if (s_legacy_dirty && s_legacy_img && !lv_obj_has_flag(s_legacy_img, LV_OBJ_FLAG_HIDDEN)) {
     invalidate_changed_bands();
     s_legacy_dirty = false;
   }
@@ -473,6 +484,21 @@ void p4_screen_frame() {
 }
 
 lv_obj_t *p4_screen_ui_parent() { return s_ui ? s_ui : lv_scr_act(); }
+
+lv_obj_t *p4_screen_gauge_parent() { return s_gauges ? s_gauges : lv_scr_act(); }
+
+void p4_screen_set_legacy_visible(bool visible) {
+  if (!s_legacy_img || lv_obj_has_flag(s_legacy_img, LV_OBJ_FLAG_HIDDEN) != visible) {
+    return;
+  }
+  if (visible) {
+    lv_obj_clear_flag(s_legacy_img, LV_OBJ_FLAG_HIDDEN);
+    s_band_valid = false;  // repaint it whole on the next frame
+    s_legacy_dirty = true;
+  } else {
+    lv_obj_add_flag(s_legacy_img, LV_OBJ_FLAG_HIDDEN);
+  }
+}
 
 P4ScreenStats p4_screen_stats() { return s_stats; }
 

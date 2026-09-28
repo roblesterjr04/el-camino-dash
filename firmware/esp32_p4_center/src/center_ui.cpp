@@ -276,7 +276,7 @@ void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs) {
   s_prefs = prefs;
   center_menu_begin(prefs);
   if (prefs) {
-    s_theme = (prefs->getUChar("ctheme", 0) != 0) ? ClusterTheme::Fallout : ClusterTheme::Classic;
+    s_theme = cluster_theme_from_reg(prefs->getUChar("ctheme", 0));
     uint8_t v = prefs->getUChar("view", 0);
     if (v > 3) {
       v = 0;
@@ -290,11 +290,11 @@ CenterViewMode center_ui_view_mode() { return s_view; }
 ClusterTheme center_ui_cluster_theme() { return s_theme; }
 
 void center_ui_sync_cluster_bus() {
-  if (s_theme != ClusterTheme::Classic) {
-    cluster_i2c_broadcast_center_theme(s_theme, ClusterCenterSubview::Tach);
-    return;
-  }
   cluster_i2c_broadcast_center_theme(s_theme, (ClusterCenterSubview)(uint8_t)s_view);
+}
+
+ClusterTheme center_ui_next_theme(ClusterTheme t) {
+  return t == ClusterTheme::Classic ? ClusterTheme::Modern : (t == ClusterTheme::Modern ? ClusterTheme::Fallout : ClusterTheme::Classic);
 }
 
 void center_ui_set_view(CenterViewMode v) {
@@ -346,10 +346,10 @@ void center_ui_process_touch_gesture(uint32_t duration_ms, int16_t x, int16_t y)
     return;
   }
   if (duration_ms >= 10000u) {
-    center_ui_set_theme(s_theme == ClusterTheme::Classic ? ClusterTheme::Fallout : ClusterTheme::Classic);
+    center_ui_set_theme(center_ui_next_theme(s_theme));
     return;
   }
-  if (duration_ms >= 3000u && s_theme == ClusterTheme::Classic) {
+  if (duration_ms >= 3000u) {
     center_ui_set_view((CenterViewMode)(((uint8_t)s_view + 1u) % 4u));
     return;
   }

@@ -19,7 +19,10 @@ static const uint8_t CLUSTER_REG_THEME = 0x01;
 static const uint8_t CLUSTER_REG_CENTER_SUBVIEW = 0x02;
 static const uint8_t CLUSTER_REG_TSPS_CLASSIC_VARIANT = 0x03;
 
-enum class ClusterTheme : uint8_t { Classic = 0, Fallout = 1 };
+enum class ClusterTheme : uint8_t { Classic = 0, Fallout = 1, Modern = 2 };
+
+/** Theme register value → theme; anything unknown (a newer center) falls back to Classic. */
+static inline ClusterTheme cluster_theme_from_reg(uint8_t v) { return v <= 2 ? (ClusterTheme)v : ClusterTheme::Classic; }
 
 enum class ClusterCenterSubview : uint8_t { Tach = 0, Clock = 1, Media = 2, Efficiency = 3 };
 

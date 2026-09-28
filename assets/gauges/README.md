@@ -1,11 +1,13 @@
-# Gauge source art
+# Gauge reference art
 
-Source PNGs for the display firmware. The `scripts/export_*_rgb565_assets.py` scripts convert them into the `*_gen.h` headers compiled into each app (see the comments at the top of each `platformio.ini` for the exact command).
+The original Classic dial art (PNG). The firmware no longer uses these files: every gauge face is drawn in vector
+form by `firmware/esp32_p4_ui/src/gauges/`, and the Classic layouts (scales, numerals, chrome, spun-aluminium caps)
+follow this art. Keep them as the design reference.
 
-| Folder | Used by |
+| Folder | Reference for |
 | --- | --- |
-| `classic_1/` | center: tach, clock, MPG, media (searched first) |
-| `classic_1_rect/` | TSPS classic_1 |
-| `classic_2_rect/` | speedo; TSPS classic_2 (`full_gauges.png` + mask); center fallback |
-| `fallout/` | optional Fallout sprites (the Fallout screens are procedural by default) |
-| `../bootscreen/boot3.png` | boot splash on all three displays |
+| `classic_1/` | center tach, clock, MPG, media; right display classic_1 (fuel + lamps) |
+| `classic_1_rect/` | right display classic_1 |
+| `classic_2_rect/` | speedometer; right display classic_2 (four gauges) |
+
+The boot splash (`../bootscreen/boot3.png`) is still a bitmap; `scripts/export_bootscreen_rgb565.py` converts it.

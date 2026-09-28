@@ -48,10 +48,6 @@ static int s_last_tr_rx;
 static int s_last_meta_rx;
 static int s_last_meta_need;
 
-static uint16_t elc565(uint8_t r, uint8_t g, uint8_t b) {
-  return (uint16_t)(((uint16_t)(r & 0xF8) << 8) | ((uint16_t)(g & 0xFC) << 3) | ((uint16_t)b >> 3));
-}
-
 static void drain_wire() {
   while (Wire.available()) {
     (void)Wire.read();
@@ -359,32 +355,4 @@ bool center_audio_link_transport(uint16_t *elapsed_s, uint16_t *duration_s, uint
     *vol_0_15 = s_vol_0_15;
   }
   return s_tr_valid;
-}
-
-void center_audio_link_draw(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h) {
-  if (!gfx || !s_ok || s_line[0] == '\0') {
-    return;
-  }
-
-  gfx->setFont(nullptr);
-  gfx->setTextSize(1);
-  int16_t x0 = 0, y0 = 0;
-  uint16_t tw = 0, th = 0;
-  gfx->getTextBounds(s_line, 0, 0, &x0, &y0, &tw, &th);
-  const int16_t pad_x = 10;
-  const int16_t pad_y = 6;
-  const int16_t bar_h = (int16_t)(th + 2 * pad_y);
-  const int16_t bar_y = (int16_t)(screen_h - bar_h - 6);
-  if (bar_y < 0) {
-    return;
-  }
-  const int16_t bar_w = screen_w;
-  gfx->fillRect(0, bar_y, bar_w, bar_h, elc565(12, 12, 18));
-  gfx->drawFastHLine(0, bar_y, bar_w, elc565(55, 55, 70));
-
-  gfx->setTextColor(elc565(210, 210, 220));
-  const int16_t tx = (int16_t)((screen_w - (int16_t)tw) / 2);
-  const int16_t ty = (int16_t)(bar_y + pad_y - (int16_t)y0);
-  gfx->setCursor(tx, ty);
-  gfx->print(s_line);
 }

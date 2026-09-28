@@ -18,20 +18,7 @@
 #include "center_wifi_ntp.h"
 
 // ---------------------------------------------------------------- fonts (src/fonts, lv_font_conv)
-LV_FONT_DECLARE(elc_bc_58);
-LV_FONT_DECLARE(elc_bc_46);
-LV_FONT_DECLARE(elc_b_28);
-LV_FONT_DECLARE(elc_b_22);
-LV_FONT_DECLARE(elc_vt_72);
-LV_FONT_DECLARE(elc_vt_56);
-LV_FONT_DECLARE(elc_vt_36);
-LV_FONT_DECLARE(elc_vt_28);
-LV_FONT_DECLARE(elc_sa_56);
-LV_FONT_DECLARE(elc_sa_46);
-LV_FONT_DECLARE(elc_sm_28);
-LV_FONT_DECLARE(elc_sm_22);
-LV_FONT_DECLARE(elc_icons_56);
-LV_FONT_DECLARE(elc_icons_34);
+#include <elc_fonts.h>
 
 // Material Icons code points as UTF-8
 #define IC_SPEED "\xEE\xA7\xA4"
@@ -69,7 +56,7 @@ Theme theme_for(ClusterTheme t) {
     th = {lv_color_hex(0x010a04), lv_color_hex(0x5dff8f), lv_color_hex(0x2fae5c), lv_color_hex(0x17602f),
           lv_color_hex(0xb8ffcc), lv_color_hex(0x021008), lv_color_hex(0x06200f), lv_color_hex(0x1a6a35),
           lv_color_hex(0xb8ffcc), lv_color_hex(0xffb347), &elc_vt_72, &elc_vt_56, &elc_vt_36, &elc_vt_28};
-  } else if ((uint8_t)t == 2) {  // Modern (step 4)
+  } else if (t == ClusterTheme::Modern) {
     th = {lv_color_hex(0x060708), lv_color_hex(0xf3f5f6), lv_color_hex(0x9aa4aa), lv_color_hex(0x5d666c),
           lv_color_hex(0xff7a2f), lv_color_hex(0x0b0c0d), lv_color_hex(0x171b1e), lv_color_hex(0x2b3136),
           lv_color_hex(0x45d483), lv_color_hex(0xff3b30), &elc_sa_56, &elc_sa_46, &elc_sm_28, &elc_sm_22};
@@ -262,7 +249,7 @@ const char *item_sub(int i) {
       return buf;
     case CenterMenuPage::Theme: {
       const ClusterTheme th = center_ui_cluster_theme();
-      return th == ClusterTheme::Fallout ? "Fallout" : ((uint8_t)th == 2 ? "Modern" : "Classic");
+      return th == ClusterTheme::Fallout ? "Fallout" : (th == ClusterTheme::Modern ? "Modern" : "Classic");
     }
     default: return "Diagnostics";
   }
@@ -627,26 +614,28 @@ void build_theme(lv_obj_t *page) {
     uint8_t id;
     const char *name;
   };
-  const Opt opts[] = {{(uint8_t)ClusterTheme::Classic, "Classic"}, {(uint8_t)ClusterTheme::Fallout, "Fallout"}};
+  const Opt opts[] = {{(uint8_t)ClusterTheme::Classic, "Classic"},
+                      {(uint8_t)ClusterTheme::Modern, "Modern"},
+                      {(uint8_t)ClusterTheme::Fallout, "Fallout"}};
   const int n = sizeof(opts) / sizeof(opts[0]);
   for (int i = 0; i < n; i++) {
-    const int cx = kW / 2 + (i - (n - 1) / 2.0f) * 250;
+    const int cx = kW / 2 + (i - (n - 1) / 2.0f) * 225;
     const Theme pt = theme_for((ClusterTheme)opts[i].id);
     const bool on = (uint8_t)center_ui_cluster_theme() == opts[i].id;
-    lv_obj_t *ring = box(page, cx - 112, 250, 224, 224);
+    lv_obj_t *ring = box(page, cx - 100, 262, 200, 200);
     lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
     outline(ring, on ? T.accent : T.line, on ? 5 : 2);
     lv_obj_add_flag(ring, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_transform_zoom(ring, 240, LV_STATE_PRESSED);
     lv_obj_add_event_cb(ring, theme_pick, LV_EVENT_CLICKED, (void *)(intptr_t)opts[i].id);
-    lv_obj_t *face = box(ring, 12, 12, 200, 200);
+    lv_obj_t *face = box(ring, 12, 12, 176, 176);
     lv_obj_set_style_radius(face, LV_RADIUS_CIRCLE, 0);
     fill(face, pt.bg);
     outline(face, pt.line, 2);
     lv_obj_clear_flag(face, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *big = label(face, "Aa", pt.label, pt.text);
     lv_obj_align(big, LV_ALIGN_CENTER, 0, -14);
-    lv_obj_t *bar = box(face, 55, 138, 90, 8);
+    lv_obj_t *bar = box(face, 43, 122, 90, 8);
     lv_obj_set_style_radius(bar, 4, 0);
     fill(bar, pt.accent);
     lv_obj_t *nm = label(page, opts[i].name, T.body, on ? T.text : T.dim);
@@ -923,14 +912,17 @@ void center_menu_hold_feedback(uint32_t held_ms, bool active) {
     return;
   }
   if (!active || held_ms < 350 || s_root) {
-    lv_obj_add_flag(s_hold_arc, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(s_hold_lbl, LV_OBJ_FLAG_HIDDEN);
+    if (!lv_obj_has_flag(s_hold_arc, LV_OBJ_FLAG_HIDDEN)) {
+      lv_obj_add_flag(s_hold_arc, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(s_hold_lbl, LV_OBJ_FLAG_HIDDEN);
+    }
     return;
   }
   const ClusterTheme th = center_ui_cluster_theme();
   const Theme t = theme_for(th);
-  const bool views = th != ClusterTheme::Fallout;
-  const char *next = th == ClusterTheme::Classic ? "Fallout" : "Classic";
+  const bool views = true;
+  const ClusterTheme nt = center_ui_next_theme(th);
+  const char *next = nt == ClusterTheme::Classic ? "Classic" : (nt == ClusterTheme::Modern ? "Modern" : "Fallout");
   int32_t v;
   const char *msg;
   static char buf[64];
@@ -946,11 +938,23 @@ void center_menu_hold_feedback(uint32_t held_ms, bool active) {
     snprintf(buf, sizeof(buf), "Release: switch to %s", next);
     msg = buf;
   }
-  lv_obj_set_style_arc_color(s_hold_arc, t.accent, LV_PART_INDICATOR);
-  lv_arc_set_value(s_hold_arc, v);
-  lv_obj_clear_flag(s_hold_arc, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_style_text_font(s_hold_lbl, t.sub, 0);
-  lv_obj_set_style_text_color(s_hold_lbl, t.accent, 0);
-  lv_label_set_text(s_hold_lbl, msg);
-  lv_obj_clear_flag(s_hold_lbl, LV_OBJ_FLAG_HIDDEN);
+  // Setting a style repaints the whole 776 px ring, so only restyle when the theme changes; the
+  // value and text are set only when they change (each repaints just what moved).
+  static int s_styled = -1;
+  if (s_styled != (int)th) {
+    s_styled = (int)th;
+    lv_obj_set_style_arc_color(s_hold_arc, t.accent, LV_PART_INDICATOR);
+    lv_obj_set_style_text_font(s_hold_lbl, t.sub, 0);
+    lv_obj_set_style_text_color(s_hold_lbl, t.accent, 0);
+  }
+  if (lv_arc_get_value(s_hold_arc) != v) {
+    lv_arc_set_value(s_hold_arc, v);
+  }
+  if (strcmp(lv_label_get_text(s_hold_lbl), msg) != 0) {
+    lv_label_set_text(s_hold_lbl, msg);
+  }
+  if (lv_obj_has_flag(s_hold_arc, LV_OBJ_FLAG_HIDDEN)) {
+    lv_obj_clear_flag(s_hold_arc, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(s_hold_lbl, LV_OBJ_FLAG_HIDDEN);
+  }
 }

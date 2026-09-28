@@ -5,8 +5,6 @@
 #include <demo_drive.h>
 #include <sensor_packet.h>
 
-class Arduino_GFX;
-
 // A frame older than this counts as "no data" (sensor_pack sends every 50 ms).
 #ifndef SENSOR_PACKET_STALE_MS
 #define SENSOR_PACKET_STALE_MS 400u
@@ -71,12 +69,3 @@ class SensorLink {
   uint32_t _last_keepalive_ms = 0;
   bool _have = false;
 };
-
-/**
- * Mark a square gauge framebuffer (cw×cw RGB565) as "no data": dims it and stamps "NO DATA" in red.
- * Call after drawing the gauge and before blitting, so the stamp does not flicker.
- */
-void elc_fb_stamp_no_data(Arduino_GFX *gfx, uint16_t *fb, int cw);
-
-/** Same, drawn directly on screen (for the procedural Fallout screens that paint with gfx primitives). */
-void elc_gfx_draw_no_data(Arduino_GFX *gfx, int16_t screen_w, int16_t screen_h);

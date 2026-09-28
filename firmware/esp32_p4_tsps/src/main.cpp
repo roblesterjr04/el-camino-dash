@@ -7,13 +7,15 @@
 #include <cluster_i2c.h>
 #include <cluster_i2c_slave.h>
 #include <display_setup.h>
-#include <p4_touch.h>
+#include <elc_gauges.h>
 #include <elc_watchdog.h>
+#include <gauge_console.h>
+#include <gauge_link.h>
+#include <p4_screen.h>
+#include <p4_touch.h>
 #include <sensor_link.h>
 
 #include "theme_input.h"
-#include "tsps_cluster.h"
-#include "tsps_fallout.h"
 
 SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 
@@ -25,11 +27,16 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 #define SENSOR_UART_TX 4
 #endif
 
+#ifndef WHEEL_CIRCUMFERENCE_M
+#define WHEEL_CIRCUMFERENCE_M 2.1f
+#endif
+
 static SensorLink s_link;
-static Arduino_GFX *gfx = nullptr;
+static GaugeConsole s_console;
 
 static const char *kTspsTag = "tsps";
 
+/** Classic layout: true = four gauges (classic 2), false = fuel with warning lamps (classic 1). */
 static bool s_classic2 = true;
 
 // Theme arrives from the center over I2C. The slave callback runs in the I2C task, so it only
@@ -39,7 +46,7 @@ static volatile bool s_theme_dirty = false;
 
 static void on_cluster_i2c(uint8_t reg, uint8_t val, void *) {
   if (reg == CLUSTER_REG_THEME) {
-    s_theme = (val != 0) ? ClusterTheme::Fallout : ClusterTheme::Classic;
+    s_theme = cluster_theme_from_reg(val);
     s_theme_dirty = true;
   }
 }
@@ -51,11 +58,17 @@ static void persist_theme_if_changed() {
   s_theme_dirty = false;
   Preferences prefs;
   prefs.begin(CLUSTER_NVS_NAMESPACE, false);
-  const uint8_t v = (s_theme == ClusterTheme::Fallout) ? 1 : 0;
+  const uint8_t v = (uint8_t)s_theme;
   if (prefs.getUChar(CLUSTER_NVS_KEY_THEME, 0xFF) != v) {
     prefs.putUChar(CLUSTER_NVS_KEY_THEME, v);
   }
   prefs.end();
+}
+
+static void set_classic2(bool v, const char *why) {
+  s_classic2 = v;
+  theme_save_classic2(v);
+  Serial.printf("TSPS: switched to classic_%d (%s)\n", v ? 2 : 1, why);
 }
 
 void setup() {
@@ -66,16 +79,20 @@ void setup() {
   s_link.begin(Serial1, SENSOR_UART_RX, SENSOR_UART_TX);
 
   Serial.println("el-camino-dash TSPS / ESP32-P4");
-  ESP_LOGI(kTspsTag, "calling create_tsps_display()");
 
-  gfx = create_tsps_display();
-  if (!gfx) {
+  Arduino_GFX *panel = create_tsps_display();
+  if (!panel) {
     Serial.println("FATAL: display init failed (wrong PlatformIO env / board for this MIPI panel?)");
     while (true) {
       delay(1000);
     }
   }
-  elc_boot_splash_framebuffer_write(gfx);
+  elc_boot_splash_framebuffer_write(panel);
+  p4_screen_begin(panel, /*legacy_layer=*/false);
+  {
+    const int w = panel->width(), h = panel->height(), size = w < h ? w : h;
+    gauges_begin(p4_screen_gauge_parent(), (w - size) / 2, (h - size) / 2, size);
+  }
   elc_illumination_gpio_poll();
 
   // theme_input_begin() opens the "tsps" NVS namespace; load the saved variant only after that.
@@ -84,28 +101,32 @@ void setup() {
   {
     Preferences prefs;
     prefs.begin(CLUSTER_NVS_NAMESPACE, true);
-    s_theme = (prefs.getUChar(CLUSTER_NVS_KEY_THEME, 0) != 0) ? ClusterTheme::Fallout : ClusterTheme::Classic;
+    s_theme = cluster_theme_from_reg(prefs.getUChar(CLUSTER_NVS_KEY_THEME, 0));
     prefs.end();
   }
+  s_console.on_theme = [](uint8_t t) {
+    s_theme = cluster_theme_from_reg(t);
+    s_theme_dirty = true;
+  };
+  s_console.on_variant = [](uint8_t v) { set_classic2(v == 0, "console"); };
   cluster_i2c_slave_begin(CLUSTER_I2C_ADDR_TSPS, on_cluster_i2c, nullptr);
 
-  Serial.printf("TSPS: theme=%s classic_%d (GPIO / 3s touch)\n", s_theme == ClusterTheme::Fallout ? "fallout" : "classic",
-                s_classic2 ? 2 : 1);
+  Serial.printf("TSPS: theme=%d classic_%d (GPIO / 3s touch)\n", (int)s_theme, s_classic2 ? 2 : 1);
   elc_loop_watchdog_begin();
 }
 
 void loop() {
+  elc_loop_watchdog_feed();
   elc_illumination_gpio_poll();
   persist_theme_if_changed();
   s_link.poll();
+  s_console.poll(s_link);
   const uint32_t now = millis();
 
   bool gpio_toggled = false;
   theme_poll_gpio_toggle(&gpio_toggled);
   if (gpio_toggled && s_theme == ClusterTheme::Classic) {
-    s_classic2 = !s_classic2;
-    theme_save_classic2(s_classic2);
-    Serial.printf("TSPS: switched to classic_%d (GPIO)\n", s_classic2 ? 2 : 1);
+    set_classic2(!s_classic2, "GPIO");
   }
 
   {
@@ -117,31 +138,27 @@ void loop() {
     if (finger_down && !s_was_down) {
       s_down_ms = now;
     }
-    if (!finger_down && s_was_down && s_theme == ClusterTheme::Classic) {
-      const uint32_t dur = now - s_down_ms;
-      if (dur >= 3000u) {
-        s_classic2 = !s_classic2;
-        theme_save_classic2(s_classic2);
-        Serial.printf("TSPS: switched to classic_%d (3s hold)\n", s_classic2 ? 2 : 1);
-      }
+    if (!finger_down && s_was_down && s_theme == ClusterTheme::Classic && now - s_down_ms >= 3000u) {
+      set_classic2(!s_classic2, "3s hold");
     }
     s_was_down = finger_down;
   }
 
-  const SensorDerived d = s_link.derived();
-  if (s_theme == ClusterTheme::Fallout) {
-    tsps_draw_fallout(gfx, gfx->width(), gfx->height(), d);
-    if (!d.valid) {
-      elc_gfx_draw_no_data(gfx, gfx->width(), gfx->height());
-    }
-  } else {
-    tsps_render_cluster(gfx, gfx->width(), gfx->height(), d, s_classic2);
-  }
+  GaugeData gd;
+  gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
+  gauges_show((GaugeTheme)(uint8_t)s_theme, GaugeFace::Right, s_classic2 ? 0 : 1);
+  gauges_update(gd, now);
+  p4_screen_frame();
 
   s_link.poll();
   char uart_line[96];
   while (s_link.takeTextLine(uart_line, sizeof(uart_line))) {
     Serial.println(uart_line);
   }
-  delay(15);
+
+  // Pace to ~60 fps: sleep only for what is left of a 16 ms frame; always yield at least 1 ms.
+  static uint32_t s_frame_start_ms = 0;
+  const uint32_t spent = millis() - s_frame_start_ms;
+  delay(spent < 15 ? 16 - spent : 1);
+  s_frame_start_ms = millis();
 }

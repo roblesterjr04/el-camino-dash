@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <cstring>
+#include <ctime>
 #include <Arduino_GFX_Library.h>
 #include <Preferences.h>
 #include <esp_timer.h>
@@ -7,7 +8,8 @@
 #include <boot_splash.h>
 #include <cluster_i2c.h>
 #include <display_setup.h>
-#include <el_camino_speed.h>
+#include <elc_gauges.h>
+#include <gauge_link.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
 #include <elc_watchdog.h>
@@ -16,9 +18,7 @@
 #include "center_audio_link.h"
 #include "center_ble.h"
 #include "center_menu.h"
-#include "center_cluster.h"
 #include "center_gps.h"
-#include "center_media_ui.h"
 #include "center_sd_settings.h"
 #include "center_ui.h"
 #include "center_wifi_ntp.h"
@@ -83,8 +83,13 @@ void setup() {
     }
   }
   elc_boot_splash_framebuffer_write(panel);
-  // LVGL owns the panel from here; existing drawing code targets the legacy layer it returns.
+  // LVGL owns the panel from here. Gauges are LVGL faces; the full-screen legacy pages (keyboard,
+  // sensor log, GPS, phone) still draw into the legacy layer it returns.
   gfx = p4_screen_begin(panel);
+  {
+    const int w = gfx->width(), h = gfx->height(), size = w < h ? w : h;
+    gauges_begin(p4_screen_gauge_parent(), (w - size) / 2, (h - size) / 2, size);
+  }
   elc_illumination_gpio_poll();
   s_prefs.begin("center", false);
   center_sd_settings_begin();
@@ -117,61 +122,6 @@ static void poll_sensor_link() {
   }
 }
 
-static uint32_t fnv(uint32_t h, const void *data, size_t n) {
-  const uint8_t *p = (const uint8_t *)data;
-  for (size_t i = 0; i < n; i++) {
-    h = (h ^ p[i]) * 16777619u;
-  }
-  return h;
-}
-
-template <typename T>
-static uint32_t fnv_v(uint32_t h, T v) {
-  return fnv(h, &v, sizeof(v));
-}
-
-/** Everything the gauge views draw, quantized to what is visible. Equal signature → same pixels. */
-static uint32_t gauge_signature(CenterViewMode view, ClusterTheme theme, const CenterGaugeInputs &g, bool ui_block) {
-  uint32_t h = 2166136261u;
-  h = fnv_v(h, (uint8_t)view);
-  h = fnv_v(h, (uint8_t)theme);
-  h = fnv_v(h, ui_block);
-  h = fnv_v(h, g.sensor_valid);
-  h = fnv_v(h, g.engine_rpm / 10u);
-  h = fnv_v(h, (int32_t)(elc_speed_rpm_to_mph(g.speed_rpm, WHEEL_CIRCUMFERENCE_M, 1.0f) * 2.0f));
-  h = fnv_v(h, (int32_t)(g.fuel_pct * 2.0f));
-  h = fnv_v(h, (int32_t)g.coolant_temp_f);
-  h = fnv_v(h, (int32_t)g.system_amp);
-  h = fnv_v(h, g.odometer_valid);
-  h = fnv_v(h, (int32_t)(g.odometer_mi * 10.0f));
-  h = fnv_v(h, (int32_t)(g.trip_mi * 10.0f));
-  h = fnv_v(h, g.gear_num);
-  h = fnv_v(h, g.fuel_economy_valid);
-  h = fnv_v(h, (int32_t)(g.mpg_average * 10.0f));
-  h = fnv_v(h, (int32_t)(g.mpg_instant * 10.0f));
-  h = fnv_v(h, g.dte_tenths_mile);
-  h = fnv_v(h, g.clock_wall);
-  h = fnv_v(h, g.clock_wall ? (uint32_t)(g.epoch_ms / 1000u) : g.millis_boot / 1000u);  // hands move per second
-  if (g.current_street) {
-    h = fnv(h, g.current_street, strlen(g.current_street));
-  }
-  const char *np = center_audio_link_line();
-  if (np) {
-    h = fnv(h, np, strlen(np));
-  }
-  h = fnv_v(h, center_audio_link_ok());
-  uint16_t el = 0, dur = 0;
-  uint8_t vol = 0;
-  if (center_audio_link_transport(&el, &dur, &vol)) {
-    h = fnv_v(h, el);
-    h = fnv_v(h, dur);
-  }
-  if (view == CenterViewMode::Media) {
-    h = fnv_v(h, millis() / 100u);  // progress needle interpolates between whole seconds
-  }
-  return h;
-}
-
 static void clamp_touch(int16_t *x, int16_t *y, int16_t w, int16_t h) {
   if (*x < 0) {
     *x = 0;
@@ -184,6 +134,86 @@ static void clamp_touch(int16_t *x, int16_t *y, int16_t w, int16_t h) {
   }
   if (*y >= h) {
     *y = (int16_t)(h - 1);
+  }
+}
+
+static GaugeFace face_for(CenterViewMode v) {
+  switch (v) {
+    case CenterViewMode::Clock:
+      return GaugeFace::Clock;
+    case CenterViewMode::Media:
+      return GaugeFace::Media;
+    case CenterViewMode::Efficiency:
+      return GaugeFace::Econ;
+    case CenterViewMode::Tach:
+    default:
+      return GaugeFace::Tach;
+  }
+}
+
+/** Wall time (GPS / NTP, local zone) or, without a source, time since boot. */
+static void fill_clock(GaugeData &d, uint32_t now) {
+  static const char *const kDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  static const char *const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+  static char date[24];
+  uint64_t epoch_ms = 0;
+  if (center_wall_epoch_ms(&epoch_ms)) {
+    const time_t t = (time_t)(epoch_ms / 1000u);
+    struct tm lt;
+    localtime_r(&t, &lt);
+    d.time_valid = true;
+    d.hour = lt.tm_hour;
+    d.minute = lt.tm_min;
+    d.second = (float)lt.tm_sec + (float)(epoch_ms % 1000u) / 1000.0f;
+    snprintf(date, sizeof(date), "%s, %s %d", kDays[lt.tm_wday % 7], kMonths[lt.tm_mon % 12], lt.tm_mday);
+    d.date_text = date;
+  } else {
+    const uint32_t s = now / 1000u;
+    d.time_valid = false;
+    d.hour = (int)((s / 3600u) % 24u);
+    d.minute = (int)((s / 60u) % 60u);
+    d.second = (float)(s % 60u) + (float)(now % 1000u) / 1000.0f;
+    d.date_text = nullptr;
+  }
+  const char *street = center_gps_street_line();
+  d.place_text = (street && street[0]) ? street : (d.time_valid ? "" : "Boot clock");
+}
+
+/** Now playing from the audio bridge ("Artist - Title"), with the position interpolated between reads. */
+static void fill_media(GaugeData &d, uint32_t now) {
+  static char artist[96];
+  static char title[96];
+  const char *line = center_audio_link_line();
+  d.media_connected = center_audio_link_ok() && line && line[0];
+  if (!d.media_connected) {
+    return;
+  }
+  const char *sep = strstr(line, " - ");
+  if (sep) {
+    const size_t n = (size_t)(sep - line) < sizeof(artist) - 1 ? (size_t)(sep - line) : sizeof(artist) - 1;
+    memcpy(artist, line, n);
+    artist[n] = '\0';
+    snprintf(title, sizeof(title), "%s", sep + 3);
+  } else {
+    artist[0] = '\0';
+    snprintf(title, sizeof(title), "%s", line);
+  }
+  d.media_title = title;
+  d.media_artist = artist;
+
+  static uint16_t s_el = 0xFFFF;
+  static uint32_t s_el_ms = 0;
+  uint16_t el = 0, dur = 0;
+  uint8_t vol = 0;
+  if (center_audio_link_transport(&el, &dur, &vol) && dur > 0) {
+    if (el != s_el) {
+      s_el = el;
+      s_el_ms = now;
+    }
+    const float since = (float)(now - s_el_ms) / 1000.0f;
+    d.media_elapsed = (float)el + (since < 1.0f ? since : 1.0f);
+    d.media_duration = (float)dur;
   }
 }
 
@@ -203,12 +233,6 @@ void loop() {
     s_last_rebroadcast_ms = now;
     center_ui_sync_cluster_bus();
   }
-
-  const bool fresh = s_link.fresh();
-  const SensorPacketValues &held = s_link.last();
-  const SensorDerived derived = s_link.derived();
-  const uint32_t rpm = fresh ? held.engine_rpm : 0;
-  const uint32_t speed_rpm = fresh ? held.speed_rpm : 0;
 
   // Trip = miles since the first odometer reading this power cycle (sensor_pack is the source of truth).
   static bool s_trip_base_set = false;
@@ -259,88 +283,28 @@ void loop() {
   center_menu_hold_feedback(finger_down ? now - s_down_ms : 0,
                             finger_down && !center_menu_is_open() && !center_ui_fullscreen());
 
-  uint64_t epoch_ms = 0;
-  const bool wall_ok = center_wall_epoch_ms(&epoch_ms);
-  const CenterViewMode view = center_ui_view_mode();
-  const ClusterTheme theme = center_ui_cluster_theme();
-  const bool clock_wall =
-      (theme == ClusterTheme::Classic && (view == CenterViewMode::Clock || view == CenterViewMode::Media)) && wall_ok;
-
-  static uint32_t frozen_rpm = 0;
-  static uint32_t frozen_ms = 0;
-  static bool ui_block_was = false;
-  const bool ui_block = center_ui_overlay_open() || center_ui_fullscreen();
-  if (ui_block && !ui_block_was) {
-    frozen_rpm = rpm;
-    frozen_ms = now;
-  }
-  ui_block_was = ui_block;
-  const uint32_t render_rpm = ui_block ? frozen_rpm : rpm;
-  const uint32_t render_ms = ui_block ? frozen_ms : now;
-
-  const float mph = elc_speed_rpm_to_mph(speed_rpm, WHEEL_CIRCUMFERENCE_M, 1.0f);
-  int gear = 2;
-  if (mph < 4.0f) {
-    gear = 1;
-  } else if (mph > 55.0f || render_rpm > 4200u) {
-    gear = 3;
-  }
-
-  CenterGaugeInputs gin{};
-  gin.engine_rpm = render_rpm;
-  gin.speed_rpm = speed_rpm;
-  gin.millis_boot = render_ms;
-  gin.epoch_ms = clock_wall ? epoch_ms : 0ull;
-  gin.clock_wall = clock_wall;
-  gin.sensor_valid = fresh;
-  gin.fuel_pct = derived.fuel_pct;
-  gin.coolant_temp_f = derived.coolant_temp_f;
-  gin.system_amp = derived.system_amp;
-  gin.odometer_valid = odo_ok;
-  gin.odometer_mi = odometer_mi;
-  gin.trip_mi = (odo_ok && s_trip_base_set) ? (odometer_mi - s_trip_base_mi) : 0.0f;
-  gin.gear_num = gear;
-  gin.mpg_average = 0.f;
-  gin.mpg_instant = 0.f;
-  gin.dte_tenths_mile = 0;
-  gin.fuel_economy_valid = false;
-  gin.current_street = center_gps_street_line();
-  if (fresh && held.has_fuel_economy) {
-    gin.fuel_economy_valid = true;
-    gin.mpg_average = (float)held.mpg_average_x10 * 0.1f;
-    gin.mpg_instant = (float)held.mpg_instant_x10 * 0.1f;
-    gin.dte_tenths_mile = held.dte_tenths_mile;
-  }
-
-  /* Poll AVRCP/transport immediately before paint so the cluster sees fresh I2C data. */
+  /* Poll AVRCP/transport immediately before paint so the face sees fresh I2C data. */
   center_audio_link_poll();
   const int64_t draw_t0 = esp_timer_get_time();
 
-  const bool overlay_open = center_ui_overlay_open();
-  // The gauge renderers redraw the whole 480² buffer and rescale it (~125 ms), so only run them when
-  // something they show has changed. Menus and full-screen pages still draw every frame.
-  const uint32_t sig = gauge_signature(view, theme, gin, ui_block);
-  static uint32_t s_last_sig = 0;
-  static bool s_have_sig = false;
-  const bool redraw = ui_block || !s_have_sig || sig != s_last_sig;
-  s_last_sig = sig;
-  s_have_sig = true;
-
-  // While the LVGL menu is open it covers the gauge, so the gauge layer is left frozen.
-  if (redraw && !(overlay_open && !center_ui_fullscreen())) {
-    if (!ui_block) {
-      center_render(gfx, gfx->width(), gfx->height(), view, theme, &gin);
-      if (theme == ClusterTheme::Classic && view != CenterViewMode::Media) {
-        center_audio_link_draw(gfx, gfx->width(), gfx->height());
-      }
-    }
-    if (center_ui_fullscreen()) {
-      center_ui_draw_fullscreen(gfx);
-    }
-    // Legacy layer → LVGL → panel (LVGL redraws only the row bands that changed).
-    p4_screen_note_app_us((uint32_t)(esp_timer_get_time() - draw_t0));
+  const bool fullscreen = center_ui_fullscreen();
+  gauges_show((GaugeTheme)(uint8_t)center_ui_cluster_theme(), face_for(center_ui_view_mode()));
+  gauges_set_hidden(fullscreen);
+  p4_screen_set_legacy_visible(fullscreen);
+  // While the menu covers the face, leave it be (the menu is what's moving).
+  if (!fullscreen && !center_menu_is_open()) {
+    GaugeData gd;
+    gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
+    gd.trip_mi = (gd.odo_valid && s_trip_base_set) ? (gd.odo_mi - s_trip_base_mi) : 0.0f;
+    fill_clock(gd, now);
+    fill_media(gd, now);
+    gauges_update(gd, now);
+  }
+  if (fullscreen) {
+    center_ui_draw_fullscreen(gfx);
     p4_screen_legacy_dirty();
   }
+  p4_screen_note_app_us((uint32_t)(esp_timer_get_time() - draw_t0));
   p4_screen_frame();
 
   poll_sensor_link();

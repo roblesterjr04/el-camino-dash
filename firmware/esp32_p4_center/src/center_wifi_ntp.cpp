@@ -4,6 +4,7 @@
 #include <p4_screen.h>
 
 #include "center_menu.h"
+#include <elc_gauges.h>
 
 #include <sensor_link.h>
 
@@ -191,6 +192,20 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     }
     return;
   }
+  if (line.startsWith("theme ")) {  // bench: "theme 0|1|2" (Classic, Fallout, Modern)
+    const int t = atoi(line.c_str() + 6);
+    center_ui_set_theme(cluster_theme_from_reg((uint8_t)t));
+    Serial.printf("ok: theme %d\n", (int)center_ui_cluster_theme());
+    return;
+  }
+  if (line.startsWith("view ")) {  // bench: "view 0..3" (tach, clock, media, efficiency)
+    const int v = atoi(line.c_str() + 5);
+    if (v >= 0 && v <= 3) {
+      center_ui_set_view((CenterViewMode)v);
+      Serial.printf("ok: view %d\n", v);
+    }
+    return;
+  }
   if (line == "perf") {
     const P4ScreenStats st = p4_screen_stats();
     const SensorPacketParser &sp = center_sensor_link().parser();
@@ -198,8 +213,9 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
                   (unsigned long)sp.framesOk(), (unsigned long)sp.framesBad(), (unsigned long)sp.bytesSkipped());
     Serial.printf("flip: wait %.1f ms, sync %.1f ms (%s, %.0f rows), %.1f areas per flip\n", (double)st.flip_wait_ms,
                   (double)st.flip_sync_ms, st.dma_sync ? "DMA" : "CPU", (double)st.sync_rows_per_flip, (double)st.areas_per_flip);
-    Serial.printf("ui: view=%d theme=%d overlay=%d fullscreen=%d\n", (int)center_ui_view_mode(), (int)center_ui_cluster_theme(),
-                  (int)center_ui_overlay_open(), (int)center_ui_fullscreen());
+    Serial.printf("ui: view=%d theme=%d overlay=%d fullscreen=%d, last dial paint %lu ms\n", (int)center_ui_view_mode(),
+                  (int)center_ui_cluster_theme(), (int)center_ui_overlay_open(), (int)center_ui_fullscreen(),
+                  (unsigned long)gauges_last_paint_ms());
     Serial.printf("perf: %.1f fps, drawing %.1f ms + LVGL %.1f ms per frame, %.1f of 50 bands changed/frame, %lu rows/s written back, %s (%lu flips/s), heap %lu KB internal / %lu KB PSRAM free\n",
                   (double)st.fps, (double)st.app_ms, (double)st.lvgl_ms, (double)st.bands_changed, (unsigned long)st.flushed_rows,
                   st.double_buffered ? "double-buffered" : "single-buffered", (unsigned long)st.flips,
@@ -208,7 +224,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }
