@@ -20,7 +20,11 @@ static constexpr int kSdD3 = 42;
 #endif
 
 static const char *kSdMount = "/sdcard";
-static const char *kSettingsPath = "/sdcard/elcamino/settings.json";
+// Paths are relative to the mount point (SD_MMC prepends kSdMount). Older builds used
+// "/sdcard/elcamino/..." which landed in a stray sdcard/ folder on the card; migrated on mount.
+static const char *kSettingsDir = "/elcamino";
+static const char *kSettingsPath = "/elcamino/settings.json";
+static const char *kLegacySettingsPath = "/sdcard/elcamino/settings.json";
 
 static void append_json_escape(String *out, const String &val) {
   for (size_t i = 0; i < val.length(); i++) {
@@ -95,10 +99,14 @@ void center_sd_settings_begin() {
   }
   s_sd_mounted = true;
   Serial.printf("[sd] mounted at %s\n", kSdMount);
-  if (!SD_MMC.exists("/sdcard/elcamino")) {
-    if (!SD_MMC.mkdir("/sdcard/elcamino")) {
+  if (!SD_MMC.exists(kSettingsDir)) {
+    if (!SD_MMC.mkdir(kSettingsDir)) {
       Serial.println("[sd] mkdir elcamino failed");
     }
+  }
+  if (!SD_MMC.exists(kSettingsPath) && SD_MMC.exists(kLegacySettingsPath)) {
+    Serial.println(SD_MMC.rename(kLegacySettingsPath, kSettingsPath) ? "[sd] migrated legacy settings.json"
+                                                                      : "[sd] legacy settings.json migrate failed");
   }
 #else
   Serial.println("[sd] SDMMC not supported on this build");

@@ -1,4 +1,11 @@
-# Put the RISC-V toolchain bin/ on PATH (same as esp32_p4_tsps).
+# Shared PlatformIO pre-build script for all ESP32-P4 apps (extra_scripts = pre:../scripts/pio_pre_build.py):
+# toolchain PATH fix, sync of file:// libs into .pio/libdeps, and the GFX DSI panel_io patch.
+#
+# Put the RISC-V toolchain bin/ on PATH.
+#
+# pioarduino often installs the compiler under ~/.platformio/tools/toolchain-riscv32-esp
+# (see Tool Manager: "Installing file://.../tools/toolchain-riscv32-esp") while
+# ~/.platformio/packages/toolchain-riscv32-esp may be an empty stub. Scan both trees.
 import os
 import shutil
 import sys
@@ -22,6 +29,8 @@ def _collect_toolchain_roots(core: Path) -> List[Path]:
         for p in base.iterdir():
             if p.is_dir() and p.name.startswith("toolchain-riscv32-esp"):
                 roots.append(p)
+    # Prefer versioned dirs (@…) over bare toolchain-riscv32-esp; then tools before packages
+    # so a full install under tools/ wins over an empty packages/ stub.
     roots.sort(
         key=lambda x: (
             0 if "@" in x.name else 1,
@@ -62,14 +71,40 @@ def _prepend_riscv_toolchain() -> None:
 
     if not removed:
         print(
-            "ERROR: No riscv32-esp-elf-g++ under %s/{packages,tools}/toolchain-riscv32-esp*."
-            % core
+            "ERROR: No %s under %s/{packages,tools}/toolchain-riscv32-esp*. "
+            "Check disk space and network, then build again."
+            % ("riscv32-esp-elf-g++", core)
         )
         raise SystemExit(1)
 
     pio_dir.mkdir(parents=True, exist_ok=True)
     retry_flag.write_text("1", encoding="ascii")
+    print(
+        "flash.sh will retry once to re-download the toolchain.\n"
+        "If you use `pio` directly, run the same command again.\n"
+    )
     raise SystemExit(1)
+
+
+def _sync_file_libdeps_from_workspace() -> None:
+    """file://../esp32_p4_* are copied into .pio/libdeps/<env>/ and that copy can stay stale when sources change."""
+    proj = Path(env.subst("$PROJECT_DIR")).resolve()
+    pioenv = env.subst("$PIOENV")
+    libdeps = proj / ".pio" / "libdeps" / pioenv
+    firmware = proj.parent
+    for lib_folder_name, src_folder in (
+        ("el_camino_p4_ui", "esp32_p4_ui"),
+        ("el_camino_p4_common", "esp32_p4_common"),
+    ):
+        src = firmware / src_folder
+        if not src.is_dir():
+            continue
+        dst = libdeps / lib_folder_name
+        libdeps.mkdir(parents=True, exist_ok=True)
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst, symlinks=False)
+        print("pre: synced ../%s -> .pio/libdeps/%s/%s" % (src_folder, pioenv, lib_folder_name))
 
 
 def _patch_gfx_dsi_io_hook() -> None:
@@ -77,7 +112,7 @@ def _patch_gfx_dsi_io_hook() -> None:
     pioenv = env.subst("$PIOENV")
     libdeps = proj / ".pio" / "libdeps" / pioenv
     scripts = proj.parent / "esp32_p4_common" / "scripts"
-    if scripts.is_dir() and libdeps.is_dir():
+    if scripts.is_dir():
         sys.path.insert(0, str(scripts))
         from pio_pre_gfx_dsi_io_hook import apply_dsi_panel_io_hook  # noqa: E402
 
@@ -85,4 +120,5 @@ def _patch_gfx_dsi_io_hook() -> None:
 
 
 _prepend_riscv_toolchain()
+_sync_file_libdeps_from_workspace()
 _patch_gfx_dsi_io_hook()

@@ -77,7 +77,7 @@ OLED: SSD1322 256×64 (see sketch for U8g2 profile and `ELC_OLED_*` overrides).
 | GPS NMEA RX (GPS TX →) | 2 | UART2, 9600 8N1 (NEO-6M default; `GPS_UART_BAUD`) |
 | GPS TX (→ GPS RX) | 3 | optional |
 | Backlight PWM (3.4C) | 26 | `TSPS_BACKLIGHT_PIN`, active-low |
-| TF card (SDIO, 3.4C) | 39–44 | on-board slot: `/sdcard/elcamino/settings.json` |
+| TF card (SDIO, 3.4C) | 39–44 | on-board slot: `elcamino/settings.json` on the card (Wi-Fi password stored in plain text) |
 
 ### Display / local I2C (per board)
 

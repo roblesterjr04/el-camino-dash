@@ -288,18 +288,32 @@ void elc_illumination_gpio_poll(void) {
       high ? (uint8_t)ELC_ILLUMINATION_DIM_LEVEL : (uint8_t)ELC_ILLUMINATION_FULL_LEVEL;
 #endif
   static uint16_t s_last_level = 0xFFFFu;
-  static uint32_t s_last_apply_ms = 0;
+  static uint16_t s_candidate = 0xFFFFu;
+  static uint32_t s_candidate_since_ms = 0;
   const uint32_t now = millis();
-  if (s_last_level != 0xFFFFu && want == (uint8_t)s_last_level) {
+  if (s_last_level == 0xFFFFu) {  // first call: apply immediately
+    s_last_level = want;
+    tsps_backlight_set_level(want);
+    return;
+  }
+  if (want == (uint8_t)s_last_level) {
+    s_candidate = 0xFFFFu;
     return;
   }
 #ifndef ELC_ILLUMINATION_DEBOUNCE_MS
-#define ELC_ILLUMINATION_DEBOUNCE_MS 25u
+#define ELC_ILLUMINATION_DEBOUNCE_MS 150u
 #endif
-  if (s_last_level != 0xFFFFu && (now - s_last_apply_ms) < ELC_ILLUMINATION_DEBOUNCE_MS) {
+  // Debounce: the new level must hold steadily (a PWM'd dash-light feed or ignition noise would
+  // otherwise flicker the backlight).
+  if (s_candidate != want) {
+    s_candidate = want;
+    s_candidate_since_ms = now;
     return;
   }
-  s_last_apply_ms = now;
+  if (now - s_candidate_since_ms < ELC_ILLUMINATION_DEBOUNCE_MS) {
+    return;
+  }
+  s_candidate = 0xFFFFu;
   s_last_level = want;
   tsps_backlight_set_level(want);
 #endif
@@ -348,7 +362,7 @@ Arduino_GFX *create_tsps_display() {
   if (g_elc_dsi_panel_io == nullptr) {
     ESP_LOGW(
         kTspsDispTag,
-        "SH8601 DSI panel_io handle is null — run a clean build so pre_extra_script patches GFX "
+        "SH8601 DSI panel_io handle is null — run a clean build so scripts/pio_pre_build.py patches GFX "
         "(PMIC-only backlight needs DCS 0x51). Check serial for pre: patched … Arduino_ESP32DSIPanel.cpp");
   }
 #endif
