@@ -8,8 +8,8 @@
  *  guides; on ESP32 this is a hardware UART, not bit-banged SoftwareSerial. */
 void center_gps_begin(Preferences &prefs);
 
-/** Drain GPS UART, parse RMC/ZDA (UTC) into settimeofday, refresh POSIX TZ from lat/lon via timeapi.io
- *  when Wi‑Fi is up (throttled), and run reverse geocode (throttled). Call from main loop. */
+/** Drain GPS UART, parse RMC/ZDA (UTC) into settimeofday, and exchange data with the background network
+ *  task (reverse geocode + POSIX TZ from lat/lon when Wi‑Fi is up). Non-blocking; call from main loop. */
 void center_gps_loop();
 
 /** Current street / place name from last reverse geocode (empty until first successful lookup). */

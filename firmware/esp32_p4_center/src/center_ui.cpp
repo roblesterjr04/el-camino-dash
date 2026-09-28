@@ -1192,10 +1192,9 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
       const uint8_t enc = s_scan_enc[idx];
       const bool is_open = (enc == (uint8_t)WIFI_AUTH_OPEN);
       if (is_open) {
-        if (center_wifi_join_and_save(*s_prefs, s_pending_ssid, "")) {
-          center_ble_set_info_line("WiFi OK");
-        }
-        close_to_gauge();
+        s_page = UiPage::FsWifiConn;  // center_ui_loop polls the async join and closes on success
+        s_menu->close();
+        center_wifi_join_async_start(*s_prefs, s_pending_ssid, "");
       } else {
         center_shell_set_wifi_psk_pending(s_pending_ssid);
         s_pwd_len = 0;

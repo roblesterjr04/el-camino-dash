@@ -31,9 +31,6 @@ void center_ntp_after_wifi_connected();
 // true if gettimeofday looks plausible (GPS settimeofday or other sync; roughly post-2023).
 bool center_wall_epoch_ms(uint64_t *out_ms);
 
-// Blocking scan; returns count (<= max_n). out_enc[i] is WiFi.encryptionType raw byte.
-int center_wifi_scan(char out_ssid[][33], uint8_t *out_enc, int max_n);
-
 void center_wifi_scan_async_start();
 // 0 busy, 1 done (*out_n set), 2 error/empty
 int center_wifi_scan_async_poll(char out_ssid[][33], uint8_t *out_enc, int max_n, int *out_n);
@@ -42,9 +39,6 @@ void center_wifi_join_async_start(Preferences &prefs, const char *ssid, const ch
 void center_wifi_join_saved_async_start(Preferences &prefs);
 // 0 in progress, 1 connected (prefs saved), 2 failed
 int center_wifi_join_async_poll();
-
-// Join and persist to prefs on success.
-bool center_wifi_join_and_save(Preferences &prefs, const char *ssid, const char *psk);
 
 void center_wifi_forget(Preferences &prefs);
 

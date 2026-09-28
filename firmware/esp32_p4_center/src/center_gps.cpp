@@ -6,6 +6,9 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
@@ -25,12 +28,41 @@
 #define CENTER_GPS_LOG_RAW_NMEA 0
 #endif
 
+/* Network lookups (Nominatim street name, timeapi.io time zone) run on their own FreeRTOS task:
+ * each is DNS + TLS + GET and can take seconds, which would freeze the gauges if done in loop().
+ * Rate limits keep us well inside Nominatim's usage policy (max 1 request/s). */
+#ifndef CENTER_GEO_MIN_INTERVAL_MS
+#define CENTER_GEO_MIN_INTERVAL_MS 30000u
+#endif
+#ifndef CENTER_TZ_REFRESH_MS
+#define CENTER_TZ_REFRESH_MS 600000u
+#endif
+#ifndef CENTER_NET_TASK_STACK
+#define CENTER_NET_TASK_STACK 16384
+#endif
+
 /* Serial1 is the sensor link on the center board; GPS uses its own UART instance. */
 static HardwareSerial s_gps(2);
 
 static char s_line[192];
 static size_t s_line_len;
+/** Street shown on the UI (owned by the loop task). */
 static char s_street[72];
+
+/* Shared between the loop task and the network task; guarded by s_net_mu. */
+static SemaphoreHandle_t s_net_mu = nullptr;
+static char s_net_street[72];
+static bool s_net_street_new = false;
+static char s_net_pending_tz[48];
+static bool s_net_pending_tz_set = false;
+static double s_net_fix_lat = 0.0;
+static double s_net_fix_lon = 0.0;
+static bool s_net_have_fix = false;
+static volatile bool s_tz_auto_allowed = false;
+static constexpr uint8_t kNetLogQ = 4;
+static char s_net_log[kNetLogQ][112];
+static uint8_t s_net_log_head = 0;
+static uint8_t s_net_log_count = 0;
 static uint32_t s_last_uart_byte_ms = 0;
 
 static double s_last_fix_lat = 0.0;
@@ -232,62 +264,78 @@ static bool json_copy_string_field(const char *json, const char *key, char *out,
   return i > 0;
 }
 
-static void geo_log_fail(const char *msg) {
-  center_ui_sensor_log_line(msg);
+/** Network-task log: queued and printed to the sensor log by the loop task (UI isn't thread-safe). */
+static void net_log(const char *msg) {
+  if (!s_net_mu) {
+    return;
+  }
+  xSemaphoreTake(s_net_mu, portMAX_DELAY);
+  if (s_net_log_count >= kNetLogQ) {
+    s_net_log_head = (uint8_t)((s_net_log_head + 1) % kNetLogQ);
+    s_net_log_count--;
+  }
+  const uint8_t slot = (uint8_t)((s_net_log_head + s_net_log_count) % kNetLogQ);
+  strncpy(s_net_log[slot], msg, sizeof(s_net_log[slot]) - 1);
+  s_net_log[slot][sizeof(s_net_log[slot]) - 1] = '\0';
+  s_net_log_count++;
+  xSemaphoreGive(s_net_mu);
 }
 
+/** HTTPS GET into `body`; returns the HTTP status (or <0 on connect failure). Network task only. */
+static int https_get(const char *url, const char *user_agent, String *body) {
+  WiFiClientSecure cli;
+  cli.setInsecure();
+  cli.setTimeout(12000);
+  HTTPClient http;
+  http.setTimeout(12000);
+  if (!http.begin(cli, url)) {
+    return -1;
+  }
+  http.addHeader("User-Agent", user_agent);
+  const int code = http.GET();
+  if (code == 200) {
+    *body = http.getString();
+  }
+  http.end();
+  return code;
+}
+
+static bool moved_enough(double lat, double lon, double ref_lat, double ref_lon) {
+  const double dlat = lat - ref_lat;
+  const double dlon = lon - ref_lon;
+  return (dlat * dlat + dlon * dlon) > (8e-8); /* ~30 m */
+}
+
+/* Network task. */
 static void reverse_geocode_if_due(double lat, double lon) {
-  if (WiFi.status() != WL_CONNECTED) {
-    return;
-  }
+  static bool s_have_street = false;
   const uint32_t now = millis();
-  if ((int32_t)(now - s_geo_cooldown_until_ms) < 0) {
+  if (s_geo_cooldown_until_ms != 0 && (int32_t)(now - s_geo_cooldown_until_ms) < 0) {
     return;
   }
-
-  const double dlat = lat - s_last_geo_lat;
-  const double dlon = lon - s_last_geo_lon;
-  const bool moved = (dlat * dlat + dlon * dlon) > (8e-8); /* ~ few meters */
-
-  if (s_street[0] != '\0' && !moved && s_last_geo_ms != 0 && (now - s_last_geo_ms) < 45000u) {
-    s_last_geo_ms = now;
+  if (s_last_geo_attempt_ms != 0 && (now - s_last_geo_attempt_ms) < CENTER_GEO_MIN_INTERVAL_MS) {
     return;
   }
-  if (s_street[0] == '\0' && !moved && s_last_geo_attempt_ms != 0 && (now - s_last_geo_attempt_ms) < 12000u) {
+  if (s_have_street && !moved_enough(lat, lon, s_last_geo_lat, s_last_geo_lon)) {
     return;
   }
-
   s_last_geo_attempt_ms = now;
 
   char url[200];
   snprintf(url, sizeof(url),
            "https://nominatim.openstreetmap.org/reverse?format=json&lat=%.7f&lon=%.7f&zoom=18&addressdetails=1",
            lat, lon);
-
-  WiFiClientSecure cli;
-  cli.setInsecure();
-  cli.setTimeout(12000);
-
-  HTTPClient http;
-  http.setTimeout(12000);
-  http.addHeader("User-Agent", "ElCaminoDash/1.0 (reverse-geocode; el-camino-dash ESP32)");
-  if (!http.begin(cli, url)) {
-    s_geo_cooldown_until_ms = now + 15000u;
-    geo_log_fail("geo: https begin() failed (DNS/TLS?) retry in 15s");
-    return;
-  }
-  const int code = http.GET();
+  String body;
+  const int code = https_get(url, "ElCaminoDash/1.0 (reverse-geocode; el-camino-dash ESP32)", &body);
   if (code != 200) {
     char msg[96];
-    const uint32_t backoff = (code == 429) ? 60000u : 15000u;
-    snprintf(msg, sizeof(msg), "geo: nominatim HTTP %d (retry in %lus)", code, (unsigned long)(backoff / 1000u));
-    geo_log_fail(msg);
-    http.end();
+    const uint32_t backoff = (code == 429) ? 120000u : 30000u;
+    snprintf(msg, sizeof(msg), "geo: nominatim %s %d (retry in %lus)", code < 0 ? "connect" : "HTTP", code,
+             (unsigned long)(backoff / 1000u));
+    net_log(msg);
     s_geo_cooldown_until_ms = now + backoff;
     return;
   }
-  String body = http.getString();
-  http.end();
   s_last_geo_ms = now;
   s_last_geo_lat = lat;
   s_last_geo_lon = lon;
@@ -307,83 +355,55 @@ static void reverse_geocode_if_due(double lat, double lon) {
   if (buf[0] == '\0') {
     json_copy_string_field(j, "display_name", buf, sizeof(buf));
   }
-  if (buf[0] != '\0') {
-    strncpy(s_street, buf, sizeof(s_street) - 1);
-    s_street[sizeof(s_street) - 1] = '\0';
-  } else {
-    s_geo_cooldown_until_ms = now + 20000u;
-    geo_log_fail("geo: 200 OK but no road/display_name in JSON (retry in 20s)");
-  }
-}
-
-static void tz_lookup_log_fail(const char *msg) {
-  center_ui_sensor_log_line(msg);
-}
-
-/** When Wi‑Fi is up, map lat/lon → POSIX TZ via timeapi.io (offset refreshed for DST). */
-static void tz_from_coords_if_due(double lat, double lon) {
-  if (!s_prefs || WiFi.status() != WL_CONNECTED) {
+  if (buf[0] == '\0') {
+    net_log("geo: 200 OK but no road/display_name in JSON");
     return;
   }
-  const String prev_tz = s_prefs->getString("tz", CENTER_TZ_DEFAULT);
-  const bool allow_auto_tz =
-      !s_prefs->isKey("tz") || prev_tz.startsWith("GEO") || prev_tz.startsWith("UTC");
-  if (!allow_auto_tz) {
+  s_have_street = true;
+  xSemaphoreTake(s_net_mu, portMAX_DELAY);
+  strncpy(s_net_street, buf, sizeof(s_net_street) - 1);
+  s_net_street[sizeof(s_net_street) - 1] = '\0';
+  s_net_street_new = true;
+  xSemaphoreGive(s_net_mu);
+}
+
+/* Network task: map lat/lon → POSIX TZ via timeapi.io (refreshed for DST). The loop task applies it. */
+static void tz_from_coords_if_due(double lat, double lon) {
+  if (!s_tz_auto_allowed) {
     return;
   }
   const uint32_t now = millis();
-  if ((int32_t)(now - s_tz_cooldown_until_ms) < 0) {
+  if (s_tz_cooldown_until_ms != 0 && (int32_t)(now - s_tz_cooldown_until_ms) < 0) {
     return;
   }
-
-  const double dlat = lat - s_tz_llat;
-  const double dlon = lon - s_tz_llon;
-  const bool moved = (dlat * dlat + dlon * dlon) > (8e-8);
-
-  if (!moved && s_tz_last_ok_ms != 0 && (now - s_tz_last_ok_ms) < 300000u) {
+  const bool moved = moved_enough(lat, lon, s_tz_llat, s_tz_llon);
+  if (s_tz_last_ok_ms != 0 && (now - s_tz_last_ok_ms) < CENTER_TZ_REFRESH_MS && !moved) {
     return;
   }
-  if (!moved && s_tz_last_attempt_ms != 0 && (now - s_tz_last_attempt_ms) < 12000u) {
-    return;
+  if (s_tz_last_ok_ms != 0 && (now - s_tz_last_ok_ms) < CENTER_GEO_MIN_INTERVAL_MS) {
+    return;  // moved, but a time zone doesn't change every 30 m
   }
-
   s_tz_last_attempt_ms = now;
 
   char url[128];
-  snprintf(url, sizeof(url),
-           "https://timeapi.io/api/TimeZone/coordinate?latitude=%.7f&longitude=%.7f", lat, lon);
-
-  WiFiClientSecure cli;
-  cli.setInsecure();
-  cli.setTimeout(12000);
-
-  HTTPClient http;
-  http.setTimeout(12000);
-  http.addHeader("User-Agent", "ElCaminoDash/1.0 (tz-from-coords; el-camino-dash ESP32)");
-  if (!http.begin(cli, url)) {
-    s_tz_cooldown_until_ms = now + 15000u;
-    tz_lookup_log_fail("tz: https begin() failed (DNS/TLS?) retry in 15s");
-    return;
-  }
-  const int code = http.GET();
+  snprintf(url, sizeof(url), "https://timeapi.io/api/TimeZone/coordinate?latitude=%.7f&longitude=%.7f", lat, lon);
+  String body;
+  const int code = https_get(url, "ElCaminoDash/1.0 (tz-from-coords; el-camino-dash ESP32)", &body);
   if (code != 200) {
     char msg[96];
-    const uint32_t backoff = (code == 429) ? 60000u : 15000u;
-    snprintf(msg, sizeof(msg), "tz: timeapi HTTP %d (retry in %lus)", code, (unsigned long)(backoff / 1000u));
-    tz_lookup_log_fail(msg);
-    http.end();
+    const uint32_t backoff = (code == 429) ? 120000u : 30000u;
+    snprintf(msg, sizeof(msg), "tz: timeapi %s %d (retry in %lus)", code < 0 ? "connect" : "HTTP", code,
+             (unsigned long)(backoff / 1000u));
+    net_log(msg);
     s_tz_cooldown_until_ms = now + backoff;
     return;
   }
-  const String body = http.getString();
-  http.end();
 
   static const char kMarker[] = "\"currentUtcOffset\":{\"seconds\":";
-  const char *j = body.c_str();
-  const char *p = strstr(j, kMarker);
+  const char *p = strstr(body.c_str(), kMarker);
   if (!p) {
-    s_tz_cooldown_until_ms = now + 25000u;
-    tz_lookup_log_fail("tz: JSON missing currentUtcOffset.seconds (retry in 25s)");
+    s_tz_cooldown_until_ms = now + 60000u;
+    net_log("tz: JSON missing currentUtcOffset.seconds (retry in 60s)");
     return;
   }
   p += sizeof(kMarker) - 1;
@@ -391,22 +411,90 @@ static void tz_from_coords_if_due(double lat, double lon) {
 
   char posix[48];
   if (!center_wifi_tz_build_posix_from_local_minus_utc(off_sec, posix, sizeof(posix))) {
-    s_tz_cooldown_until_ms = now + 20000u;
-    tz_lookup_log_fail("tz: could not build POSIX TZ string");
+    s_tz_cooldown_until_ms = now + 60000u;
+    net_log("tz: could not build POSIX TZ string");
     return;
   }
-
-  if (prev_tz != posix) {
-    center_wifi_set_tz_posix(*s_prefs, posix);
-    char msg[112];
-    snprintf(msg, sizeof(msg), "tz: updated from coords → %s (api offset %lds)", posix, off_sec);
-    tz_lookup_log_fail(msg);
-  }
+  xSemaphoreTake(s_net_mu, portMAX_DELAY);
+  strncpy(s_net_pending_tz, posix, sizeof(s_net_pending_tz) - 1);
+  s_net_pending_tz[sizeof(s_net_pending_tz) - 1] = '\0';
+  s_net_pending_tz_set = true;
+  xSemaphoreGive(s_net_mu);
 
   s_tz_llat = lat;
   s_tz_llon = lon;
   s_tz_last_ok_ms = now;
   s_tz_cooldown_until_ms = 0;
+}
+
+static void net_task(void *) {
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    if (WiFi.status() != WL_CONNECTED) {
+      continue;
+    }
+    xSemaphoreTake(s_net_mu, portMAX_DELAY);
+    const bool have = s_net_have_fix;
+    const double lat = s_net_fix_lat;
+    const double lon = s_net_fix_lon;
+    xSemaphoreGive(s_net_mu);
+    if (!have) {
+      continue;
+    }
+    tz_from_coords_if_due(lat, lon);
+    reverse_geocode_if_due(lat, lon);
+  }
+}
+
+/** Loop task: publish the fix to the network task and apply its results (street, TZ, log lines). */
+static void net_exchange() {
+  if (!s_net_mu) {
+    return;
+  }
+  static uint32_t s_last_tz_policy_ms = 0;
+  const uint32_t now = millis();
+  if (s_prefs && (s_last_tz_policy_ms == 0 || now - s_last_tz_policy_ms >= 5000u)) {
+    s_last_tz_policy_ms = now;
+    const String tz = s_prefs->getString("tz", CENTER_TZ_DEFAULT);
+    s_tz_auto_allowed = !s_prefs->isKey("tz") || tz.startsWith("GEO") || tz.startsWith("UTC");
+  }
+
+  char pending_tz[48];
+  bool have_tz = false;
+  char logs[kNetLogQ][112];
+  uint8_t nlogs = 0;
+  xSemaphoreTake(s_net_mu, portMAX_DELAY);
+  s_net_have_fix = s_have_fix_ll;
+  s_net_fix_lat = s_last_fix_lat;
+  s_net_fix_lon = s_last_fix_lon;
+  if (s_net_street_new) {
+    memcpy(s_street, s_net_street, sizeof(s_street));
+    s_net_street_new = false;
+  }
+  if (s_net_pending_tz_set) {
+    memcpy(pending_tz, s_net_pending_tz, sizeof(pending_tz));
+    s_net_pending_tz_set = false;
+    have_tz = true;
+  }
+  while (s_net_log_count > 0) {
+    memcpy(logs[nlogs++], s_net_log[s_net_log_head], sizeof(logs[0]));
+    s_net_log_head = (uint8_t)((s_net_log_head + 1) % kNetLogQ);
+    s_net_log_count--;
+  }
+  xSemaphoreGive(s_net_mu);
+
+  for (uint8_t i = 0; i < nlogs; i++) {
+    center_ui_sensor_log_line(logs[i]);
+  }
+  if (have_tz && s_prefs && s_tz_auto_allowed) {
+    const String prev_tz = s_prefs->getString("tz", CENTER_TZ_DEFAULT);
+    if (prev_tz != pending_tz) {
+      center_wifi_set_tz_posix(*s_prefs, pending_tz);
+      char msg[112];
+      snprintf(msg, sizeof(msg), "tz: updated from coords -> %s", pending_tz);
+      center_ui_sensor_log_line(msg);
+    }
+  }
 }
 
 static void apply_epoch(time_t epoch) {
@@ -621,10 +709,13 @@ void center_gps_begin(Preferences &prefs) {
   s_tz_last_attempt_ms = 0;
   s_tz_cooldown_until_ms = 0;
   s_have_fix_ll = false;
-  /* NEO‑6M at 1 Hz can emit several hundred bytes/s (RMC+GGA+GSA+GSV). HTTP geocode runs after drain so
-   * the FIFO must survive multi‑second blocking; keep this comfortably large. */
-  s_gps.setRxBufferSize(8192);
+  s_gps.setRxBufferSize(4096);
   s_gps.begin(GPS_UART_BAUD, SERIAL_8N1, GPS_UART_RX, GPS_UART_TX);
+
+  if (!s_net_mu) {
+    s_net_mu = xSemaphoreCreateMutex();
+    xTaskCreatePinnedToCore(net_task, "gps_net", CENTER_NET_TASK_STACK, nullptr, 1, nullptr, tskNO_AFFINITY);
+  }
 }
 
 void center_gps_loop() {
@@ -649,11 +740,7 @@ void center_gps_loop() {
       s_line_len = 0;
     }
   }
-  /* Run blocking HTTP only after draining the UART this tick (avoids losing bytes during GET). */
-  if (s_have_fix_ll) {
-    tz_from_coords_if_due(s_last_fix_lat, s_last_fix_lon);
-    reverse_geocode_if_due(s_last_fix_lat, s_last_fix_lon);
-  }
+  net_exchange();
 }
 
 const char *center_gps_street_line() {

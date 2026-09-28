@@ -21,6 +21,9 @@
 #ifndef CENTER_AUDIO_SNAPSHOT_BYTES
 #define CENTER_AUDIO_SNAPSHOT_BYTES 48u
 #endif
+#ifndef CENTER_AUDIO_SNAPSHOT_MS
+#define CENTER_AUDIO_SNAPSHOT_MS 250u
+#endif
 #ifndef CENTER_AUDIO_POLL_MS
 #define CENTER_AUDIO_POLL_MS 500u
 #endif
@@ -269,12 +272,19 @@ void center_audio_link_begin() {
   s_last_tr_rx = -1;
   s_last_meta_rx = -1;
   s_last_meta_need = 0;
-  Wire.setTimeOut(200);
+  Wire.setTimeOut(25);
   (void)Wire.setBufferSize(128);
 }
 
 void center_audio_link_poll() {
   const uint32_t now = millis();
+  // Metadata changes slowly; polling every frame kept the shared touch/display I2C bus busy and a
+  // missing or unpowered ESP32-D could stall rendering on each attempt.
+  static uint32_t s_last_poll_ms = 0;
+  if (s_last_poll_ms != 0 && now - s_last_poll_ms < CENTER_AUDIO_SNAPSHOT_MS) {
+    return;
+  }
+  s_last_poll_ms = now;
 
   if (poll_snapshot()) {
     /* All state updated. */

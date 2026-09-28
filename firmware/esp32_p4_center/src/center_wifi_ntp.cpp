@@ -82,7 +82,10 @@ void center_ntp_after_wifi_connected() {
   /* SNTP disabled: system time is set from GPS RMC (UTC). */
 }
 
+static void shell_join_poll();
+
 void center_wifi_ntp_loop() {
+  shell_join_poll();
   wl_status_t st = (wl_status_t)WiFi.status();
   if (st == WL_CONNECTED && s_last_wifi != WL_CONNECTED) {
     if (s_prefs) {
@@ -104,57 +107,6 @@ bool center_wall_epoch_ms(uint64_t *out_ms) {
   return true;
 }
 
-int center_wifi_scan(char out_ssid[][33], uint8_t *out_enc, int max_n) {
-  if (max_n <= 0) {
-    return 0;
-  }
-  int n = WiFi.scanNetworks(/*async=*/false, /*hidden=*/true);
-  if (n <= 0) {
-    return 0;
-  }
-  int m = 0;
-  for (int i = 0; i < n && m < max_n; i++) {
-    String s = WiFi.SSID(i);
-    if (s.length() == 0) {
-      continue;
-    }
-    strncpy(out_ssid[m], s.c_str(), 32);
-    out_ssid[m][32] = '\0';
-    out_enc[m] = (uint8_t)WiFi.encryptionType(i);
-    m++;
-  }
-  WiFi.scanDelete();
-  return m;
-}
-
-bool center_wifi_join_and_save(Preferences &prefs, const char *ssid, const char *psk) {
-  if (!ssid || !ssid[0]) {
-    return false;
-  }
-  WiFi.disconnect(true, true);
-  delay(80);
-  if (psk && psk[0]) {
-    WiFi.begin(ssid, psk);
-  } else {
-    WiFi.begin(ssid);
-  }
-  for (int i = 0; i < 200; i++) {
-    if (WiFi.status() == WL_CONNECTED) {
-      prefs.putString("wifi_ssid", ssid);
-      if (psk && psk[0]) {
-        prefs.putString("wifi_psk", psk);
-      } else {
-        prefs.putString("wifi_psk", "");
-      }
-      center_sd_settings_sync(prefs);
-      center_ntp_after_wifi_connected();
-      return true;
-    }
-    delay(50);
-  }
-  return false;
-}
-
 void center_wifi_forget(Preferences &prefs) {
   prefs.remove("wifi_ssid");
   prefs.remove("wifi_psk");
@@ -174,6 +126,15 @@ void center_shell_set_wifi_psk_pending(const char *pending_ssid) {
   strncpy(s_psk_ssid, pending_ssid, 32);
   s_psk_ssid[32] = '\0';
   s_psk_wait = true;
+}
+
+/** Serial-shell joins use the async path too; center_wifi_ntp_loop() reports the result. */
+static bool s_shell_join_pending = false;
+
+static void shell_join_start(Preferences &prefs, const char *ssid, const char *psk) {
+  center_wifi_join_async_start(prefs, ssid, psk);
+  s_shell_join_pending = true;
+  Serial.println("wifi: joining...");
 }
 
 static void handle_shell_line(Preferences &prefs, const String &line) {
@@ -206,21 +167,13 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     rest.trim();
     int sp = rest.indexOf(' ');
     if (sp < 0) {
-      if (!center_wifi_join_and_save(prefs, rest.c_str(), "")) {
-        Serial.println("err: connect failed");
-      } else {
-        Serial.println("ok: connected (open?)");
-      }
+      shell_join_start(prefs, rest.c_str(), "");
       return;
     }
     String ssid = rest.substring(0, sp);
     String pw = rest.substring(sp + 1);
     pw.trim();
-    if (!center_wifi_join_and_save(prefs, ssid.c_str(), pw.c_str())) {
-      Serial.println("err: connect failed");
-    } else {
-      Serial.println("ok: connected");
-    }
+    shell_join_start(prefs, ssid.c_str(), pw.c_str());
     return;
   }
   if (line.startsWith("psk ") && s_psk_wait) {
@@ -230,11 +183,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
       Serial.println("err: empty psk");
       return;
     }
-    if (center_wifi_join_and_save(prefs, s_psk_ssid, pw.c_str())) {
-      Serial.println("ok: connected");
-    } else {
-      Serial.println("err: connect failed");
-    }
+    shell_join_start(prefs, s_psk_ssid, pw.c_str());
     s_psk_wait = false;
     s_psk_ssid[0] = '\0';
     return;
@@ -359,4 +308,16 @@ int center_wifi_join_async_poll() {
     return 2;
   }
   return 0;
+}
+
+static void shell_join_poll() {
+  if (!s_shell_join_pending) {
+    return;
+  }
+  const int r = center_wifi_join_async_poll();
+  if (r == 0) {
+    return;
+  }
+  s_shell_join_pending = false;
+  Serial.println(r == 1 ? "ok: connected" : "err: connect failed");
 }
