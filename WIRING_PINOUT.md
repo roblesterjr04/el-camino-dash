@@ -123,7 +123,8 @@ Registers (1 byte data each): **0x01** = theme (0 Classic, 1 Fallout); **0x02** 
 
 Composite video → TVP5150AM1 module (2×10 header, OV7670-style order) → 8-bit BT.656 into the center's camera (DVP)
 input. On the DigiDash board the module plugs into **J13** (2×10 socket, back side; the module hangs toward the right
-board edge so its RCA jack is reachable). Control is I2C on the **cluster bus** (GPIO47/48; TVP5150 at 0x5C/0x5D —
+board edge so its RCA jack is reachable). The module's pin 1 (VCC) sits at the **far end** of the socket: module pin
+*p* lands on J13 pad 20 − *p* (odd) / 22 − *p* (even), i.e. VCC and GND on pads 19/20. Control is I2C on the **cluster bus** (GPIO47/48; TVP5150 at 0x5C/0x5D —
 kept off the touch bus, where the GT911 can also sit at 0x5D). Module VCC is the center's 3.3 V.
 
 | Module pin | Signal | Center GPIO | | Module pin | Signal | Center GPIO |
