@@ -10,6 +10,8 @@
 #include <WiFi.h>
 
 #include <cluster_i2c.h>
+#include <elc_can_codec.h>
+#include <sensor_link.h>
 #include <sensor_packet.h>
 
 #include <p4_round_mask.h>
@@ -18,6 +20,7 @@
 #include "FreeSansBold12pt7b.h"
 #include "center_ble.h"
 #include "center_can.h"
+#include "center_audio_link.h"
 #include "center_gps.h"
 #include "center_menu.h"
 #include "center_sd_settings.h"
@@ -65,6 +68,11 @@ static Preferences *s_prefs = nullptr;
 static UiPage s_page = UiPage::Closed;
 static CenterViewMode s_view = CenterViewMode::Tach;
 static ClusterTheme s_theme = ClusterTheme::Classic;
+// Screens (ELC_CAN_SCREEN_*): which one has the menu, which one shows media. media_shown is for a side screen
+// (on the center, media shown = the Media view).
+static uint8_t s_iface = ELC_CAN_SCREEN_CENTER;
+static uint8_t s_media = ELC_CAN_SCREEN_CENTER;
+static bool s_media_shown = false;
 
 static char s_scan_ssid[8][33];
 static uint8_t s_scan_enc[8];
@@ -283,16 +291,122 @@ void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs) {
       v = 0;
     }
     s_view = (CenterViewMode)v;
+    s_iface = prefs->getUChar("iface", ELC_CAN_SCREEN_CENTER);
+    s_media = prefs->getUChar("media", ELC_CAN_SCREEN_CENTER);
+    s_media_shown = prefs->getBool("mshown", false);
   }
+  if (s_iface > ELC_CAN_SCREEN_RIGHT) s_iface = ELC_CAN_SCREEN_CENTER;
+  if (s_media > ELC_CAN_SCREEN_RIGHT) s_media = ELC_CAN_SCREEN_CENTER;
+  if (s_media != ELC_CAN_SCREEN_CENTER && s_view == CenterViewMode::Media) {
+    s_view = CenterViewMode::Tach;  // media lives on a side screen
+  }
+  center_audio_link_set_fetch_art(s_media == ELC_CAN_SCREEN_CENTER);
 }
 
 CenterViewMode center_ui_view_mode() { return s_view; }
 
 ClusterTheme center_ui_cluster_theme() { return s_theme; }
 
+uint8_t center_ui_interface_screen() { return s_iface; }
+uint8_t center_ui_media_screen() { return s_media; }
+bool center_ui_media_shown() {
+  return s_media == ELC_CAN_SCREEN_CENTER ? s_view == CenterViewMode::Media : s_media_shown;
+}
+
 void center_ui_sync_cluster_bus() {
   cluster_i2c_broadcast_center_theme(s_theme, (ClusterCenterSubview)(uint8_t)s_view);
-  center_can_send_cluster((uint8_t)s_theme, (uint8_t)s_view);
+  ElcCanClusterState st;
+  st.theme = (uint8_t)s_theme;
+  st.center_subview = (uint8_t)s_view;
+  st.interface_screen = s_iface;
+  st.media_screen = s_media;
+  st.brightness = center_menu_brightness();
+  st.flags = (uint8_t)((center_menu_dim_with_lights() ? ELC_CAN_CLUSTER_DIM_WITH_LIGHTS : 0) |
+                       (center_ui_media_shown() ? ELC_CAN_CLUSTER_MEDIA_SHOWN : 0));
+  center_can_send_cluster(st);
+}
+
+static void save_screens() {
+  if (s_prefs) {
+    s_prefs->putUChar("iface", s_iface);
+    s_prefs->putUChar("media", s_media);
+    s_prefs->putBool("mshown", s_media_shown);
+    center_sd_settings_sync(*s_prefs);
+  }
+}
+
+void center_ui_set_interface_screen(uint8_t screen) {
+  if (screen > ELC_CAN_SCREEN_RIGHT || screen == s_iface) {
+    return;
+  }
+  s_iface = screen;
+  if (screen != ELC_CAN_SCREEN_CENTER) {
+    center_menu_close();  // the menu moves to that screen (as a side screen closes its menu when it moves away)
+  }
+  save_screens();
+  center_ui_sync_cluster_bus();
+}
+
+void center_ui_set_media_screen(uint8_t screen) {
+  if (screen > ELC_CAN_SCREEN_RIGHT || screen == s_media) {
+    return;
+  }
+  // Media moves with what it was doing: shown here stays shown there.
+  const bool shown = center_ui_media_shown();
+  s_media = screen;
+  s_media_shown = screen != ELC_CAN_SCREEN_CENTER && shown;
+  if (screen == ELC_CAN_SCREEN_CENTER) {
+    if (shown) s_view = CenterViewMode::Media;
+  } else if (s_view == CenterViewMode::Media) {
+    s_view = CenterViewMode::Tach;
+  }
+  if (s_prefs) s_prefs->putUChar("view", (uint8_t)s_view);
+  center_audio_link_set_fetch_art(s_media == ELC_CAN_SCREEN_CENTER);
+  save_screens();
+  center_ui_sync_cluster_bus();
+}
+
+void center_ui_show_media(bool on) {
+  if (s_media == ELC_CAN_SCREEN_CENTER) {
+    center_ui_set_view(on ? CenterViewMode::Media : CenterViewMode::Tach);
+    return;
+  }
+  if (s_media_shown == on) {
+    return;
+  }
+  s_media_shown = on;
+  save_screens();
+  center_ui_sync_cluster_bus();
+}
+
+/** Next view for the 3 s hold: Media is in the cycle only when the center is the media screen. */
+static CenterViewMode next_view(CenterViewMode v) {
+  uint8_t n = (uint8_t)(((uint8_t)v + 1u) % 4u);
+  if (n == (uint8_t)CenterViewMode::Media && s_media != ELC_CAN_SCREEN_CENTER) {
+    n = (uint8_t)CenterViewMode::Efficiency;
+  }
+  return (CenterViewMode)n;
+}
+
+void center_ui_apply_setting(const ElcCanSettingRequest &r) {
+  switch (r.setting) {
+    case ELC_CAN_SET_THEME:
+      if (r.value <= 2) center_ui_set_theme(cluster_theme_from_reg(r.value));
+      break;
+    case ELC_CAN_SET_CENTER_VIEW:
+      if (r.value <= 3) center_ui_set_view((CenterViewMode)r.value);
+      break;
+    case ELC_CAN_SET_INTERFACE_SCREEN: center_ui_set_interface_screen(r.value); break;
+    case ELC_CAN_SET_MEDIA_SCREEN: center_ui_set_media_screen(r.value); break;
+    case ELC_CAN_SET_BRIGHTNESS: center_menu_set_brightness(r.value, center_menu_dim_with_lights(), true); break;
+    case ELC_CAN_SET_DIM_WITH_LIGHTS: center_menu_set_brightness(center_menu_brightness(), r.value != 0, true); break;
+    case ELC_CAN_SET_MEDIA_SHOWN: center_ui_show_media(r.value != 0); break;
+    case ELC_CAN_SET_DEMO: center_set_demo(r.value != 0); break;
+    case ELC_CAN_ACT_WIFI_JOIN_SAVED: center_menu_wifi_join_saved(); break;
+    case ELC_CAN_ACT_OPEN_CENTER_PAGE: center_menu_open_center_page(r.value); break;
+    default: break;
+  }
+  center_ui_sync_cluster_bus();  // answer every request, so the asker sees the outcome even when nothing changed
 }
 
 ClusterTheme center_ui_next_theme(ClusterTheme t) {
@@ -300,6 +414,10 @@ ClusterTheme center_ui_next_theme(ClusterTheme t) {
 }
 
 void center_ui_set_view(CenterViewMode v) {
+  if (v == CenterViewMode::Media && s_media != ELC_CAN_SCREEN_CENTER) {
+    center_ui_show_media(true);  // media is shown on its own screen
+    return;
+  }
   s_view = v;
   if (s_prefs) {
     s_prefs->putUChar("view", (uint8_t)v);
@@ -352,7 +470,7 @@ void center_ui_process_touch_gesture(uint32_t duration_ms, int16_t x, int16_t y)
     return;
   }
   if (duration_ms >= 3000u) {
-    center_ui_set_view((CenterViewMode)(((uint8_t)s_view + 1u) % 4u));
+    center_ui_set_view(next_view(s_view));
     return;
   }
   center_ui_on_touch_release(x, y);
@@ -786,6 +904,27 @@ void center_ui_draw_fullscreen(Arduino_GFX *gfx) {
 
 void center_ui_loop() {
   const uint32_t now = millis();
+  center_menu_loop();
+  ElcCanSettingRequest req;
+  while (center_can_take_setting(&req)) {
+    center_ui_apply_setting(req);
+  }
+  static uint32_t s_status_ms = 0;
+  if (now - s_status_ms >= 1000u) {
+    s_status_ms = now;
+    const bool wf = WiFi.status() == WL_CONNECTED;
+    ElcCanCenterStatus st;
+    st.flags = (uint8_t)((wf ? ELC_CAN_STATUS_WIFI : 0) | (center_gps_have_position_fix() ? ELC_CAN_STATUS_GPS_FIX : 0) |
+                         (center_gps_last_uart_byte_ms() && now - center_gps_last_uart_byte_ms() < 3000 ? ELC_CAN_STATUS_GPS_NMEA : 0) |
+                         (center_audio_link_ok() ? ELC_CAN_STATUS_AUDIO : 0) |
+                         (center_sensor_link().demo() ? ELC_CAN_STATUS_DEMO : 0) |
+                         (s_prefs && s_prefs->getString("wifi_ssid", "").length() ? ELC_CAN_STATUS_SAVED_WIFI : 0) |
+                         (center_menu_wifi_joining() ? ELC_CAN_STATUS_JOINING : 0));
+    st.rssi = wf ? (int8_t)WiFi.RSSI() : 0;
+    // The name: the connected network, else the saved one.
+    const String name = wf ? WiFi.SSID() : (s_prefs ? s_prefs->getString("wifi_ssid", "") : String());
+    center_can_send_status(st, name.c_str());
+  }
   /* Rolling 2 s window: reset even when log is closed so the next open shows a fresh rate. */
   if (now - s_last_sensor_stats_ms >= 2000u) {
     s_last_sensor_stats_ms = now;
@@ -921,5 +1060,7 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
     return;
   }
 
-  center_menu_open(CenterMenuPage::Home);
+  if (s_iface == ELC_CAN_SCREEN_CENTER) {
+    center_menu_open(CenterMenuPage::Home);  // the menu is on another screen otherwise
+  }
 }

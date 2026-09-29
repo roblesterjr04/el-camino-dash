@@ -52,12 +52,79 @@ class ElcCanSensorDecoder {
   uint8_t _seen = 0;
 };
 
+/** Cluster-wide settings and state, owned by the center (0x210). A 2-byte frame from older firmware decodes
+ *  with the defaults below (menu and media on the center, full brightness). */
+static const uint8_t ELC_CAN_CLUSTER_DIM_WITH_LIGHTS = 0x01;  // flags: backlight follows the headlight input
+static const uint8_t ELC_CAN_CLUSTER_MEDIA_SHOWN = 0x02;      // flags: the media screen shows its media view
 struct ElcCanClusterState {
   uint8_t theme = 0;
   uint8_t center_subview = 0;
+  uint8_t interface_screen = ELC_CAN_SCREEN_CENTER;  // the screen with the on-screen menu
+  uint8_t media_screen = ELC_CAN_SCREEN_CENTER;      // the screen with the media view
+  uint8_t brightness = 100;                          // user level, 10..100 %
+  uint8_t flags = ELC_CAN_CLUSTER_DIM_WITH_LIGHTS;
 };
 void elc_can_encode_cluster_state(const ElcCanClusterState &s, ElcCanFrame &out);
 bool elc_can_decode_cluster_state(const ElcCanFrame &f, ElcCanClusterState &out);
+
+/** Settings a display or the console can ask the center to change (0x212). */
+enum ElcCanSetting : uint8_t {
+  ELC_CAN_SET_THEME = 1,             // 0 Classic, 1 Fallout, 2 Modern
+  ELC_CAN_SET_CENTER_VIEW = 2,       // CenterViewMode
+  ELC_CAN_SET_INTERFACE_SCREEN = 3,  // ELC_CAN_SCREEN_*
+  ELC_CAN_SET_MEDIA_SCREEN = 4,      // ELC_CAN_SCREEN_*
+  ELC_CAN_SET_BRIGHTNESS = 5,        // 10..100
+  ELC_CAN_SET_DIM_WITH_LIGHTS = 6,   // 0 / 1
+  ELC_CAN_SET_MEDIA_SHOWN = 7,       // 0 / 1: media view on the media screen
+  ELC_CAN_SET_DEMO = 8,              // 0 / 1: simulated drive cycle
+  ELC_CAN_ACT_WIFI_JOIN_SAVED = 9,   // action (value ignored)
+  ELC_CAN_ACT_OPEN_CENTER_PAGE = 10, // action: open a center-only page there (1 Wi-Fi, 2 sensor log, 3 GPS data, 4 phone)
+};
+struct ElcCanSettingRequest {
+  uint8_t setting = 0;
+  uint8_t value = 0;
+  uint8_t from_node = 0;
+};
+void elc_can_encode_setting_request(const ElcCanSettingRequest &r, ElcCanFrame &out);
+bool elc_can_decode_setting_request(const ElcCanFrame &f, ElcCanSettingRequest &out);
+
+/** What the center knows that the other displays cannot see (0x213), for a menu on another screen. */
+static const uint8_t ELC_CAN_STATUS_WIFI = 0x01;        // Wi-Fi connected (name in 0x214)
+static const uint8_t ELC_CAN_STATUS_GPS_FIX = 0x02;
+static const uint8_t ELC_CAN_STATUS_GPS_NMEA = 0x04;    // NMEA arriving (fix or not)
+static const uint8_t ELC_CAN_STATUS_AUDIO = 0x08;       // audio bridge heard
+static const uint8_t ELC_CAN_STATUS_DEMO = 0x10;        // simulated drive cycle on
+static const uint8_t ELC_CAN_STATUS_SAVED_WIFI = 0x20;  // a saved network exists (Join saved makes sense)
+static const uint8_t ELC_CAN_STATUS_JOINING = 0x40;     // joining a network now
+struct ElcCanCenterStatus {
+  uint8_t flags = 0;
+  int8_t rssi = 0;
+  uint8_t text_serial = 0;  // 0..15, bumps when the Wi-Fi name changes
+};
+void elc_can_encode_center_status(const ElcCanCenterStatus &s, ElcCanFrame &out);
+bool elc_can_decode_center_status(const ElcCanFrame &f, ElcCanCenterStatus &out);
+
+/** Short text in ELC_CAN_TEXT_CHUNKS frames of [serial << 4 | chunk] + 7 bytes (32 bytes max, zero padded). */
+static const size_t ELC_CAN_TEXT_MAX = 32;
+static const size_t ELC_CAN_TEXT_CHUNKS = 5;
+void elc_can_encode_text(uint16_t id, uint8_t serial, const char *text, ElcCanFrame out[ELC_CAN_TEXT_CHUNKS]);
+/** Reassembles text sent with elc_can_encode_text on one CAN ID. */
+class ElcCanTextDecoder {
+ public:
+  explicit ElcCanTextDecoder(uint16_t id) : _id(id) {}
+  /** True when this frame completed a text. */
+  bool feed(const ElcCanFrame &f);
+  const char *text() const { return _done; }
+  uint8_t serial() const { return _done_serial; }
+  bool valid() const { return _have; }
+
+ private:
+  uint16_t _id;
+  char _buf[ELC_CAN_TEXT_CHUNKS * 7 + 1] = {0};
+  char _done[ELC_CAN_TEXT_MAX + 1] = {0};
+  uint8_t _serial = 0xFF, _done_serial = 0xFF, _seen = 0;
+  bool _have = false;
+};
 
 struct ElcCanHeartbeat {
   uint8_t node = 0;

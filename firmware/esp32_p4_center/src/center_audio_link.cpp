@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <cstdio>
 #include <cstring>
-#include <driver/jpeg_decode.h>
+#include <media_can.h>
 #if CENTER_AUDIO_I2C
 #include <Wire.h>
 #endif
@@ -192,193 +192,43 @@ void center_audio_link_begin() {
 
 // ---------------------------------------------------------------- album art
 //
-// The bridge fetches the phone's cover-art thumbnail (JPEG); the P4's hardware JPEG decoder turns it into
-// RGB565. In the car it comes over CAN in two steps: the transport frame announces the art id, the center asks
-// for the bridge's 128x128 copy (a few KB, well under a second) and shows it, then asks for the phone's original
-// (typically 200x200) and swaps it in. Each step collects ART_INFO + ART_DATA and asks again from the first
-// missing chunk when the stream goes quiet (frames are single-shot).
+// In the car, album art comes over CAN in two steps (media_can, shared with the other screens): 128x128 first,
+// then the phone's original. The center fetches it only while it is the media screen.
 //
 // Bench only (CENTER_AUDIO_I2C): the bridge also serves it in I2C chunks: write [0x10][idx_lo][idx_hi],
 // read [0xC7][art_id][idx_lo][idx_hi][n][120 data bytes], one chunk per frame. Every chunk header is
-// checked (the slave can answer with a stale reply).
+// checked (the slave can answer with a stale reply). Decoding is media_can's.
 
-static constexpr size_t kArtInCap = ELC_CAN_ART_MAX_BYTES;
-
-static uint8_t *s_jpg = nullptr;       // download buffer (DMA-capable, from the JPEG driver)
-static size_t s_jpg_cap = 0;
 #if CENTER_AUDIO_I2C
 static constexpr uint8_t kArtReg = 0x10;
 static constexpr int kArtChunk = 120;
+static uint8_t *s_jpg = nullptr;
+static size_t s_jpg_cap = 0;
 static uint8_t s_fetch_id = 0;         // image being downloaded over I2C (0 = none)
 static uint16_t s_fetch_len = 0;
 static uint16_t s_fetch_next = 0;      // next chunk index
 static uint16_t s_fetch_fails = 0;
-#endif
 static uint8_t s_art_done_id = 0;      // last image decoded (or given up on)
-static uint16_t *s_art_px = nullptr;   // decoded RGB565
-static int s_art_w = 0, s_art_h = 0, s_art_stride = 0;
-static uint32_t s_art_serial = 0;      // bumps per decoded image
 static bool s_art_valid = false;
-static jpeg_decoder_handle_t s_jpeg = nullptr;
+#endif
+static bool s_fetch_art = true;
 
-static bool art_decode(const uint8_t *jpg, size_t len) {
-  if (!s_jpeg) {
-    jpeg_decode_engine_cfg_t ec = {};
-    ec.timeout_ms = 200;
-    if (jpeg_new_decoder_engine(&ec, &s_jpeg) != ESP_OK) {
-      s_jpeg = nullptr;
-      return false;
-    }
-  }
-  jpeg_decode_picture_info_t info = {};
-  if (jpeg_decoder_get_info(jpg, len, &info) != ESP_OK || info.width == 0 || info.height == 0 || info.width > 1024 ||
-      info.height > 1024) {
-    return false;
-  }
-  // The decoder writes whole MCUs: 16 px wide for 4:2:0 / 4:2:2, 8 for 4:4:4 / gray; 16 px tall for 4:2:0.
-  const bool wide = info.sample_method == JPEG_DOWN_SAMPLING_YUV420 || info.sample_method == JPEG_DOWN_SAMPLING_YUV422;
-  const int mw = wide ? 16 : 8, mh = info.sample_method == JPEG_DOWN_SAMPLING_YUV420 ? 16 : 8;
-  const int aw = ((int)info.width + mw - 1) / mw * mw, ah = ((int)info.height + mh - 1) / mh * mh;
-  jpeg_decode_memory_alloc_cfg_t mc = {};
-  mc.buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER;
-  size_t cap = 0;
-  uint16_t *out = (uint16_t *)jpeg_alloc_decoder_mem((size_t)aw * ah * 2, &mc, &cap);
-  if (!out) {
-    return false;
-  }
-  jpeg_decode_cfg_t cfg = {};
-  cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
-  cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;
-  cfg.conv_std = JPEG_YUV_RGB_CONV_STD_BT601;
-  uint32_t out_size = 0;
-  if (jpeg_decoder_process(s_jpeg, &cfg, jpg, (uint32_t)len, (uint8_t *)out, (uint32_t)cap, &out_size) != ESP_OK) {
-    free(out);
-    return false;
-  }
-  free(s_art_px);  // nothing keeps a pointer to the old image: the face copies it on a new serial
-  s_art_px = out;
-  s_art_w = (int)info.width;
-  s_art_h = (int)info.height;
-  s_art_stride = aw;
-  s_art_serial++;
-  s_art_valid = true;
-  return true;
-}
-
-static bool art_alloc() {
-  if (!s_jpg) {
-    jpeg_decode_memory_alloc_cfg_t mc = {};
-    mc.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER;
-    s_jpg = (uint8_t *)jpeg_alloc_decoder_mem(kArtInCap, &mc, &s_jpg_cap);
-  }
-  return s_jpg != nullptr;
-}
-
-// ---- CAN (the car)
-static ElcCanArtReceiver s_can_art;
-static uint32_t s_can_art_rx_ms = 0;   // last frame of the image being collected
-static uint32_t s_can_req_ms = 0;      // last ART_REQUEST
-static uint16_t s_can_req_have = 0;    // chunks we had at that request
-static uint8_t s_can_req_tries = 0;    // requests in a row that brought nothing new
-static bool s_art_from_can = false;
-
-/** Start fetching `variant` of art `id`, or finish with this art when there is no next step. */
-static void can_art_step(uint8_t slot, uint8_t id, uint8_t variant) {
-  s_can_art.start(slot, id, variant, s_jpg, s_jpg_cap);
-  s_can_art_rx_ms = 0;
-  s_can_req_ms = 0;
-  s_can_req_have = 0;
-  s_can_req_tries = 0;
-}
-
-/** After the 128 px copy (shown or not), step up to the original; after the original, stop. */
-static void can_art_next(uint8_t slot, uint8_t id) {
-  if (s_can_art.variant() == ELC_CAN_ART_JPEG128) {
-    can_art_step(slot, id, ELC_CAN_ART_ORIGINAL);
-  } else {
-    s_art_done_id = id;
-    s_can_art.reset();
-  }
-}
-
-void center_audio_link_can_frame(const ElcCanFrame &f) {
-  if (s_can_art.feed(f)) {
-    s_can_art_rx_ms = millis();
-  }
-}
-
-static void art_pump_can(bool heard) {
-  uint8_t slot = 0, id = 0;
-  if (!heard || !center_can_audio_art(&slot, &id)) {
-    if (s_art_from_can) {  // bridge gone from CAN: drop its art (a bench I2C bridge may take over)
-      s_art_valid = false;
-      s_art_done_id = 0;
-      s_can_art.reset();
-      s_art_from_can = false;
-    }
-    return;
-  }
-  s_art_from_can = true;
-  if (id == 0) {  // new track with no art (yet), or phone gone
-    s_art_valid = false;
-    s_art_done_id = 0;
-    s_can_art.reset();
-    return;
-  }
-  if (id == s_art_done_id) {
-    return;
-  }
-  const uint32_t now = millis();
-  if (s_can_art.art_id() != id) {
-    if (!art_alloc()) {
-      s_art_done_id = id;  // cannot take any image
-      return;
-    }
-    can_art_step(slot, id, ELC_CAN_ART_JPEG128);  // fast small picture first
-  }
-  const char *vname = s_can_art.variant() == ELC_CAN_ART_JPEG128 ? "128px" : "original";
-  if (s_can_art.refused()) {
-    Serial.printf("[audio] album art #%u %s over CAN: not available (size %u), %s\n", (unsigned)id, vname,
-                  (unsigned)s_can_art.size(), s_can_art.variant() == ELC_CAN_ART_JPEG128 ? "asking for the original" : "done");
-    can_art_next(slot, id);
-    return;
-  }
-  if (s_can_art.complete()) {
-    const bool decoded = art_decode(s_jpg, s_can_art.size());
-    Serial.printf("[audio] album art #%u %s over CAN: %u bytes, %s %dx%d\n", (unsigned)id, vname,
-                  (unsigned)s_can_art.size(), decoded ? "decoded" : "decode FAILED", s_art_w, s_art_h);
-    can_art_next(slot, id);
-    return;
-  }
-  // (Re)ask from the first missing chunk once the stream has gone quiet.
-  if (now - s_can_art_rx_ms > 300u && now - s_can_req_ms > 300u) {
-    if (s_can_art.chunks_have() > s_can_req_have) {
-      s_can_req_tries = 0;  // the last request brought data: not stuck
-    }
-    if (++s_can_req_tries > 20) {
-      Serial.printf("[audio] album art #%u %s over CAN: no progress, given up at chunk %u\n", (unsigned)id, vname,
-                    (unsigned)s_can_art.first_missing());
-      can_art_next(slot, id);  // a 128px picture already shown stays up
-      return;
-    }
-    s_can_req_have = s_can_art.chunks_have();
-    s_can_req_ms = now;
-    center_can_request_art(slot, id, s_can_art.variant(), s_can_art.first_missing());
-  }
-}
+void center_audio_link_set_fetch_art(bool on) { s_fetch_art = on; }
 
 #if CENTER_AUDIO_I2C
 /** Read one chunk of the image being fetched; decode when the last one is in. */
 static void art_pump() {
   if (s_art_snap_id == 0 && s_art_valid) {
     s_art_valid = false;  // new track: no art, or its art is still on the way from the phone
+    media_art_clear();
     s_art_done_id = 0;
   }
   if (s_art_snap_state != 2 || s_art_snap_id == 0 || s_art_snap_id == s_art_done_id) {
     return;
   }
   if (s_fetch_id != s_art_snap_id) {
-    if (!art_alloc() || s_art_snap_len == 0 || s_art_snap_len > s_jpg_cap) {
+    s_jpg = media_art_buffer(&s_jpg_cap);
+    if (!s_jpg || s_art_snap_len == 0 || s_art_snap_len > s_jpg_cap) {
       s_art_done_id = s_art_snap_id;  // cannot take this one
       return;
     }
@@ -418,9 +268,10 @@ static void art_pump() {
     return;
   }
   if ((size_t)s_fetch_next * kArtChunk >= s_fetch_len) {
-    const bool decoded = art_decode(s_jpg, s_fetch_len);
-    Serial.printf("[audio] album art #%u: %u bytes, %s %dx%d\n", (unsigned)s_fetch_id, (unsigned)s_fetch_len,
-                  decoded ? "decoded" : "decode FAILED", s_art_w, s_art_h);
+    const bool decoded = media_art_decode(s_jpg, s_fetch_len);
+    s_art_valid = s_art_valid || decoded;
+    Serial.printf("[audio] album art #%u: %u bytes, %s\n", (unsigned)s_fetch_id, (unsigned)s_fetch_len,
+                  decoded ? "decoded" : "decode FAILED");
     s_art_done_id = s_fetch_id;
     s_fetch_id = 0;
   }
@@ -428,32 +279,19 @@ static void art_pump() {
 #endif  // CENTER_AUDIO_I2C
 
 void center_audio_art_status(char *out, size_t n) {
-  if (s_art_from_can || !CENTER_AUDIO_I2C) {
-    snprintf(out, n, "CAN: collecting id=%u %s %u/%u chunks (size %u, tries %u), decoded #%u %s %dx%d",
-             (unsigned)s_can_art.art_id(), s_can_art.variant() == ELC_CAN_ART_JPEG128 ? "128px" : "original",
-             (unsigned)s_can_art.chunks_have(),
-             (unsigned)(s_can_art.sized() ? elc_can_art_chunks(s_can_art.size()) : 0), (unsigned)s_can_art.size(),
-             (unsigned)s_can_req_tries, (unsigned)s_art_done_id, s_art_valid ? "shown" : "none", s_art_w, s_art_h);
+#if CENTER_AUDIO_I2C
+  if (!media_can_now_playing(nullptr, 0, nullptr, nullptr, nullptr)) {
+    snprintf(out, n, "I2C: announced id=%u len=%u state=%u, fetching id=%u chunk %u (fails %u), decoded #%u %s",
+             (unsigned)s_art_snap_id, (unsigned)s_art_snap_len, (unsigned)s_art_snap_state, (unsigned)s_fetch_id,
+             (unsigned)s_fetch_next, (unsigned)s_fetch_fails, (unsigned)s_art_done_id, s_art_valid ? "shown" : "none");
     return;
   }
-#if CENTER_AUDIO_I2C
-  snprintf(out, n, "I2C: announced id=%u len=%u state=%u, fetching id=%u chunk %u (fails %u), decoded #%u %s %dx%d",
-           (unsigned)s_art_snap_id, (unsigned)s_art_snap_len, (unsigned)s_art_snap_state, (unsigned)s_fetch_id,
-           (unsigned)s_fetch_next, (unsigned)s_fetch_fails, (unsigned)s_art_done_id, s_art_valid ? "shown" : "none",
-           s_art_w, s_art_h);
 #endif
+  media_can_art_status(out, n);
 }
 
 bool center_audio_art(const uint16_t **px, int *w, int *h, int *stride, uint32_t *serial) {
-  if (!s_art_valid || !s_art_px) {
-    return false;
-  }
-  *px = s_art_px;
-  *w = s_art_w;
-  *h = s_art_h;
-  *stride = s_art_stride;
-  *serial = s_art_serial;
-  return true;
+  return media_art(px, w, h, stride, serial);
 }
 
 void center_audio_link_poll() {
@@ -463,7 +301,7 @@ void center_audio_link_poll() {
   char can_line[sizeof(s_line)];
   uint16_t can_el = 0, can_dur = 0;
   uint8_t can_vol = 0;
-  const bool can = center_can_audio(can_line, sizeof(can_line), &can_el, &can_dur, &can_vol);
+  const bool can = media_can_now_playing(can_line, sizeof(can_line), &can_el, &can_dur, &can_vol);
   if (can) {
     if (trim_and_has_visible(can_line)) {
       snprintf(s_line, sizeof(s_line), "%s", can_line);
@@ -476,7 +314,7 @@ void center_audio_link_poll() {
     s_tr_valid = true;
     s_ok = true;
   }
-  art_pump_can(can);
+  media_can_poll(s_fetch_art);
 
 #if CENTER_AUDIO_I2C
   // Bench only: a bridge wired to the display bus with no CAN transceivers.

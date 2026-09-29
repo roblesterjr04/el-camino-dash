@@ -1,11 +1,11 @@
 #include "center_can.h"
-#include "center_audio_link.h"
 
 #include <Arduino.h>
 #include <cstdio>
 #include <cstring>
 
 #include <elc_can.h>
+#include <media_can.h>
 
 #ifndef ELC_CAN_TX_PIN
 #define ELC_CAN_TX_PIN -1
@@ -17,31 +17,27 @@
 static ElcCan s_can;
 static uint8_t s_sensor_seq = 0;
 
-// Audio bridge state from its slot frames (only one bridge is expected; the newest one wins).
-static ElcCanAudioTextDecoder s_audio_text;
-static ElcCanAudioTransport s_audio_tr;
-static uint32_t s_audio_ms = 0;
-static bool s_audio_have = false;
-static uint8_t s_audio_slot = 0;
+// Setting requests (0x212) from the other screens and the console, applied by center_ui from loop().
+static ElcCanSettingRequest s_req[8];
+static uint8_t s_req_head = 0, s_req_n = 0;
 
 static void on_frame(const ElcCanFrame &f, void *) {
-  uint8_t slot = 0;
-  ElcCanAudioTransport t;
-  if (elc_can_decode_audio_transport(f, &slot, t)) {
-    s_audio_tr = t;
-    s_audio_slot = slot;
-    s_audio_ms = millis();
-    s_audio_have = true;
+  ElcCanSettingRequest r;
+  if (elc_can_decode_setting_request(f, r)) {
+    if (s_req_n < 8) {
+      s_req[(s_req_head + s_req_n) % 8] = r;
+      s_req_n++;
+    }
     return;
   }
-  if (s_audio_text.feed(f)) {
-    return;
-  }
-  center_audio_link_can_frame(f);  // album art info / data
+  media_can_frame(f);  // audio bridge: now playing, album art
 }
+
+static bool send_frame(const ElcCanFrame &f) { return s_can.running() && s_can.send(f); }
 
 void center_can_begin() {
   s_can.onFrame(on_frame, nullptr);
+  media_can_begin(send_frame);
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_CENTER, ElcCanNodeType::Display);
   Serial.printf("CAN: %s (TX=%d RX=%d)\n", ok ? "up" : "off", ELC_CAN_TX_PIN, ELC_CAN_RX_PIN);
 }
@@ -75,47 +71,53 @@ void center_can_send_sensor(const SensorPacketValues &v) {
   }
 }
 
-void center_can_send_cluster(uint8_t theme, uint8_t center_subview) {
+void center_can_send_cluster(const ElcCanClusterState &st) {
   if (!s_can.running()) {
     return;
   }
   ElcCanFrame f;
-  elc_can_encode_cluster_state(ElcCanClusterState{theme, center_subview}, f);
+  elc_can_encode_cluster_state(st, f);
   s_can.send(f);
 }
 
-bool center_can_audio(char *line, size_t n, uint16_t *elapsed_s, uint16_t *duration_s, uint8_t *vol_0_15,
-                      uint32_t max_age_ms) {
-  if (!s_audio_have || millis() - s_audio_ms > max_age_ms) {
-    return false;
-  }
-  if (line && n) {
-    // Only a text that matches the transport's serial is current (a new track may still be arriving).
-    const bool current = s_audio_text.valid() && s_audio_text.serial() == s_audio_tr.text_serial;
-    snprintf(line, n, "%s", current ? s_audio_text.text() : "");
-  }
-  if (elapsed_s) *elapsed_s = s_audio_tr.elapsed_s;
-  if (duration_s) *duration_s = s_audio_tr.duration_s;
-  if (vol_0_15) *vol_0_15 = s_audio_tr.volume > 15 ? 15 : s_audio_tr.volume;
-  return true;
-}
-
-bool center_can_audio_art(uint8_t *slot, uint8_t *art_id, uint32_t max_age_ms) {
-  if (!s_audio_have || millis() - s_audio_ms > max_age_ms) {
-    return false;
-  }
-  if (slot) *slot = s_audio_slot;
-  if (art_id) *art_id = s_audio_tr.connected ? s_audio_tr.art_id : 0;
-  return true;
-}
-
-bool center_can_request_art(uint8_t slot, uint8_t art_id, uint8_t variant, uint16_t first) {
+void center_can_send_status(ElcCanCenterStatus st, const char *wifi_name) {
   if (!s_can.running()) {
+    return;
+  }
+  // The name goes out when it changes (with a new serial) and every 5 s, so a screen that booted late gets it.
+  static char s_name[ELC_CAN_TEXT_MAX + 1] = {0};
+  static uint8_t s_serial = 0;
+  static uint32_t s_name_ms = 0;
+  const char *name = wifi_name ? wifi_name : "";
+  const bool changed = strncmp(s_name, name, ELC_CAN_TEXT_MAX) != 0;
+  if (changed) {
+    snprintf(s_name, sizeof(s_name), "%s", name);
+    s_serial = (uint8_t)((s_serial + 1) & 0x0F);
+  }
+  st.text_serial = s_serial;
+  ElcCanFrame f;
+  elc_can_encode_center_status(st, f);
+  s_can.send(f);
+  if (changed || millis() - s_name_ms >= 5000u) {
+    s_name_ms = millis();
+    ElcCanFrame t[ELC_CAN_TEXT_CHUNKS];
+    elc_can_encode_text(ELC_CAN_ID_CENTER_TEXT, s_serial, s_name, t);
+    for (const ElcCanFrame &c : t) {
+      s_can.send(c);
+    }
+  }
+}
+
+bool center_can_take_setting(ElcCanSettingRequest *out) {
+  if (!s_req_n) {
     return false;
   }
-  ElcCanFrame f;
-  elc_can_encode_art_request(ElcCanArtRequest{slot, art_id, first, variant}, f);
-  return s_can.send(f);
+  *out = s_req[s_req_head];
+  s_req_head = (uint8_t)((s_req_head + 1) % 8);
+  s_req_n--;
+  return true;
 }
+
+bool center_can_node_alive(uint8_t node) { return s_can.running() && s_can.nodeAlive(node); }
 
 void center_can_describe(char *out, size_t n) { s_can.describe(out, n); }

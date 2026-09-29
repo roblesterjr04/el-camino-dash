@@ -18,6 +18,17 @@ const SensorLink &center_sensor_link();
 enum class CenterLegacyPage : uint8_t { Phone, SensorLog, GpsDiag };
 void center_ui_set_view(CenterViewMode v);    // persists + syncs the cluster bus
 void center_ui_set_theme(ClusterTheme t);     // persists + syncs the cluster bus
+
+// Screens (ELC_CAN_SCREEN_*), stored in NVS "iface" / "media" / "mshown" and the SD settings.json.
+/** The screen with the on-screen menu (touch and the console knob). */
+uint8_t center_ui_interface_screen();
+void center_ui_set_interface_screen(uint8_t screen);
+/** The screen with the media view. On the center, media is one of its views; on a side screen it is an extra
+ *  view next to that screen's gauge (media_shown). */
+uint8_t center_ui_media_screen();
+void center_ui_set_media_screen(uint8_t screen);
+bool center_ui_media_shown();
+void center_ui_show_media(bool on);
 void center_ui_open_legacy_page(CenterLegacyPage p);
 void center_ui_open_wifi_password(const char *ssid);
 /** Bench/console: simulate a finger on the screen for hold_ms (implemented in main.cpp). */

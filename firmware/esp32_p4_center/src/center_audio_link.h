@@ -16,14 +16,14 @@
 
 void center_audio_link_begin();
 void center_audio_link_poll();
-/** Album art frames from the bridge's CAN slot range (called by center_can). */
-void center_audio_link_can_frame(const ElcCanFrame &f);
+/** Fetch album art over CAN (the center is the media screen). Frames are fed to media_can by center_can. */
+void center_audio_link_set_fetch_art(bool on);
 bool center_audio_link_ok();
 
-/** Album art of the current track, decoded to RGB565 (row length = stride pixels). serial changes per
- *  image. False when the track has no art or it has not arrived yet. */
 /** One line describing the album-art transfer, for the `audio` console command. */
 void center_audio_art_status(char *out, size_t n);
+/** Album art of the current track, decoded to RGB565 (row length = stride pixels). serial changes per
+ *  image. False when the track has no art or it has not arrived yet. */
 bool center_audio_art(const uint16_t **px, int *w, int *h, int *stride, uint32_t *serial);
 /** Bytes received by the last snapshot/transport read (-1 = no ACK), for the `audio` console command. */
 int center_audio_link_last_rx();

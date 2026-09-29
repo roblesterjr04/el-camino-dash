@@ -17,7 +17,18 @@ static const uint16_t ELC_CAN_ID_SENSOR_ODO = 0x103;     // odometer tenths u32 
 static const uint16_t ELC_CAN_ID_SENSOR_ECON = 0x104;    // MPG instant x10 u16, MPG trip x10 u16, flags u8
 
 // ---- cluster state, sent by the center on change and every 5 s ----
-static const uint16_t ELC_CAN_ID_CLUSTER_STATE = 0x210;  // theme u8, center sub-view u8
+// theme u8, center sub-view u8, interface screen u8, media screen u8, brightness % u8, flags u8
+static const uint16_t ELC_CAN_ID_CLUSTER_STATE = 0x210;
+
+// Screens, for the interface (menu) and media settings.
+static const uint8_t ELC_CAN_SCREEN_LEFT = 0;    // speedometer
+static const uint8_t ELC_CAN_SCREEN_CENTER = 1;
+static const uint8_t ELC_CAN_SCREEN_RIGHT = 2;   // fuel / temp / oil / amp
+
+// ---- settings: the center owns them (NVS + SD); anyone asks, the center applies and re-sends 0x210 ----
+static const uint16_t ELC_CAN_ID_SETTING_REQUEST = 0x212;  // setting u8, value u8, from node u8
+static const uint16_t ELC_CAN_ID_CENTER_STATUS = 0x213;    // flags u8, Wi-Fi RSSI s8, text serial u8 (1 Hz)
+static const uint16_t ELC_CAN_ID_CENTER_TEXT = 0x214;      // [serial << 4 | chunk] + 7 bytes: Wi-Fi network name
 
 // ---- requests to accessory cards ----
 static const uint16_t ELC_CAN_ID_AUDIO_ART_REQUEST = 0x211;  // slot u8, art id u8, first chunk u16, variant u8 (display -> bridge)

@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include <boot_splash.h>
+#include <cluster_peer.h>
 #include <cluster_i2c.h>
 #include <cluster_i2c_slave.h>
 #include <display_setup.h>
@@ -12,8 +13,11 @@
 #include <elc_watchdog.h>
 #include <gauge_console.h>
 #include <gauge_link.h>
+#include <media_can.h>
 #include <p4_screen.h>
+#include <p4_touch.h>
 #include <sensor_link.h>
+#include <ui_menu.h>
 
 SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 
@@ -26,6 +30,17 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 
 #ifndef WHEEL_CIRCUMFERENCE_M
 #define WHEEL_CIRCUMFERENCE_M 2.1f
+#endif
+
+// Touch (menu when this is the interface screen, media hold when it is the media screen).
+#ifndef SPEEDO_TOUCH_ENABLE
+#define SPEEDO_TOUCH_ENABLE 1
+#endif
+#ifndef SPEEDO_TOUCH_SDA
+#define SPEEDO_TOUCH_SDA 7
+#endif
+#ifndef SPEEDO_TOUCH_SCL
+#define SPEEDO_TOUCH_SCL 8
 #endif
 
 static SensorLink s_link;
@@ -45,7 +60,8 @@ static void on_cluster_i2c(uint8_t reg, uint8_t val, void *) {
   }
 }
 
-// The same theme also arrives over CAN (0x210) on the DigiDash board; either path is enough.
+// The same theme also arrives over CAN (0x210) on the DigiDash board; either path is enough. CAN also carries
+// the screen settings (cluster_peer.h): menu and media on this screen, brightness.
 #ifndef ELC_CAN_TX_PIN
 #define ELC_CAN_TX_PIN -1
 #endif
@@ -54,7 +70,11 @@ static void on_cluster_i2c(uint8_t reg, uint8_t val, void *) {
 #endif
 static ElcCan s_can;
 
+static bool can_send(const ElcCanFrame &f) { return s_can.running() && s_can.send(f); }
+static bool can_node_alive(uint8_t node) { return s_can.running() && s_can.nodeAlive(node); }
+
 static void on_can_frame(const ElcCanFrame &f, void *) {
+  cluster_peer_frame(f);  // settings, center status, audio bridge
   ElcCanClusterState st;
   if (elc_can_decode_cluster_state(f, st)) {
     s_theme = cluster_theme_from_reg(st.theme);
@@ -106,6 +126,9 @@ void setup() {
     gauges_begin(p4_screen_gauge_parent(), (w - size) / 2, (h - size) / 2, size);
   }
   elc_illumination_gpio_poll();
+#if SPEEDO_TOUCH_ENABLE
+  p4_touch_begin(SPEEDO_TOUCH_SDA, SPEEDO_TOUCH_SCL);
+#endif
   {
     Preferences prefs;
     prefs.begin(CLUSTER_NVS_NAMESPACE, true);
@@ -122,6 +145,15 @@ void setup() {
     s_can.describe(st, sizeof(st));
     Serial.println(st);
   };
+  {
+    ClusterPeerConfig pc;
+    pc.self_screen = ELC_CAN_SCREEN_LEFT;
+    pc.node = ELC_CAN_NODE_SPEEDO;
+    pc.send = can_send;
+    pc.node_alive = can_node_alive;
+    pc.link = &s_link;
+    cluster_peer_begin(pc);
+  }
   s_can.onFrame(on_can_frame, nullptr);
   Serial.printf("CAN: %s (TX=%d RX=%d)\n",
                 s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_SPEEDO, ElcCanNodeType::Display) ? "up" : "off",
@@ -139,13 +171,27 @@ void loop() {
   s_console.poll(s_link);
 
   const uint32_t now = millis();
-  GaugeData gd;
-  gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
-  if (s_uart_banner_line[0] != 0 && (int32_t)(s_uart_banner_until_ms - now) > 0) {
-    gd.banner = s_uart_banner_line;
+  {
+    int16_t tx = 0, ty = 0;
+    bool down = false;
+#if SPEEDO_TOUCH_ENABLE
+    p4_touch_sample(&tx, &ty, &down);
+#endif
+    cluster_peer_poll(now, tx, ty, down);
   }
-  gauges_show((GaugeTheme)(uint8_t)s_theme, GaugeFace::Speedo);
-  gauges_update(gd, now);
+  const bool media = cluster_peer_show_media();
+  gauges_show((GaugeTheme)(uint8_t)s_theme, media ? GaugeFace::Media : GaugeFace::Speedo);
+  if (!ui_menu_is_open()) {  // while the menu covers the face, leave it be
+    GaugeData gd;
+    gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
+    if (s_uart_banner_line[0] != 0 && (int32_t)(s_uart_banner_until_ms - now) > 0) {
+      gd.banner = s_uart_banner_line;
+    }
+    if (media) {
+      media_can_fill(gd, now);
+    }
+    gauges_update(gd, now);
+  }
   p4_screen_frame();
 
   s_link.poll();

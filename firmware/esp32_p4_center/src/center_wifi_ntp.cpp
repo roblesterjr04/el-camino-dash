@@ -174,6 +174,22 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     Serial.printf("ok: %s\n", line.c_str());
     return;
   }
+  if (line.startsWith("menu on ") || line.startsWith("media on ")) {  // bench: "menu on left|center|right"
+    const String w = line.substring(line.indexOf(" on ") + 4);
+    const int scr = w == "left" ? 0 : (w == "center" ? 1 : (w == "right" ? 2 : -1));
+    if (scr < 0) {
+      Serial.println("usage: menu on left|center|right  /  media on left|center|right");
+      return;
+    }
+    if (line.startsWith("menu")) {
+      center_ui_set_interface_screen((uint8_t)scr);
+    } else {
+      center_ui_set_media_screen((uint8_t)scr);
+    }
+    Serial.printf("ok: menu on %d, media on %d (0 left, 1 center, 2 right)\n", (int)center_ui_interface_screen(),
+                  (int)center_ui_media_screen());
+    return;
+  }
   if (line.startsWith("drag ")) {  // bench: "drag <x> <y1> <y2> <ms>"
     int x = 0, y1 = 0, y2 = 0;
     unsigned long ms = 400;
@@ -259,7 +275,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | can | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | can | tap <x> <y> [ms] | knob left|right|press | menu on left|center|right | media on left|center|right | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }

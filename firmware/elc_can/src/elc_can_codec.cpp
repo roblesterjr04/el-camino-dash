@@ -91,15 +91,91 @@ bool ElcCanSensorDecoder::feed(const ElcCanFrame &f) {
 }
 
 void elc_can_encode_cluster_state(const ElcCanClusterState &s, ElcCanFrame &out) {
-  frame(out, ELC_CAN_ID_CLUSTER_STATE, 2);
+  frame(out, ELC_CAN_ID_CLUSTER_STATE, 6);
   out.data[0] = s.theme;
   out.data[1] = s.center_subview;
+  out.data[2] = s.interface_screen;
+  out.data[3] = s.media_screen;
+  out.data[4] = s.brightness;
+  out.data[5] = s.flags;
 }
 
 bool elc_can_decode_cluster_state(const ElcCanFrame &f, ElcCanClusterState &out) {
   if (f.id != ELC_CAN_ID_CLUSTER_STATE || f.len < 2) return false;
+  out = ElcCanClusterState();
   out.theme = f.data[0];
   out.center_subview = f.data[1];
+  if (f.len >= 6) {
+    out.interface_screen = f.data[2] <= ELC_CAN_SCREEN_RIGHT ? f.data[2] : ELC_CAN_SCREEN_CENTER;
+    out.media_screen = f.data[3] <= ELC_CAN_SCREEN_RIGHT ? f.data[3] : ELC_CAN_SCREEN_CENTER;
+    out.brightness = f.data[4] < 10 ? 10 : (f.data[4] > 100 ? 100 : f.data[4]);
+    out.flags = f.data[5];
+  }
+  return true;
+}
+
+void elc_can_encode_setting_request(const ElcCanSettingRequest &r, ElcCanFrame &out) {
+  frame(out, ELC_CAN_ID_SETTING_REQUEST, 3);
+  out.data[0] = r.setting;
+  out.data[1] = r.value;
+  out.data[2] = r.from_node;
+}
+
+bool elc_can_decode_setting_request(const ElcCanFrame &f, ElcCanSettingRequest &out) {
+  if (f.id != ELC_CAN_ID_SETTING_REQUEST || f.len < 2) return false;
+  out.setting = f.data[0];
+  out.value = f.data[1];
+  out.from_node = f.len >= 3 ? f.data[2] : 0;
+  return true;
+}
+
+void elc_can_encode_center_status(const ElcCanCenterStatus &s, ElcCanFrame &out) {
+  frame(out, ELC_CAN_ID_CENTER_STATUS, 3);
+  out.data[0] = s.flags;
+  out.data[1] = (uint8_t)s.rssi;
+  out.data[2] = (uint8_t)(s.text_serial & 0x0F);
+}
+
+bool elc_can_decode_center_status(const ElcCanFrame &f, ElcCanCenterStatus &out) {
+  if (f.id != ELC_CAN_ID_CENTER_STATUS || f.len < 3) return false;
+  out.flags = f.data[0];
+  out.rssi = (int8_t)f.data[1];
+  out.text_serial = (uint8_t)(f.data[2] & 0x0F);
+  return true;
+}
+
+void elc_can_encode_text(uint16_t id, uint8_t serial, const char *text, ElcCanFrame out[ELC_CAN_TEXT_CHUNKS]) {
+  char buf[ELC_CAN_TEXT_CHUNKS * 7] = {0};
+  if (text) {
+    size_t n = strlen(text);
+    if (n > ELC_CAN_TEXT_MAX) n = ELC_CAN_TEXT_MAX;
+    memcpy(buf, text, n);
+  }
+  for (uint8_t c = 0; c < ELC_CAN_TEXT_CHUNKS; c++) {
+    frame(out[c], id, 8);
+    out[c].data[0] = (uint8_t)(((serial & 0x0F) << 4) | c);
+    memcpy(out[c].data + 1, buf + 7 * c, 7);
+  }
+}
+
+bool ElcCanTextDecoder::feed(const ElcCanFrame &f) {
+  if (f.id != _id || f.len < 8) return false;
+  const uint8_t serial = (uint8_t)(f.data[0] >> 4);
+  const uint8_t chunk = (uint8_t)(f.data[0] & 0x0F);
+  if (chunk >= ELC_CAN_TEXT_CHUNKS) return false;
+  if (serial != _serial) {
+    _serial = serial;
+    _seen = 0;
+    memset(_buf, 0, sizeof(_buf));
+  }
+  memcpy(_buf + 7 * chunk, f.data + 1, 7);
+  _seen |= (uint8_t)(1u << chunk);
+  if (_seen != (1u << ELC_CAN_TEXT_CHUNKS) - 1) return false;
+  _seen = 0;
+  memcpy(_done, _buf, ELC_CAN_TEXT_MAX);
+  _done[ELC_CAN_TEXT_MAX] = '\0';
+  _done_serial = serial;
+  _have = true;
   return true;
 }
 

@@ -4,6 +4,7 @@
 #include <esp_log.h>
 
 #include <boot_splash.h>
+#include <cluster_peer.h>
 #include <cluster_i2c.h>
 #include <cluster_i2c_slave.h>
 #include <display_setup.h>
@@ -12,9 +13,11 @@
 #include <elc_watchdog.h>
 #include <gauge_console.h>
 #include <gauge_link.h>
+#include <media_can.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
 #include <sensor_link.h>
+#include <ui_menu.h>
 
 #include "theme_input.h"
 
@@ -52,7 +55,8 @@ static void on_cluster_i2c(uint8_t reg, uint8_t val, void *) {
   }
 }
 
-// The same theme also arrives over CAN (0x210) on the DigiDash board; either path is enough.
+// The same theme also arrives over CAN (0x210) on the DigiDash board; either path is enough. CAN also carries
+// the screen settings (cluster_peer.h): menu and media on this screen, brightness.
 #ifndef ELC_CAN_TX_PIN
 #define ELC_CAN_TX_PIN -1
 #endif
@@ -61,7 +65,11 @@ static void on_cluster_i2c(uint8_t reg, uint8_t val, void *) {
 #endif
 static ElcCan s_can;
 
+static bool can_send(const ElcCanFrame &f) { return s_can.running() && s_can.send(f); }
+static bool can_node_alive(uint8_t node) { return s_can.running() && s_can.nodeAlive(node); }
+
 static void on_can_frame(const ElcCanFrame &f, void *) {
+  cluster_peer_frame(f);  // settings, center status, audio bridge
   ElcCanClusterState st;
   if (elc_can_decode_cluster_state(f, st)) {
     s_theme = cluster_theme_from_reg(st.theme);
@@ -129,12 +137,25 @@ void setup() {
   s_console.on_variant = [](uint8_t v) { set_classic2(v == 0, "console"); };
   cluster_i2c_slave_begin(CLUSTER_I2C_ADDR_TSPS, on_cluster_i2c, nullptr);
 
-  Serial.printf("TSPS: theme=%d classic_%d (GPIO / 3s touch)\n", (int)s_theme, s_classic2 ? 2 : 1);
+  Serial.printf("TSPS: theme=%d classic_%d (GPIO / 3s touch when not the media screen)\n", (int)s_theme, s_classic2 ? 2 : 1);
   s_console.on_can = []() {
     char st[320];
     s_can.describe(st, sizeof(st));
     Serial.println(st);
   };
+  {
+    ClusterPeerConfig pc;
+    pc.self_screen = ELC_CAN_SCREEN_RIGHT;
+    pc.node = ELC_CAN_NODE_TSPS;
+    pc.send = can_send;
+    pc.node_alive = can_node_alive;
+    pc.link = &s_link;
+    // Not the media screen: the 3 s hold switches the Classic layout (as before).
+    pc.on_hold = []() { set_classic2(!s_classic2, "3s hold"); };
+    pc.hold_enabled = []() { return s_theme == ClusterTheme::Classic; };
+    pc.hold_message = "Release: switch layout";
+    cluster_peer_begin(pc);
+  }
   s_can.onFrame(on_can_frame, nullptr);
   Serial.printf("CAN: %s (TX=%d RX=%d)\n",
                 s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_TSPS, ElcCanNodeType::Display) ? "up" : "off",
@@ -161,21 +182,23 @@ void loop() {
     int16_t tx = 0, ty = 0;
     bool finger_down = false;
     p4_touch_sample(&tx, &ty, &finger_down);
-    static bool s_was_down = false;
-    static uint32_t s_down_ms = 0;
-    if (finger_down && !s_was_down) {
-      s_down_ms = now;
-    }
-    if (!finger_down && s_was_down && s_theme == ClusterTheme::Classic && now - s_down_ms >= 3000u) {
-      set_classic2(!s_classic2, "3s hold");
-    }
-    s_was_down = finger_down;
+    cluster_peer_poll(now, tx, ty, finger_down);  // menu, media / layout hold
   }
 
-  GaugeData gd;
-  gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
-  gauges_show((GaugeTheme)(uint8_t)s_theme, GaugeFace::Right, s_classic2 ? 0 : 1);
-  gauges_update(gd, now);
+  const bool media = cluster_peer_show_media();
+  if (media) {
+    gauges_show((GaugeTheme)(uint8_t)s_theme, GaugeFace::Media);
+  } else {
+    gauges_show((GaugeTheme)(uint8_t)s_theme, GaugeFace::Right, s_classic2 ? 0 : 1);
+  }
+  if (!ui_menu_is_open()) {  // while the menu covers the face, leave it be
+    GaugeData gd;
+    gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
+    if (media) {
+      media_can_fill(gd, now);
+    }
+    gauges_update(gd, now);
+  }
   p4_screen_frame();
 
   s_link.poll();

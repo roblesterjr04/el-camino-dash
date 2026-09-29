@@ -74,12 +74,52 @@ static void test_sensor_round_trip() {
 static void test_cluster_and_heartbeat() {
   std::printf("cluster state and heartbeat\n");
   ElcCanFrame f;
-  elc_can_encode_cluster_state(ElcCanClusterState{2, 3}, f);
-  CHECK(f.id == ELC_CAN_ID_CLUSTER_STATE && f.len == 2);
+  ElcCanClusterState st;
+  st.theme = 2;
+  st.center_subview = 3;
+  st.interface_screen = ELC_CAN_SCREEN_LEFT;
+  st.media_screen = ELC_CAN_SCREEN_RIGHT;
+  st.brightness = 60;
+  st.flags = ELC_CAN_CLUSTER_MEDIA_SHOWN;
+  elc_can_encode_cluster_state(st, f);
+  CHECK(f.id == ELC_CAN_ID_CLUSTER_STATE && f.len == 6);
   ElcCanClusterState c;
   CHECK(elc_can_decode_cluster_state(f, c) && c.theme == 2 && c.center_subview == 3);
+  CHECK(c.interface_screen == ELC_CAN_SCREEN_LEFT && c.media_screen == ELC_CAN_SCREEN_RIGHT);
+  CHECK(c.brightness == 60 && c.flags == ELC_CAN_CLUSTER_MEDIA_SHOWN);
+  // A center from before these settings: 2 bytes, defaults for the rest.
+  f.len = 2;
+  CHECK(elc_can_decode_cluster_state(f, c) && c.theme == 2 && c.interface_screen == ELC_CAN_SCREEN_CENTER);
+  CHECK(c.media_screen == ELC_CAN_SCREEN_CENTER && c.brightness == 100 && (c.flags & ELC_CAN_CLUSTER_DIM_WITH_LIGHTS));
+  // Out-of-range screens fall back to the center.
+  f.len = 6;
+  f.data[2] = 7;
+  CHECK(elc_can_decode_cluster_state(f, c) && c.interface_screen == ELC_CAN_SCREEN_CENTER);
   f.len = 1;
   CHECK(!elc_can_decode_cluster_state(f, c));
+
+  ElcCanSettingRequest rq{ELC_CAN_SET_MEDIA_SCREEN, ELC_CAN_SCREEN_LEFT, ELC_CAN_NODE_TSPS};
+  elc_can_encode_setting_request(rq, f);
+  ElcCanSettingRequest rr;
+  CHECK(f.id == ELC_CAN_ID_SETTING_REQUEST && elc_can_decode_setting_request(f, rr));
+  CHECK(rr.setting == ELC_CAN_SET_MEDIA_SCREEN && rr.value == ELC_CAN_SCREEN_LEFT && rr.from_node == ELC_CAN_NODE_TSPS);
+
+  ElcCanCenterStatus cs;
+  cs.flags = ELC_CAN_STATUS_WIFI | ELC_CAN_STATUS_GPS_FIX;
+  cs.rssi = -61;
+  cs.text_serial = 17;
+  elc_can_encode_center_status(cs, f);
+  ElcCanCenterStatus cr;
+  CHECK(elc_can_decode_center_status(f, cr) && cr.flags == cs.flags && cr.rssi == -61 && cr.text_serial == 1);
+
+  ElcCanFrame tf[ELC_CAN_TEXT_CHUNKS];
+  elc_can_encode_text(ELC_CAN_ID_CENTER_TEXT, 4, "Garage", tf);
+  ElcCanTextDecoder td(ELC_CAN_ID_CENTER_TEXT);
+  bool done = false;
+  for (size_t i = 0; i < ELC_CAN_TEXT_CHUNKS; i++) done = td.feed(tf[i]);
+  CHECK(done && std::strcmp(td.text(), "Garage") == 0 && td.serial() == 4);
+  ElcCanTextDecoder other(0x401);
+  CHECK(!other.feed(tf[0]));
 
   ElcCanHeartbeat h;
   h.node = ELC_CAN_NODE_SLOT0 + 2;
