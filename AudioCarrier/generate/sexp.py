@@ -39,11 +39,11 @@ def parse(s):
 def grab_symbol(libfile, name):
     """Return the raw text of one top-level symbol of a .kicad_sym file."""
     s = open(libfile).read()
-    key = '\n  (symbol "%s" ' % name
-    i = s.find(key)
-    if i < 0:
-        key = '\n  (symbol "%s"\n' % name
-        i = s.find(key)
+    i = -1
+    for key in ('\n  (symbol "%s" ', '\n  (symbol "%s"\n', '\n\t(symbol "%s"\n', '\n\t(symbol "%s" '):
+        i = s.find(key % name)
+        if i >= 0:
+            break
     if i < 0:
         raise KeyError(name)
     i += 1

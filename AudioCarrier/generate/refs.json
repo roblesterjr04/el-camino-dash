@@ -20,34 +20,34 @@
   "value": "PWR_FLAG"
  },
  "C1": {
-  "fp": "Capacitor_SMD:CP_Elec_5x5.4",
+  "fp": "Capacitor_SMD:C_0805_2012Metric",
   "group": "power",
-  "value": "47u"
+  "value": "22u"
  },
  "C10": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "boot",
+  "value": "1u"
+ },
+ "C11": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "can",
   "value": "100n"
  },
- "C11": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "dac_f",
-  "value": "2.2u"
- },
  "C12": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "dac_f",
-  "value": "2.2u"
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "can",
+  "value": "100n"
  },
  "C13": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_f",
-  "value": "100n"
+  "value": "2.2u"
  },
  "C14": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_f",
-  "value": "10u"
+  "value": "2.2u"
  },
  "C15": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
@@ -55,7 +55,7 @@
   "value": "100n"
  },
  "C16": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_f",
   "value": "10u"
  },
@@ -65,9 +65,9 @@
   "value": "100n"
  },
  "C18": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_f",
-  "value": "10u"
+  "value": "100n"
  },
  "C19": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
@@ -75,14 +75,14 @@
   "value": "100n"
  },
  "C2": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "power",
   "value": "10u"
  },
  "C20": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_f",
-  "value": "10u"
+  "value": "2.2n"
  },
  "C21": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
@@ -91,28 +91,28 @@
  },
  "C22": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "dac_f",
-  "value": "2.2n"
+  "group": "dac_r",
+  "value": "2.2u"
  },
  "C23": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_r",
   "value": "2.2u"
  },
  "C24": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "dac_r",
-  "value": "2.2u"
- },
- "C25": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_r",
   "value": "100n"
  },
- "C26": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+ "C25": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_r",
   "value": "10u"
+ },
+ "C26": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "dac_r",
+  "value": "100n"
  },
  "C27": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
@@ -120,69 +120,69 @@
   "value": "100n"
  },
  "C28": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_r",
-  "value": "10u"
+  "value": "100n"
  },
  "C29": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_r",
-  "value": "100n"
+  "value": "2.2n"
  },
  "C3": {
-  "fp": "Capacitor_Tantalum_SMD:CP_EIA-3528-21_Kemet-B",
+  "fp": "Capacitor_Tantalum_SMD:CP_EIA-3216-18_Kemet-A",
   "group": "power",
   "value": "22u tant"
  },
  "C30": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "dac_r",
-  "value": "10u"
+  "value": "2.2n"
  },
  "C31": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "dac_r",
-  "value": "100n"
+  "group": "mic",
+  "value": "10u"
  },
  "C32": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
-  "group": "dac_r",
-  "value": "10u"
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mic",
+  "value": "100p"
  },
  "C33": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "dac_r",
-  "value": "2.2n"
+  "group": "mic",
+  "value": "1u"
  },
  "C34": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "dac_r",
-  "value": "2.2n"
- },
- "C35": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
   "group": "mic",
   "value": "10u"
+ },
+ "C35": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mic",
+  "value": "100p"
  },
  "C36": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mic",
-  "value": "100p"
+  "value": "10u"
  },
  "C37": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mic",
   "value": "1u"
  },
  "C38": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mic",
-  "value": "10u"
+  "value": "1u"
  },
  "C39": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mic",
-  "value": "100p"
+  "value": "1u"
  },
  "C4": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
@@ -190,63 +190,38 @@
   "value": "100n"
  },
  "C40": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
-  "group": "mic",
-  "value": "10u"
- },
- "C41": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "mic",
-  "value": "1u"
- },
- "C42": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "mic",
-  "value": "1u"
- },
- "C43": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "mic",
-  "value": "1u"
- },
- "C44": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mic",
   "value": "100n"
+ },
+ "C41": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "adc",
+  "value": "100n"
+ },
+ "C42": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "adc",
+  "value": "10u"
+ },
+ "C43": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "adc",
+  "value": "100n"
+ },
+ "C44": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "adc",
+  "value": "10u"
  },
  "C45": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "adc",
   "value": "100n"
  },
- "C46": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
-  "group": "adc",
-  "value": "10u"
- },
- "C47": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "adc",
-  "value": "100n"
- },
- "C48": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
-  "group": "adc",
-  "value": "10u"
- },
- "C49": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "adc",
-  "value": "100n"
- },
  "C5": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "power",
-  "value": "10u"
- },
- "C50": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
-  "group": "adc",
   "value": "10u"
  },
  "C6": {
@@ -255,27 +230,27 @@
   "value": "100n"
  },
  "C7": {
-  "fp": "Capacitor_SMD:C_1206_3216Metric",
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "power",
   "value": "10u"
  },
  "C8": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "boot",
-  "value": "1u"
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "esp",
+  "value": "10u"
  },
  "C9": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "can",
+  "group": "esp",
   "value": "100n"
  },
  "FB1": {
-  "fp": "Inductor_SMD:L_0805_2012Metric",
+  "fp": "Inductor_SMD:L_0603_1608Metric",
   "group": "power",
   "value": "600R @100MHz"
  },
  "FB2": {
-  "fp": "Inductor_SMD:L_0805_2012Metric",
+  "fp": "Inductor_SMD:L_0603_1608Metric",
   "group": "power",
   "value": "600R @100MHz"
  },
@@ -290,29 +265,9 @@
   "value": "Program"
  },
  "J2": {
-  "fp": "AudioCarrier:RCA_Jack_SameSky_RCJ-02_Vertical",
-  "group": "rca",
-  "value": "RCA FL (white)"
- },
- "J3": {
-  "fp": "AudioCarrier:RCA_Jack_SameSky_RCJ-02_Vertical",
-  "group": "rca",
-  "value": "RCA FR (red)"
- },
- "J4": {
-  "fp": "AudioCarrier:RCA_Jack_SameSky_RCJ-02_Vertical",
-  "group": "rca",
-  "value": "RCA RL (white)"
- },
- "J5": {
-  "fp": "AudioCarrier:RCA_Jack_SameSky_RCJ-02_Vertical",
-  "group": "rca",
-  "value": "RCA RR (red)"
- },
- "J6": {
-  "fp": "Connector_Audio:Jack_3.5mm_CUI_SJ1-3523N_Horizontal",
-  "group": "mic",
-  "value": "3.5mm TRS mic in"
+  "fp": "Connector_JST:JST_PH_B9B-PH-K_1x09_P2.00mm_Vertical",
+  "group": "audio_io",
+  "value": "Audio I/O"
  },
  "JP1": {
   "fp": "Jumper:SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm",
@@ -420,9 +375,9 @@
   "value": "BOOT"
  },
  "U1": {
-  "fp": "RF_Module:ESP32-WROOM-32",
+  "fp": "AudioCarrier:ESP32-PICO-MINI-02",
   "group": "esp",
-  "value": "ESP32-WROOM-32E"
+  "value": "ESP32-PICO-MINI-02"
  },
  "U2": {
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
@@ -430,9 +385,9 @@
   "value": "MCP2562-E/SN"
  },
  "U3": {
-  "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+  "fp": "Package_SO:VSSOP-8_3x3mm_P0.65mm",
   "group": "mic",
-  "value": "OPA2376AID"
+  "value": "OPA2376AIDGK"
  },
  "U4": {
   "fp": "Package_SO:TSSOP-14_4.4x5mm_P0.65mm",
