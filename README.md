@@ -34,7 +34,7 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
 | `arduino/sketches/encoder_controller` | RP2040 knobs / IR / OLED |
 | `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |
 | `scripts/export_*_rgb565_assets.py` | Regenerate the `*_gen.h` image headers from `assets/` |
-| `docs/protocols` | Wire formats: sensor UART, cluster/audio I2C, encoder UART |
+| `docs/protocols` | Wire formats: sensor UART, cluster/audio I2C, encoder UART; console OLED over CAN (proposal) |
 | `tools/screenshot.py` | Screenshot a display over its USB console (`shot` command) |
 | `WIRING_PINOUT.md` | Vehicle harness |
 
@@ -70,6 +70,6 @@ firmware/esp32_p4_common/test/host/run_tests.sh   # sensor UART parser, runs on 
 
 ## Status / open items
 
-- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`); it needs a host (likely a spare UART on the center) and a decision on what the knobs and OLED do.
+- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The current plan is to make it a CAN node with its own MCU: see `docs/protocols/console_oled_can.md` for the screens, controls and draft frames.
 - **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
 - **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.
