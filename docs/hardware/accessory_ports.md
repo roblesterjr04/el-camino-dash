@@ -1,7 +1,21 @@
 # Accessory ports and carrier boards
 
-**Status: planned.** This is the target for the next DigiDash board revision. The current board still has three
-ESP32-DevKitC slots (U3 / U11 / U12) and the console header J17 (`docs/protocols/can_bus.md`).
+**Status: in the DigiDash schematic and PCB, placed but not routed.** The three ESP32-DevKitC slots (U3 / U11 / U12),
+their transceivers and the amplifier sockets J14 / J15 are gone. On the board now:
+
+| Part | What | Placed at (back, mm) |
+| --- | --- | --- |
+| J18, J19, J20, J21 | header positions 1–4 (`DigiDash_Accessory:Port_Header_2x05`) | (−74, 28.5), (−16, 28.5), (−84, 74), (−84.7, 97.3) |
+| J17, J22 | cable ports 1–2 (JST GH BM04B-GHS-TBT) | (42.8, 68.3), (101.2, 69.5) |
+| F1–F8 | 0.5 A PTCs (MF-R050): +5 V and +12 V for each header position | beside their position |
+| F9, F10 | 0.5 A PTCs: +5 V for each cable port | beside J17 |
+| D2 | NUP2105L CAN ESD clamp (SOT-23) | (34.5, 59.7) |
+
+Everything is placed from the old slot areas outward, clear of other parts' courtyards and of existing copper, and with
+a 50 × 26 mm carrier envelope kept free of back-side parts at each header position. The cable ports could not get an
+edge spot free of existing tracks; move them to the edge when the board is routed. The screen headers will move once
+the screens are laid out with the bezel, so none of this is routed yet: run **Update PCB from Schematic**, refill the
+zones (**B**) and route. Five track segments on CL_SCL, CAN_RX_L and Illumination that crossed J20 / J21 were removed.
 
 Accessories no longer plug into slots shaped for one module. The DigiDash board offers **ports**, and every
 accessory is a **carrier board** with its own MCU and CAN transceiver, in whatever shape suits it. A port carries only
@@ -24,11 +38,11 @@ other plug-in boards that are **not** accessory ports and stay as they are: the 
 straight into the center's camera pins) and the FRAM board (FRAM1, on the ATmega). They, and the tall or
 cable-bearing parts, are keep-outs for carrier positions:
 
-| Area on the back (board coordinates, mm) | Today | Next revision |
+| Area on the back (board coordinates, mm) | First revision | Now |
 | --- | --- | --- |
-| x −97…−51, y 16…41 | U11 DevKit (slot 1) | header position |
-| x −39…7, y 16…41 | U12 DevKit (slot 2) | header position |
-| x −112…−55, y 62…112 | U3 DevKit (slot 0, audio) and the J14 / J15 amplifier sockets | one or two header positions (the audio carrier) |
+| x −97…−51, y 16…41 | U11 DevKit (slot 1) | header position J18 |
+| x −39…7, y 16…41 | U12 DevKit (slot 2) | header position J19 |
+| x −112…−55, y 62…112 | U3 DevKit (slot 0, audio) and the J14 / J15 amplifier sockets | header positions J20, J21 |
 | x ≈112…125, y 71…94 and toward the right edge | J13 TVP5150 video module | keep-out |
 | x ≈132…138, y 22…39 | FRAM board | keep-out |
 | x 16…34, y 80…110 | LM2576 (TO-220, standing), L1, C3 | keep-out (tall) |
@@ -83,7 +97,7 @@ Footprints: [`DigiDash/DigiDash_Accessory.pretty`](../../DigiDash/DigiDash_Acces
   and `Carrier_Header_2x05` goes on the carrier as drawn (socket on the carrier's bottom side). The board-to-board height follows from the parts: a boxed header and an 8.5 mm female
   header give about 11 mm. Check it against the parts on hand before ordering standoffs.
 - **Envelope**: a carrier may be any shape that clears the neighbouring positions. The space per position and the
-  height limit under the enclosure are set with the board revision.
+  height limit under the enclosure are set when the board is laid out against the bezel.
 
 ### Ribbon
 
@@ -104,8 +118,8 @@ off-the-shelf GH CAN cables, splitters and terminator plugs fit:
 
 The **console** (ESP32-S3, SSD1322 OLED, encoders; `docs/protocols/can_bus.md`) uses a cable port. It is not
 special: any off-board device can use one, and the console would also work from a header position on a ribbon.
-The board revision should have two cable ports. The current J17 (JST PH, 1 +5 V, 2 GND, 3 CANL, 4 CANH) is replaced
-by this one; the pin order changes.
+The board has two cable ports, J17 (the console) and J22 (spare). J17 was a JST PH with 1 +5 V, 2 GND, 3 CANL, 4 CANH
+on the first revision; the pin order changed with the connector.
 
 A device that needs more than 0.5 A, or +12 V, uses a header position instead (or a ribbon from one).
 
@@ -139,9 +153,10 @@ jumper or setting on the carrier moves it when two of the same kind are fitted. 
 | `0x13` | `0x4C0`–`0x4FF` | console |
 | `0x14`–`0x1B` | `0x400 + 0x40·(node − 0x10)`, up to `0x6FF` | further accessories |
 
-The ranges are the same as today's (slot 0 = `0x400`, console = `0x4C0`); what changes is who picks the number. When
-the board is reworked the console moves from node `0x04` to `0x13` (it has no firmware yet), and the audio bridge
-stops reading the slot straps and uses `0x10` unless told otherwise.
+The ranges are the same as the first revision's (slot 0 = `0x400`, console = `0x4C0`); what changed is who picks the
+number. The console is node `0x13` (`ELC_CAN_NODE_CONSOLE`; it was `0x04` before it had firmware). The audio bridge
+still reads its two straps (GPIO13 / GPIO23, pull-ups, grounded = 1): on a carrier they are simply left open (node
+`0x10`), or a jumper to GND picks `0x11` / `0x12`.
 
 ## Choosing the MCU for a carrier
 

@@ -54,15 +54,18 @@ static const uint8_t ELC_CAN_AUDIO_MSG_ART_DATA = 0x03;   // art id u8, variant 
 // ---- heartbeats: 0x700 + node, 1 Hz ----
 static const uint16_t ELC_CAN_ID_HEARTBEAT_BASE = 0x700;  // node type u8, fw version u16, uptime s u32, flags u8
 
-// Node numbers. Slots are 0x10 + slot (slot from the SLOT_ID straps on the DigiDash board).
+// Node numbers. Accessories (carrier boards on the DigiDash accessory ports, docs/hardware/accessory_ports.md) are
+// 0x10 + index, message range 0x400 + 0x40 * index. The index comes from the carrier itself: the audio bridge reads
+// two straps (GPIO13 / GPIO23, grounded = 1, open = 0), so a carrier with none fitted is 0x10.
 static const uint8_t ELC_CAN_NODE_CENTER = 0x01;
 static const uint8_t ELC_CAN_NODE_SPEEDO = 0x02;  // left screen
 static const uint8_t ELC_CAN_NODE_TSPS = 0x03;    // right screen
-static const uint8_t ELC_CAN_NODE_CONSOLE = 0x04;  // OLED + knobs board on the J17 cable (planned)
+static const uint8_t ELC_CAN_NODE_CONSOLE = 0x13;  // OLED + knobs board (ESP32-S3) on cable port J17 (planned); range 0x4C0
 static const uint8_t ELC_CAN_NODE_SLOT0 = 0x10;
 static const uint8_t ELC_CAN_MAX_NODES = 0x20;
 
 enum class ElcCanNodeType : uint8_t { Display = 0, AudioBridge = 1, Console = 2, Unknown = 0xFF };
 
-// Console (planned): owns 0x4C0..0x4FF, right after the three slot ranges. Messages defined with its firmware.
+// Console (planned): node 0x13, so it owns 0x4C0..0x4FF, the fourth accessory range. Messages defined with its
+// firmware. The audio decoders only look at the first three ranges (elc_can_slot_of), so they never see it.
 static const uint16_t ELC_CAN_ID_CONSOLE_BASE = 0x4C0;

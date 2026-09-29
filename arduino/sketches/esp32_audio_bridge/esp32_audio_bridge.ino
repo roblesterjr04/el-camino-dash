@@ -16,10 +16,11 @@
  * ESP32-P4 center (Waveshare): connect this chip's I2C to the **same bus** as the round
  * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (this chip: SDA=GPIO21, SCL=GPIO22).
  *
- * CAN accessory (DigiDash slot 0): when built with the elc_can library (PlatformIO,
- * firmware/esp32_classic_bt_audio), the bridge joins the CAN bus through its slot's MCP2562
- * (TX = GPIO32, RX = GPIO33; slot number from the GPIO13/GPIO23 straps). It sends a heartbeat and
- * the now-playing text + transport in its slot's ID range, and serves album art on request
+ * CAN accessory (an audio carrier on a DigiDash accessory port, docs/hardware/accessory_ports.md; or slot 0 on
+ * the first board revision): when built with the elc_can library (PlatformIO, firmware/esp32_classic_bt_audio),
+ * the bridge joins the CAN bus through the carrier's MCP2562 (TX = GPIO32, RX = GPIO33). Its node number comes from
+ * the GPIO13 / GPIO23 straps (grounded = 1): leave both open for node 0x10. It sends a heartbeat and
+ * the now-playing text + transport in its node's ID range, and serves album art on request
  * (docs/protocols/can_bus.md). CAN is the link in the car: the I2C slaves (0x2A metadata, 0x3E
  * theme) are for bench testing only and are started only when AUDIO_BRIDGE_I2C=1 (PlatformIO env
  * esp32dev_bench, or the plain arduino-cli build, which has no CAN).
@@ -48,7 +49,7 @@
 #else
 #define AUDIO_BRIDGE_CAN 0
 #endif
-// DigiDash slot pinout: CAN TX/RX to the slot's transceiver, SLOT_ID straps (grounded = 1).
+// Carrier pinout: CAN TX/RX to the carrier's transceiver, node straps (grounded = 1; open = 0 = node 0x10).
 #ifndef ELC_CAN_TX_PIN
 #define ELC_CAN_TX_PIN 32
 #endif

@@ -50,10 +50,10 @@ Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
 
 ## CAN bus
 
-On the DigiDash board every display and accessory slot also sits on a 500 kbit/s CAN bus (one MCP2562 each; displays
-TX GPIO34 / RX GPIO36, slots TX GPIO32 / RX GPIO33). The center re-sends sensor frames (`0x100`–`0x104`) and the
+On the DigiDash board every display and accessory carrier also sits on a 500 kbit/s CAN bus (one MCP2562 each; displays
+TX GPIO34 / RX GPIO36, the audio carrier TX GPIO32 / RX GPIO33). The center re-sends sensor frames (`0x100`–`0x104`) and the
 theme (`0x210`); speedo/TSPS take the theme from CAN or I2C, whichever arrives. The audio bridge sends now-playing,
-transport and album art in its slot range, and in the car that is the only audio link: the center's I2C audio code
+transport and album art in its node's range, and in the car that is the only audio link: the center's I2C audio code
 (`0x2A`, theme to `0x3E`) is compiled in only by its `*-bench` envs (`CENTER_AUDIO_I2C=1`), paired with the bridge's
 `esp32dev_bench` env. Every node sends a 1 Hz heartbeat. Pins are build flags
 (`ELC_CAN_TX_PIN` / `ELC_CAN_RX_PIN`, `-1` = off). Spec: [docs/protocols/can_bus.md](../docs/protocols/can_bus.md).
@@ -63,10 +63,10 @@ transport and album art in its slot range, and in the car that is the only audio
 | Directory | Role |
 |-----------|------|
 | `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, demo drive), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
-| `elc_can/` | Shared **CAN** library (displays and slot cards): IDs, frame codecs, TWAI driver wrapper with heartbeat and bus-off recovery. Host unit tests: `test/host/run_tests.sh`. |
+| `elc_can/` | Shared **CAN** library (displays and accessories): IDs, frame codecs, TWAI driver wrapper with heartbeat and bus-off recovery. Host unit tests: `test/host/run_tests.sh`. |
 | `esp32_p4_ui/` | Shared **screen, touch and faces**: `p4_screen` (LVGL, double-buffered panel, optional legacy GFX layer, screenshot), `gauges/` (all gauge faces), `fonts/` (LVGL fonts), `gauge_console` (bench console for speedo/TSPS), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
 | `esp32_p4_display/` | **All three round displays**, one image. At boot each board reads its position strap (header pin 17 = GPIO4 on the DigiDash board: J5 left → 1 kΩ to GND, J4 right → 1 kΩ to its 3V3, J1 center → open) and runs as **LEFT** speedometer, **CENTER** (tach / clock / media / efficiency, Wi-Fi, GPS, SD, BLE, camera, the cluster settings; I2C cluster master) or **RIGHT** fuel / oil / coolant / charge (Classic has two layouts). `src/main.cpp` picks `center_*` or `side_*`; see `src/display_role.h`. |
-| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory in DigiDash slot 0: now-playing, transport, album art). `esp32dev_bench` adds the bench I2C slaves (`0x2A` metadata, `0x3E` theme). |
+| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory on an audio carrier, node 0x10: now-playing, transport, album art). `esp32dev_bench` adds the bench I2C slaves (`0x2A` metadata, `0x3E` theme). |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
 ## Panel targets

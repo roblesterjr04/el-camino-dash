@@ -12,7 +12,7 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
   hall, coil, IGN, ALT) │  odometer, A/B slots                                  └──► TSPS    (ESP32-P4, right)
                                                                                         ▲  ▲
  GPS (NEO-6M, NMEA 9600) ─────────────────────────────────── UART2 ─────────────── center │
- phone ── A2DP/AVRCP ──► ESP32-D audio bridge (DigiDash slot 0) ── CAN ─────────── center  │
+ phone ── A2DP/AVRCP ──► ESP32-D audio bridge (carrier on J18-J21) ── CAN ─────── center  │
                                                center ── cluster I2C (theme) ──► speedo 0x3C, TSPS 0x3D
  encoder controller (RP2040: knobs, IR, SSD1322 OLED) ── UART ──► (not yet connected to an ESP32 — see Status)
 ```
@@ -20,14 +20,16 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
 **CAN bus** (DigiDash board, 500 kbit/s, one MCP2562 per node, 120 Ω at the left and right screens):
 
 ```
- left (speedo) ── slot 0 (audio bridge) ── slot 1 ── slot 2 ── center ── right (TSPS)
-                                                                     └─ J17 short cable ── console (OLED + knobs)
+ left (speedo) ── accessory ports J18..J21 ── cable ports J17 / J22 ── center ── right (TSPS)
+                    (carrier boards)            └─ short GH cable ── console (OLED + knobs, ESP32-S3)
 ```
 
-The center re-sends each sensor frame and the theme on CAN; the three ESP32-DevKitC slots are drop-in accessory
-sockets that find their slot number from board straps. The audio bridge talks to the center over CAN only (its I2C
-link is for bench setups). The console (OLED + knobs) is its own board on a short 4-pin cable to J17 (+5 V, GND, CANL,
-CANH); it is an unterminated branch, so the bus works with it unplugged. See `docs/protocols/can_bus.md`.
+The center re-sends each sensor frame and the theme on CAN. Accessories are carrier boards with their own MCU and
+transceiver on generic ports: four 2×5 header positions on the back of the board and two JST GH cable ports, each
+with fused +5 V (and +12 V on the headers); see `docs/hardware/accessory_ports.md`. The audio bridge is one such
+carrier and talks to the center over CAN only (its I2C link is for bench setups). The console (OLED + knobs) is its own
+board on a short cable to cable port J17; accessories never terminate the bus, so it works with any of them unplugged.
+See `docs/protocols/can_bus.md`.
 
 - **sensor_pack** is the source of truth for all readings and the odometer. One TX fans out to all three displays; only the center sends the 0xA5 keepalive back.
 - **center** also owns GPS time/location, Wi-Fi (NTP, street name, time zone), touch menu, BLE, SD settings, and theme sync to the other two displays.
@@ -38,7 +40,7 @@ CANH); it is an unterminated branch, so the bus works with it unplugged. See `do
 | Path | What |
 | --- | --- |
 | `firmware/esp32_p4_display` | The round displays: one firmware, position (left / center / right) from a strap on the DigiDash board (PlatformIO, Arduino framework) |
-| `firmware/elc_can` | Shared CAN (TWAI) library for the displays and slot cards: IDs, frame codecs, heartbeat. Host tests in `test/host/` |
+| `firmware/elc_can` | Shared CAN (TWAI) library for the displays and accessories: IDs, frame codecs, heartbeat. Host tests in `test/host/` |
 | `firmware/esp32_p4_common` | Shared library: sensor UART (`SensorLink`), display setup, cluster I2C, watchdog, boot splash. Host tests in `test/host/` |
 | `firmware/esp32_p4_ui` | Shared LVGL layer: gauge faces, the menu (on any round screen), media over CAN, touch |
 | `firmware/esp32_classic_bt_audio` | PlatformIO wrapper that builds `arduino/sketches/esp32_audio_bridge` |
@@ -85,6 +87,6 @@ firmware/elc_can/test/host/run_tests.sh           # CAN frame codecs
 
 ## Status / open items
 
-- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable at the end of the CAN bus; its connector J17 is on the DigiDash board (`docs/protocols/can_bus.md`). The next board revision replaces the three DevKit slots with generic accessory ports and carrier boards (`docs/hardware/accessory_ports.md`).
+- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable off the CAN bus. Its connector is cable port J17 (JST GH) on the DigiDash board (`docs/hardware/accessory_ports.md`).
 - **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
 - **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.

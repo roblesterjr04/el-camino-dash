@@ -132,29 +132,26 @@ Registers (1 byte data each): **0x01** = theme (0 Classic, 1 Fallout); **0x02** 
 
 **Center:** **`TwoWire(1)`** as **master** on **47/48** to broadcast to slaves after long-press gestures.
 
-### CAN bus (all three displays + accessory slots)
+### CAN bus (three displays + accessory ports)
 
-Full spec: [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md). One **MCP2562-E/P** (DIP-8) per node on the
+Full spec: [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md). One **MCP2562-E/P** (DIP-8) per screen on the
 DigiDash board: VDD 5 V, Vio 3.3 V, STBY to GND, 10 kΩ TXD pull-up to 3.3 V. **120 Ω termination only at the left
-(R35 on U5) and right (R36 on U10) screens.** Route CANH/CANL as a pair: U5 → U6 → U7 → U8 → U9 → U10. **J16** is a
-CANH / CANL / GND tap for a USB-CAN adapter; **J17** beside it is the console cable.
+(R35 on U5) and right (R36 on U10) screens.** Route CANH/CANL as a pair from U5 past the accessory ports and U9 to
+U10. **J16** is a CANH / CANL / GND tap for a USB-CAN adapter; D2 (NUP2105L) is the bus ESD clamp.
 
 | Node | Transceiver | CAN TX | CAN RX |
 | ---- | ----------- | ------ | ------ |
 | Left screen (J5) | U5 | GPIO34 (header pin 31) | GPIO36 (header pin 23) |
-| Slot 0 (U3, audio bridge) | U6 | GPIO32 | GPIO33 (via 1 kΩ R28) |
-| Slot 1 (U11) | U7 | GPIO32 | GPIO33 (via 1 kΩ R30) |
-| Slot 2 (U12) | U8 | GPIO32 | GPIO33 (via 1 kΩ R32) |
 | Center screen (J1) | U9 | GPIO34 (header pin 31) | GPIO36 (header pin 23) |
 | Right screen (J4) | U10 | GPIO34 (header pin 31) | GPIO36 (header pin 23) |
 
-**Accessory slots** U3 / U11 / U12 all use the ESP32-DevKitC footprint (back side). Each gets 5 V + GND and its CAN
-pair; the DevKit's 3V3 pin stays unconnected. Slot number straps (read with pull-ups, grounded = 1): **GPIO13** is
-grounded on slot 1, **GPIO23** on slot 2, neither on slot 0. Slot 0 additionally keeps the audio wiring below (I2S amps J14/J15, and an
-I2C link to the center that only bench firmware uses).
+**Accessory ports** ([`docs/hardware/accessory_ports.md`](docs/hardware/accessory_ports.md)): four 2×5 header
+positions **J18–J21** on the back (1, 2 +5 V; 3, 4, 7 GND; 5 CANH; 6 CANL; 8 +12 V switched; 9, 10 reserved; asymmetric
+M3 standoff holes) and two JST GH cable ports **J17 / J22** (1 +5 V, 2 CANH, 3 CANL, 4 GND). Every 5 V and 12 V feed
+has its own 0.5 A PTC (F1–F10). Carriers bring their own MCU and MCP2562 and never terminate the bus.
 
-**Console cable (J17, JST PH 4-pin next to J16):** 1 = +5 V, 2 = GND, 3 = CANL, 4 = CANH (twisted pair). The console
-(OLED + knobs board) is an unterminated branch: R35/R36 stay the only terminators, so the bus works with it unplugged,
+**Console cable (cable port J17, JST GH 4-pin):** 1 = +5 V, 2 = CANH, 3 = CANL, 4 = GND (CANH/CANL twisted). The console
+(OLED + knobs board, ESP32-S3) is an unterminated branch: R35/R36 stay the only terminators, so the bus works with it unplugged,
 and the console board must not fit a 120 Ω. Keep the cable short (under ~30 cm at 500 kbit/s). Details in
 [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md#console-cable-j17).
 
@@ -207,15 +204,16 @@ Use **`arduino/sketches/esp32_audio_bridge/esp32_audio_bridge.ino`** (or `firmwa
 
 Optional: connect ESP32-D to the **cluster** bus (**47/48**) as slave **0x3E** to mirror the global **theme** byte in NVS (see firmware).
 
-On the DigiDash board the ESP32-D sits in **accessory slot 0 (U3)** and talks to the center over the **CAN bus** only
-(TX GPIO32, RX GPIO33 through U6): now-playing, transport and album art. The I2C wiring above is for **bench** setups
-without transceivers: it is used only by the center's `*-bench` envs and the bridge's `esp32dev_bench` env.
+On the DigiDash board the ESP32-D sits on an **audio carrier** on one of the header positions and talks to the center
+over the **CAN bus** only (TX GPIO32, RX GPIO33 through the carrier's MCP2562; GPIO13 / GPIO23 open = node 0x10):
+now-playing, transport and album art. The I2C wiring above is for **bench** setups without transceivers: it is used
+only by the center's `*-bench` envs and the bridge's `esp32dev_bench` env.
 
-**I2S amplifier** (MAX98357A, `esp32dev_external_i2s` build): DIN = **GPIO27**, BCLK = **GPIO14**, LRC = **GPIO25**, VIN = 5 V,
-GND. GAIN can float (9 dB). On the DigiDash board: **J14** (Amp L) and **J15** (Amp R), 7-pin sockets in the
-Adafruit breakout order LRC, BCLK, DIN, GAIN, SD, GND, Vin. Each amp is mono; SD selects the channel: JP1 closed puts
-J14 on the left channel (open = L+R mix, for a single speaker); R25 (680 kΩ) puts J15 on the right. The DevKit's own 3V3 pin must not be tied to the
-center's 3V3 (two regulators); it runs from its 5V pin.
+**I2S amplifiers** (MAX98357A, `esp32dev_external_i2s` build) live on the audio carrier: DIN = **GPIO27**,
+BCLK = **GPIO14**, LRC = **GPIO25**, GAIN can float (9 dB). Each amp is mono; SD selects the channel (tied to VIN through
+a jumper = left, through 680 kΩ = right, open = L+R mix). Power the amps from the port's +12 V through a 5 V buck on the
+carrier (at full volume they draw more than the port's 0.5 A at 5 V). The DevKit runs from the port's +5 V; its own 3V3
+pin stays unconnected.
 
 ---
 
