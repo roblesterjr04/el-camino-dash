@@ -10,8 +10,9 @@
 #define SENSOR_PACKET_STALE_MS 400u
 #endif
 
-// Only ONE board should send the 0xA5 keepalive back to the sensor pack (the center, by default):
-// three push-pull TX pins tied to one RX would fight. Boards with this 0 never write to the UART.
+// Only ONE board should send the 0xA5 keepalive back to the sensor pack (the center): three push-pull TX pins
+// tied to one RX would fight. This is the default; the unified display firmware sets it at run time
+// (setKeepalive) from the board's position. Boards with it off never write to the UART.
 #ifndef SENSOR_LINK_KEEPALIVE
 #define SENSOR_LINK_KEEPALIVE 0
 #endif
@@ -55,6 +56,9 @@ class SensorLink {
   void setDemo(bool on);
   bool demo() const { return _demo; }
 
+  /** Send the 0xA5 keepalive (the center only). */
+  void setKeepalive(bool on) { _keepalive = on; }
+
  private:
   DemoDrive _drive;
   uint32_t _fps = 0;
@@ -68,4 +72,5 @@ class SensorLink {
   uint32_t _last_ms = 0;
   uint32_t _last_keepalive_ms = 0;
   bool _have = false;
+  bool _keepalive = SENSOR_LINK_KEEPALIVE;
 };

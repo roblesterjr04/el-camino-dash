@@ -8,6 +8,9 @@
 namespace {
 
 void handle(GaugeConsole &c, SensorLink &link, String &line) {
+  if (c.on_line && line.length() && c.on_line(line.c_str())) {
+    return;
+  }
   if (line == "shot") {
 #if ARDUINO_USB_CDC_ON_BOOT
     p4_screen_shot(Serial, nullptr, 0, 0);  // USB CDC: no baud to change
@@ -38,7 +41,7 @@ void handle(GaugeConsole &c, SensorLink &link, String &line) {
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
   } else if (line == "help") {
-    Serial.println("Commands: shot | perf | demo on|off | theme 0|1|2 | variant 0|1 | can");
+    Serial.println("Commands: shot | perf | demo on|off | theme 0|1|2 | variant 0|1 | can | role [left|center|right|auto]");
   } else if (line.length()) {
     Serial.println("err: unknown command (help)");
   }

@@ -28,7 +28,11 @@ each sensor frame onto CAN so accessory cards get the same data.
 | Slot 0 (U3, audio bridge) | U6 | GPIO32 | GPIO33 | `0x10` |
 | Slot 1 (U11) | U7 | GPIO32 | GPIO33 | `0x11` |
 | Slot 2 (U12) | U8 | GPIO32 | GPIO33 | `0x12` |
-| Console (own board, cable to J17) | on the console | its DevKit's pins | | `0x04` |
+| Console (own board, cable to J17) | on the console | ESP32-S3, pins set in its firmware | | `0x04` |
+
+The three screens run the same firmware; each takes its node number from its position strap (header pin 17 = GPIO4:
+J5 to GND = left, J4 to 3V3 = right, J1 open = center; see `WIRING_PINOUT.md`). A screen that hears a heartbeat with
+its own node number warns on its console: two boards claim the same position.
 
 GPIO34/36 are P4 strapping pins but safe here: boot mode is set by GPIO35 (left pulled up), GPIO36 only
 matters when GPIO35 is low, and the TXD pull-up holds GPIO34 high during reset.
@@ -37,7 +41,7 @@ Build flags: `ELC_CAN_TX_PIN` / `ELC_CAN_RX_PIN` (set in each `platformio.ini`; 
 
 ### Console cable (J17)
 
-The console is its own board: an ESP32-DevKitC-32 (the same module as the slots), one MCP2562, the SSD1322 256×64
+The console is its own board: an ESP32-S3 dev board (its TWAI controller drives one MCP2562), the SSD1322 256×64
 OLED on SPI, the Select and Volume encoders and the Back and View keys. One cable runs from it to **J17** on the
 DigiDash board, a JST PH 4-pin vertical header (B4B-PH-K) next to the J16 debug tap:
 
@@ -56,7 +60,7 @@ DigiDash board, a JST PH 4-pin vertical header (B4B-PH-K) next to the J16 debug 
   If the console has to sit farther away (roughly beyond 1 m), run the whole bus at 250 kbit/s
   (`ELC_CAN_BITRATE_KBPS=250` on every node), which about doubles the branch length it tolerates.
 - **Power:** from the DigiDash +5 V rail (LM2576T-5, 3 A, shared with the three displays and the slots). Budget about
-  300 mA for the console (ESP32 with Wi-Fi off + OLED at full white); the console makes its own 3.3 V.
+  300 mA for the console (ESP32-S3 with Wi-Fi off + OLED at full white); the console makes its own 3.3 V.
 - Node `0x04`, node type 2, message range `0x4C0`–`0x4FF` (after the three slots). Its messages are defined when its
   firmware is written.
 

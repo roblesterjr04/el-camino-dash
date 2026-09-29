@@ -30,7 +30,7 @@ the panel (720×720, 800×800, or the centred 600×600 of a 1024×600 panel).
 The faces render on a Mac too, with the same code, which is how layouts are iterated without flashing:
 
 ```bash
-tools/gauge_preview/build.sh                                  # needs one PlatformIO build of the center (for LVGL)
+tools/gauge_preview/build.sh                                  # needs one PlatformIO build of the display firmware (for LVGL)
 python3 tools/gauge_preview/preview.py faces.png 0,1,0 2,1,0 1,1,0   # theme,face,variant — see the script
 ```
 
@@ -65,36 +65,41 @@ transport and album art in its slot range, and in the car that is the only audio
 | `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, demo drive), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
 | `elc_can/` | Shared **CAN** library (displays and slot cards): IDs, frame codecs, TWAI driver wrapper with heartbeat and bus-off recovery. Host unit tests: `test/host/run_tests.sh`. |
 | `esp32_p4_ui/` | Shared **screen, touch and faces**: `p4_screen` (LVGL, double-buffered panel, optional legacy GFX layer, screenshot), `gauges/` (all gauge faces), `fonts/` (LVGL fonts), `gauge_console` (bench console for speedo/TSPS), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
-| `esp32_p4_speedo/` | **LEFT**: speedometer (MPH from Hall `speed_rpm` + wheel constants). |
-| `esp32_p4_center/` | **MIDDLE**: tach / clock / media / efficiency faces, LVGL menu, long-press gestures; I2C cluster master. |
-| `esp32_p4_tsps/` | **RIGHT**: fuel / oil / coolant / charge; Classic has two layouts (**3 s hold** switches). |
+| `esp32_p4_display/` | **All three round displays**, one image. At boot each board reads its position strap (header pin 17 = GPIO4 on the DigiDash board: J5 left → 1 kΩ to GND, J4 right → 1 kΩ to its 3V3, J1 center → open) and runs as **LEFT** speedometer, **CENTER** (tach / clock / media / efficiency, Wi-Fi, GPS, SD, BLE, camera, the cluster settings; I2C cluster master) or **RIGHT** fuel / oil / coolant / charge (Classic has two layouts). `src/main.cpp` picks `center_*` or `side_*`; see `src/display_role.h`. |
 | `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory in DigiDash slot 0: now-playing, transport, album art). `esp32dev_bench` adds the bench I2C slaves (`0x2A` metadata, `0x3E` theme). |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
 ## Panel targets
 
-Each app has **two** PlatformIO environments:
+One environment per panel, never per position (`esp32_p4_display/platformio.ini`):
 
-- **`*-waveshare3c4`** — Waveshare **3.4\"** 800×800 (SH8601), `esp32p4_es`, QIO.
-- **`*-waveshare4c`** — **4\"** 720×720 (JD9365), PMIC + `TSPS_USE_JD9365`.
+- **`display-waveshare3c4`** — Waveshare **3.4\"** 800×800 (SH8601), `esp32p4_es`, QIO.
+- **`display-waveshare4c`** — **4\"** 720×720 (JD9365), PMIC + `TSPS_USE_JD9365`.
+- **`display-ev720`**, **`display-ev7`** — Espressif P4 EV board with a 720×720 JD9165 or its stock 7\" 1024×600.
+- **`*-bench`** — the center also reads an audio bridge wired to its I2C bus (no CAN transceivers).
 
 Use the env that matches the hardware; **do not** flash a 3.4C profile on a 4\" panel or vice versa.
+
+**Position.** The strap decides on the DigiDash board. Off the board (bench) the pin is open, so a board runs as the
+center; `role left|center|right` on its serial console stores an override in NVS and restarts, `role auto` clears it,
+and `role` shows what the strap reads. Two boards claiming the same position print a warning (their CAN heartbeats
+collide).
 
 ## Build / flash
 
 From the firmware directory:
 
 ```bash
-cd firmware/esp32_p4_tsps   # or speedo / center
+cd firmware/esp32_p4_display
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-./flash.sh -e esp32-p4-tsps-waveshare3c4 --upload-port /dev/cu.usbmodem…
+./flash.sh -e display-waveshare3c4 --upload-port /dev/cu.usbmodem…
 ```
 
-See each `platformio.ini` for env names.
+Or `firmware/flash_display.sh` (same image for every screen; `ENV=display-waveshare4c` for the 4" panel).
 
 ## UART wiring
 
-**sensor_pack TX** → **all three ESP32 UART RX** in parallel (same 115200 8N1 stream). Only the **center** sends the 0xA5 keepalive back (its GPIO 4 → sensor RX); speedo and TSPS never transmit. See [WIRING_PINOUT.md](../WIRING_PINOUT.md) for the full vehicle harness.
+**sensor_pack TX** → **all three ESP32 UART RX** in parallel (same 115200 8N1 stream). Only the **center** sends the 0xA5 keepalive back (its GPIO 4 → sensor RX, bench harness only: J1 leaves that pin open); the left and right screens open the UART receive-only, because on the DigiDash board their GPIO 4 is the position strap. See [WIRING_PINOUT.md](../WIRING_PINOUT.md) for the full vehicle harness.
 
 ## LVGL screen layer
 
@@ -115,7 +120,8 @@ Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
 - center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
   `drag <x> <y1> <y2> <ms>`, `knob left|right|press`, `menu on left|center|right`, `media on left|center|right`,
   `can`, plus the Wi-Fi/TZ commands;
-- speedo / TSPS: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (TSPS), `can`.
+- left / right: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (right), `can`;
+- every screen: `role [left|center|right|auto]` (position; see above).
 
 Grab a screenshot from the Mac with:
 

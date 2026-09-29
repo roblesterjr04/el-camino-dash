@@ -4,8 +4,8 @@
 set -e
 H=$(cd "$(dirname "$0")" && pwd)
 FW=$(cd "$H/../../firmware" && pwd)
-LV=${LVGL_DIR:-$FW/esp32_p4_center/.pio/libdeps/esp32-p4-center-waveshare3c4/lvgl}
-[ -f "$LV/lvgl.h" ] || { echo "LVGL not found at $LV: build the center firmware once, or set LVGL_DIR"; exit 1; }
+LV=${LVGL_DIR:-$FW/esp32_p4_display/.pio/libdeps/display-waveshare3c4/lvgl}
+[ -f "$LV/lvgl.h" ] || { echo "LVGL not found at $LV: build the display firmware once, or set LVGL_DIR"; exit 1; }
 O=$H/build
 mkdir -p $O/lvgl $O/fonts
 CF="-O2 -DLV_CONF_INCLUDE_SIMPLE -I$H/stub -I$FW/esp32_p4_ui/include -I$LV -I$LV/src -w"

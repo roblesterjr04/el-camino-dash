@@ -37,7 +37,7 @@ CANH); it is an unterminated branch, so the bus works with it unplugged. See `do
 
 | Path | What |
 | --- | --- |
-| `firmware/esp32_p4_speedo`, `_center`, `_tsps` | Display apps (PlatformIO, Arduino framework) |
+| `firmware/esp32_p4_display` | The round displays: one firmware, position (left / center / right) from a strap on the DigiDash board (PlatformIO, Arduino framework) |
 | `firmware/elc_can` | Shared CAN (TWAI) library for the displays and slot cards: IDs, frame codecs, heartbeat. Host tests in `test/host/` |
 | `firmware/esp32_p4_common` | Shared library: sensor UART (`SensorLink`), display setup, cluster I2C, watchdog, boot splash. Host tests in `test/host/` |
 | `firmware/esp32_p4_ui` | Shared LVGL layer: gauge faces, the menu (on any round screen), media over CAN, touch |
@@ -53,15 +53,16 @@ CANH); it is an unterminated branch, so the bus works with it unplugged. See `do
 
 ## Build and flash
 
-Display boards (pick the env that matches the panel: `-waveshare3c4` = 3.4" 800×800, `-waveshare4c` = 4" 720×720):
+Display boards: the same image on all three; each board finds its position from the strap on the DigiDash board
+(pick the env that matches the panel: `display-waveshare3c4` = 3.4" 800×800, `display-waveshare4c` = 4" 720×720):
 
 ```bash
-cd firmware/esp32_p4_center
+cd firmware/esp32_p4_display
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-./flash.sh -e esp32-p4-center-waveshare3c4 --upload-port /dev/cu.usbmodem…
+./flash.sh -e display-waveshare3c4 --upload-port /dev/cu.usbmodem…
 ```
 
-Or build only: `pio run -e esp32-p4-center-waveshare3c4`. Platform and library versions are pinned in each `platformio.ini`.
+Or build only: `pio run -e display-waveshare3c4`. Platform and library versions are pinned in each `platformio.ini`.
 
 Sensor pack (ATmega328P):
 
@@ -84,6 +85,6 @@ firmware/elc_can/test/host/run_tests.sh           # CAN frame codecs
 
 ## Status / open items
 
-- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-DevKitC-32, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable at the end of the CAN bus; its connector J17 is on the DigiDash board (`docs/protocols/can_bus.md`).
+- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable at the end of the CAN bus; its connector J17 is on the DigiDash board (`docs/protocols/can_bus.md`).
 - **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
 - **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.

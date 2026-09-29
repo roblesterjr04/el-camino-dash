@@ -32668,6 +32668,275 @@
 		)
 		(uuid "6349d370-4f99-4031-8790-b6d8d26c7e0e")
 	)
+	(symbol
+		(lib_id "Device:R")
+		(at 300.99 152.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "867d4378-0ef6-4eb2-a244-a7c2cbdfe465")
+		(property "Reference" "R37"
+			(at 303.53 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "1K"
+			(at 303.53 153.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal"
+			(at 300.99 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 300.99 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Position strap: left screen (J5 pin 17 = GPIO4) to GND"
+			(at 300.99 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "24148572-a1bf-4994-9f5e-0a04ce3b1c12")
+		)
+		(pin "2"
+			(uuid "c06b06d5-559b-40d3-b557-f088e38352ea")
+		)
+		(instances
+			(project "DigiDash"
+				(path "/479f45a1-9765-42dd-bf6c-c6d42e49cd79"
+					(reference "R37")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 320.04 152.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "642ec0a2-d00c-41fa-a607-276b3d216678")
+		(property "Reference" "R38"
+			(at 322.58 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "1K"
+			(at 322.58 153.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal"
+			(at 320.04 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 320.04 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Position strap: right screen (J4 pin 17 = GPIO4) to its own 3V3 (J4 pin 18)"
+			(at 320.04 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "ddf0225c-87ed-45b7-92c1-a405f169e6af")
+		)
+		(pin "2"
+			(uuid "06f11a7b-aff7-444c-aa63-22acae3fa80f")
+		)
+		(instances
+			(project "DigiDash"
+				(path "/479f45a1-9765-42dd-bf6c-c6d42e49cd79"
+					(reference "R38")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 300.99 156.21 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "f115d2d7-ee5f-4fd8-a378-f30bc728a029")
+		(property "Reference" "#PWR148"
+			(at 300.99 162.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 300.99 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 300.99 156.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 300.99 156.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 300.99 156.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "5786b1e8-2842-4130-a611-2011fce4f8ba")
+		)
+		(instances
+			(project "DigiDash"
+				(path "/479f45a1-9765-42dd-bf6c-c6d42e49cd79"
+					(reference "#PWR148")
+					(unit 1)
+				)
+			)
+		)
+	)	(label "POS_L"
+		(at 300.99 148.59 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "3135126f-0d80-4172-a5b9-5fdd5b118b74")
+	)
+	(label "POS_R"
+		(at 320.04 148.59 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "5137da3f-14bf-48b2-925f-d7d6c7f90b58")
+	)
+	(label "3V3_R"
+		(at 320.04 156.21 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "8c05a709-f8e4-4a99-8755-976b2a99f03b")
+	)
+	(label "POS_L"
+		(at 121.92 151.13 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "5567bc4b-3352-4813-b1ae-cd01fc38324d")
+	)
+	(label "POS_R"
+		(at 149.86 93.98 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "85a1d8e7-b401-43d1-b74c-193c96747d09")
+	)
+	(label "3V3_R"
+		(at 149.86 96.52 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "b5afa61f-cdf0-4bcd-a3c5-519733aab4d6")
+	)
+	(text "Screen position straps, header pin 17 (GPIO4), read at boot with the internal pulls:\nJ5 left: R37 1k to GND.  J4 right: R38 1k to that screen's own 3V3 (J4 pin 18).  J1 center: pin 17 open.\nOne firmware for all three screens: firmware/esp32_p4_display (src/display_role.h)."
+		(exclude_from_sim no)
+		(at 292.1 138.43 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "893a3296-8156-4d71-9228-f4a415dde2fe")
+	)
 	(sheet_instances
 		(path "/"
 			(page "1")

@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 
+/** Right screen: opens the "tsps" NVS namespace and the bench GPIO (touch is started by side_setup). */
 void theme_input_begin();
 
 // Last saved layout: true = classic 2 (four subgauges), false = classic 1 (fuel only).

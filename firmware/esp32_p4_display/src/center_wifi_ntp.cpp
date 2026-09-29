@@ -13,6 +13,7 @@
 #include <sensor_link.h>
 
 #include "center_ui.h"
+#include "display_role.h"
 
 #include "center_sd_settings.h"
 
@@ -155,9 +156,16 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
   if (line.length() == 0) {
     return;
   }
+  if (display_role_command(line.c_str())) {  // role [left|center|right|auto]
+    return;
+  }
   if (line == "shot" || line == "shot legacy") {
     // Screenshot of what the panel shows (or the legacy drawing layer); tools/screenshot.py drives this.
+#if ARDUINO_USB_CDC_ON_BOOT
+    p4_screen_shot(Serial, nullptr, 0, 0, line == "shot legacy");  // USB CDC: no baud to change
+#else
     p4_screen_shot(Serial, &Serial, 2000000, 115200, line == "shot legacy");
+#endif
     return;
   }
   if (line == "demo on" || line == "demo off") {
@@ -275,7 +283,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | can | tap <x> <y> [ms] | knob left|right|press | menu on left|center|right | media on left|center|right | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | can | tap <x> <y> [ms] | knob left|right|press | role [left|center|right|auto] | menu on left|center|right | media on left|center|right | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }

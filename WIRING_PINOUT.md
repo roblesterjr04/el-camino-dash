@@ -19,7 +19,7 @@ Logic is **3.3 V** unless noted (sensor ATmega may run at **5 V**; level-shift t
 
 **Fan-out to gauges:** One **TX** from the sensor MCU may drive **three ESP32-P4 UART RX** in parallel (speedo, center, TSPS). **3.3 V**, common **GND**.
 
-**Return path:** wire only the **center's** GPIO4 (TX) to the sensor MCU RX. The center is the only board that sends the 0xA5 keepalive (`SENSOR_LINK_KEEPALIVE=1`); speedo and TSPS never write to the UART.
+**Return path (bench harness only):** wire only the **center's** GPIO4 (TX) to the sensor MCU RX. The center is the only board that sends the 0xA5 keepalive; the left and right screens open the UART receive-only. On the DigiDash board GPIO4 is the screen **position strap** instead (below), and J1 leaves it open.
 
 Default ESP32 UART (PlatformIO): **RX = GPIO5**, **TX = GPIO4**.
 
@@ -101,6 +101,19 @@ Override with `-DCLUSTER_I2C_SDA=…` / `-DCLUSTER_I2C_SCL=…` in PlatformIO if
 **DigiDash carrier board** (`DigiDash/`): nets `CL_SDA` / `CL_SCL` join GPIO47 / GPIO48 on the three screen headers
 (J1 center, J4 right, J5 left), with 4.7 kΩ pull-ups (R15/R16) to the center's 3V3 pin. The screens plug face-down
 onto the headers, so each header row is mirrored relative to the Waveshare pin order; the symbol labels account for that.
+
+**Screen position strap** (one firmware for all three screens, `firmware/esp32_p4_display`): header **pin 17 = GPIO4**
+is read once at boot, first with the internal pull-up, then with the pull-down:
+
+| Header | Strap | Reads | Runs as |
+| --- | --- | --- | --- |
+| J5 | R37 1 kΩ from pin 17 to GND | low / low | left (speedometer), CAN node 0x02, I2C slave 0x3C |
+| J1 | pin 17 open | follows the pull | center, CAN node 0x01 |
+| J4 | R38 1 kΩ from pin 17 to that screen's own 3V3 (J4 pin 18) | high / high | right (fuel / temp / oil / amp), CAN node 0x03, I2C slave 0x3D |
+
+The 1 kΩ keeps a board that drives GPIO4 (older firmware used it as the UART TX) from shorting the strap. The right
+strap uses the right screen's own 3V3, not the center's, so it still reads right with the center unplugged. A board
+off the DigiDash board reads "open" (center); `role left|center|right` on its serial console overrides that on a bench.
 
 **7-bit addresses** (do not collide with touch/audio on the display bus):
 

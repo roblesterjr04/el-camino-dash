@@ -24,8 +24,7 @@
 #include "center_sd_settings.h"
 #include "center_ui.h"
 #include "center_wifi_ntp.h"
-
-SET_LOOP_TASK_STACK_SIZE(24 * 1024);
+#include "display_main.h"
 
 #ifndef SENSOR_UART_RX
 #define SENSOR_UART_RX 5
@@ -69,13 +68,13 @@ void center_inject_drag(int16_t x, int16_t y1, int16_t y2, uint32_t ms) {
 static Arduino_GFX *gfx = nullptr;
 static Preferences s_prefs;
 
-void setup() {
-  Serial.begin(115200);
-  delay(200);
-  // Sensor UART before long display/touch init so packets are not missed during boot.
+void center_setup() {
+  // Sensor UART before long display/touch init so packets are not missed during boot. The center is the one board
+  // that sends the keepalive back (GPIO4; on the DigiDash board J1 leaves that pin open, which is the strap too).
   s_link.begin(Serial1, SENSOR_UART_RX, SENSOR_UART_TX);
+  s_link.setKeepalive(true);
 
-  Serial.println("el-camino-dash CENTER / ESP32-P4 (WiFi+GPS time+BLE+I2C host UI)");
+  Serial.println("el-camino-dash display: CENTER (Wi-Fi, GPS time, BLE, settings, CAN)");
 
   Arduino_GFX *panel = create_tsps_display();
   if (!panel) {
@@ -227,7 +226,7 @@ static void fill_media(GaugeData &d, uint32_t now) {
   }
 }
 
-void loop() {
+void center_loop() {
   elc_illumination_gpio_poll();
   center_gps_loop();
   center_shell_poll(s_prefs);
@@ -242,6 +241,9 @@ void loop() {
   if (now - s_last_rebroadcast_ms >= CLUSTER_REBROADCAST_MS) {
     s_last_rebroadcast_ms = now;
     center_ui_sync_cluster_bus();
+    if (center_can_node_alive(ELC_CAN_NODE_CENTER)) {  // our own frames never come back: this is another board
+      Serial.println("display: WARNING another board on CAN is also the center (check the position straps)");
+    }
   }
 
   // Trip = miles since the first odometer reading this power cycle (sensor_pack is the source of truth).

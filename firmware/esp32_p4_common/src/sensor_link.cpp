@@ -37,12 +37,10 @@ bool SensorLink::poll() {
     _fps_count = 0;
     _fps_t0 = now;
   }
-#if SENSOR_LINK_KEEPALIVE
-  if (now - _last_keepalive_ms >= SENSOR_LINK_KEEPALIVE_MS) {
+  if (_keepalive && now - _last_keepalive_ms >= SENSOR_LINK_KEEPALIVE_MS) {
     _ser->write(PI_HANDSHAKE_BYTE);
     _last_keepalive_ms = now;
   }
-#endif
   return got;
 }
 
