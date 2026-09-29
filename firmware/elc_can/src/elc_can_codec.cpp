@@ -122,12 +122,13 @@ bool elc_can_decode_heartbeat(const ElcCanFrame &f, ElcCanHeartbeat &out) {
 }
 
 void elc_can_encode_audio_transport(uint8_t slot, const ElcCanAudioTransport &t, ElcCanFrame &out) {
-  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_TRANSPORT), 7);
+  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_TRANSPORT), 8);
   put16(out.data, t.elapsed_s);
   put16(out.data + 2, t.duration_s);
   out.data[4] = t.volume;
   out.data[5] = (uint8_t)(t.text_serial & 0x0F);
   out.data[6] = t.connected ? 1 : 0;
+  out.data[7] = t.art_id;
 }
 
 bool elc_can_decode_audio_transport(const ElcCanFrame &f, uint8_t *slot, ElcCanAudioTransport &out) {
@@ -139,6 +140,7 @@ bool elc_can_decode_audio_transport(const ElcCanFrame &f, uint8_t *slot, ElcCanA
   out.volume = f.data[4];
   out.text_serial = (uint8_t)(f.data[5] & 0x0F);
   out.connected = (f.data[6] & 1) != 0;
+  out.art_id = f.len >= 8 ? f.data[7] : 0;
   return true;
 }
 
@@ -177,4 +179,97 @@ bool ElcCanAudioTextDecoder::feed(const ElcCanFrame &f) {
   _done_serial = serial;
   _have = true;
   return true;
+}
+
+// ---- album art ----
+
+void elc_can_encode_art_request(const ElcCanArtRequest &r, ElcCanFrame &out) {
+  frame(out, ELC_CAN_ID_AUDIO_ART_REQUEST, 4);
+  out.data[0] = r.slot;
+  out.data[1] = r.art_id;
+  put16(out.data + 2, r.first_chunk);
+}
+
+bool elc_can_decode_art_request(const ElcCanFrame &f, ElcCanArtRequest &out) {
+  if (f.id != ELC_CAN_ID_AUDIO_ART_REQUEST || f.len < 4) return false;
+  out.slot = f.data[0];
+  out.art_id = f.data[1];
+  out.first_chunk = get16(f.data + 2);
+  return true;
+}
+
+void elc_can_encode_art_info(uint8_t slot, uint8_t art_id, uint32_t size, ElcCanFrame &out) {
+  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_ART_INFO), 5);
+  out.data[0] = art_id;
+  put32(out.data + 1, size);
+}
+
+bool elc_can_decode_art_info(const ElcCanFrame &f, uint8_t *slot, uint8_t *art_id, uint32_t *size) {
+  const int s = elc_can_slot_of(f.id);
+  if (s < 0 || f.id != elc_can_slot_id((uint8_t)s, ELC_CAN_AUDIO_MSG_ART_INFO) || f.len < 5) return false;
+  if (slot) *slot = (uint8_t)s;
+  if (art_id) *art_id = f.data[0];
+  if (size) *size = get32(f.data + 1);
+  return true;
+}
+
+void elc_can_encode_art_data(uint8_t slot, uint8_t art_id, uint16_t idx, const uint8_t *image, uint32_t size,
+                             ElcCanFrame &out) {
+  const uint32_t off = (uint32_t)idx * ELC_CAN_ART_CHUNK;
+  const uint32_t n = off >= size ? 0 : (size - off < ELC_CAN_ART_CHUNK ? size - off : ELC_CAN_ART_CHUNK);
+  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_ART_DATA), (uint8_t)(3 + n));
+  out.data[0] = art_id;
+  put16(out.data + 1, idx);
+  if (n) memcpy(out.data + 3, image + off, n);
+}
+
+void ElcCanArtReceiver::start(uint8_t slot, uint8_t art_id, uint8_t *buf, size_t cap) {
+  _buf = buf;
+  _cap = cap;
+  _slot = slot;
+  _id = art_id;
+  _size = 0;
+  _have = 0;
+  _too_big = false;
+  memset(_bits, 0, sizeof(_bits));
+}
+
+bool ElcCanArtReceiver::feed(const ElcCanFrame &f) {
+  if (_id == 0 || _too_big) return false;
+  const int s = elc_can_slot_of(f.id);
+  if (s != (int)_slot) return false;
+  uint8_t id = 0;
+  uint32_t size = 0;
+  if (elc_can_decode_art_info(f, nullptr, &id, &size)) {
+    if (id != _id) return false;
+    if (_size == 0) {
+      if (size == 0 || size > _cap || size > ELC_CAN_ART_MAX_BYTES || !_buf) {
+        _too_big = true;
+      } else {
+        _size = size;
+      }
+    }
+    return true;
+  }
+  if (f.id != elc_can_slot_id(_slot, ELC_CAN_AUDIO_MSG_ART_DATA) || f.len < 4 || f.data[0] != _id) return false;
+  if (_size == 0) return true;  // ours, but the size is not known yet: it will be asked for again
+  const uint16_t idx = get16(f.data + 1);
+  if (idx >= elc_can_art_chunks(_size)) return true;
+  const uint32_t off = (uint32_t)idx * ELC_CAN_ART_CHUNK;
+  const uint32_t want = _size - off < ELC_CAN_ART_CHUNK ? _size - off : ELC_CAN_ART_CHUNK;
+  if ((uint32_t)(f.len - 3) != want) return true;  // malformed: leave the chunk missing
+  if (!(_bits[idx >> 3] & (1u << (idx & 7)))) {
+    memcpy(_buf + off, f.data + 3, want);
+    _bits[idx >> 3] |= (uint8_t)(1u << (idx & 7));
+    _have++;
+  }
+  return true;
+}
+
+uint16_t ElcCanArtReceiver::first_missing() const {
+  const uint16_t n = _size ? elc_can_art_chunks(_size) : 0;
+  for (uint16_t i = 0; i < n; i++) {
+    if (!(_bits[i >> 3] & (1u << (i & 7)))) return i;
+  }
+  return n;
 }

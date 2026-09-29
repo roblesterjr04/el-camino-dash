@@ -19,6 +19,9 @@ static const uint16_t ELC_CAN_ID_SENSOR_ECON = 0x104;    // MPG instant x10 u16,
 // ---- cluster state, sent by the center on change and every 5 s ----
 static const uint16_t ELC_CAN_ID_CLUSTER_STATE = 0x210;  // theme u8, center sub-view u8
 
+// ---- requests to accessory cards ----
+static const uint16_t ELC_CAN_ID_AUDIO_ART_REQUEST = 0x211;  // slot u8, art id u8, first chunk u16 (display -> bridge)
+
 // ---- accessory slots: slot n owns 0x400 + 0x40 * n .. + 0x3F ----
 static const uint16_t ELC_CAN_ID_SLOT_BASE = 0x400;
 static const uint16_t ELC_CAN_SLOT_SPAN = 0x40;
@@ -34,6 +37,8 @@ static inline int elc_can_slot_of(uint16_t id) {
 // Audio bridge messages (offsets within its slot range).
 static const uint8_t ELC_CAN_AUDIO_MSG_TRANSPORT = 0x00;  // elapsed s u16, duration s u16, volume u8, text serial u8, flags u8
 static const uint8_t ELC_CAN_AUDIO_MSG_TEXT = 0x01;       // [serial << 4 | chunk] + 7 bytes of "Artist - Title"
+static const uint8_t ELC_CAN_AUDIO_MSG_ART_INFO = 0x02;   // art id u8, size bytes u32 (answers a request)
+static const uint8_t ELC_CAN_AUDIO_MSG_ART_DATA = 0x03;   // art id u8, chunk u16, 5 bytes of JPEG
 
 // ---- heartbeats: 0x700 + node, 1 Hz ----
 static const uint16_t ELC_CAN_ID_HEARTBEAT_BASE = 0x700;  // node type u8, fw version u16, uptime s u32, flags u8
@@ -42,7 +47,11 @@ static const uint16_t ELC_CAN_ID_HEARTBEAT_BASE = 0x700;  // node type u8, fw ve
 static const uint8_t ELC_CAN_NODE_CENTER = 0x01;
 static const uint8_t ELC_CAN_NODE_SPEEDO = 0x02;  // left screen
 static const uint8_t ELC_CAN_NODE_TSPS = 0x03;    // right screen
+static const uint8_t ELC_CAN_NODE_CONSOLE = 0x04;  // OLED + knobs board on the J17 cable (planned)
 static const uint8_t ELC_CAN_NODE_SLOT0 = 0x10;
 static const uint8_t ELC_CAN_MAX_NODES = 0x20;
 
-enum class ElcCanNodeType : uint8_t { Display = 0, AudioBridge = 1, Unknown = 0xFF };
+enum class ElcCanNodeType : uint8_t { Display = 0, AudioBridge = 1, Console = 2, Unknown = 0xFF };
+
+// Console (planned): owns 0x4C0..0x4FF, right after the three slot ranges. Messages defined with its firmware.
+static const uint16_t ELC_CAN_ID_CONSOLE_BASE = 0x4C0;

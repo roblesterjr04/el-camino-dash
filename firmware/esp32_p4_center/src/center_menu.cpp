@@ -648,7 +648,7 @@ void build_theme(lv_obj_t *page) {
 }
 
 // ---------------------------------------------------------------- Service
-const char *const kSvcNames[8] = {"Sensor link", "Odometer", "Faults", "GPS", "Wi-Fi", "Audio 0x2A", "Speedo 0x3C", "Right 0x3D"};
+const char *const kSvcNames[8] = {"Sensor link", "Odometer", "Faults", "GPS", "Wi-Fi", "Audio bridge", "Speedo 0x3C", "Right 0x3D"};
 
 void svc_row(int i, const char *value, int level) {  // level: 0 ok, 1 warn, 2 bad
   if (!s_svc_val[i]) {

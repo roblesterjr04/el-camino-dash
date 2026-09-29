@@ -1,4 +1,5 @@
 #include "center_can.h"
+#include "center_audio_link.h"
 
 #include <Arduino.h>
 #include <cstdio>
@@ -21,17 +22,22 @@ static ElcCanAudioTextDecoder s_audio_text;
 static ElcCanAudioTransport s_audio_tr;
 static uint32_t s_audio_ms = 0;
 static bool s_audio_have = false;
+static uint8_t s_audio_slot = 0;
 
 static void on_frame(const ElcCanFrame &f, void *) {
   uint8_t slot = 0;
   ElcCanAudioTransport t;
   if (elc_can_decode_audio_transport(f, &slot, t)) {
     s_audio_tr = t;
+    s_audio_slot = slot;
     s_audio_ms = millis();
     s_audio_have = true;
     return;
   }
-  (void)s_audio_text.feed(f);
+  if (s_audio_text.feed(f)) {
+    return;
+  }
+  center_audio_link_can_frame(f);  // album art info / data
 }
 
 void center_can_begin() {
@@ -92,6 +98,24 @@ bool center_can_audio(char *line, size_t n, uint16_t *elapsed_s, uint16_t *durat
   if (duration_s) *duration_s = s_audio_tr.duration_s;
   if (vol_0_15) *vol_0_15 = s_audio_tr.volume > 15 ? 15 : s_audio_tr.volume;
   return true;
+}
+
+bool center_can_audio_art(uint8_t *slot, uint8_t *art_id, uint32_t max_age_ms) {
+  if (!s_audio_have || millis() - s_audio_ms > max_age_ms) {
+    return false;
+  }
+  if (slot) *slot = s_audio_slot;
+  if (art_id) *art_id = s_audio_tr.connected ? s_audio_tr.art_id : 0;
+  return true;
+}
+
+bool center_can_request_art(uint8_t slot, uint8_t art_id, uint16_t first) {
+  if (!s_can.running()) {
+    return false;
+  }
+  ElcCanFrame f;
+  elc_can_encode_art_request(ElcCanArtRequest{slot, art_id, first}, f);
+  return s_can.send(f);
 }
 
 void center_can_describe(char *out, size_t n) { s_can.describe(out, n); }

@@ -17,10 +17,12 @@
  * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (this chip: SDA=GPIO21, SCL=GPIO22).
  *
  * CAN accessory (DigiDash slot 0): when built with the elc_can library (PlatformIO,
- * firmware/esp32_classic_bt_audio), the bridge also joins the CAN bus through its slot's MCP2562
+ * firmware/esp32_classic_bt_audio), the bridge joins the CAN bus through its slot's MCP2562
  * (TX = GPIO32, RX = GPIO33; slot number from the GPIO13/GPIO23 straps). It sends a heartbeat and
- * the now-playing text + transport in its slot's ID range (docs/protocols/can_bus.md). The I2C
- * link above stays as is; the center uses whichever is live.
+ * the now-playing text + transport in its slot's ID range, and serves album art on request
+ * (docs/protocols/can_bus.md). CAN is the link in the car: the I2C slaves (0x2A metadata, 0x3E
+ * theme) are for bench testing only and are started only when AUDIO_BRIDGE_I2C=1 (PlatformIO env
+ * esp32dev_bench, or the plain arduino-cli build, which has no CAN).
  *
  * Threading: AVRCP callbacks (BT task) update state and rebuild a prebuilt reply buffer under a
  * spinlock; the I2C onRequest handler only copies that buffer, so it answers quickly.
@@ -68,6 +70,11 @@
 #define BT_DEVICE_NAME "ElCamino-Media"
 #endif
 
+// I2C slaves (metadata 0x2A + theme 0x3E): bench only. Default on when CAN is not built in.
+#ifndef AUDIO_BRIDGE_I2C
+#define AUDIO_BRIDGE_I2C (!AUDIO_BRIDGE_CAN)
+#endif
+
 #ifndef I2C_SLAVE_ADDR
 #define I2C_SLAVE_ADDR 0x2A
 #endif
@@ -83,7 +90,7 @@
 // Second I2C peripheral: cluster theme slave (center P4 master on GPIO 47/48 in vehicle).
 // Metadata bridge uses `Wire` @ 0x2A; theme mirror uses `Wire1` @ 0x3E — different pins.
 #ifndef CLUSTER_THEME_I2C_ENABLE
-#define CLUSTER_THEME_I2C_ENABLE 1
+#define CLUSTER_THEME_I2C_ENABLE AUDIO_BRIDGE_I2C
 #endif
 #ifndef CLUSTER_THEME_SDA
 #define CLUSTER_THEME_SDA 18
@@ -621,9 +628,72 @@ static uint8_t s_can_text_serial = 0;
 static char s_can_text_sent[kMaxTrackLen + 1];
 static uint32_t s_can_text_ms = 0;
 
-/* Nothing on this board uses the theme yet; frames are drained (heartbeats are tracked by ElcCan). */
+/* Album art over CAN: a display asks for an art id from a chunk on (ART_REQUEST); the bridge answers
+ * with ART_INFO and then streams ART_DATA to the end. Art frames lose arbitration to the sensor and
+ * cluster frames, but they outrank heartbeats and the other slots (knob events from a console card),
+ * so the stream is paced to one frame per kArtFrameUs: about a third of the bus, a 20 KB cover in ~3 s. */
+static constexpr uint32_t kArtFrameUs = 800;
+static uint32_t s_srv_credit_us = 0;
+static uint8_t s_srv_id = 0;       // art id being streamed (0 = idle)
+static uint16_t s_srv_next = 0;    // next chunk to send
+static bool s_srv_info = false;    // ART_INFO still to send
+
+static void can_on_frame(const ElcCanFrame &f, void *) {
+  ElcCanArtRequest r;
+  if (!elc_can_decode_art_request(f, r) || r.slot != s_can_slot || r.art_id == 0) {
+    return;  // theme etc.: nothing on this board uses it (heartbeats are tracked by ElcCan)
+  }
+  if (s_art_state != kArtReady || r.art_id != s_art_id) {
+    return;  // stale request: the transport frame already announces the current id
+  }
+  s_srv_id = r.art_id;
+  s_srv_next = r.first_chunk;
+  s_srv_info = true;
+}
+
+static void can_serve_art() {
+  if (!s_srv_id) {
+    return;
+  }
+  if (s_art_state != kArtReady || s_art_id != s_srv_id || !s_art) {
+    s_srv_id = 0;  // the image changed under us; the requester will ask for the new one
+    return;
+  }
+  const uint32_t size = (uint32_t)s_art_rx;
+  const uint16_t chunks = elc_can_art_chunks(size);
+  static uint32_t s_last_us = 0;
+  const uint32_t now_us = micros();
+  s_srv_credit_us += now_us - s_last_us;
+  s_last_us = now_us;
+  if (s_srv_credit_us > 8 * kArtFrameUs) {
+    s_srv_credit_us = 8 * kArtFrameUs;  // no bursts after an idle spell
+  }
+  size_t room = s_can.txFree();
+  const size_t paced = s_srv_credit_us / kArtFrameUs;
+  if (room > paced + 1) {
+    room = paced + 1;
+  }
+  ElcCanFrame f;
+  if (s_srv_info && room) {
+    elc_can_encode_art_info(s_can_slot, s_srv_id, size, f);
+    if (!s_can.send(f)) return;
+    s_srv_info = false;
+    room--;
+  }
+  while (room-- > 1 && s_srv_next < chunks) {  // leave one place for transport / heartbeat
+    elc_can_encode_art_data(s_can_slot, s_srv_id, s_srv_next, s_art, size, f);
+    if (!s_can.send(f)) return;
+    s_srv_next++;
+    s_srv_credit_us -= kArtFrameUs;
+  }
+  if (s_srv_next >= chunks) {
+    s_srv_id = 0;
+  }
+}
+
 static void can_begin() {
   s_can_slot = elc_can_read_slot_id(ELC_CAN_SLOT_ID0_PIN, ELC_CAN_SLOT_ID1_PIN);
+  s_can.onFrame(can_on_frame, nullptr);
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, (uint8_t)(ELC_CAN_NODE_SLOT0 + s_can_slot),
                               ElcCanNodeType::AudioBridge);
   Serial.printf("CAN: %s, slot %u (TX=%d RX=%d)\n", ok ? "up" : "off", (unsigned)s_can_slot, ELC_CAN_TX_PIN,
@@ -642,6 +712,7 @@ static void can_publish() {
   t.volume = s_vol_0_15;
   portEXIT_CRITICAL(&s_track_mux);
   t.connected = a2dp_sink && a2dp_sink->is_connected();
+  t.art_id = s_art_state == kArtReady ? s_art_id : 0;
 
   const uint32_t now = millis();
   const bool changed = strncmp(text, s_can_text_sent, sizeof(text)) != 0;
@@ -707,10 +778,12 @@ void setup() {
 #endif
   }
 
+#if AUDIO_BRIDGE_I2C
   /* I2C slave before A2DP/BT: host may poll 0x2A as soon as wires are live; avoid missing early reads. */
   Wire.begin(static_cast<uint8_t>(I2C_SLAVE_ADDR), I2C_SDA_PIN, I2C_SCL_PIN, 100000U);
   Wire.onReceive(onReceive);
   Wire.onRequest(onRequest);
+#endif
 
 #if CLUSTER_THEME_I2C_ENABLE
   Wire1.begin(static_cast<uint8_t>(CLUSTER_THEME_I2C_ADDR), CLUSTER_THEME_SDA, CLUSTER_THEME_SCL, 100000U);
@@ -738,8 +811,12 @@ void setup() {
   Serial.print(F("BT name: "));
   Serial.println(BT_DEVICE_NAME);
   Serial.printf("cover art buffer %s, heap %u bytes free\n", s_art ? "ok" : "FAILED", (unsigned)ESP.getFreeHeap());
+#if AUDIO_BRIDGE_I2C
   Serial.print(F("I2C metadata 0x"));
   Serial.println(I2C_SLAVE_ADDR, HEX);
+#else
+  Serial.println(F("I2C off (bench only): now-playing and album art go over CAN"));
+#endif
 #if CLUSTER_THEME_I2C_ENABLE
   Serial.print(F("I2C cluster theme 0x"));
   Serial.print(CLUSTER_THEME_I2C_ADDR, HEX);
@@ -752,11 +829,13 @@ void setup() {
 
 void loop() {
 #if AUDIO_BRIDGE_CAN
-  // Drain CAN often (the bus carries ~100 sensor frames/s); the rest runs every 250 ms.
+  // Drain CAN often (the bus carries ~100 sensor frames/s) and keep album art flowing; the rest runs
+  // every 250 ms.
   s_can.poll();
+  can_serve_art();
   static uint32_t s_last_tick_ms = 0;
   if (millis() - s_last_tick_ms < 250u) {
-    delay(10);
+    delay(2);
     return;
   }
   s_last_tick_ms = millis();

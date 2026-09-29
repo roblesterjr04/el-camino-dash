@@ -53,6 +53,9 @@ class ElcCan {
   void poll();
 
   bool send(const ElcCanFrame &f);
+  /** Free places in the transmit queue (0 when the driver is not running). Bulk senders (album art) fill
+   *  only this many per pass, so a full queue is not counted as a failed send. */
+  size_t txFree() const;
   bool running() const { return _stats.running; }
   uint8_t node() const { return _node; }
   const ElcCanStats &stats() const { return _stats; }

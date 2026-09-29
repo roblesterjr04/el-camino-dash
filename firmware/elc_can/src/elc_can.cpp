@@ -18,6 +18,7 @@
 
 static const uint32_t kHeartbeatMs = 1000;
 static const uint32_t kRecoverRetryMs = 1000;
+static const size_t kTxQueueLen = 16;
 
 uint8_t elc_can_read_slot_id(int id0_pin, int id1_pin) {
 #if defined(ARDUINO_ARCH_ESP32)
@@ -48,7 +49,7 @@ bool ElcCan::begin(int tx_pin, int rx_pin, uint8_t node, ElcCanNodeType type) {
     return false;
   }
   twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)tx_pin, (gpio_num_t)rx_pin, TWAI_MODE_NORMAL);
-  g.tx_queue_len = 16;
+  g.tx_queue_len = kTxQueueLen;
   g.rx_queue_len = 32;
 #if ELC_CAN_BITRATE_KBPS == 250
   twai_timing_config_t t = TWAI_TIMING_CONFIG_250KBITS();
@@ -85,6 +86,17 @@ bool ElcCan::send(const ElcCanFrame &f) {
   }
   _stats.tx_fail++;
   return false;
+}
+
+size_t ElcCan::txFree() const {
+  if (!_stats.running || _recovering) {
+    return 0;
+  }
+  twai_status_info_t st;
+  if (twai_get_status_info(&st) != ESP_OK || st.msgs_to_tx >= kTxQueueLen) {
+    return 0;
+  }
+  return kTxQueueLen - st.msgs_to_tx;
 }
 
 void ElcCan::poll() {
@@ -148,6 +160,7 @@ bool ElcCan::send(const ElcCanFrame &) {
   return false;
 }
 void ElcCan::poll() {}
+size_t ElcCan::txFree() const { return 0; }
 
 #endif
 

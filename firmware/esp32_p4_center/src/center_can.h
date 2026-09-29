@@ -20,6 +20,10 @@ void center_can_send_cluster(uint8_t theme, uint8_t center_subview);
 /** Now playing from an audio bridge on the CAN bus, if heard within max_age_ms. line gets "Artist - Title". */
 bool center_can_audio(char *line, size_t n, uint16_t *elapsed_s, uint16_t *duration_s, uint8_t *vol_0_15,
                       uint32_t max_age_ms = 2000);
+/** Slot of the bridge last heard and the album art id it announces (0 = none ready). */
+bool center_can_audio_art(uint8_t *slot, uint8_t *art_id, uint32_t max_age_ms = 2000);
+/** Ask the bridge in `slot` for album art `art_id`, starting at chunk `first` (docs/protocols/can_bus.md). */
+bool center_can_request_art(uint8_t slot, uint8_t art_id, uint16_t first);
 
 /** Bench console summary (`can`). */
 void center_can_describe(char *out, size_t n);

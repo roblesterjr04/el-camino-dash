@@ -12,19 +12,21 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
   hall, coil, IGN, ALT) │  odometer, A/B slots                                  └──► TSPS    (ESP32-P4, right)
                                                                                         ▲  ▲
  GPS (NEO-6M, NMEA 9600) ─────────────────────────────────── UART2 ─────────────── center │
- phone ── A2DP/AVRCP ──► ESP32-D audio bridge ── I2C 0x2A (display bus) ───────── center  │
-                                               center ── cluster I2C (theme) ──► speedo 0x3C, TSPS 0x3D, ESP32-D 0x3E
+ phone ── A2DP/AVRCP ──► ESP32-D audio bridge (DigiDash slot 0) ── CAN ─────────── center  │
+                                               center ── cluster I2C (theme) ──► speedo 0x3C, TSPS 0x3D
  encoder controller (RP2040: knobs, IR, SSD1322 OLED) ── UART ──► (not yet connected to an ESP32 — see Status)
 ```
 
 **CAN bus** (DigiDash board, 500 kbit/s, one MCP2562 per node, 120 Ω at the left and right screens):
 
 ```
- left (speedo) ── slot 0 (audio bridge) ── slot 1 ── slot 2 ── center ── right (TSPS)
+ left (speedo) ── slot 0 (audio bridge) ── slot 1 ── slot 2 ── center ── right (TSPS) ── J17 cable ── console (planned)
 ```
 
 The center re-sends each sensor frame and the theme on CAN; the three ESP32-DevKitC slots are drop-in accessory
-sockets that find their slot number from board straps. See `docs/protocols/can_bus.md`.
+sockets that find their slot number from board straps. The audio bridge talks to the center over CAN only (its I2C
+link is for bench setups). The console (OLED + knobs) will be its own board on a 4-pin cable (+5 V, GND, CANH, CANL)
+at the far end of the bus. See `docs/protocols/can_bus.md`.
 
 - **sensor_pack** is the source of truth for all readings and the odometer. One TX fans out to all three displays; only the center sends the 0xA5 keepalive back.
 - **center** also owns GPS time/location, Wi-Fi (NTP, street name, time zone), touch menu, BLE, SD settings, and theme sync to the other two displays.
@@ -81,6 +83,6 @@ firmware/elc_can/test/host/run_tests.sh           # CAN frame codecs
 
 ## Status / open items
 
-- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is to rebuild the knobs and OLED as an accessory card on the CAN bus (`docs/protocols/can_bus.md`).
+- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-DevKitC-32, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable at the end of the CAN bus; the DigiDash board still needs its connector J17 and a jumper on the right-end terminator R36 (`docs/protocols/can_bus.md`).
 - **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
 - **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.

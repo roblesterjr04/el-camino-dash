@@ -51,8 +51,10 @@ Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
 
 On the DigiDash board every display and accessory slot also sits on a 500 kbit/s CAN bus (one MCP2562 each; displays
 TX GPIO34 / RX GPIO36, slots TX GPIO32 / RX GPIO33). The center re-sends sensor frames (`0x100`–`0x104`) and the
-theme (`0x210`); speedo/TSPS take the theme from CAN or I2C, whichever arrives; the audio bridge sends now-playing in
-its slot range and the center prefers it over I2C when heard. Every node sends a 1 Hz heartbeat. Pins are build flags
+theme (`0x210`); speedo/TSPS take the theme from CAN or I2C, whichever arrives. The audio bridge sends now-playing,
+transport and album art in its slot range, and in the car that is the only audio link: the center's I2C audio code
+(`0x2A`, theme to `0x3E`) is compiled in only by its `*-bench` envs (`CENTER_AUDIO_I2C=1`), paired with the bridge's
+`esp32dev_bench` env. Every node sends a 1 Hz heartbeat. Pins are build flags
 (`ELC_CAN_TX_PIN` / `ELC_CAN_RX_PIN`, `-1` = off). Spec: [docs/protocols/can_bus.md](../docs/protocols/can_bus.md).
 
 ## Layout
@@ -65,7 +67,7 @@ its slot range and the center prefers it over I2C when heard. Every node sends a
 | `esp32_p4_speedo/` | **LEFT**: speedometer (MPH from Hall `speed_rpm` + wheel constants). |
 | `esp32_p4_center/` | **MIDDLE**: tach / clock / media / efficiency faces, LVGL menu, long-press gestures; I2C cluster master. |
 | `esp32_p4_tsps/` | **RIGHT**: fuel / oil / coolant / charge; Classic has two layouts (**3 s hold** switches). |
-| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + I2C metadata `0x2A` + optional cluster theme `0x3E` on `Wire1` + CAN accessory in DigiDash slot 0). |
+| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory in DigiDash slot 0: now-playing, transport, album art). `esp32dev_bench` adds the bench I2C slaves (`0x2A` metadata, `0x3E` theme). |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
 ## Panel targets

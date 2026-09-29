@@ -119,6 +119,12 @@ static void test_audio() {
   ElcCanAudioTransport r;
   CHECK(elc_can_decode_audio_transport(f, &slot, r));
   CHECK(slot == 1 && r.elapsed_s == 95 && r.duration_s == 241 && r.volume == 11 && r.text_serial == 0x0F && r.connected);
+  CHECK(f.len == 8 && r.art_id == 0);
+  t.art_id = 42;
+  elc_can_encode_audio_transport(1, t, f);
+  CHECK(elc_can_decode_audio_transport(f, &slot, r) && r.art_id == 42);
+  f.len = 7;  // a bridge from before album art over CAN
+  CHECK(elc_can_decode_audio_transport(f, &slot, r) && r.art_id == 0);
   ElcCanFrame textf[ELC_CAN_AUDIO_TEXT_CHUNKS];
   elc_can_encode_audio_text(1, 3, "x", textf);
   CHECK(!elc_can_decode_audio_transport(textf[0], &slot, r));
@@ -151,6 +157,66 @@ static void test_audio() {
   CHECK(d.text()[0] == '\0' && d.serial() == 7);
 }
 
+static void test_album_art() {
+  std::printf("album art request, info and reassembly\n");
+  ElcCanFrame f;
+  elc_can_encode_art_request(ElcCanArtRequest{0, 7, 300}, f);
+  CHECK(f.id == ELC_CAN_ID_AUDIO_ART_REQUEST && f.len == 4);
+  ElcCanArtRequest q;
+  CHECK(elc_can_decode_art_request(f, q) && q.slot == 0 && q.art_id == 7 && q.first_chunk == 300);
+
+  // A 1003-byte "JPEG": 201 chunks, the last one 3 bytes.
+  static uint8_t img[1003];
+  for (size_t i = 0; i < sizeof(img); i++) img[i] = (uint8_t)(i * 7 + 3);
+  const uint16_t n = elc_can_art_chunks(sizeof(img));
+  CHECK(n == 201);
+  static uint8_t buf[2048];
+  ElcCanArtReceiver r;
+  r.start(0, 7, buf, sizeof(buf));
+  CHECK(!r.sized() && !r.complete());
+
+  // Data before the size is known is ours but not stored.
+  ElcCanFrame d;
+  elc_can_encode_art_data(0, 7, 0, img, sizeof(img), d);
+  CHECK(d.id == 0x403 && d.len == 8);
+  CHECK(r.feed(d) && r.chunks_have() == 0);
+
+  ElcCanFrame info;
+  elc_can_encode_art_info(0, 7, sizeof(img), info);
+  CHECK(info.id == 0x402);
+  CHECK(r.feed(info) && r.sized() && r.size() == sizeof(img));
+
+  // Every other chunk, then the rest: first_missing walks the gaps.
+  for (uint16_t i = 0; i < n; i += 2) {
+    elc_can_encode_art_data(0, 7, i, img, sizeof(img), d);
+    CHECK(r.feed(d));
+  }
+  CHECK(!r.complete() && r.first_missing() == 1);
+  elc_can_encode_art_data(0, 7, 200, img, sizeof(img), d);
+  CHECK(d.len == 3 + 3);
+  // Foreign frames: another art id, another slot, the text message.
+  ElcCanFrame other;
+  elc_can_encode_art_data(0, 8, 1, img, sizeof(img), other);
+  CHECK(!r.feed(other));
+  elc_can_encode_art_data(1, 7, 1, img, sizeof(img), other);
+  CHECK(!r.feed(other));
+  for (uint16_t i = 1; i < n; i += 2) {
+    elc_can_encode_art_data(0, 7, i, img, sizeof(img), d);
+    r.feed(d);
+    r.feed(d);  // duplicates are harmless
+  }
+  CHECK(r.complete() && r.first_missing() == n && r.chunks_have() == n);
+  CHECK(std::memcmp(buf, img, sizeof(img)) == 0);
+
+  // An image bigger than the buffer is refused once, not written.
+  ElcCanArtReceiver small;
+  static uint8_t tiny[100];
+  small.start(0, 7, tiny, sizeof(tiny));
+  CHECK(small.feed(info) && small.too_big() && !small.sized());
+  elc_can_encode_art_data(0, 7, 0, img, sizeof(img), d);
+  CHECK(!small.feed(d));
+}
+
 static void test_inert_driver() {
   std::printf("driver without TWAI stays inert\n");
   ElcCan can;
@@ -158,6 +224,7 @@ static void test_inert_driver() {
   CHECK(!can.running());
   ElcCanFrame f;
   CHECK(!can.send(f));
+  CHECK(can.txFree() == 0);
   can.poll();
   char line[160];
   can.describe(line, sizeof(line));
@@ -170,6 +237,7 @@ int main() {
   test_cluster_and_heartbeat();
   test_slot_ranges();
   test_audio();
+  test_album_art();
   test_inert_driver();
   if (g_failures) {
     std::printf("%d failure(s)\n", g_failures);

@@ -1,8 +1,9 @@
 # Cluster and audio I2C
 
-On the DigiDash board the theme and the audio bridge's now-playing data also travel over CAN (`can_bus.md`). The I2C
-paths below stay in place: the displays accept the theme from either bus, and the center falls back to I2C for audio
-when no bridge is heard on CAN (album art is I2C only).
+On the DigiDash board the theme and the audio bridge's now-playing data, transport and album art travel over CAN
+(`can_bus.md`). The displays accept the theme from either bus. **The audio bridge sections below are bench only:** the
+center reads `0x2A` and writes the theme to `0x3E` only when built with `CENTER_AUDIO_I2C=1` (its `*-bench` envs), and
+the bridge starts those slaves only in its `esp32dev_bench` env (or the plain arduino-cli build, which has no CAN).
 
 ## Cluster bus (theme sync)
 
@@ -23,7 +24,7 @@ Each write is `[register][value]`:
 
 The center sends both registers at boot, after each gesture, and **every 5 s**, so a display that booted late picks up the current state. Slaves record the value in their I2C callback and write NVS from `loop()`, and only when the value changed.
 
-## Audio bridge (ESP32-D @ 0x2A, on the center's display/touch bus GPIO 7/8)
+## Audio bridge (bench only: ESP32-D @ 0x2A, on the center's display/touch bus GPIO 7/8)
 
 The center writes the register byte `0x0F`, then reads 48 bytes, every 250 ms (25 ms timeout):
 

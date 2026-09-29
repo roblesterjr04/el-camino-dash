@@ -63,7 +63,10 @@ bool cluster_i2c_broadcast_center_theme(ClusterTheme theme, ClusterCenterSubview
                  cluster_i2c_master_write_reg(CLUSTER_I2C_ADDR_SPEEDO, CLUSTER_REG_CENTER_SUBVIEW, cs);
   s_ack_tsps = cluster_i2c_master_write_reg(CLUSTER_I2C_ADDR_TSPS, CLUSTER_REG_THEME, th) &&
                cluster_i2c_master_write_reg(CLUSTER_I2C_ADDR_TSPS, CLUSTER_REG_CENTER_SUBVIEW, cs);
+#if defined(CENTER_AUDIO_I2C) && CENTER_AUDIO_I2C
+  // Bench only: in the car the audio bridge hears the theme on CAN (0x210).
   s_ack_audio = cluster_i2c_master_write_reg(CLUSTER_I2C_ADDR_ESP32D_THEME, CLUSTER_REG_THEME, th);
+#endif
   return s_ack_speedo && s_ack_tsps;
 }
 

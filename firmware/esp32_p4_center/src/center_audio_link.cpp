@@ -3,10 +3,12 @@
 #include "center_ui.h"
 
 #include <Arduino.h>
-#include <Wire.h>
 #include <cstdio>
 #include <cstring>
 #include <driver/jpeg_decode.h>
+#if CENTER_AUDIO_I2C
+#include <Wire.h>
+#endif
 
 #ifndef CENTER_AUDIO_I2C_ADDR
 #define CENTER_AUDIO_I2C_ADDR 0x2A
@@ -32,24 +34,30 @@ static uint16_t s_duration_s;
 static uint8_t s_vol_0_15;
 static bool s_tr_valid;
 
+/** One slow line in MORE → SERIAL (sensor UART scrolls fast). */
+static uint32_t s_last_audio_sensor_summary_ms;
+
+/** Bytes of the last I2C snapshot read (-1 = no ACK or I2C off), for the `audio` console command. */
+static int s_last_tr_rx = -1;
+
+#if CENTER_AUDIO_I2C
 // Album art as announced by the latest snapshot.
 static uint8_t s_art_snap_id;
 static uint16_t s_art_snap_len;
 static uint8_t s_art_snap_state;  // 0 none, 1 loading, 2 ready
 
-/** One slow line in MORE → SERIAL (sensor UART scrolls fast). */
-static uint32_t s_last_audio_sensor_summary_ms;
-
-/** Last I2C read sizes for the slow summary line (diagnose short reads vs empty slave buffer). */
-static int s_last_tr_rx;
+/** Last I2C read sizes (diagnose short reads vs empty slave buffer). */
 static int s_last_meta_rx;
 static int s_last_meta_need;
+#endif
 
+#if CENTER_AUDIO_I2C
 static void drain_wire() {
   while (Wire.available()) {
     (void)Wire.read();
   }
 }
+#endif
 
 /** Trim in place; returns true if any non-whitespace character remains. */
 static bool trim_and_has_visible(char *s) {
@@ -70,6 +78,7 @@ static bool trim_and_has_visible(char *s) {
   return s[0] != '\0';
 }
 
+#if CENTER_AUDIO_I2C
 /**
  * Single I2C read: metadata + transport packed by esp32_audio_bridge (reg 0x0F).
  * Layout: [mlen:1][meta:32][0xA5][5][e0][e1][d0][d1][vol][pad:8]
@@ -162,6 +171,7 @@ static bool poll_snapshot() {
   s_tr_valid = true;
   return true;
 }
+#endif  // CENTER_AUDIO_I2C
 
 void center_audio_link_begin() {
   s_line[0] = '\0';
@@ -172,30 +182,37 @@ void center_audio_link_begin() {
   s_tr_valid = false;
   s_last_audio_sensor_summary_ms = 0;
   s_last_tr_rx = -1;
+#if CENTER_AUDIO_I2C
   s_last_meta_rx = -1;
   s_last_meta_need = 0;
   Wire.setTimeOut(25);
   (void)Wire.setBufferSize(128);
+#endif
 }
 
 // ---------------------------------------------------------------- album art
 //
-// The bridge fetches the phone's cover-art thumbnail (JPEG) and serves it in chunks: write
-// [0x10][idx_lo][idx_hi], read [0xC7][art_id][idx_lo][idx_hi][n][120 data bytes]. One chunk is read
-// per frame (~13 ms of I2C at 100 kHz, shared with touch) so the gauges keep moving; a 20 KB image
-// takes about 3 s. Every chunk header is checked (the slave can answer with a stale reply), and the
-// P4's hardware JPEG decoder turns the result into RGB565.
+// The bridge fetches the phone's cover-art thumbnail (JPEG); the P4's hardware JPEG decoder turns it into
+// RGB565. In the car it comes over CAN: the transport frame announces the art id, the center asks for it
+// (ART_REQUEST) and collects ART_INFO + ART_DATA, asking again from the first missing chunk when the stream
+// goes quiet (frames are single-shot). A 20 KB image takes about 3 s.
+//
+// Bench only (CENTER_AUDIO_I2C): the bridge also serves it in I2C chunks: write [0x10][idx_lo][idx_hi],
+// read [0xC7][art_id][idx_lo][idx_hi][n][120 data bytes], one chunk per frame. Every chunk header is
+// checked (the slave can answer with a stale reply).
 
-static constexpr uint8_t kArtReg = 0x10;
-static constexpr int kArtChunk = 120;
-static constexpr size_t kArtInCap = 48 * 1024;
+static constexpr size_t kArtInCap = ELC_CAN_ART_MAX_BYTES;
 
 static uint8_t *s_jpg = nullptr;       // download buffer (DMA-capable, from the JPEG driver)
 static size_t s_jpg_cap = 0;
-static uint8_t s_fetch_id = 0;         // image being downloaded (0 = none)
+#if CENTER_AUDIO_I2C
+static constexpr uint8_t kArtReg = 0x10;
+static constexpr int kArtChunk = 120;
+static uint8_t s_fetch_id = 0;         // image being downloaded over I2C (0 = none)
 static uint16_t s_fetch_len = 0;
 static uint16_t s_fetch_next = 0;      // next chunk index
 static uint16_t s_fetch_fails = 0;
+#endif
 static uint8_t s_art_done_id = 0;      // last image decoded (or given up on)
 static uint16_t *s_art_px = nullptr;   // decoded RGB565
 static int s_art_w = 0, s_art_h = 0, s_art_stride = 0;
@@ -247,6 +264,94 @@ static bool art_decode(const uint8_t *jpg, size_t len) {
   return true;
 }
 
+static bool art_alloc() {
+  if (!s_jpg) {
+    jpeg_decode_memory_alloc_cfg_t mc = {};
+    mc.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER;
+    s_jpg = (uint8_t *)jpeg_alloc_decoder_mem(kArtInCap, &mc, &s_jpg_cap);
+  }
+  return s_jpg != nullptr;
+}
+
+// ---- CAN (the car)
+static ElcCanArtReceiver s_can_art;
+static uint32_t s_can_art_rx_ms = 0;   // last frame of the image being collected
+static uint32_t s_can_req_ms = 0;      // last ART_REQUEST
+static uint16_t s_can_req_have = 0;    // chunks we had at that request
+static uint8_t s_can_req_tries = 0;    // requests in a row that brought nothing new
+static bool s_art_from_can = false;
+
+void center_audio_link_can_frame(const ElcCanFrame &f) {
+  if (s_can_art.feed(f)) {
+    s_can_art_rx_ms = millis();
+  }
+}
+
+static void art_pump_can(bool heard) {
+  uint8_t slot = 0, id = 0;
+  if (!heard || !center_can_audio_art(&slot, &id)) {
+    if (s_art_from_can) {  // bridge gone from CAN: drop its art (a bench I2C bridge may take over)
+      s_art_valid = false;
+      s_art_done_id = 0;
+      s_can_art.reset();
+      s_art_from_can = false;
+    }
+    return;
+  }
+  s_art_from_can = true;
+  if (id == 0) {  // new track with no art (yet), or phone gone
+    s_art_valid = false;
+    s_art_done_id = 0;
+    s_can_art.reset();
+    return;
+  }
+  if (id == s_art_done_id) {
+    return;
+  }
+  const uint32_t now = millis();
+  if (s_can_art.art_id() != id) {
+    if (!art_alloc()) {
+      s_art_done_id = id;  // cannot take any image
+      return;
+    }
+    s_can_art.start(slot, id, s_jpg, s_jpg_cap);
+    s_can_art_rx_ms = 0;
+    s_can_req_ms = 0;
+    s_can_req_have = 0;
+    s_can_req_tries = 0;
+  }
+  if (s_can_art.too_big()) {
+    Serial.printf("[audio] album art #%u: %u bytes over CAN is too big, skipped\n", (unsigned)id,
+                  (unsigned)s_can_art.size());
+    s_art_done_id = id;
+    return;
+  }
+  if (s_can_art.complete()) {
+    const bool decoded = art_decode(s_jpg, s_can_art.size());
+    Serial.printf("[audio] album art #%u over CAN: %u bytes, %s %dx%d\n", (unsigned)id, (unsigned)s_can_art.size(),
+                  decoded ? "decoded" : "decode FAILED", s_art_w, s_art_h);
+    s_art_done_id = id;
+    s_can_art.reset();
+    return;
+  }
+  // (Re)ask from the first missing chunk once the stream has gone quiet.
+  if (now - s_can_art_rx_ms > 300u && now - s_can_req_ms > 300u) {
+    if (s_can_art.chunks_have() > s_can_req_have) {
+      s_can_req_tries = 0;  // the last request brought data: not stuck
+    }
+    if (++s_can_req_tries > 20) {
+      Serial.printf("[audio] album art #%u over CAN: no progress, given up at chunk %u\n", (unsigned)id,
+                    (unsigned)s_can_art.first_missing());
+      s_art_done_id = id;
+      return;
+    }
+    s_can_req_have = s_can_art.chunks_have();
+    s_can_req_ms = now;
+    center_can_request_art(slot, id, s_can_art.first_missing());
+  }
+}
+
+#if CENTER_AUDIO_I2C
 /** Read one chunk of the image being fetched; decode when the last one is in. */
 static void art_pump() {
   if (s_art_snap_id == 0 && s_art_valid) {
@@ -257,12 +362,7 @@ static void art_pump() {
     return;
   }
   if (s_fetch_id != s_art_snap_id) {
-    if (!s_jpg) {
-      jpeg_decode_memory_alloc_cfg_t mc = {};
-      mc.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER;
-      s_jpg = (uint8_t *)jpeg_alloc_decoder_mem(kArtInCap, &mc, &s_jpg_cap);
-    }
-    if (!s_jpg || s_art_snap_len == 0 || s_art_snap_len > s_jpg_cap) {
+    if (!art_alloc() || s_art_snap_len == 0 || s_art_snap_len > s_jpg_cap) {
       s_art_done_id = s_art_snap_id;  // cannot take this one
       return;
     }
@@ -309,12 +409,22 @@ static void art_pump() {
     s_fetch_id = 0;
   }
 }
+#endif  // CENTER_AUDIO_I2C
 
 void center_audio_art_status(char *out, size_t n) {
-  snprintf(out, n, "announced id=%u len=%u state=%u, fetching id=%u chunk %u (fails %u), decoded #%u %s %dx%d",
+  if (s_art_from_can || !CENTER_AUDIO_I2C) {
+    snprintf(out, n, "CAN: collecting id=%u %u/%u chunks (size %u, tries %u), decoded #%u %s %dx%d",
+             (unsigned)s_can_art.art_id(), (unsigned)s_can_art.chunks_have(),
+             (unsigned)(s_can_art.sized() ? elc_can_art_chunks(s_can_art.size()) : 0), (unsigned)s_can_art.size(),
+             (unsigned)s_can_req_tries, (unsigned)s_art_done_id, s_art_valid ? "shown" : "none", s_art_w, s_art_h);
+    return;
+  }
+#if CENTER_AUDIO_I2C
+  snprintf(out, n, "I2C: announced id=%u len=%u state=%u, fetching id=%u chunk %u (fails %u), decoded #%u %s %dx%d",
            (unsigned)s_art_snap_id, (unsigned)s_art_snap_len, (unsigned)s_art_snap_state, (unsigned)s_fetch_id,
            (unsigned)s_fetch_next, (unsigned)s_fetch_fails, (unsigned)s_art_done_id, s_art_valid ? "shown" : "none",
            s_art_w, s_art_h);
+#endif
 }
 
 bool center_audio_art(const uint16_t **px, int *w, int *h, int *stride, uint32_t *serial) {
@@ -331,37 +441,17 @@ bool center_audio_art(const uint16_t **px, int *w, int *h, int *stride, uint32_t
 
 void center_audio_link_poll() {
   const uint32_t now = millis();
-  art_pump();
-  // Metadata changes slowly; polling every frame kept the shared touch/display I2C bus busy and a
-  // missing or unpowered ESP32-D could stall rendering on each attempt.
-  static uint32_t s_last_poll_ms = 0;
-  if (s_last_poll_ms != 0 && now - s_last_poll_ms < CENTER_AUDIO_SNAPSHOT_MS) {
-    return;
-  }
-  s_last_poll_ms = now;
 
-  // Only ever ask for the snapshot (0x0F). The ESP32 I2C slave often answers a read with the reply
-  // queued for the previous request; mixing 0x01 and 0x05 reads meant each got the other's bytes,
-  // so transport never parsed and the progress stayed at zero. With one request type, a late reply
-  // is still a snapshot. The bridge has served 0x0F since before this firmware.
-  static uint32_t s_fail_since = 0;
-  if (poll_snapshot()) {
-    s_fail_since = 0;
-  } else if (!s_fail_since) {
-    s_fail_since = now;
-  } else if (now - s_fail_since > 3000u) {
-    s_ok = false;  // bridge gone
-    s_tr_valid = false;
-  }
-
-  // A bridge in a DigiDash slot also sends now-playing over CAN. When it is heard there, its text and
-  // transport win; album art still comes over I2C (the snapshot read above).
+  // CAN: the link in the car. The bridge in its DigiDash slot sends text + transport and serves album art.
   char can_line[sizeof(s_line)];
   uint16_t can_el = 0, can_dur = 0;
   uint8_t can_vol = 0;
-  if (center_can_audio(can_line, sizeof(can_line), &can_el, &can_dur, &can_vol)) {
+  const bool can = center_can_audio(can_line, sizeof(can_line), &can_el, &can_dur, &can_vol);
+  if (can) {
     if (trim_and_has_visible(can_line)) {
       snprintf(s_line, sizeof(s_line), "%s", can_line);
+    } else {
+      s_line[0] = '\0';  // phone disconnected (the bridge clears its text)
     }
     s_elapsed_s = can_el;
     s_duration_s = can_dur;
@@ -369,26 +459,50 @@ void center_audio_link_poll() {
     s_tr_valid = true;
     s_ok = true;
   }
+  art_pump_can(can);
+
+#if CENTER_AUDIO_I2C
+  // Bench only: a bridge wired to the display bus with no CAN transceivers.
+  if (!can) {
+    art_pump();
+    // Metadata changes slowly; polling every frame kept the shared touch/display I2C bus busy and a
+    // missing or unpowered ESP32-D could stall rendering on each attempt.
+    static uint32_t s_last_poll_ms = 0;
+    if (s_last_poll_ms == 0 || now - s_last_poll_ms >= CENTER_AUDIO_SNAPSHOT_MS) {
+      s_last_poll_ms = now;
+      // Only ever ask for the snapshot (0x0F). The ESP32 I2C slave often answers a read with the reply
+      // queued for the previous request; mixing 0x01 and 0x05 reads meant each got the other's bytes,
+      // so transport never parsed and the progress stayed at zero. With one request type, a late reply
+      // is still a snapshot. The bridge has served 0x0F since before this firmware.
+      static uint32_t s_fail_since = 0;
+      if (poll_snapshot()) {
+        s_fail_since = 0;
+      } else if (!s_fail_since) {
+        s_fail_since = now;
+      } else if (now - s_fail_since > 3000u) {
+        s_ok = false;  // bridge gone
+        s_tr_valid = false;
+      }
+    }
+  }
+#else
+  if (!can) {
+    s_ok = false;  // no bridge heard on CAN for 2 s
+    s_tr_valid = false;
+  }
+#endif
 
   if (now - s_last_audio_sensor_summary_ms >= CENTER_AUDIO_SENSOR_LOG_INTERVAL_MS) {
     s_last_audio_sensor_summary_ms = now;
     char logbuf[120];
-    const bool tr_ok = s_tr_valid;
-    if (!tr_ok) {
-      snprintf(logbuf, sizeof(logbuf), "audio 0x2A: TR_-- (tr_rx=%d) meta=%s", s_last_tr_rx, s_ok ? "last_ok" : "fail");
-    } else if (!s_ok) {
-      if (s_last_meta_rx >= 0 && s_last_meta_need > 0 && s_last_meta_rx < s_last_meta_need) {
-        snprintf(logbuf, sizeof(logbuf), "audio 0x2A: TR_ok  META I2C short read (rx=%d need=%d)", s_last_meta_rx,
-                 s_last_meta_need);
-      } else {
-        snprintf(logbuf, sizeof(logbuf), "audio 0x2A: TR_ok  META I2C fail (rx=%d)", s_last_meta_rx);
-      }
+    const char *src = can ? "audio CAN" : "audio 0x2A";
+    if (!s_ok || !s_tr_valid) {
+      snprintf(logbuf, sizeof(logbuf), "%s: no bridge heard%s", src, CENTER_AUDIO_I2C ? "" : " (CAN only; bench: *-bench env)");
     } else if (trim_and_has_visible(s_line)) {
-      snprintf(logbuf, sizeof(logbuf), "audio 0x2A: TR_ok  \"%.*s\"  %us/%us v%u", 52, s_line, (unsigned)s_elapsed_s,
+      snprintf(logbuf, sizeof(logbuf), "%s: \"%.*s\"  %us/%us v%u", src, 52, s_line, (unsigned)s_elapsed_s,
                (unsigned)s_duration_s, (unsigned)s_vol_0_15);
     } else {
-      snprintf(logbuf, sizeof(logbuf),
-               "audio 0x2A: TR_ok  META no title (len=0) — flash esp32_audio_bridge w/ 0x0F snapshot");
+      snprintf(logbuf, sizeof(logbuf), "%s: connected, nothing playing", src);
     }
     center_ui_sensor_log_line(logbuf);
   }

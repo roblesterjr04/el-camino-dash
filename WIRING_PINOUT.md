@@ -137,8 +137,13 @@ CANH / CANL / GND tap for a USB-CAN adapter.
 
 **Accessory slots** U3 / U11 / U12 all use the ESP32-DevKitC footprint (back side). Each gets 5 V + GND and its CAN
 pair; the DevKit's 3V3 pin stays unconnected. Slot number straps (read with pull-ups, grounded = 1): **GPIO13** is
-grounded on slot 1, **GPIO23** on slot 2, neither on slot 0. Slot 0 additionally keeps the audio wiring below (I2C to
-the center, I2S amps J14/J15).
+grounded on slot 1, **GPIO23** on slot 2, neither on slot 0. Slot 0 additionally keeps the audio wiring below (I2S amps J14/J15, and an
+I2C link to the center that only bench firmware uses).
+
+**Console cable (planned, J17 not on the board yet):** the OLED + knobs board connects with one 4-pin locking cable:
++5 V, GND, CANH, CANL (twisted pair). It is the far end of the bus after the right screen; it carries its own 120 Ω,
+and R36 at U10 goes behind a solder jumper that is closed only when no console is fitted. Details in
+[`docs/protocols/can_bus.md`](docs/protocols/can_bus.md#console-cable-planned-not-on-the-board-yet).
 
 ### Backup camera (center): TVP5150 video decoder module
 
@@ -189,9 +194,9 @@ Use **`arduino/sketches/esp32_audio_bridge/esp32_audio_bridge.ino`** (or `firmwa
 
 Optional: connect ESP32-D to the **cluster** bus (**47/48**) as slave **0x3E** to mirror the global **theme** byte in NVS (see firmware).
 
-On the DigiDash board the ESP32-D sits in **accessory slot 0 (U3)** and also joins the **CAN bus** (TX GPIO32, RX
-GPIO33 through U6): it sends now-playing + transport there, and the center prefers that over I2C when it hears it. The
-I2C link stays wired so a bench setup without transceivers keeps working.
+On the DigiDash board the ESP32-D sits in **accessory slot 0 (U3)** and talks to the center over the **CAN bus** only
+(TX GPIO32, RX GPIO33 through U6): now-playing, transport and album art. The I2C wiring above is for **bench** setups
+without transceivers: it is used only by the center's `*-bench` envs and the bridge's `esp32dev_bench` env.
 
 **I2S amplifier** (MAX98357A, `esp32dev_external_i2s` build): DIN = **GPIO27**, BCLK = **GPIO14**, LRC = **GPIO25**, VIN = 5 V,
 GND. GAIN can float (9 dB). On the DigiDash board: **J14** (Amp L) and **J15** (Amp R), 7-pin sockets in the
