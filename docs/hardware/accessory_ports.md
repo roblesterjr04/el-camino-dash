@@ -1,21 +1,20 @@
 # Accessory ports and carrier boards
 
-**Status: in the DigiDash schematic and PCB, placed but not routed.** The three ESP32-DevKitC slots (U3 / U11 / U12),
+**Status: in the DigiDash schematic and PCB, placed and autorouted (Freerouting 2.1, 45° traces, no 90° corners away from pads).** The three ESP32-DevKitC slots (U3 / U11 / U12),
 their transceivers and the amplifier sockets J14 / J15 are gone. On the board now:
 
 | Part | What | Placed at (back, mm) |
 | --- | --- | --- |
 | J18, J19, J20, J21 | header positions 1–4 (`DigiDash_Accessory:Port_Header_2x05`) | (−74, 28.5), (−16, 28.5), (−84, 74), (−84.7, 97.3) |
-| J17, J22 | cable ports 1–2 (JST GH BM04B-GHS-TBT) | (42.8, 68.3), (101.2, 69.5) |
+| J17, J22 | cable ports 1–2 (JST PH S4B-PH-K, through-hole) | (45.65, 17.95), (65.65, 17.95), top edge |
 | F1–F8 | 0.5 A PTCs (MF-R050): +5 V and +12 V for each header position | beside their position |
-| F9, F10 | 0.5 A PTCs: +5 V for each cable port | beside J17 |
+| F9, F10 | 0.5 A PTCs: +5 V for each cable port | beside J17 / J22 on the top edge |
 | D2 | NUP2105L CAN ESD clamp (SOT-23) | (34.5, 59.7) |
 
 Everything is placed from the old slot areas outward, clear of other parts' courtyards and of existing copper, and with
-a 50 × 26 mm carrier envelope kept free of back-side parts at each header position. The cable ports could not get an
-edge spot free of existing tracks; move them to the edge when the board is routed. The screen headers will move once
-the screens are laid out with the bezel, so none of this is routed yet: run **Update PCB from Schematic**, refill the
-zones (**B**) and route. Five track segments on CL_SCL, CAN_RX_L and Illumination that crossed J20 / J21 were removed.
+a 50 × 26 mm carrier envelope kept free of back-side parts at each header position. The cable ports sit on the top edge (side entry, the socket overhangs the edge by about 1.3 mm), each with its PTC beside it and silkscreen pin labels (5V, H = CANH, L = CANL, G = GND) and a name (CONSOLE, SPARE) on the back. The screen headers will move once
+the screens are laid out with the bezel, so expect to re-route then: run **Update PCB from Schematic**, refill the
+zones (**B**) and re-run the autorouter. All tracks were ripped up and rerouted from scratch when the cable ports moved.
 
 Accessories no longer plug into slots shaped for one module. The DigiDash board offers **ports**, and every
 accessory is a **carrier board** with its own MCU and CAN transceiver, in whatever shape suits it. A port carries only
@@ -26,7 +25,7 @@ There are two kinds of port with the same bus on them:
 | Port | Connector on the DigiDash board | For |
 | --- | --- | --- |
 | **Header position** | 2×5 shrouded header, 2.54 mm, plus two M3 standoff holes | A carrier stacked on the board, or connected by a short ribbon |
-| **Cable port** | JST GH 4-pin, locking, on the board edge | Off-board devices on a thin cable (the console) |
+| **Cable port** | JST PH 4-pin through-hole, side entry, on the board edge | Off-board devices on a thin cable (the console) |
 
 ## Header position
 
@@ -106,10 +105,11 @@ Keep it under 30 cm (it is a stub on the bus, see below).
 
 ## Cable port
 
-JST GH 4-pin vertical (BM04B-GHS-TBT), locking, on the board edge. The pinout is the DroneCAN / Pixhawk one, so
-off-the-shelf GH CAN cables, splitters and terminator plugs fit:
+JST PH 4-pin, side entry (S4B-PH-K), through-hole so it hand-solders, on the board edge. It is not locking. The pin
+order is the DroneCAN / Pixhawk one (1 +5 V, 2 CANH, 3 CANL, 4 GND), but the PH connector is not GH-compatible, so
+the cable is a PH-to-PH one you make up:
 
-| GH pin | Signal |
+| PH pin | Signal |
 | --- | --- |
 | 1 | +5 V (0.5 A resettable fuse) |
 | 2 | CANH |
@@ -119,7 +119,7 @@ off-the-shelf GH CAN cables, splitters and terminator plugs fit:
 The **console** (ESP32-S3, SSD1322 OLED, encoders; `docs/protocols/can_bus.md`) uses a cable port. It is not
 special: any off-board device can use one, and the console would also work from a header position on a ribbon.
 The board has two cable ports, J17 (the console) and J22 (spare). J17 was a JST PH with 1 +5 V, 2 GND, 3 CANL, 4 CANH
-on the first revision; the pin order changed with the connector.
+on the first revision; the pin order changed when it became a GH and stayed changed when it went back to PH.
 
 A device that needs more than 0.5 A, or +12 V, uses a header position instead (or a ribbon from one).
 

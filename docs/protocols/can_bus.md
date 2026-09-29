@@ -48,10 +48,10 @@ node `0x10`).
 
 The console is its own board: an ESP32-S3 dev board (its TWAI controller drives one MCP2562), the SSD1322 256×64
 OLED on SPI, the Select and Volume encoders and the Back and View keys. One cable runs from it to **cable port J17**
-on the DigiDash board, a locking JST GH 4-pin (BM04B-GHS-TBT) with the DroneCAN / Pixhawk pinout (J22 is a second,
+on the DigiDash board, a through-hole JST PH 4-pin (S4B-PH-K) with the DroneCAN pin order (J22 is a second,
 spare cable port):
 
-| GH pin | Signal |
+| PH pin | Signal |
 | --- | --- |
 | 1 | +5 V (from the DigiDash rail through its own 0.5 A PTC) |
 | 2 | CANH |

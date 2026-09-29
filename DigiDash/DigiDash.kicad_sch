@@ -26664,7 +26664,7 @@
 		)
 		(uuid "893a3296-8156-4d71-9228-f4a415dde2fe")
 	)
-	(text "ACCESSORY PORTS (docs/hardware/accessory_ports.md). J18-J21: 2x5 header positions for carrier boards, back side, M3 standoffs.\nJ17 / J22: JST GH cable ports (DroneCAN order). Each 5 V and 12 V feed has its own 0.5 A PTC. Carriers never terminate the bus."
+	(text "ACCESSORY PORTS (docs/hardware/accessory_ports.md). J18-J21: 2x5 header positions for carrier boards, back side, M3 standoffs.\nJ17 / J22: JST PH through-hole cable ports (DroneCAN pin order). Each 5 V and 12 V feed has its own 0.5 A PTC. Carriers never terminate the bus."
 		(exclude_from_sim no)
 		(at 71.12 238.76 0)
 		(effects
@@ -29624,7 +29624,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_GH_BM04B-GHS-TBT_1x04-1MP_P1.25mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal"
 			(at 96.52 325.12 0)
 			(effects
 				(font
@@ -29642,7 +29642,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Cable port 1, JST GH 4-pin, DroneCAN order: 1 +5V (fused), 2 CANH, 3 CANL, 4 GND. Console on port 1"
+		(property "Description" "Cable port 1, JST PH 4-pin through-hole, DroneCAN order: 1 +5V (fused), 2 CANH, 3 CANL, 4 GND. Console on port 1"
 			(at 96.52 325.12 0)
 			(effects
 				(font
@@ -29985,7 +29985,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_GH_BM04B-GHS-TBT_1x04-1MP_P1.25mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal"
 			(at 144.78 325.12 0)
 			(effects
 				(font
@@ -30003,7 +30003,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Cable port 2, JST GH 4-pin, DroneCAN order: 1 +5V (fused), 2 CANH, 3 CANL, 4 GND. Console on port 1"
+		(property "Description" "Cable port 2, JST PH 4-pin through-hole, DroneCAN order: 1 +5V (fused), 2 CANH, 3 CANL, 4 GND. Console on port 1"
 			(at 144.78 325.12 0)
 			(effects
 				(font

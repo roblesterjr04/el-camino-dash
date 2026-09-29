@@ -21,11 +21,11 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
 
 ```
  left (speedo) ── accessory ports J18..J21 ── cable ports J17 / J22 ── center ── right (TSPS)
-                    (carrier boards)            └─ short GH cable ── console (OLED + knobs, ESP32-S3)
+                    (carrier boards)            └─ short PH cable ── console (OLED + knobs, ESP32-S3)
 ```
 
 The center re-sends each sensor frame and the theme on CAN. Accessories are carrier boards with their own MCU and
-transceiver on generic ports: four 2×5 header positions on the back of the board and two JST GH cable ports, each
+transceiver on generic ports: four 2×5 header positions on the back of the board and two JST PH cable ports, each
 with fused +5 V (and +12 V on the headers); see `docs/hardware/accessory_ports.md`. The audio bridge is one such
 carrier and talks to the center over CAN only (its I2C link is for bench setups). The console (OLED + knobs) is its own
 board on a short cable to cable port J17; accessories never terminate the bus, so it works with any of them unplugged.
@@ -87,6 +87,6 @@ firmware/elc_can/test/host/run_tests.sh           # CAN frame codecs
 
 ## Status / open items
 
-- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable off the CAN bus. Its connector is cable port J17 (JST GH) on the DigiDash board (`docs/hardware/accessory_ports.md`).
+- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable off the CAN bus. Its connector is cable port J17 (JST PH) on the DigiDash board (`docs/hardware/accessory_ports.md`).
 - **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
 - **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.
