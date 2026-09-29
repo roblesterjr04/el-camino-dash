@@ -193,9 +193,10 @@ void center_audio_link_begin() {
 // ---------------------------------------------------------------- album art
 //
 // The bridge fetches the phone's cover-art thumbnail (JPEG); the P4's hardware JPEG decoder turns it into
-// RGB565. In the car it comes over CAN: the transport frame announces the art id, the center asks for it
-// (ART_REQUEST) and collects ART_INFO + ART_DATA, asking again from the first missing chunk when the stream
-// goes quiet (frames are single-shot). A 20 KB image takes about 3 s.
+// RGB565. In the car it comes over CAN in two steps: the transport frame announces the art id, the center asks
+// for the bridge's 128x128 copy (a few KB, well under a second) and shows it, then asks for the phone's original
+// (typically 200x200) and swaps it in. Each step collects ART_INFO + ART_DATA and asks again from the first
+// missing chunk when the stream goes quiet (frames are single-shot).
 //
 // Bench only (CENTER_AUDIO_I2C): the bridge also serves it in I2C chunks: write [0x10][idx_lo][idx_hi],
 // read [0xC7][art_id][idx_lo][idx_hi][n][120 data bytes], one chunk per frame. Every chunk header is
@@ -281,6 +282,25 @@ static uint16_t s_can_req_have = 0;    // chunks we had at that request
 static uint8_t s_can_req_tries = 0;    // requests in a row that brought nothing new
 static bool s_art_from_can = false;
 
+/** Start fetching `variant` of art `id`, or finish with this art when there is no next step. */
+static void can_art_step(uint8_t slot, uint8_t id, uint8_t variant) {
+  s_can_art.start(slot, id, variant, s_jpg, s_jpg_cap);
+  s_can_art_rx_ms = 0;
+  s_can_req_ms = 0;
+  s_can_req_have = 0;
+  s_can_req_tries = 0;
+}
+
+/** After the 128 px copy (shown or not), step up to the original; after the original, stop. */
+static void can_art_next(uint8_t slot, uint8_t id) {
+  if (s_can_art.variant() == ELC_CAN_ART_JPEG128) {
+    can_art_step(slot, id, ELC_CAN_ART_ORIGINAL);
+  } else {
+    s_art_done_id = id;
+    s_can_art.reset();
+  }
+}
+
 void center_audio_link_can_frame(const ElcCanFrame &f) {
   if (s_can_art.feed(f)) {
     s_can_art_rx_ms = millis();
@@ -314,24 +334,20 @@ static void art_pump_can(bool heard) {
       s_art_done_id = id;  // cannot take any image
       return;
     }
-    s_can_art.start(slot, id, s_jpg, s_jpg_cap);
-    s_can_art_rx_ms = 0;
-    s_can_req_ms = 0;
-    s_can_req_have = 0;
-    s_can_req_tries = 0;
+    can_art_step(slot, id, ELC_CAN_ART_JPEG128);  // fast small picture first
   }
-  if (s_can_art.too_big()) {
-    Serial.printf("[audio] album art #%u: %u bytes over CAN is too big, skipped\n", (unsigned)id,
-                  (unsigned)s_can_art.size());
-    s_art_done_id = id;
+  const char *vname = s_can_art.variant() == ELC_CAN_ART_JPEG128 ? "128px" : "original";
+  if (s_can_art.refused()) {
+    Serial.printf("[audio] album art #%u %s over CAN: not available (size %u), %s\n", (unsigned)id, vname,
+                  (unsigned)s_can_art.size(), s_can_art.variant() == ELC_CAN_ART_JPEG128 ? "asking for the original" : "done");
+    can_art_next(slot, id);
     return;
   }
   if (s_can_art.complete()) {
     const bool decoded = art_decode(s_jpg, s_can_art.size());
-    Serial.printf("[audio] album art #%u over CAN: %u bytes, %s %dx%d\n", (unsigned)id, (unsigned)s_can_art.size(),
-                  decoded ? "decoded" : "decode FAILED", s_art_w, s_art_h);
-    s_art_done_id = id;
-    s_can_art.reset();
+    Serial.printf("[audio] album art #%u %s over CAN: %u bytes, %s %dx%d\n", (unsigned)id, vname,
+                  (unsigned)s_can_art.size(), decoded ? "decoded" : "decode FAILED", s_art_w, s_art_h);
+    can_art_next(slot, id);
     return;
   }
   // (Re)ask from the first missing chunk once the stream has gone quiet.
@@ -340,14 +356,14 @@ static void art_pump_can(bool heard) {
       s_can_req_tries = 0;  // the last request brought data: not stuck
     }
     if (++s_can_req_tries > 20) {
-      Serial.printf("[audio] album art #%u over CAN: no progress, given up at chunk %u\n", (unsigned)id,
+      Serial.printf("[audio] album art #%u %s over CAN: no progress, given up at chunk %u\n", (unsigned)id, vname,
                     (unsigned)s_can_art.first_missing());
-      s_art_done_id = id;
+      can_art_next(slot, id);  // a 128px picture already shown stays up
       return;
     }
     s_can_req_have = s_can_art.chunks_have();
     s_can_req_ms = now;
-    center_can_request_art(slot, id, s_can_art.first_missing());
+    center_can_request_art(slot, id, s_can_art.variant(), s_can_art.first_missing());
   }
 }
 
@@ -413,8 +429,9 @@ static void art_pump() {
 
 void center_audio_art_status(char *out, size_t n) {
   if (s_art_from_can || !CENTER_AUDIO_I2C) {
-    snprintf(out, n, "CAN: collecting id=%u %u/%u chunks (size %u, tries %u), decoded #%u %s %dx%d",
-             (unsigned)s_can_art.art_id(), (unsigned)s_can_art.chunks_have(),
+    snprintf(out, n, "CAN: collecting id=%u %s %u/%u chunks (size %u, tries %u), decoded #%u %s %dx%d",
+             (unsigned)s_can_art.art_id(), s_can_art.variant() == ELC_CAN_ART_JPEG128 ? "128px" : "original",
+             (unsigned)s_can_art.chunks_have(),
              (unsigned)(s_can_art.sized() ? elc_can_art_chunks(s_can_art.size()) : 0), (unsigned)s_can_art.size(),
              (unsigned)s_can_req_tries, (unsigned)s_art_done_id, s_art_valid ? "shown" : "none", s_art_w, s_art_h);
     return;

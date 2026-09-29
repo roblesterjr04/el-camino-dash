@@ -109,12 +109,12 @@ bool center_can_audio_art(uint8_t *slot, uint8_t *art_id, uint32_t max_age_ms) {
   return true;
 }
 
-bool center_can_request_art(uint8_t slot, uint8_t art_id, uint16_t first) {
+bool center_can_request_art(uint8_t slot, uint8_t art_id, uint8_t variant, uint16_t first) {
   if (!s_can.running()) {
     return false;
   }
   ElcCanFrame f;
-  elc_can_encode_art_request(ElcCanArtRequest{slot, art_id, first}, f);
+  elc_can_encode_art_request(ElcCanArtRequest{slot, art_id, first, variant}, f);
   return s_can.send(f);
 }
 

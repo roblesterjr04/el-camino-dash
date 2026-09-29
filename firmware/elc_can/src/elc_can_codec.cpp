@@ -184,10 +184,11 @@ bool ElcCanAudioTextDecoder::feed(const ElcCanFrame &f) {
 // ---- album art ----
 
 void elc_can_encode_art_request(const ElcCanArtRequest &r, ElcCanFrame &out) {
-  frame(out, ELC_CAN_ID_AUDIO_ART_REQUEST, 4);
+  frame(out, ELC_CAN_ID_AUDIO_ART_REQUEST, 5);
   out.data[0] = r.slot;
   out.data[1] = r.art_id;
   put16(out.data + 2, r.first_chunk);
+  out.data[4] = r.variant;
 }
 
 bool elc_can_decode_art_request(const ElcCanFrame &f, ElcCanArtRequest &out) {
@@ -195,39 +196,43 @@ bool elc_can_decode_art_request(const ElcCanFrame &f, ElcCanArtRequest &out) {
   out.slot = f.data[0];
   out.art_id = f.data[1];
   out.first_chunk = get16(f.data + 2);
+  out.variant = f.len >= 5 ? f.data[4] : (uint8_t)ELC_CAN_ART_ORIGINAL;
   return true;
 }
 
-void elc_can_encode_art_info(uint8_t slot, uint8_t art_id, uint32_t size, ElcCanFrame &out) {
-  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_ART_INFO), 5);
+void elc_can_encode_art_info(uint8_t slot, uint8_t art_id, uint8_t variant, uint32_t size, ElcCanFrame &out) {
+  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_ART_INFO), 6);
   out.data[0] = art_id;
   put32(out.data + 1, size);
+  out.data[5] = variant;
 }
 
-bool elc_can_decode_art_info(const ElcCanFrame &f, uint8_t *slot, uint8_t *art_id, uint32_t *size) {
+bool elc_can_decode_art_info(const ElcCanFrame &f, uint8_t *slot, uint8_t *art_id, uint8_t *variant, uint32_t *size) {
   const int s = elc_can_slot_of(f.id);
   if (s < 0 || f.id != elc_can_slot_id((uint8_t)s, ELC_CAN_AUDIO_MSG_ART_INFO) || f.len < 5) return false;
   if (slot) *slot = (uint8_t)s;
   if (art_id) *art_id = f.data[0];
   if (size) *size = get32(f.data + 1);
+  if (variant) *variant = f.len >= 6 ? f.data[5] : (uint8_t)ELC_CAN_ART_ORIGINAL;
   return true;
 }
 
-void elc_can_encode_art_data(uint8_t slot, uint8_t art_id, uint16_t idx, const uint8_t *image, uint32_t size,
-                             ElcCanFrame &out) {
-  const uint32_t off = (uint32_t)idx * ELC_CAN_ART_CHUNK;
+void elc_can_encode_art_data(uint8_t slot, uint8_t art_id, uint8_t variant, uint16_t idx, const uint8_t *image,
+                             uint32_t size, ElcCanFrame &out) {
+  const uint32_t off = (uint32_t)(idx & 0x3FFF) * ELC_CAN_ART_CHUNK;
   const uint32_t n = off >= size ? 0 : (size - off < ELC_CAN_ART_CHUNK ? size - off : ELC_CAN_ART_CHUNK);
   frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_ART_DATA), (uint8_t)(3 + n));
   out.data[0] = art_id;
-  put16(out.data + 1, idx);
+  put16(out.data + 1, (uint16_t)(((variant & 3) << 14) | (idx & 0x3FFF)));
   if (n) memcpy(out.data + 3, image + off, n);
 }
 
-void ElcCanArtReceiver::start(uint8_t slot, uint8_t art_id, uint8_t *buf, size_t cap) {
+void ElcCanArtReceiver::start(uint8_t slot, uint8_t art_id, uint8_t variant, uint8_t *buf, size_t cap) {
   _buf = buf;
   _cap = cap;
   _slot = slot;
   _id = art_id;
+  _variant = variant;
   _size = 0;
   _have = 0;
   _too_big = false;
@@ -238,10 +243,10 @@ bool ElcCanArtReceiver::feed(const ElcCanFrame &f) {
   if (_id == 0 || _too_big) return false;
   const int s = elc_can_slot_of(f.id);
   if (s != (int)_slot) return false;
-  uint8_t id = 0;
+  uint8_t id = 0, variant = 0;
   uint32_t size = 0;
-  if (elc_can_decode_art_info(f, nullptr, &id, &size)) {
-    if (id != _id) return false;
+  if (elc_can_decode_art_info(f, nullptr, &id, &variant, &size)) {
+    if (id != _id || variant != _variant) return false;
     if (_size == 0) {
       if (size == 0 || size > _cap || size > ELC_CAN_ART_MAX_BYTES || !_buf) {
         _too_big = true;
@@ -252,8 +257,10 @@ bool ElcCanArtReceiver::feed(const ElcCanFrame &f) {
     return true;
   }
   if (f.id != elc_can_slot_id(_slot, ELC_CAN_AUDIO_MSG_ART_DATA) || f.len < 4 || f.data[0] != _id) return false;
+  const uint16_t field = get16(f.data + 1);
+  if ((field >> 14) != _variant) return false;  // another display's stream
   if (_size == 0) return true;  // ours, but the size is not known yet: it will be asked for again
-  const uint16_t idx = get16(f.data + 1);
+  const uint16_t idx = field & 0x3FFF;
   if (idx >= elc_can_art_chunks(_size)) return true;
   const uint32_t off = (uint32_t)idx * ELC_CAN_ART_CHUNK;
   const uint32_t want = _size - off < ELC_CAN_ART_CHUNK ? _size - off : ELC_CAN_ART_CHUNK;

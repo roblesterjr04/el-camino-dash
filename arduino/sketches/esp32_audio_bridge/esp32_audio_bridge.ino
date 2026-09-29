@@ -34,6 +34,7 @@
 
 #include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
+#include "art_variants.h"
 #include "cluster_theme_i2c.h"
 #include "esp_avrc_api.h"
 
@@ -628,39 +629,82 @@ static uint8_t s_can_text_serial = 0;
 static char s_can_text_sent[kMaxTrackLen + 1];
 static uint32_t s_can_text_ms = 0;
 
-/* Album art over CAN: a display asks for an art id from a chunk on (ART_REQUEST); the bridge answers
- * with ART_INFO and then streams ART_DATA to the end. Art frames lose arbitration to the sensor and
- * cluster frames, but they outrank heartbeats and the other slots (knob events from a console card),
- * so the stream is paced to one frame per kArtFrameUs: about a third of the bus, a 20 KB cover in ~3 s. */
+/* Album art over CAN: a display asks for an art id and variant from a chunk on (ART_REQUEST); the bridge answers
+ * with ART_INFO and then streams ART_DATA to the end. Variants: the phone's original JPEG, a 128x128 JPEG (the
+ * center shows it first, then steps up to the original) and a 48x48 4-bit grey image (console OLED); the small
+ * ones are made once per cover, and the cover is announced only after that. Art frames lose arbitration to the
+ * sensor and cluster frames, but they outrank heartbeats and the other slots (knob events from a console card),
+ * so the streams are paced to one frame per kArtFrameUs in total: about a third of the bus. Smallest first. */
 static constexpr uint32_t kArtFrameUs = 800;
+static constexpr size_t kArtSmallCap = 16 * 1024;
 static uint32_t s_srv_credit_us = 0;
-static uint8_t s_srv_id = 0;       // art id being streamed (0 = idle)
-static uint16_t s_srv_next = 0;    // next chunk to send
-static bool s_srv_info = false;    // ART_INFO still to send
+struct ArtStream {
+  uint8_t id = 0;       // art id being streamed (0 = idle)
+  uint16_t next = 0;    // next chunk to send
+  bool info = false;    // ART_INFO still to send
+};
+static ArtStream s_srv[3];                  // index = ElcCanArtVariant
+static uint8_t s_var_id = 0;                // art id the variants below were made from (0 = none)
+static uint8_t s_var_made = 0;              // kArtHave* bits
+static uint8_t *s_var_jpg = nullptr;        // 128x128 JPEG
+static size_t s_var_jpg_len = 0;
+static uint8_t s_var_gray[kArtGrayBytes];
+
+/** The ready cover, announced on CAN only once its small variants have been made (or could not be). */
+static uint8_t can_art_announced() {
+  return (s_art_state == kArtReady && s_var_id == s_art_id) ? s_art_id : 0;
+}
+
+/** Bytes of one variant of the announced cover; size 0 = not available. */
+static const uint8_t *art_variant(uint8_t v, uint32_t *size) {
+  *size = 0;
+  if (!can_art_announced()) return nullptr;
+  if (v == ELC_CAN_ART_ORIGINAL && s_art) {
+    *size = (uint32_t)s_art_rx;
+    return s_art;
+  }
+  if (v == ELC_CAN_ART_JPEG128 && (s_var_made & kArtHaveJpeg128)) {
+    *size = (uint32_t)s_var_jpg_len;
+    return s_var_jpg;
+  }
+  if (v == ELC_CAN_ART_GRAY48 && (s_var_made & kArtHaveGray48)) {
+    *size = (uint32_t)kArtGrayBytes;
+    return s_var_gray;
+  }
+  return nullptr;
+}
+
+/** Make the small variants of a newly ready cover (tens of ms, once per cover). */
+static void art_make_small() {
+  if (s_art_state != kArtReady || s_var_id == s_art_id) {
+    return;
+  }
+  if (!s_var_jpg) {
+    s_var_jpg = static_cast<uint8_t *>(malloc(kArtSmallCap));
+  }
+  const uint32_t t0 = millis();
+  s_var_made = art_make_variants(s_art, s_art_rx, s_var_jpg, s_var_jpg ? kArtSmallCap : 0, &s_var_jpg_len, s_var_gray);
+  s_var_id = s_art_id;
+  Serial.printf("cover art #%u variants: 128px JPEG %s (%u bytes), 48px grey %s, %lu ms, heap %u\n", (unsigned)s_art_id,
+                (s_var_made & kArtHaveJpeg128) ? "ok" : "none", (unsigned)s_var_jpg_len,
+                (s_var_made & kArtHaveGray48) ? "ok" : "none", (unsigned long)(millis() - t0), (unsigned)ESP.getFreeHeap());
+}
 
 static void can_on_frame(const ElcCanFrame &f, void *) {
   ElcCanArtRequest r;
-  if (!elc_can_decode_art_request(f, r) || r.slot != s_can_slot || r.art_id == 0) {
+  if (!elc_can_decode_art_request(f, r) || r.slot != s_can_slot || r.art_id == 0 || r.variant > ELC_CAN_ART_GRAY48) {
     return;  // theme etc.: nothing on this board uses it (heartbeats are tracked by ElcCan)
   }
-  if (s_art_state != kArtReady || r.art_id != s_art_id) {
+  if (r.art_id != can_art_announced()) {
     return;  // stale request: the transport frame already announces the current id
   }
-  s_srv_id = r.art_id;
-  s_srv_next = r.first_chunk;
-  s_srv_info = true;
+  ArtStream &st = s_srv[r.variant];
+  st.id = r.art_id;
+  st.next = r.first_chunk;
+  st.info = true;  // a variant we do not have is answered with size 0
 }
 
 static void can_serve_art() {
-  if (!s_srv_id) {
-    return;
-  }
-  if (s_art_state != kArtReady || s_art_id != s_srv_id || !s_art) {
-    s_srv_id = 0;  // the image changed under us; the requester will ask for the new one
-    return;
-  }
-  const uint32_t size = (uint32_t)s_art_rx;
-  const uint16_t chunks = elc_can_art_chunks(size);
   static uint32_t s_last_us = 0;
   const uint32_t now_us = micros();
   s_srv_credit_us += now_us - s_last_us;
@@ -669,25 +713,43 @@ static void can_serve_art() {
     s_srv_credit_us = 8 * kArtFrameUs;  // no bursts after an idle spell
   }
   size_t room = s_can.txFree();
-  const size_t paced = s_srv_credit_us / kArtFrameUs;
-  if (room > paced + 1) {
-    room = paced + 1;
+  if (room) {
+    room--;  // leave one place for transport / heartbeat
   }
-  ElcCanFrame f;
-  if (s_srv_info && room) {
-    elc_can_encode_art_info(s_can_slot, s_srv_id, size, f);
-    if (!s_can.send(f)) return;
-    s_srv_info = false;
-    room--;
-  }
-  while (room-- > 1 && s_srv_next < chunks) {  // leave one place for transport / heartbeat
-    elc_can_encode_art_data(s_can_slot, s_srv_id, s_srv_next, s_art, size, f);
-    if (!s_can.send(f)) return;
-    s_srv_next++;
-    s_srv_credit_us -= kArtFrameUs;
-  }
-  if (s_srv_next >= chunks) {
-    s_srv_id = 0;
+  static const uint8_t kOrder[3] = {ELC_CAN_ART_GRAY48, ELC_CAN_ART_JPEG128, ELC_CAN_ART_ORIGINAL};
+  for (uint8_t v : kOrder) {
+    ArtStream &st = s_srv[v];
+    if (!st.id) continue;
+    uint32_t size = 0;
+    const uint8_t *img = art_variant(v, &size);
+    if (st.id != can_art_announced()) {
+      st.id = 0;  // the cover changed under us; the requester will ask for the new one
+      continue;
+    }
+    ElcCanFrame f;
+    if (st.info) {
+      if (!room) return;
+      elc_can_encode_art_info(s_can_slot, st.id, v, size, f);
+      if (!s_can.send(f)) return;
+      st.info = false;
+      room--;
+      if (!size) {
+        st.id = 0;
+        continue;
+      }
+    }
+    const uint16_t chunks = elc_can_art_chunks(size);
+    while (room && s_srv_credit_us >= kArtFrameUs && st.next < chunks) {
+      elc_can_encode_art_data(s_can_slot, st.id, v, st.next, img, size, f);
+      if (!s_can.send(f)) return;
+      st.next++;
+      room--;
+      s_srv_credit_us -= kArtFrameUs;
+    }
+    if (st.next >= chunks) {
+      st.id = 0;
+    }
+    if (!room || s_srv_credit_us < kArtFrameUs) return;
   }
 }
 
@@ -712,7 +774,7 @@ static void can_publish() {
   t.volume = s_vol_0_15;
   portEXIT_CRITICAL(&s_track_mux);
   t.connected = a2dp_sink && a2dp_sink->is_connected();
-  t.art_id = s_art_state == kArtReady ? s_art_id : 0;
+  t.art_id = can_art_announced();
 
   const uint32_t now = millis();
   const bool changed = strncmp(text, s_can_text_sent, sizeof(text)) != 0;
@@ -853,6 +915,9 @@ void loop() {
   rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
   cover_art_poll();
+#if AUDIO_BRIDGE_CAN
+  art_make_small();
+#endif
 #if AUDIO_BRIDGE_SERIAL_METADATA
   serial_log_metadata_line();
 #endif

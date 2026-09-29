@@ -108,9 +108,18 @@ class ElcCanAudioTextDecoder {
 
 // ---- album art (JPEG from the phone), fetched over CAN on request ----
 //
-// A display asks with ART_REQUEST (slot, art id, first chunk). The bridge answers with ART_INFO (size) and
-// then ART_DATA chunks from that point to the end, as fast as the bus allows at its low priority. Frames are
-// single-shot, so the receiver keeps a bitmap and asks again from the first missing chunk.
+// A display asks with ART_REQUEST (slot, art id, first chunk, variant). The bridge answers with ART_INFO (size) and
+// then ART_DATA chunks from that point to the end, paced (see the bridge). Frames are single-shot, so the receiver
+// keeps a bitmap and asks again from the first missing chunk. Each variant is its own stream (the variant rides in
+// the top bits of the chunk number), so a center and a console can fetch different ones at the same time.
+// ART_INFO with size 0 means the bridge has no such variant for that art id.
+
+enum ElcCanArtVariant : uint8_t {
+  ELC_CAN_ART_ORIGINAL = 0,  // the phone's JPEG as received (typically 200x200)
+  ELC_CAN_ART_JPEG128 = 1,   // 128x128 JPEG, centre-cropped (fast first picture on the center)
+  ELC_CAN_ART_GRAY48 = 2,    // 48x48 grey, 4 bits per pixel, row-major, left pixel in the high nibble (console OLED)
+};
+static const size_t ELC_CAN_ART_GRAY48_BYTES = 48 * 48 / 2;
 
 static const size_t ELC_CAN_ART_CHUNK = 5;             // JPEG bytes per ART_DATA frame
 static const size_t ELC_CAN_ART_MAX_BYTES = 48 * 1024;  // largest image a receiver accepts
@@ -119,16 +128,17 @@ struct ElcCanArtRequest {
   uint8_t slot = 0;
   uint8_t art_id = 0;
   uint16_t first_chunk = 0;
+  uint8_t variant = ELC_CAN_ART_ORIGINAL;  // absent (4-byte request) = original
 };
 void elc_can_encode_art_request(const ElcCanArtRequest &r, ElcCanFrame &out);
 bool elc_can_decode_art_request(const ElcCanFrame &f, ElcCanArtRequest &out);
 
-void elc_can_encode_art_info(uint8_t slot, uint8_t art_id, uint32_t size, ElcCanFrame &out);
-bool elc_can_decode_art_info(const ElcCanFrame &f, uint8_t *slot, uint8_t *art_id, uint32_t *size);
+void elc_can_encode_art_info(uint8_t slot, uint8_t art_id, uint8_t variant, uint32_t size, ElcCanFrame &out);
+bool elc_can_decode_art_info(const ElcCanFrame &f, uint8_t *slot, uint8_t *art_id, uint8_t *variant, uint32_t *size);
 
-/** One ART_DATA frame for chunk idx of an image of `size` bytes (the last chunk may be short). */
-void elc_can_encode_art_data(uint8_t slot, uint8_t art_id, uint16_t idx, const uint8_t *image, uint32_t size,
-                             ElcCanFrame &out);
+/** One ART_DATA frame for chunk idx (< 16384) of an image of `size` bytes (the last chunk may be short). */
+void elc_can_encode_art_data(uint8_t slot, uint8_t art_id, uint8_t variant, uint16_t idx, const uint8_t *image,
+                             uint32_t size, ElcCanFrame &out);
 static inline uint16_t elc_can_art_chunks(uint32_t size) {
   return (uint16_t)((size + ELC_CAN_ART_CHUNK - 1) / ELC_CAN_ART_CHUNK);
 }
@@ -136,17 +146,18 @@ static inline uint16_t elc_can_art_chunks(uint32_t size) {
 /** Reassembles one image into a caller-owned buffer. */
 class ElcCanArtReceiver {
  public:
-  /** Start collecting art_id from slot into buf (cap bytes). Waits for ART_INFO before taking data. */
-  void start(uint8_t slot, uint8_t art_id, uint8_t *buf, size_t cap);
-  void reset() { start(0, 0, nullptr, 0); }
+  /** Start collecting `variant` of art_id from slot into buf (cap bytes). Waits for ART_INFO before taking data. */
+  void start(uint8_t slot, uint8_t art_id, uint8_t variant, uint8_t *buf, size_t cap);
+  void reset() { start(0, 0, 0, nullptr, 0); }
   /** True if the frame belonged to the image being collected. */
   bool feed(const ElcCanFrame &f);
 
   uint8_t art_id() const { return _id; }
+  uint8_t variant() const { return _variant; }
   bool sized() const { return _size != 0; }
   uint32_t size() const { return _size; }
-  /** The image does not fit the buffer (or is empty): give up on this art id. */
-  bool too_big() const { return _too_big; }
+  /** The bridge has no such variant (size 0), or the image does not fit the buffer: give up on it. */
+  bool refused() const { return _too_big; }
   bool complete() const { return _size != 0 && _have == elc_can_art_chunks(_size); }
   uint16_t chunks_have() const { return _have; }
   /** First chunk not received yet (the chunk count when complete). */
@@ -156,7 +167,7 @@ class ElcCanArtReceiver {
   static const size_t kMaxChunks = (ELC_CAN_ART_MAX_BYTES + ELC_CAN_ART_CHUNK - 1) / ELC_CAN_ART_CHUNK;
   uint8_t *_buf = nullptr;
   size_t _cap = 0;
-  uint8_t _slot = 0, _id = 0;
+  uint8_t _slot = 0, _id = 0, _variant = 0;
   uint32_t _size = 0;
   uint16_t _have = 0;
   bool _too_big = false;

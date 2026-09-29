@@ -80,7 +80,7 @@ All multi-byte fields are little-endian.
 | `0x103` | center | 20 Hz | odometer tenths u32 (`0xFFFFFFFF` unknown), distance to empty tenths u32 |
 | `0x104` | center | 20 Hz | instant MPG ×10 u16, trip MPG ×10 u16, bit0 = has fuel economy (5 bytes) |
 | `0x210` | center | on change + every 5 s | theme u8 (0 Classic, 1 Fallout, 2 Modern), center sub-view u8 |
-| `0x211` | a display | on demand | album art request: slot u8, art id u8, first chunk u16 (see below) |
+| `0x211` | a display / console | on demand | album art request: slot u8, art id u8, first chunk u16, variant u8 (see below) |
 | `0x400 + 0x40·slot + msg` | slot card | card-specific | see below |
 | `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 |
 
@@ -94,8 +94,8 @@ Bus load is about 5 % (five 8-byte frames every 50 ms plus heartbeats and audio)
 | --- | --- | --- | --- |
 | `0x00` transport | `0x400` | 4 Hz | elapsed s u16, duration s u16, volume 0–15 u8, text serial u8 (0–15), bit0 = phone connected, album art id u8 (0 = none ready) |
 | `0x01` text | `0x401` | on change + every 1 s | 5 frames: `[serial << 4 \| chunk 0–4]` + 7 bytes of "Artist - Title" (32 bytes max, zero padded) |
-| `0x02` art info | `0x402` | answers `0x211` | art id u8, size bytes u32 (5 bytes) |
-| `0x03` art data | `0x403` | after art info | art id u8, chunk u16, up to 5 bytes of JPEG (chunk n = bytes 5n…5n+4) |
+| `0x02` art info | `0x402` | answers `0x211` | art id u8, size bytes u32 (0 = no such variant), variant u8 (6 bytes) |
+| `0x03` art data | `0x403` | after art info | art id u8, variant << 14 \| chunk u16, up to 5 bytes of image (chunk n = bytes 5n…5n+4) |
 
 The text serial bumps whenever the text changes; a receiver shows a text only once all five chunks of the serial named
 in the latest transport frame have arrived.
@@ -105,14 +105,28 @@ The center takes now-playing, transport and album art from CAN only. A bench bui
 heard on CAN; a bench build of the bridge (`esp32dev_bench`) starts its I2C slaves. The default builds have no I2C
 audio code at all.
 
-**Album art.** The transport frame names the art id that is ready (the phone's cover thumbnail, a JPEG of ~5–30 KB).
-A display that wants it sends `0x211` (slot, art id, first chunk 0). The bridge answers with art info (size), then
-streams art data chunks from that chunk to the end. The stream is paced to one frame per 0.8 ms (about a third of
-the bus): art IDs lose to the sensor and cluster frames anyway, but they outrank heartbeats and the other slots and
-the console. A 20 KB cover takes about 3 s. Frames are single-shot, so the receiver keeps a bitmap and, once the
-stream has been quiet for 300 ms, sends `0x211` again from its first missing chunk (it gives up on that art id after
-20 requests that bring nothing). Receivers accept images up to 48 KB (`ELC_CAN_ART_MAX_BYTES`). Any display (or the
-console) can collect a stream another node asked for.
+**Album art.** The transport frame names the cover that is ready (the phone's thumbnail, a JPEG of ~5–30 KB). The
+bridge makes two smaller copies of each cover before it announces it (`art_variants.cpp`, JPEGDEC + JPEGENC, tens of
+ms), so there are three variants:
+
+| Variant | What | Typical size | Time on the bus |
+| --- | --- | --- | --- |
+| 0 original | the phone's JPEG, as received (usually 200×200) | 8–20 KB | 1.3–3.2 s |
+| 1 128 px | 128×128 JPEG, centre-cropped | 2–5 KB | 0.3–0.8 s |
+| 2 grey 48 | 48×48, 4 bits per pixel, row-major, left pixel in the high nibble (1152 bytes) | 1.1 KB | ~0.2 s |
+
+A receiver sends `0x211` (slot, art id, first chunk 0, variant). The bridge answers with art info (size; 0 means it
+has no such variant) and then streams that variant's chunks to the end. The variant rides in the top two bits of the
+chunk number, so several streams can run at once without mixing (the center's and the console's). All art streams
+together are paced to one frame per 0.8 ms (about a third of the bus), smallest variant first: art IDs lose to the
+sensor and cluster frames anyway, but they outrank heartbeats, the other slots and the console. Frames are
+single-shot, so a receiver keeps a bitmap and, once its stream has been quiet for 300 ms, asks again from its first
+missing chunk (it gives up on that variant after 20 requests that bring nothing). Receivers accept images up to
+48 KB (`ELC_CAN_ART_MAX_BYTES`).
+
+The **center** fetches in two steps: the 128 px copy first (shown as soon as it decodes), then the original, which
+replaces it. If the 128 px copy is not available it goes straight to the original; if the original fails, the 128 px
+picture stays. The **console** asks only for the 48×48 grey image, which its OLED shows as is.
 
 ## Reserved
 

@@ -160,10 +160,13 @@ static void test_audio() {
 static void test_album_art() {
   std::printf("album art request, info and reassembly\n");
   ElcCanFrame f;
-  elc_can_encode_art_request(ElcCanArtRequest{0, 7, 300}, f);
-  CHECK(f.id == ELC_CAN_ID_AUDIO_ART_REQUEST && f.len == 4);
+  elc_can_encode_art_request(ElcCanArtRequest{0, 7, 300, ELC_CAN_ART_JPEG128}, f);
+  CHECK(f.id == ELC_CAN_ID_AUDIO_ART_REQUEST && f.len == 5);
   ElcCanArtRequest q;
   CHECK(elc_can_decode_art_request(f, q) && q.slot == 0 && q.art_id == 7 && q.first_chunk == 300);
+  CHECK(q.variant == ELC_CAN_ART_JPEG128);
+  f.len = 4;  // a requester from before variants: original
+  CHECK(elc_can_decode_art_request(f, q) && q.variant == ELC_CAN_ART_ORIGINAL);
 
   // A 1003-byte "JPEG": 201 chunks, the last one 3 bytes.
   static uint8_t img[1003];
@@ -172,36 +175,36 @@ static void test_album_art() {
   CHECK(n == 201);
   static uint8_t buf[2048];
   ElcCanArtReceiver r;
-  r.start(0, 7, buf, sizeof(buf));
+  r.start(0, 7, ELC_CAN_ART_ORIGINAL, buf, sizeof(buf));
   CHECK(!r.sized() && !r.complete());
 
   // Data before the size is known is ours but not stored.
   ElcCanFrame d;
-  elc_can_encode_art_data(0, 7, 0, img, sizeof(img), d);
+  elc_can_encode_art_data(0, 7, ELC_CAN_ART_ORIGINAL, 0, img, sizeof(img), d);
   CHECK(d.id == 0x403 && d.len == 8);
   CHECK(r.feed(d) && r.chunks_have() == 0);
 
   ElcCanFrame info;
-  elc_can_encode_art_info(0, 7, sizeof(img), info);
+  elc_can_encode_art_info(0, 7, ELC_CAN_ART_ORIGINAL, sizeof(img), info);
   CHECK(info.id == 0x402);
   CHECK(r.feed(info) && r.sized() && r.size() == sizeof(img));
 
   // Every other chunk, then the rest: first_missing walks the gaps.
   for (uint16_t i = 0; i < n; i += 2) {
-    elc_can_encode_art_data(0, 7, i, img, sizeof(img), d);
+    elc_can_encode_art_data(0, 7, ELC_CAN_ART_ORIGINAL, i, img, sizeof(img), d);
     CHECK(r.feed(d));
   }
   CHECK(!r.complete() && r.first_missing() == 1);
-  elc_can_encode_art_data(0, 7, 200, img, sizeof(img), d);
+  elc_can_encode_art_data(0, 7, ELC_CAN_ART_ORIGINAL, 200, img, sizeof(img), d);
   CHECK(d.len == 3 + 3);
   // Foreign frames: another art id, another slot, the text message.
   ElcCanFrame other;
-  elc_can_encode_art_data(0, 8, 1, img, sizeof(img), other);
+  elc_can_encode_art_data(0, 8, ELC_CAN_ART_ORIGINAL, 1, img, sizeof(img), other);
   CHECK(!r.feed(other));
-  elc_can_encode_art_data(1, 7, 1, img, sizeof(img), other);
+  elc_can_encode_art_data(1, 7, ELC_CAN_ART_ORIGINAL, 1, img, sizeof(img), other);
   CHECK(!r.feed(other));
   for (uint16_t i = 1; i < n; i += 2) {
-    elc_can_encode_art_data(0, 7, i, img, sizeof(img), d);
+    elc_can_encode_art_data(0, 7, ELC_CAN_ART_ORIGINAL, i, img, sizeof(img), d);
     r.feed(d);
     r.feed(d);  // duplicates are harmless
   }
@@ -211,10 +214,45 @@ static void test_album_art() {
   // An image bigger than the buffer is refused once, not written.
   ElcCanArtReceiver small;
   static uint8_t tiny[100];
-  small.start(0, 7, tiny, sizeof(tiny));
-  CHECK(small.feed(info) && small.too_big() && !small.sized());
-  elc_can_encode_art_data(0, 7, 0, img, sizeof(img), d);
+  small.start(0, 7, ELC_CAN_ART_ORIGINAL, tiny, sizeof(tiny));
+  CHECK(small.feed(info) && small.refused() && !small.sized());
+  elc_can_encode_art_data(0, 7, ELC_CAN_ART_ORIGINAL, 0, img, sizeof(img), d);
   CHECK(!small.feed(d));
+
+  // Two variants stream at once (center: 128 JPEG, console: 48 grey); each receiver takes only its own.
+  static uint8_t gray[ELC_CAN_ART_GRAY48_BYTES], small_jpg[400];
+  for (size_t i = 0; i < sizeof(gray); i++) gray[i] = (uint8_t)(i * 13);
+  for (size_t i = 0; i < sizeof(small_jpg); i++) small_jpg[i] = (uint8_t)(i * 5 + 1);
+  static uint8_t gbuf[ELC_CAN_ART_GRAY48_BYTES], jbuf[1024];
+  ElcCanArtReceiver rg, rj;
+  rg.start(0, 9, ELC_CAN_ART_GRAY48, gbuf, sizeof(gbuf));
+  rj.start(0, 9, ELC_CAN_ART_JPEG128, jbuf, sizeof(jbuf));
+  ElcCanFrame ig, ij;
+  elc_can_encode_art_info(0, 9, ELC_CAN_ART_GRAY48, sizeof(gray), ig);
+  elc_can_encode_art_info(0, 9, ELC_CAN_ART_JPEG128, sizeof(small_jpg), ij);
+  CHECK(rg.feed(ig) && !rj.feed(ig) && rj.feed(ij) && !rg.feed(ij));
+  const uint16_t ng = elc_can_art_chunks(sizeof(gray)), nj = elc_can_art_chunks(sizeof(small_jpg));
+  for (uint16_t i = 0; i < (ng > nj ? ng : nj); i++) {
+    ElcCanFrame a, b;
+    if (i < ng) {
+      elc_can_encode_art_data(0, 9, ELC_CAN_ART_GRAY48, i, gray, sizeof(gray), a);
+      CHECK(!rj.feed(a));
+      rg.feed(a);
+    }
+    if (i < nj) {
+      elc_can_encode_art_data(0, 9, ELC_CAN_ART_JPEG128, i, small_jpg, sizeof(small_jpg), b);
+      CHECK(!rg.feed(b));
+      rj.feed(b);
+    }
+  }
+  CHECK(rg.complete() && std::memcmp(gbuf, gray, sizeof(gray)) == 0);
+  CHECK(rj.complete() && std::memcmp(jbuf, small_jpg, sizeof(small_jpg)) == 0);
+
+  // "No such variant": size 0 is refused at once.
+  ElcCanArtReceiver none;
+  none.start(0, 9, ELC_CAN_ART_JPEG128, jbuf, sizeof(jbuf));
+  elc_can_encode_art_info(0, 9, ELC_CAN_ART_JPEG128, 0, ij);
+  CHECK(none.feed(ij) && none.refused());
 }
 
 static void test_inert_driver() {

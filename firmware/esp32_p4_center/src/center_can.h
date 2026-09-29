@@ -22,8 +22,8 @@ bool center_can_audio(char *line, size_t n, uint16_t *elapsed_s, uint16_t *durat
                       uint32_t max_age_ms = 2000);
 /** Slot of the bridge last heard and the album art id it announces (0 = none ready). */
 bool center_can_audio_art(uint8_t *slot, uint8_t *art_id, uint32_t max_age_ms = 2000);
-/** Ask the bridge in `slot` for album art `art_id`, starting at chunk `first` (docs/protocols/can_bus.md). */
-bool center_can_request_art(uint8_t slot, uint8_t art_id, uint16_t first);
+/** Ask the bridge in `slot` for `variant` of album art `art_id`, starting at chunk `first` (docs/protocols/can_bus.md). */
+bool center_can_request_art(uint8_t slot, uint8_t art_id, uint8_t variant, uint16_t first);
 
 /** Bench console summary (`can`). */
 void center_can_describe(char *out, size_t n);

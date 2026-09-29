@@ -20,7 +20,7 @@ static const uint16_t ELC_CAN_ID_SENSOR_ECON = 0x104;    // MPG instant x10 u16,
 static const uint16_t ELC_CAN_ID_CLUSTER_STATE = 0x210;  // theme u8, center sub-view u8
 
 // ---- requests to accessory cards ----
-static const uint16_t ELC_CAN_ID_AUDIO_ART_REQUEST = 0x211;  // slot u8, art id u8, first chunk u16 (display -> bridge)
+static const uint16_t ELC_CAN_ID_AUDIO_ART_REQUEST = 0x211;  // slot u8, art id u8, first chunk u16, variant u8 (display -> bridge)
 
 // ---- accessory slots: slot n owns 0x400 + 0x40 * n .. + 0x3F ----
 static const uint16_t ELC_CAN_ID_SLOT_BASE = 0x400;
@@ -37,8 +37,8 @@ static inline int elc_can_slot_of(uint16_t id) {
 // Audio bridge messages (offsets within its slot range).
 static const uint8_t ELC_CAN_AUDIO_MSG_TRANSPORT = 0x00;  // elapsed s u16, duration s u16, volume u8, text serial u8, flags u8
 static const uint8_t ELC_CAN_AUDIO_MSG_TEXT = 0x01;       // [serial << 4 | chunk] + 7 bytes of "Artist - Title"
-static const uint8_t ELC_CAN_AUDIO_MSG_ART_INFO = 0x02;   // art id u8, size bytes u32 (answers a request)
-static const uint8_t ELC_CAN_AUDIO_MSG_ART_DATA = 0x03;   // art id u8, chunk u16, 5 bytes of JPEG
+static const uint8_t ELC_CAN_AUDIO_MSG_ART_INFO = 0x02;   // art id u8, size bytes u32, variant u8 (answers a request)
+static const uint8_t ELC_CAN_AUDIO_MSG_ART_DATA = 0x03;   // art id u8, variant << 14 | chunk u16, 5 bytes of image
 
 // ---- heartbeats: 0x700 + node, 1 Hz ----
 static const uint16_t ELC_CAN_ID_HEARTBEAT_BASE = 0x700;  // node type u8, fw version u16, uptime s u32, flags u8
