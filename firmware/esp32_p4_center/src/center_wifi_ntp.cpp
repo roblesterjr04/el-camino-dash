@@ -5,6 +5,7 @@
 #include <p4_touch.h>
 
 #include "center_audio_link.h"
+#include "center_camera.h"
 #include "center_menu.h"
 #include <elc_gauges.h>
 
@@ -208,6 +209,17 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     }
     return;
   }
+  if (line == "cam" || line.startsWith("cam ")) {  // backup camera
+    if (line == "cam on") center_camera_set_mode(CameraMode::On);
+    if (line == "cam off") center_camera_set_mode(CameraMode::Off);
+    if (line == "cam auto") center_camera_set_mode(CameraMode::Auto);
+    if (line == "cam vsync") center_camera_toggle_vsync_invert();
+    if (line == "cam pclk") center_camera_toggle_pclk_invert();
+    char st[260];
+    center_camera_status(st, sizeof(st));
+    Serial.printf("cam: %s\n", st);
+    return;
+  }
   if (line == "audio") {  // bench: what the audio bridge (0x2A) reports
     uint16_t el = 0, dur = 0;
     uint8_t vol = 0;
@@ -240,7 +252,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }

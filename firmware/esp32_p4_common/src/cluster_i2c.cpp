@@ -37,6 +37,22 @@ bool cluster_i2c_master_write_reg(uint8_t addr7, uint8_t reg, uint8_t value) {
   return e == 0;
 }
 
+bool cluster_i2c_master_read_reg(uint8_t addr7, uint8_t reg, uint8_t *value) {
+  if (!value || !cluster_i2c_master_begin()) {
+    return false;
+  }
+  s_cluster_wire.beginTransmission(addr7);
+  s_cluster_wire.write(reg);
+  if (s_cluster_wire.endTransmission(false) != 0) {
+    return false;
+  }
+  if (s_cluster_wire.requestFrom((int)addr7, 1) != 1) {
+    return false;
+  }
+  *value = (uint8_t)s_cluster_wire.read();
+  return true;
+}
+
 bool cluster_i2c_broadcast_center_theme(ClusterTheme theme, ClusterCenterSubview center_sub) {
   if (!cluster_i2c_master_begin()) {
     return false;
@@ -65,6 +81,8 @@ bool cluster_i2c_last_ack(uint8_t) { return false; }
 bool cluster_i2c_master_begin() { return false; }
 
 bool cluster_i2c_master_write_reg(uint8_t, uint8_t, uint8_t) { return false; }
+
+bool cluster_i2c_master_read_reg(uint8_t, uint8_t, uint8_t *) { return false; }
 
 bool cluster_i2c_broadcast_center_theme(ClusterTheme, ClusterCenterSubview) { return false; }
 

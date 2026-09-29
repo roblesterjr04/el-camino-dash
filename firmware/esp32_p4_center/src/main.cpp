@@ -16,6 +16,7 @@
 #include <sensor_link.h>
 
 #include "center_audio_link.h"
+#include "center_camera.h"
 #include "center_ble.h"
 #include "center_menu.h"
 #include "center_gps.h"
@@ -106,6 +107,7 @@ void setup() {
   center_ble_begin();
   center_ble_set_info_line("ElCamino center");
   center_ui_begin(gfx, &s_prefs);
+  center_camera_begin();
 
   cluster_i2c_master_begin();
   center_ui_sync_cluster_bus();
@@ -291,12 +293,13 @@ void loop() {
   center_audio_link_poll();
   const int64_t draw_t0 = esp_timer_get_time();
 
+  center_camera_loop(now);
   const bool fullscreen = center_ui_fullscreen();
   gauges_show((GaugeTheme)(uint8_t)center_ui_cluster_theme(), face_for(center_ui_view_mode()));
   gauges_set_hidden(fullscreen);
   p4_screen_set_legacy_visible(fullscreen);
   // While the menu covers the face, leave it be (the menu is what's moving).
-  if (!fullscreen && !center_menu_is_open()) {
+  if (!fullscreen && !center_menu_is_open() && !center_camera_showing()) {
     GaugeData gd;
     gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
     gd.trip_mi = (gd.odo_valid && s_trip_base_set) ? (gd.odo_mi - s_trip_base_mi) : 0.0f;

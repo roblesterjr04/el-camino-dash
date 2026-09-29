@@ -37,6 +37,8 @@ enum class ClusterTspsClassicVariant : uint8_t { Classic1 = 0, Classic2 = 1 };
 
 bool cluster_i2c_master_begin();
 bool cluster_i2c_master_write_reg(uint8_t addr7, uint8_t reg, uint8_t value);
+/** Read one 8-bit register (repeated start), e.g. the TVP5150 video decoder on the center's bus. */
+bool cluster_i2c_master_read_reg(uint8_t addr7, uint8_t reg, uint8_t *value);
 
 // Center is master: pushes theme + center sub-view to speedo/TSPS (and optional ESP32-D). Does not set TSPS
 // classic layout — that stays local on the right gauge (3 s hold).
