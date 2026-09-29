@@ -4,6 +4,10 @@ The DigiDash board links the three displays, up to three ESP32 accessory cards a
 own board at the end of a short cable) on one CAN bus. **CAN is the link in the car** for everything except the sensor UART:
 the I2C audio link (`cluster_i2c.md`) exists for bench setups only and is compiled in only by the `*-bench` / `_bench`
 PlatformIO envs.
+**Next board revision:** the DevKit slots give way to generic accessory ports (2×5 header positions and JST GH cable
+ports) where every accessory is its own carrier board, and node numbers come from the carrier instead of slot straps.
+See [`docs/hardware/accessory_ports.md`](../hardware/accessory_ports.md). This document describes the current board.
+
 Shared code: `firmware/elc_can` (IDs in `elc_can_ids.h`, codecs in `elc_can_codec.h`, driver in `elc_can.h`).
 Host tests: `firmware/elc_can/test/host/run_tests.sh`.
 
@@ -178,4 +182,4 @@ picture stays. The **console** asks only for the 48×48 grey image, which its OL
 | --- | --- |
 | `0x220`–`0x22F` | GPS time / position (not sent yet) |
 | `0x4C0`–`0x4FF` | console (OLED + knobs board), messages to be defined |
-| `0x500`–`0x6FF` | future |
+| `0x500`–`0x6FF` | future; planned for accessory nodes `0x14`–`0x1B` (`docs/hardware/accessory_ports.md`) |

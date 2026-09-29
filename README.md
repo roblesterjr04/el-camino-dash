@@ -85,6 +85,6 @@ firmware/elc_can/test/host/run_tests.sh           # CAN frame codecs
 
 ## Status / open items
 
-- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable at the end of the CAN bus; its connector J17 is on the DigiDash board (`docs/protocols/can_bus.md`).
+- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable at the end of the CAN bus; its connector J17 is on the DigiDash board (`docs/protocols/can_bus.md`). The next board revision replaces the three DevKit slots with generic accessory ports and carrier boards (`docs/hardware/accessory_ports.md`).
 - **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
 - **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.
