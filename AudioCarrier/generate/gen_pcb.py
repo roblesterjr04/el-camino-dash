@@ -18,7 +18,7 @@ ROOT = os.path.normpath(os.path.join(HERE, '..'))
 FPDIR = os.environ.get('KICAD_FOOTPRINTS', '/usr/share/kicad/footprints')
 SCH = os.path.join(ROOT, 'AudioCarrier.kicad_sch')
 PCB = os.path.join(ROOT, 'AudioCarrier.kicad_pcb')
-W, H = 120.0, 84.0
+W, H = 100.0, 60.0
 mm = FromMM
 
 
@@ -89,26 +89,75 @@ def load(fpid):
 
 
 # ref -> (x, y, rotation degrees)
-XK = [34, 56, 78, 100]
+XK = [44, 58, 72, 86]   # RCA jack columns
 POS = {
-    'J1': (9, 19.5, 0),
-    'U1': (118, 5, 270),
-    'U2': (30, 8, 0), 'R1': (44, 10, 0), 'C2': (44, 15, 0), 'C3': (44, 20, 0),
-    'D1': (52, 6, 0), 'C1': (56, 20, 0),
-    'JP1': (4, 58, 0), 'JP2': (10, 58, 0), 'JP3': (4, 70, 0),
+    'J1': (9, 20, 0),
+    'U1': (90, 14, 270),
+    'C1': (31, 5, 0), 'C4': (39, 3, 0), 'U6': (46, 7, 0), 'C5': (55, 4, 0), 'C6': (61, 3, 0),
+    'FB1': (61, 7.5, 0), 'C3': (67, 4, 0), 'C2': (67, 9, 0),
+    'U5': (32, 19, 0), 'R1': (39, 17, 0), 'C8': (39, 20, 0), 'C9': (39, 23, 0),
+    'JP1': (44, 19.5, 0), 'JP2': (44, 23.5, 0),
+    'R2': (28, 27, 0), 'C7': (32, 27, 0), 'SW1': (28, 31, 0), 'R3': (36, 27, 0), 'SW2': (36, 31, 0),
+    'J10': (26, 38, 0),
+    'U2': (54, 16, 0), 'C10': (62, 14, 0), 'C11': (49, 11.5, 0), 'C12': (47, 14, 0), 'R5': (62, 18, 0), 'R6': (62, 21.5, 0),
+    'U3': (51, 26, 0), 'U4': (65, 27, 0), 'C60': (51, 22, 0), 'C61': (65, 23, 0),
 }
-CHAN = ['FL', 'FR', 'RL', 'RR']
 for k in range(4):
     x = XK[k]
-    POS['U%d' % (3 + k)] = (x, 42, 0)
-    POS['J%d' % (2 + k)] = (x + 5, 44, 0)
-    POS['C%d' % (10 + k)] = (x + 10, 46, 0)
-    if k in (1, 3):
-        POS['R%d' % (10 + k)] = (x + 9, 51, 0)
-    POS['R%d' % (14 + k)] = (x + 9, 55, 0)
-    POS['R%d' % (18 + k)] = (x + 9, 59, 0)
-    POS['C%d' % (14 + k)] = (x + 9, 63, 0)
-    POS['J%d' % (6 + k)] = (x + 8, 78, 0)
+    POS['R%d' % (20 + 4 * k)] = (x - 3.5, 31.5, 0)
+    POS['R%d' % (21 + 4 * k)] = (x + 3.5, 31.5, 0)
+    POS['C%d' % (40 + 3 * k)] = (x - 3.5, 34.5, 0)
+    POS['C%d' % (41 + 3 * k)] = (x + 3.5, 34.5, 0)
+    POS['C%d' % (42 + 3 * k)] = (x - 3.5, 38, 0)
+    POS['R%d' % (22 + 4 * k)] = (x + 3.5, 38, 0)
+    POS['R%d' % (23 + 4 * k)] = (x + 3.5, 41, 0)
+    POS['J%d' % (2 + k)] = (x, 50, 0)
+
+
+def import_ses(b, path):
+    """Import a Freerouting .ses (pcbnew's own importer is not reachable from a standalone script)."""
+    sys.path.insert(0, HERE)
+    from sexp import parse
+    t = parse(open(path).read())
+    routes = [x for x in t if isinstance(x, list) and x[0] == 'routes'][0]
+    res = [x for x in routes if isinstance(x, list) and x[0] == 'resolution'][0]
+    per_um = float(res[2])            # units per um
+    net_out = [x for x in routes if isinstance(x, list) and x[0] == 'network_out'][0]
+    layers = {'F.Cu': pcbnew.F_Cu, 'B.Cu': pcbnew.B_Cu}
+
+    def pt(x, y):                     # DSN y axis points up
+        return VECTOR2I(int(float(x) / per_um * 1000), int(-float(y) / per_um * 1000))
+
+    nt = 0
+    nv = 0
+    for net in net_out:
+        if not (isinstance(net, list) and net[0] == 'net'):
+            continue
+        ni = b.FindNet(net[1])
+        for item in net[2:]:
+            if item[0] == 'wire':
+                path_ = [x for x in item if isinstance(x, list) and x[0] == 'path'][0]
+                lay, width = path_[1], float(path_[2]) / per_um * 1000
+                xy = path_[3:]
+                for i in range(0, len(xy) - 2, 2):
+                    tr = pcbnew.PCB_TRACK(b)
+                    tr.SetStart(pt(xy[i], xy[i + 1]))
+                    tr.SetEnd(pt(xy[i + 2], xy[i + 3]))
+                    tr.SetWidth(int(width))
+                    tr.SetLayer(layers[lay])
+                    tr.SetNet(ni)
+                    b.Add(tr)
+                    nt += 1
+            elif item[0] == 'via':
+                v = pcbnew.PCB_VIA(b)
+                v.SetPosition(pt(item[2], item[3]))
+                v.SetNet(ni)
+                v.SetViaType(pcbnew.VIATYPE_THROUGH)
+                v.SetWidth(mm(0.8))
+                v.SetDrill(mm(0.4))
+                b.Add(v)
+                nv += 1
+    print('imported', nt, 'track segments,', nv, 'vias')
 
 
 def main():
@@ -120,6 +169,7 @@ def main():
     ds = b.GetDesignSettings()
     ds.SetCopperLayerCount(2)
     ds.m_TrackMinWidth = mm(0.2)
+    ds.m_MinThroughDrill = mm(0.2)
     nc = ds.m_NetSettings.m_DefaultNetClass
     nc.SetClearance(mm(0.2))
     nc.SetTrackWidth(mm(0.3))
@@ -157,7 +207,7 @@ def main():
             elif n:
                 pad.SetNet(net(n))
     # extra mounting holes to GND
-    for i, (hx, hy) in enumerate([(116, 37), (4, 80)]):
+    for i, (hx, hy) in enumerate([(96, 36), (4, 56)]):
         fp = pcbnew.FootprintLoad(os.path.join(FPDIR, 'MountingHole.pretty'), 'MountingHole_3.2mm_M3_Pad')
         fp.SetReference('H%d' % (i + 3))
         b.Add(fp)
@@ -200,7 +250,7 @@ def main():
     k.SetLayerSet(ls)
     o = k.Outline()
     o.NewOutline()
-    for (x, y) in [(106, 0), (W, 0), (W, 34), (106, 34)]:
+    for (x, y) in [(95, 0), (W, 0), (W, 25), (95, 25)]:
         o.Append(mm(x), mm(y))
     b.Add(k)
 
@@ -208,9 +258,9 @@ def main():
     if route:
         dsn, ses = '/tmp/audiocarrier.dsn', '/tmp/audiocarrier.ses'
         pcbnew.ExportSpecctraDSN(b, dsn)
-        subprocess.check_call(['java', '-jar', route, '-de', dsn, '-do', ses, '-mp', '40', '--gui.enabled=false'])
+        subprocess.check_call(['java', '-jar', route, '-de', dsn, '-do', ses, '-mp', '25', '--gui.enabled=false'])
         b = pcbnew.LoadBoard(PCB)
-        pcbnew.ImportSpecctraSES(b, ses)
+        import_ses(b, ses)
         pcbnew.SaveBoard(PCB, b)
     b = pcbnew.LoadBoard(PCB)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
