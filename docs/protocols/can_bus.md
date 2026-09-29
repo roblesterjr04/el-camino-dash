@@ -6,6 +6,10 @@ everything except the sensor UART: the I2C audio link (`cluster_i2c.md`) exists 
 in only by the `*-bench` / `_bench` PlatformIO envs. Ports, carriers and their rules:
 [`docs/hardware/accessory_ports.md`](../hardware/accessory_ports.md).
 
+**Accessories:** the public interface for carrier boards (alerts, sensors, menu items, input, sounds, discovery) is
+the channel protocol in [`can_channels.md`](can_channels.md) (specification only, no firmware yet). The messages
+below are the cluster's own traffic.
+
 Shared code: `firmware/elc_can` (IDs in `elc_can_ids.h`, codecs in `elc_can_codec.h`, driver in `elc_can.h`).
 Host tests: `firmware/elc_can/test/host/run_tests.sh`.
 
@@ -95,7 +99,7 @@ All multi-byte fields are little-endian.
 | `0x213` | center | 1 Hz | center status: flags u8, Wi-Fi RSSI s8, text serial u8 |
 | `0x214` | center | on change + every 5 s | Wi-Fi network name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes (connected network, else the saved one) |
 | `0x400 + 0x40·slot + msg` | accessory (slot = node − `0x10`) | accessory-specific | see below |
-| `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 |
+| `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`; 0 today) |
 
 Sensor fields have the same meaning as in `sensor_uart.md`. Node types: 0 display, 1 audio bridge, 2 console.
 
@@ -182,6 +186,7 @@ picture stays. The **console** asks only for the 48×48 grey image, which its OL
 
 | Range | Use |
 | --- | --- |
+| `0x000`–`0x0FF`, `0x120`–`0x13F`, `0x240`–`0x3FF` | channels of the accessory protocol ([`can_channels.md`](can_channels.md) has the full map); do not use for anything else |
 | `0x220`–`0x22F` | GPS time / position (not sent yet) |
 | `0x4C0`–`0x4FF` | console (OLED + knobs board), messages to be defined |
 | `0x500`–`0x6FF` | future; planned for accessory nodes `0x14`–`0x1B` (`docs/hardware/accessory_ports.md`) |
