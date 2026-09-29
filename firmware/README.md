@@ -6,10 +6,11 @@ Firmware for the three round MIPI displays: the **sensor_pack** UART (`arduino/s
 
 | Gesture | Scope | Effect |
 |--------|--------|--------|
-| Short touch release (center) | Center | Opens the menu. |
+| Short touch release | Interface screen | Opens the menu on whichever round screen is the **interface screen** (Menu → Screens; center by default). A tap elsewhere does nothing. |
 | Hold center **≥ 10 s** | Global | Next theme (**Classic → Modern → Fallout**) on all gauges; center **I2C-broadcasts** theme to speedo, TSPS, and optional ESP32-D; stored in **NVS** on each board. Release does not open the menu. |
-| Hold center **≥ 3 s** | Center | Next view: **Tach → Clock → Media → Efficiency**; NVS + I2C sync. |
-| Hold TSPS **≥ 3 s** (Classic only) | TSPS | Toggles **classic_1 / classic_2** (NVS). GPIO bench toggle may remain (see TSPS `platformio.ini`). |
+| Hold center **≥ 3 s** | Center | Next view: **Tach → Clock → Media → Efficiency** (Media only while the center is the media screen); NVS + CAN sync. |
+| Hold speedo / TSPS **≥ 3 s** on the **media screen** | That screen | Toggles its media view (the gauge stays the default). |
+| Hold TSPS **≥ 3 s** (Classic only, not the media screen) | TSPS | Toggles **classic_1 / classic_2** (NVS). GPIO bench toggle may remain (see TSPS `platformio.ini`). |
 
 Every face exists in all three themes. **Speedo** follows the global theme only (no sub-views).
 
@@ -102,14 +103,18 @@ hidden one of two DSI framebuffers, the panel flips on each refresh, and the red
 buffer by DMA, so nothing tears. Layers, bottom to top: the optional legacy Arduino_GFX canvas (center only, for
 its older full-screen pages), the gauge faces (`p4_screen_gauge_parent()`), and UI (`p4_screen_ui_parent()`).
 
-The center menu (`center_menu.cpp`) is pure LVGL: a wheel on the home page, and Wi-Fi, Brightness, Theme and
-Service pages, rebuilt in the active theme's colors and fonts each time it opens. The Wi-Fi password keyboard,
-sensor log, GPS data and Phone pages are still the older Arduino_GFX full-screen pages.
+The menu (`esp32_p4_ui/ui_menu.cpp`) is pure LVGL: a wheel on the home page, and Wi-Fi, Brightness, Theme, Screens
+and Service pages, rebuilt in the active theme's colors and fonts each time it opens. It runs on any round screen:
+the center backs it with its own state (`center_menu.cpp`), the speedo and TSPS with CAN (`cluster_peer.cpp`: setting
+requests to the center, state from `0x210` / `0x213` / `0x214`, see `docs/protocols/can_bus.md`). The Screens page
+picks the **interface screen** (menu) and the **media screen**. The Wi-Fi password keyboard, sensor log, GPS data
+and Phone pages are still the older Arduino_GFX full-screen pages on the center; from a side screen they open there.
 
 Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
 
 - center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
-  `drag <x> <y1> <y2> <ms>`, `knob left|right|press`, `can`, plus the Wi-Fi/TZ commands;
+  `drag <x> <y1> <y2> <ms>`, `knob left|right|press`, `menu on left|center|right`, `media on left|center|right`,
+  `can`, plus the Wi-Fi/TZ commands;
 - speedo / TSPS: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (TSPS), `can`.
 
 Grab a screenshot from the Mac with:

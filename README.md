@@ -40,7 +40,7 @@ CANH); it is an unterminated branch, so the bus works with it unplugged. See `do
 | `firmware/esp32_p4_speedo`, `_center`, `_tsps` | Display apps (PlatformIO, Arduino framework) |
 | `firmware/elc_can` | Shared CAN (TWAI) library for the displays and slot cards: IDs, frame codecs, heartbeat. Host tests in `test/host/` |
 | `firmware/esp32_p4_common` | Shared library: sensor UART (`SensorLink`), display setup, cluster I2C, watchdog, boot splash. Host tests in `test/host/` |
-| `firmware/esp32_p4_ui` | Touch + overlay menu |
+| `firmware/esp32_p4_ui` | Shared LVGL layer: gauge faces, the menu (on any round screen), media over CAN, touch |
 | `firmware/esp32_classic_bt_audio` | PlatformIO wrapper that builds `arduino/sketches/esp32_audio_bridge` |
 | `firmware/esp32_p4_display_litmus` | Panel bring-up test |
 | `arduino/sketches/sensor_pack` | ATmega328P sensor + odometer firmware |

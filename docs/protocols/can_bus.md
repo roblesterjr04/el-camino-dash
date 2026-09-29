@@ -79,12 +79,52 @@ All multi-byte fields are little-endian.
 | `0x102` | center | 20 Hz | ambient ADC u16, flags u8, fault word u16, sequence u8 (6 bytes) |
 | `0x103` | center | 20 Hz | odometer tenths u32 (`0xFFFFFFFF` unknown), distance to empty tenths u32 |
 | `0x104` | center | 20 Hz | instant MPG ×10 u16, trip MPG ×10 u16, bit0 = has fuel economy (5 bytes) |
-| `0x210` | center | on change + every 5 s | theme u8 (0 Classic, 1 Fallout, 2 Modern), center sub-view u8 |
+| `0x210` | center | on change + every 5 s | cluster state: theme u8 (0 Classic, 1 Fallout, 2 Modern), center sub-view u8, interface screen u8, media screen u8, brightness % u8 (10–100), flags u8 (see below) |
 | `0x211` | a display / console | on demand | album art request: slot u8, art id u8, first chunk u16, variant u8 (see below) |
+| `0x212` | a display / console | on demand | setting request: setting u8, value u8, from node u8 (see below) |
+| `0x213` | center | 1 Hz | center status: flags u8, Wi-Fi RSSI s8, text serial u8 |
+| `0x214` | center | on change + every 5 s | Wi-Fi network name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes (connected network, else the saved one) |
 | `0x400 + 0x40·slot + msg` | slot card | card-specific | see below |
 | `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 |
 
 Sensor fields have the same meaning as in `sensor_uart.md`. Node types: 0 display, 1 audio bridge, 2 console.
+
+### Cluster settings
+
+The center owns the cluster settings (NVS, copied to `settings.json` on the SD card) and sends them in `0x210`.
+Screens are 0 left (speedometer), 1 center, 2 right.
+
+- **Interface screen**: the one with the on-screen menu. A tap there opens it (the console's knob will drive it
+  too); on the other screens a tap does nothing, and a menu left open closes when the setting moves away.
+- **Media screen**: the one with the media view. On the center, media is one of its views (menu or 3 s hold).
+  On a side screen it is an extra view next to that screen's gauge, which stays the default: a 3 s hold toggles
+  it, and `0x210` flag bit1 says it is showing. Only the screen showing media fetches album art.
+- **Brightness**: every screen applies the center's level; bit0 = dims with the headlights.
+
+`0x210` flags: bit0 dims with the headlights, bit1 media showing on the media screen. Older 2-byte frames still
+decode (center, center, 100 %, dims).
+
+Any node changes a setting with `0x212`; the center applies it, saves it and answers with a fresh `0x210` (even
+when nothing changed, so the asker sees the outcome). Settings:
+
+| # | Setting | Value |
+| --- | --- | --- |
+| 1 | theme | 0–2 |
+| 2 | center view | 0 tach, 1 clock, 2 media, 3 efficiency (media on a side screen shows it there instead) |
+| 3 | interface screen | 0–2 |
+| 4 | media screen | 0–2 (media shown here stays shown there) |
+| 5 | brightness | 10–100 |
+| 6 | dims with the headlights | 0 / 1 |
+| 7 | media showing on the media screen | 0 / 1 |
+| 8 | demo drive cycle | 0 / 1 |
+| 9 | action: join the saved Wi-Fi network | — |
+| 10 | action: open a center-only page on the center | 1 Wi-Fi scan and passwords, 2 sensor log, 3 GPS data, 4 phone |
+
+`0x213` flags: bit0 Wi-Fi connected, bit1 GPS fix, bit2 NMEA arriving, bit3 audio bridge heard, bit4 demo on,
+bit5 a saved network exists, bit6 joining a network. The text serial names the `0x214` text that goes with it.
+The side screens build their menu's Wi-Fi and Service pages from these.
+
+The center's serial console sets the screens with `menu on left|center|right` and `media on left|center|right`.
 
 Bus load is about 5 % (five 8-byte frames every 50 ms plus heartbeats and audio).
 
@@ -124,7 +164,7 @@ single-shot, so a receiver keeps a bitmap and, once its stream has been quiet fo
 missing chunk (it gives up on that variant after 20 requests that bring nothing). Receivers accept images up to
 48 KB (`ELC_CAN_ART_MAX_BYTES`).
 
-The **center** fetches in two steps: the 128 px copy first (shown as soon as it decodes), then the original, which
+The **media screen** (the center by default) fetches in two steps: the 128 px copy first (shown as soon as it decodes), then the original, which
 replaces it. If the 128 px copy is not available it goes straight to the original; if the original fails, the 128 px
 picture stays. The **console** asks only for the 48×48 grey image, which its OLED shows as is.
 
