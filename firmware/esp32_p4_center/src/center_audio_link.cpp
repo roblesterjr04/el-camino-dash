@@ -1,4 +1,5 @@
 #include "center_audio_link.h"
+#include "center_can.h"
 #include "center_ui.h"
 
 #include <Arduino.h>
@@ -351,6 +352,22 @@ void center_audio_link_poll() {
   } else if (now - s_fail_since > 3000u) {
     s_ok = false;  // bridge gone
     s_tr_valid = false;
+  }
+
+  // A bridge in a DigiDash slot also sends now-playing over CAN. When it is heard there, its text and
+  // transport win; album art still comes over I2C (the snapshot read above).
+  char can_line[sizeof(s_line)];
+  uint16_t can_el = 0, can_dur = 0;
+  uint8_t can_vol = 0;
+  if (center_can_audio(can_line, sizeof(can_line), &can_el, &can_dur, &can_vol)) {
+    if (trim_and_has_visible(can_line)) {
+      snprintf(s_line, sizeof(s_line), "%s", can_line);
+    }
+    s_elapsed_s = can_el;
+    s_duration_s = can_dur;
+    s_vol_0_15 = can_vol;
+    s_tr_valid = true;
+    s_ok = true;
   }
 
   if (now - s_last_audio_sensor_summary_ms >= CENTER_AUDIO_SENSOR_LOG_INTERVAL_MS) {

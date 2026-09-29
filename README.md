@@ -17,6 +17,15 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
  encoder controller (RP2040: knobs, IR, SSD1322 OLED) ── UART ──► (not yet connected to an ESP32 — see Status)
 ```
 
+**CAN bus** (DigiDash board, 500 kbit/s, one MCP2562 per node, 120 Ω at the left and right screens):
+
+```
+ left (speedo) ── slot 0 (audio bridge) ── slot 1 ── slot 2 ── center ── right (TSPS)
+```
+
+The center re-sends each sensor frame and the theme on CAN; the three ESP32-DevKitC slots are drop-in accessory
+sockets that find their slot number from board straps. See `docs/protocols/can_bus.md`.
+
 - **sensor_pack** is the source of truth for all readings and the odometer. One TX fans out to all three displays; only the center sends the 0xA5 keepalive back.
 - **center** also owns GPS time/location, Wi-Fi (NTP, street name, time zone), touch menu, BLE, SD settings, and theme sync to the other two displays.
 - If sensor data stops arriving for 400 ms, the gauges dim and show **NO DATA** instead of reading zero.
@@ -26,6 +35,7 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
 | Path | What |
 | --- | --- |
 | `firmware/esp32_p4_speedo`, `_center`, `_tsps` | Display apps (PlatformIO, Arduino framework) |
+| `firmware/elc_can` | Shared CAN (TWAI) library for the displays and slot cards: IDs, frame codecs, heartbeat. Host tests in `test/host/` |
 | `firmware/esp32_p4_common` | Shared library: sensor UART (`SensorLink`), display setup, cluster I2C, watchdog, boot splash. Host tests in `test/host/` |
 | `firmware/esp32_p4_ui` | Touch + overlay menu |
 | `firmware/esp32_classic_bt_audio` | PlatformIO wrapper that builds `arduino/sketches/esp32_audio_bridge` |
@@ -34,7 +44,7 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
 | `arduino/sketches/encoder_controller` | RP2040 knobs / IR / OLED |
 | `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |
 | `scripts/export_*_rgb565_assets.py` | Regenerate the `*_gen.h` image headers from `assets/` |
-| `docs/protocols` | Wire formats: sensor UART, cluster/audio I2C, encoder UART |
+| `docs/protocols` | Wire formats: sensor UART, CAN bus, cluster/audio I2C, encoder UART |
 | `tools/screenshot.py` | Screenshot a display over its USB console (`shot` command) |
 | `WIRING_PINOUT.md` | Vehicle harness |
 
@@ -66,6 +76,7 @@ BT audio bridge (classic ESP32 only): `cd firmware/esp32_classic_bt_audio && pio
 
 ```bash
 firmware/esp32_p4_common/test/host/run_tests.sh   # sensor UART parser, runs on the host with ASan/UBSan
+firmware/elc_can/test/host/run_tests.sh           # CAN frame codecs
 ```
 
 ## Status / open items

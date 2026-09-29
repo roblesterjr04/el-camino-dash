@@ -24,6 +24,8 @@ void handle(GaugeConsole &c, SensorLink &link, String &line) {
   } else if (line.startsWith("variant ") && c.on_variant) {
     c.on_variant((uint8_t)line.substring(8).toInt());
     Serial.println("ok: variant");
+  } else if (line == "can" && c.on_can) {
+    c.on_can();
   } else if (line == "perf") {
     const P4ScreenStats st = p4_screen_stats();
     const SensorPacketParser &sp = link.parser();
@@ -36,7 +38,7 @@ void handle(GaugeConsole &c, SensorLink &link, String &line) {
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
   } else if (line == "help") {
-    Serial.println("Commands: shot | perf | demo on|off | theme 0|1|2 | variant 0|1");
+    Serial.println("Commands: shot | perf | demo on|off | theme 0|1|2 | variant 0|1 | can");
   } else if (line.length()) {
     Serial.println("err: unknown command (help)");
   }

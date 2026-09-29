@@ -17,6 +17,7 @@
 #include "FreeSansBold10pt7b.h"
 #include "FreeSansBold12pt7b.h"
 #include "center_ble.h"
+#include "center_can.h"
 #include "center_gps.h"
 #include "center_menu.h"
 #include "center_sd_settings.h"
@@ -291,6 +292,7 @@ ClusterTheme center_ui_cluster_theme() { return s_theme; }
 
 void center_ui_sync_cluster_bus() {
   cluster_i2c_broadcast_center_theme(s_theme, (ClusterCenterSubview)(uint8_t)s_view);
+  center_can_send_cluster((uint8_t)s_theme, (uint8_t)s_view);
 }
 
 ClusterTheme center_ui_next_theme(ClusterTheme t) {
