@@ -18,7 +18,6 @@ ROOT = os.path.normpath(os.path.join(HERE, '..'))
 FPDIR = os.environ.get('KICAD_FOOTPRINTS', '/usr/share/kicad/footprints')
 SCH = os.path.join(ROOT, 'AudioCarrier.kicad_sch')
 PCB = os.path.join(ROOT, 'AudioCarrier.kicad_pcb')
-W, H = 100.0, 60.0
 mm = FromMM
 
 
@@ -88,30 +87,35 @@ def load(fpid):
     return fp
 
 
-# ref -> (x, y, rotation degrees)
-XK = [44, 58, 72, 86]   # RCA jack columns
-POS = {
-    'J1': (9, 20, 0),
-    'U1': (90, 14, 270),
-    'C1': (31, 5, 0), 'C4': (39, 3, 0), 'U6': (46, 7, 0), 'C5': (55, 4, 0), 'C6': (61, 3, 0),
-    'FB1': (61, 7.5, 0), 'C3': (67, 4, 0), 'C2': (67, 9, 0),
-    'U5': (32, 19, 0), 'R1': (39, 17, 0), 'C8': (39, 20, 0), 'C9': (39, 23, 0),
-    'JP1': (44, 19.5, 0), 'JP2': (44, 23.5, 0),
-    'R2': (28, 27, 0), 'C7': (32, 27, 0), 'SW1': (28, 31, 0), 'R3': (36, 27, 0), 'SW2': (36, 31, 0),
-    'J10': (26, 38, 0),
-    'U2': (54, 16, 0), 'C10': (62, 14, 0), 'C11': (49, 11.5, 0), 'C12': (47, 14, 0), 'R5': (62, 18, 0), 'R6': (62, 21.5, 0),
-    'U3': (51, 26, 0), 'U4': (65, 27, 0), 'C60': (51, 22, 0), 'C61': (65, 23, 0),
+# Fixed parts: ref -> (x, y, rotation). Everything else is packed into its group's region (mm, board coordinates).
+W, H = 104.0, 70.0
+FIXED = {
+    'J1': (9, 22, 0), 'U1': (94.25, 14, 270), 'U7': (34, 9, 0),
+    'U2': (34, 22, 0), 'J10': (25.5, 31, 0),
+    'J6': (10, H - 4.5, 0), 'U3': (36, 60, 0),
+    'U5': (58, 32, 0), 'U6': (85, 32, 0),
+    'J2': (55, 54, 0), 'J3': (68.5, 54, 0), 'J4': (82, 54, 0), 'J5': (95.5, 54, 0),
+    'U4': (55, 65, 0),
 }
-for k in range(4):
-    x = XK[k]
-    POS['R%d' % (20 + 4 * k)] = (x - 3.5, 31.5, 0)
-    POS['R%d' % (21 + 4 * k)] = (x + 3.5, 31.5, 0)
-    POS['C%d' % (40 + 3 * k)] = (x - 3.5, 34.5, 0)
-    POS['C%d' % (41 + 3 * k)] = (x + 3.5, 34.5, 0)
-    POS['C%d' % (42 + 3 * k)] = (x - 3.5, 38, 0)
-    POS['R%d' % (22 + 4 * k)] = (x + 3.5, 38, 0)
-    POS['R%d' % (23 + 4 * k)] = (x + 3.5, 41, 0)
-    POS['J%d' % (2 + k)] = (x, 50, 0)
+REGIONS = {
+    'power': (24, 2, 66, 15), 'can': (38, 17, 66, 29), 'boot': (29, 30, 50, 47),
+    'mic': (22, 50, 46, 69), 'dac_f': (47, 25, 71, 47), 'dac_r': (73, 25, 102.5, 47),
+    'adc': (52, 60, 98, 69.5),
+}
+HOLES = [(100.3, 66.3), (47.5, 66.3)]
+
+
+def bbox_key(ref):
+    return ref
+
+
+def bbox_mm(fp):
+    b = fp.GetBoundingBox(False, False)
+    return (b.GetLeft() / 1e6, b.GetTop() / 1e6, b.GetRight() / 1e6, b.GetBottom() / 1e6)
+
+
+def overlap(a, b, m=0.35):
+    return not (a[2] + m <= b[0] or b[2] + m <= a[0] or a[3] + m <= b[1] or b[3] + m <= a[1])
 
 
 def import_ses(b, path):
@@ -170,6 +174,7 @@ def main():
     ds.SetCopperLayerCount(2)
     ds.m_TrackMinWidth = mm(0.2)
     ds.m_MinThroughDrill = mm(0.2)
+    ds.m_CopperEdgeClearance = mm(0.3)
     nc = ds.m_NetSettings.m_DefaultNetClass
     nc.SetClearance(mm(0.2))
     nc.SetTrackWidth(mm(0.3))
@@ -184,30 +189,63 @@ def main():
             netobj[name] = n
         return netobj[name]
 
-    for ref, (value, fpid) in sorted(comps.items()):
-        if ref.startswith('#'):
-            continue
+    import json
+    groups = json.load(open(os.path.join(HERE, 'refs.json')))
+    placed = []     # bounding boxes of everything placed so far
+    fps = {}
+    for hx, hy in HOLES:
+        placed.append((hx - 3.4, hy - 3.4, hx + 3.4, hy + 3.4))
+
+    def build(ref):
+        value, fpid = comps[ref]
         fp = load(fpid)
         fp.SetReference(ref)
         fp.SetValue(value)
-        x, y, rot = POS[ref]
         b.Add(fp)
-        fp.SetPosition(P(x, y))
-        if rot:
-            fp.SetOrientation(EDA_ANGLE(rot, pcbnew.DEGREES_T))
         fp.Reference().SetLayer(pcbnew.F_SilkS)
-        fp.Reference().SetTextSize(VECTOR2I(mm(1), mm(1)))
+        fp.Reference().SetTextSize(VECTOR2I(mm(0.8), mm(0.8)))
+        fp.Reference().SetTextThickness(mm(0.12))
         fp.Value().SetLayer(pcbnew.F_Fab)
         for pad in fp.Pads():
             n = nets.get((ref, pad.GetName()))
             if pad.GetName() in ('MP1', 'MP2'):
                 n = 'GND'
-            if n and not n.startswith('unconnected-'):
+            if n:
                 pad.SetNet(net(n))
-            elif n:
-                pad.SetNet(net(n))
+        fps[ref] = fp
+        return fp
+
+    real = [r for r in comps if not r.startswith('#')]
+    for ref in real:
+        if ref in FIXED:
+            x, y, rot = FIXED[ref]
+            fp = build(ref)
+            fp.SetPosition(P(x, y))
+            if rot:
+                fp.SetOrientation(EDA_ANGLE(rot, pcbnew.DEGREES_T))
+            placed.append(bbox_mm(fp))
+    rest = sorted([r for r in real if r not in FIXED], key=lambda r: (groups[r]['group'], -len(bbox_key(r)), r))
+    for ref in rest:
+        g = groups[ref]['group']
+        x0, y0, x1, y1 = REGIONS[g]
+        fp = build(ref)
+        done = False
+        yy = y0
+        while yy <= y1 and not done:
+            xx = x0
+            while xx <= x1 and not done:
+                fp.SetPosition(P(xx, yy))
+                bb = bbox_mm(fp)
+                if bb[0] >= x0 - 0.5 and bb[2] <= x1 + 0.5 and bb[1] >= y0 - 0.5 and bb[3] <= y1 + 0.5 and \
+                        not any(overlap(bb, o) for o in placed):
+                    placed.append(bb)
+                    done = True
+                xx += 0.5
+            yy += 0.5
+        if not done:
+            raise SystemExit('no room for %s in region %s' % (ref, g))
     # extra mounting holes to GND
-    for i, (hx, hy) in enumerate([(96, 36), (4, 56)]):
+    for i, (hx, hy) in enumerate(HOLES):
         fp = pcbnew.FootprintLoad(os.path.join(FPDIR, 'MountingHole.pretty'), 'MountingHole_3.2mm_M3_Pad')
         fp.SetReference('H%d' % (i + 3))
         b.Add(fp)
@@ -215,15 +253,17 @@ def main():
         for pad in fp.Pads():
             pad.SetNet(net('GND'))
     # outline
-    pts = [(0, 0), (W, 0), (W, H), (0, H)]
-    for i in range(4):
-        s = pcbnew.PCB_SHAPE(b)
-        s.SetShape(pcbnew.SHAPE_T_SEGMENT)
-        s.SetLayer(pcbnew.Edge_Cuts)
-        s.SetWidth(mm(0.05))
-        s.SetStart(P(*pts[i]))
-        s.SetEnd(P(*pts[(i + 1) % 4]))
-        b.Add(s)
+    # outline; the bottom edge leaves a gap for the TRS jack footprint, which carries its own notch on Edge.Cuts
+    jx = FIXED['J6'][0]
+    segs = [((0, 0), (W, 0)), ((W, 0), (W, H)), ((W, H), (jx + 6.5, H)), ((jx - 6.5, H), (0, H)), ((0, H), (0, 0))]
+    for a_, b_ in segs:
+        sh = pcbnew.PCB_SHAPE(b)
+        sh.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        sh.SetLayer(pcbnew.Edge_Cuts)
+        sh.SetWidth(mm(0.05))
+        sh.SetStart(P(*a_))
+        sh.SetEnd(P(*b_))
+        b.Add(sh)
     # GND pours
     for lay in (pcbnew.F_Cu, pcbnew.B_Cu):
         z = pcbnew.ZONE(b)
@@ -250,15 +290,18 @@ def main():
     k.SetLayerSet(ls)
     o = k.Outline()
     o.NewOutline()
-    for (x, y) in [(95, 0), (W, 0), (W, 25), (95, 25)]:
+    for (x, y) in [(96, 0), (W, 0), (W, 24), (96, 24)]:
         o.Append(mm(x), mm(y))
     b.Add(k)
 
     pcbnew.SaveBoard(PCB, b)
     if route:
         dsn, ses = '/tmp/audiocarrier.dsn', '/tmp/audiocarrier.ses'
-        pcbnew.ExportSpecctraDSN(b, dsn)
-        subprocess.check_call(['java', '-jar', route, '-de', dsn, '-do', ses, '-mp', '25', '--gui.enabled=false'])
+        b2 = pcbnew.LoadBoard(PCB)          # route without the pours: Freerouting handles GND as a normal net, the pour is refilled after
+        for z in list(b2.Zones()):
+            b2.Remove(z)
+        pcbnew.ExportSpecctraDSN(b2, dsn)
+        subprocess.check_call(['xvfb-run', '-a', 'java', '-jar', route, '-de', dsn, '-do', ses, '-mp', '100', '-mt', '1'])
         b = pcbnew.LoadBoard(PCB)
         import_ses(b, ses)
         pcbnew.SaveBoard(PCB, b)

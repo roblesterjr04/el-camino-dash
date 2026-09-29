@@ -122,6 +122,12 @@ def box_symbol(lib_id, ref, value, left, right, w=10.16, footprint='', descr='')
 body = []
 pwr_n = [0]
 refs_seen = set()
+refs_info = {}
+cur_group = ['misc']
+
+
+def G(name):
+    cur_group[0] = name
 drawn = set()
 
 
@@ -169,6 +175,7 @@ def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True
     if first:
         assert ref not in refs_seen, ref
         refs_seen.add(ref)
+        refs_info[ref] = {'group': cur_group[0], 'fp': footprint, 'value': value}
     pins = {k: v for k, v in lib_pins[lib_id].items() if v[5] in (0, unit)}
     props = lib_props[lib_id]
 
@@ -217,6 +224,7 @@ C = stock('Device', 'C')
 CP = stock('Device', 'C_Polarized')
 FB = stock('Device', 'FerriteBead')
 COAX = stock('Connector', 'Conn_Coaxial')
+JACK = stock('Connector_Audio', 'AudioJack3')
 HDR2x5 = stock('Connector_Generic', 'Conn_02x05_Odd_Even')
 HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
 SJ = stock('Jumper', 'SolderJumper_2_Open')
@@ -228,133 +236,211 @@ LDO = stock_as('Regulator_Linear', 'AP1117-15', 'AudioCarrier:AMS1117-3.3', 'AMS
 for n in ('GND', '+5V', '+3V3', 'PWR_FLAG'):
     stock('power', n)
 
-DAC = box_symbol('AudioCarrier:MAX5134_TSSOP16', 'U', 'MAX5134AGUE+',
-                 [('1', 'REFI', 'input'), ('2', 'AVDD', 'power_in'), ('3', 'OUT0', 'output'), ('4', 'DVDD', 'power_in'),
-                  ('5', 'READY', 'output'), ('6', 'OUT3', 'output'), ('7', 'GND', 'power_in'), ('8', 'DIN', 'input')],
-                 [('9', 'CS', 'input'), ('10', 'SCLK', 'input'), ('11', 'OUT2', 'output'), ('12', 'LDAC', 'input'),
-                  ('13', 'M/Z', 'input'), ('14', 'OUT1', 'output'), ('15', 'GND', 'power_in'), ('16', 'REFO', 'output')],
-                 w=15.24, footprint='Package_SO:TSSOP-16_4.4x5mm_P0.65mm',
-                 descr='Maxim MAX5134 quad 16-bit SPI DAC, 16-pin TSSOP (pin numbers from the TSSOP column of the datasheet pin table)')
+# Pin tables below are from the TI datasheets (PCM5100A/5101A/5102A SLAS859C, PCM1808 SLES177B), PW packages.
+DAC = box_symbol('AudioCarrier:PCM5102A_TSSOP20', 'U', 'PCM5102APW',
+                 [('1', 'CPVDD', 'power_in'), ('2', 'CAPP', 'passive'), ('3', 'CPGND', 'power_in'), ('4', 'CAPM', 'passive'),
+                  ('5', 'VNEG', 'passive'), ('6', 'OUTL', 'output'), ('7', 'OUTR', 'output'), ('8', 'AVDD', 'power_in'),
+                  ('9', 'AGND', 'power_in'), ('10', 'DEMP', 'input')],
+                 [('20', 'DVDD', 'power_in'), ('19', 'DGND', 'power_in'), ('18', 'LDOO', 'passive'), ('17', 'XSMT', 'input'),
+                  ('16', 'FMT', 'input'), ('15', 'LRCK', 'input'), ('14', 'DIN', 'input'), ('13', 'BCK', 'input'),
+                  ('12', 'SCK', 'input'), ('11', 'FLT', 'input')],
+                 w=15.24, footprint='Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm',
+                 descr='TI PCM5102A stereo DAC, 2.1 Vrms ground-centred line out, internal PLL (SCK to ground), 20-pin TSSOP')
+ADC = box_symbol('AudioCarrier:PCM1808_TSSOP14', 'U', 'PCM1808PW',
+                 [('1', 'VREF', 'passive'), ('2', 'AGND', 'power_in'), ('3', 'VCC', 'power_in'), ('4', 'VDD', 'power_in'),
+                  ('5', 'DGND', 'power_in'), ('6', 'SCKI', 'input'), ('7', 'LRCK', 'input')],
+                 [('14', 'VINR', 'input'), ('13', 'VINL', 'input'), ('12', 'FMT', 'input'), ('11', 'MD1', 'input'),
+                  ('10', 'MD0', 'input'), ('9', 'DOUT', 'output'), ('8', 'BCK', 'input')],
+                 w=15.24, footprint='Package_SO:TSSOP-14_4.4x5mm_P0.65mm',
+                 descr='TI PCM1808 stereo 24-bit ADC, 5 V analog / 3.3 V digital, slave mode (MD0 = MD1 = low), 14-pin TSSOP')
 
 FP_R = 'Resistor_SMD:R_0603_1608Metric'
 FP_C = 'Capacitor_SMD:C_0603_1608Metric'
+FP_C1 = 'Capacitor_SMD:C_0805_2012Metric'
 FP_C10 = 'Capacitor_SMD:C_1206_3216Metric'
 FP_SJ = 'Jumper:SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm'
 FP_SOIC = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
+FP_RCA = 'AudioCarrier:RCA_Jack_SameSky_RCJ-02_Vertical'
 
-text(15, 12, 'AUDIO CARRIER  -  ESP32 module + MAX5134 quad 16-bit DAC -> 4 face-mount RCA line outputs (front L/R, rear L/R)', 3)
+cnt = {}
+
+
+def nid(prefix):
+    cnt[prefix] = cnt.get(prefix, 0) + 1
+    return '%s%d' % (prefix, cnt[prefix])
+
+
+X = [30]  # running x for auto layout of the schematic rows
+
+
+def r_(v, a, b, x, y, d=None):
+    ref = nid('R')
+    place(R, ref, v, FP_R, x, y, {'1': a, '2': b}, descr=d)
+    return ref
+
+
+def c_(v, a, b, x, y, fp=None, d=None):
+    ref = nid('C')
+    place(C, ref, v, fp or (FP_C10 if v in ('10u', '22u') else FP_C1 if v in ('1u', '2.2u') else FP_C), x, y,
+          {'1': a, '2': b}, descr=d)
+    return ref
+
+
+text(15, 12, 'AUDIO CARRIER  -  ESP32 + 2 x PCM5102A (4 line outputs) + PCM1808 (microphone input)', 3)
 text(15, 20, 'Carrier for one DigiDash header position (docs/hardware/accessory_ports.md). CAN node 0x10 (both straps open). '
      '5 V from the port only; 3.3 V on board.', 1.6)
 
 # --- port
+G('port')
 place(HDR2x5, 'J1', 'DigiDash port', 'DigiDash_Accessory:Carrier_Header_2x05', 45, 55,
       {'1': '+5V', '2': '+5V', '3': 'GND', '4': 'GND', '5': 'CANH', '6': 'CANL', '7': 'GND', '8': None,
        '9': None, '10': None}, descr='1,2 +5V; 3,4,7 GND; 5 CANH; 6 CANL; 8 +12V (not used); 9,10 reserved')
-text(70, 45, 'Pin 8 (+12 V) is not used: the whole board draws well under the 0.5 A port fuse.', 1.4)
+text(70, 45, 'Pin 8 (+12 V) is not used: the board draws well under the 0.5 A port fuse.', 1.4)
 place('power:PWR_FLAG', '#FLG01', 'PWR_FLAG', '', 25, 85, {'1': '+5V'}, show_value=False)
 place('power:PWR_FLAG', '#FLG02', 'PWR_FLAG', '', 40, 85, {'1': 'GND'}, show_value=False)
+place('power:PWR_FLAG', '#FLG03', 'PWR_FLAG', '', 55, 85, {'1': '+5VA'}, show_value=False)
+place('power:PWR_FLAG', '#FLG04', 'PWR_FLAG', '', 70, 85, {'1': '+3V3A'}, show_value=False)
 
 # --- power
-text(15, 100, 'POWER: +5 V -> AMS1117-3.3 for the ESP32 and the DAC digital side; analog 5 V (+5VA) through a ferrite for the DAC and op-amps.', 1.4)
-place(C, 'C4', '10u', FP_C10, 40, 125, {'1': '+5V', '2': 'GND'})
-place(LDO, 'U6', 'AMS1117-3.3', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', 75, 120, {'1': 'GND', '2': '+3V3', '3': '+5V'})
-place(CP, 'C5', '22u tant', 'Capacitor_Tantalum_SMD:CP_EIA-3528-21_Kemet-B', 110, 125, {'1': '+3V3', '2': 'GND'},
-      descr='AMS1117 wants >= 22 uF with some ESR on the output; a tantalum is the safe choice')
-place(C, 'C6', '100n', FP_C, 125, 125, {'1': '+3V3', '2': 'GND'})
-place(CP, 'C1', '47u 10V', 'Capacitor_SMD:CP_Elec_5x5.4', 25, 125, {'1': '+5V', '2': 'GND'})
-place(FB, 'FB1', '600R @100MHz', 'Inductor_SMD:L_0805_2012Metric', 150, 125, {'1': '+5V', '2': '+5VA'})
-place(C, 'C2', '10u', FP_C10, 175, 125, {'1': '+5VA', '2': 'GND'})
-place(C, 'C3', '100n', FP_C, 190, 125, {'1': '+5VA', '2': 'GND'})
+G('power')
+text(15, 100, 'POWER: +5 V -> AMS1117-3.3 (ESP32, digital sides). Ferrites make +5VA (PCM1808 analog, mic op-amp) and +3V3A (PCM5102A analog + charge pump).', 1.4)
+c_('47u', '+5V', 'GND', 25, 125, 'Capacitor_SMD:CP_Elec_5x5.4')
+c_('10u', '+5V', 'GND', 40, 125)
+place(LDO, 'U7', 'AMS1117-3.3', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', 75, 120, {'1': 'GND', '2': '+3V3', '3': '+5V'})
+place(CP, nid('C'), '22u tant', 'Capacitor_Tantalum_SMD:CP_EIA-3528-21_Kemet-B', 105, 125, {'1': '+3V3', '2': 'GND'},
+      descr='AMS1117 wants >= 22 uF with some ESR on the output')
+c_('100n', '+3V3', 'GND', 120, 125)
+place(FB, 'FB1', '600R @100MHz', 'Inductor_SMD:L_0805_2012Metric', 145, 125, {'1': '+5V', '2': '+5VA'})
+c_('10u', '+5VA', 'GND', 165, 125)
+c_('100n', '+5VA', 'GND', 180, 125)
+place(FB, 'FB2', '600R @100MHz', 'Inductor_SMD:L_0805_2012Metric', 200, 125, {'1': '+3V3', '2': '+3V3A'})
+c_('10u', '+3V3A', 'GND', 220, 125)
 
 # --- ESP32
-espn = {}
-for num, (px, py, ang, nm, typ, u) in lib_pins[ESP].items():
-    espn[nm] = num
-sig = {'IO32': 'CAN_TXD', 'IO33': 'CAN_RX', 'IO18': 'DAC_SCLK', 'IO19': 'DAC_DIN', 'IO5': 'DAC_CS', 'IO21': 'DAC_LDAC',
-       'IO22': 'DAC_READY', 'IO13': 'NODE0', 'IO23': 'NODE1', 'IO0': 'BOOT', 'EN': 'EN', 'TXD0/IO1': 'UART_TX',
-       'RXD0/IO3': 'UART_RX', 'VDD': '+3V3', 'GND': 'GND'}
+G('esp')
 en = {}
+sig = {'IO32': 'CAN_TXD', 'IO33': 'CAN_RX', 'IO14': 'I2S_BCLK', 'IO25': 'I2S_LRC', 'IO27': 'I2S_DOUT_F',
+       'IO26': 'I2S_DOUT_R', 'IO35': 'ADC_DOUT', 'IO4': 'DAC_MUTE', 'IO13': 'NODE0', 'IO23': 'NODE1',
+       'IO0': 'BOOT', 'EN': 'EN', 'TXD0/IO1': 'UART_TX', 'RXD0/IO3': 'UART_RX', 'VDD': '+3V3', 'GND': 'GND'}
 for num, (px, py, ang, nm, typ, u) in lib_pins[ESP].items():
     en[num] = sig.get(nm)
 place(ESP, 'U1', 'ESP32-WROOM-32E', 'RF_Module:ESP32-WROOM-32', 260, 215, en,
-      descr='Espressif ESP32-WROOM-32E module (the module on the DevKitC). 4 MB flash version is enough')
-text(215, 150, 'GPIO32 CAN TX, GPIO33 CAN RX (1k), GPIO13 / GPIO23 node straps (solder jumper to GND = 1),\n'
-     'GPIO18 SCLK, GPIO19 DIN (SPI MOSI via the GPIO matrix), GPIO5 CS (idles high: strapping pin), GPIO21 LDAC, GPIO22 READY.\n'
-     'GPIO12 / GPIO2 / GPIO15 left open (boot straps).', 1.4)
+      descr='Espressif ESP32-WROOM-32E module (the module on the DevKitC)')
+text(215, 150, 'I2S0 master: BCK GPIO14, WS GPIO25, DOUT GPIO27 (front DAC), DIN GPIO35 (PCM1808), MCLK GPIO0 (12.288 MHz for the ADC).\n'
+     'I2S1 slave on the same BCK / WS pins: DOUT GPIO26 (rear DAC). GPIO4 = DAC mute (XSMT), pulled low. '
+     'GPIO32 / 33 CAN, GPIO13 / 23 node straps. GPIO12 / 2 / 15 / 5 left open (boot straps).', 1.4)
 
-# boot / programming
+G('boot')
 text(15, 150, 'BOOT / PROGRAMMING', 1.6)
-place(R, 'R2', '10k', FP_R, 30, 180, {'1': '+3V3', '2': 'EN'})
-place(C, 'C7', '1u', FP_C, 50, 180, {'1': 'EN', '2': 'GND'})
+r_('10k', '+3V3', 'EN', 30, 180)
+c_('1u', 'EN', 'GND', 50, 180)
 place(SW, 'SW1', 'RESET', 'Button_Switch_SMD:SW_SPST_PTS810', 75, 180, {'1': 'EN', '2': 'GND'})
-place(R, 'R3', '10k', FP_R, 30, 215, {'1': '+3V3', '2': 'BOOT'})
+r_('10k', '+3V3', 'BOOT', 30, 215)
 place(SW, 'SW2', 'BOOT', 'Button_Switch_SMD:SW_SPST_PTS810', 75, 215, {'1': 'BOOT', '2': 'GND'})
 place(HDR1x5, 'J10', 'Program', 'Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical', 115, 200,
       {'1': 'GND', '2': 'UART_TX', '3': 'UART_RX', '4': 'BOOT', '5': 'EN'},
       descr='USB-serial adapter: GND, adapter RX <- TX0, adapter TX -> RX0, IO0, EN. 3.3 V logic. Do not power from the adapter')
-text(15, 235, 'Flash: hold BOOT, tap RESET (or pull IO0 low from a DTR/RTS adapter), then upload. Power the board from the port.', 1.4)
+text(15, 235, 'Flash: hold BOOT, tap RESET, then upload. Power the board from the port. BOOT (GPIO0) is also the ADC master clock: normal boot needs it high.', 1.4)
 
 # --- CAN
+G('can')
 text(15, 250, 'CAN: MCP2562 (VDD 5 V, VIO 3.3 V, STBY low). No 120 R: the carrier never terminates the bus.', 1.4)
-place(CAN, 'U5', 'MCP2562-E/SN', FP_SOIC, 55, 285, {'1': 'CAN_TXD', '2': 'GND', '3': '+5V', '4': 'CAN_RXD', '5': '+3V3',
+place(CAN, 'U2', 'MCP2562-E/SN', FP_SOIC, 55, 285, {'1': 'CAN_TXD', '2': 'GND', '3': '+5V', '4': 'CAN_RXD', '5': '+3V3',
                                                       '6': 'CANL', '7': 'CANH', '8': 'GND'})
-place(R, 'R1', '1k', FP_R, 95, 275, {'1': 'CAN_RXD', '2': 'CAN_RX'})
-place(C, 'C8', '100n', FP_C, 115, 275, {'1': '+5V', '2': 'GND'})
-place(C, 'C9', '100n', FP_C, 130, 275, {'1': '+3V3', '2': 'GND'})
+r_('1k', 'CAN_RXD', 'CAN_RX', 95, 275, 'Series R on the receive line, as on the DigiDash board')
+c_('100n', '+5V', 'GND', 115, 275)
+c_('100n', '+3V3', 'GND', 130, 275)
 place(SJ, 'JP1', 'Node bit 0', FP_SJ, 100, 310, {'1': 'NODE0', '2': 'GND'}, descr='Close = GPIO13 low: node 0x11 (JP2 open)')
 place(SJ, 'JP2', 'Node bit 1', FP_SJ, 140, 310, {'1': 'NODE1', '2': 'GND'}, descr='Close = GPIO23 low: node 0x12 (JP1 open)')
 text(15, 322, 'Node: both open = 0x10 (audio bridge), JP1 = 0x11, JP2 = 0x12.', 1.4)
 
-# --- DAC
-text(330, 30, 'MAX5134 (16-bit, SPI up to 30 MHz): 4 buffered outputs, internal 2.44 V reference (REFO -> REFI), full scale 2.44 V, midscale 1.22 V.\n'
-     'M/Z high = outputs power up at midscale (no step into the DC-block caps). LDAC pulled high: use the write-through command per channel,\n'
-     'or pulse LDAC from GPIO21 to update all four together. Every frame: 4 x 24 bits, so 96 kHz per channel needs a 9.2 MHz clock.', 1.4)
-place(DAC, 'U2', 'MAX5134AGUE+', 'Package_SO:TSSOP-16_4.4x5mm_P0.65mm', 375, 90, {
-    '1': 'VREF', '16': 'VREF', '2': '+5VA', '4': '+3V3', '7': 'GND', '15': 'GND',
-    '3': 'DAC_FL', '14': 'DAC_FR', '11': 'DAC_RL', '6': 'DAC_RR',
-    '5': 'DAC_READY', '8': 'DAC_DIN', '9': 'DAC_CS', '10': 'DAC_SCLK', '12': 'DAC_LDAC', '13': '+5VA'})
-place(C, 'C10', '47p', 'Capacitor_SMD:C_0603_1608Metric', 440, 75, {'1': 'VREF', '2': 'GND'}, descr='REFO bypass: 47 pF (max 100 pF), datasheet')
-place(C, 'C11', '100n', FP_C, 460, 75, {'1': '+5VA', '2': 'GND'})
-place(C, 'C12', '100n', FP_C, 480, 75, {'1': '+3V3', '2': 'GND'})
-place(R, 'R5', '100k', FP_R, 500, 75, {'1': '+3V3', '2': 'DAC_LDAC'})
-place(R, 'R6', '100k', FP_R, 520, 75, {'1': '+3V3', '2': 'DAC_CS'})
+# --- DACs
+text(330, 30, 'PCM5102A: 3-wire I2S, SCK tied to ground (internal PLL from BCK, BCK must be 64 fS), FMT low = I2S, FLT low, DEMP low.\n'
+     'XSMT is driven by GPIO4 and pulled low, so the outputs stay muted until the firmware un-mutes them (no boot pop).\n'
+     'Line outputs are ground-centred 2.1 Vrms: no DC-block caps. 470 R + 2.2n at each output as in the datasheet. Both DACs share BCK / LRCK; '
+     'each has its own data line (front GPIO27, rear GPIO26).', 1.4)
+for n, (grp, ref, din, lo, ro, y, name) in enumerate([('dac_f', 'U5', 'I2S_DOUT_F', 'FL', 'FR', 90, 'front'),
+                                                       ('dac_r', 'U6', 'I2S_DOUT_R', 'RL', 'RR', 190, 'rear')]):
+    G(grp)
+    place(DAC, ref, 'PCM5102APW', 'Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm', 340, y, {
+        '1': '+3V3A', '2': '%s_CAPP' % ref, '3': 'GND', '4': '%s_CAPM' % ref, '5': '%s_VNEG' % ref,
+        '6': '%s_OUT' % lo, '7': '%s_OUT' % ro, '8': '+3V3A', '9': 'GND', '10': 'GND',
+        '20': '+3V3', '19': 'GND', '18': '%s_LDOO' % ref, '17': 'DAC_MUTE', '16': 'GND', '15': 'I2S_LRC', '14': din,
+        '13': 'I2S_BCLK', '12': 'GND', '11': 'GND'}, descr='%s pair' % name)
+    x = 385
+    c_('2.2u', '%s_CAPP' % ref, '%s_CAPM' % ref, x, y - 20, d='Charge-pump flying cap')
+    c_('2.2u', '%s_VNEG' % ref, 'GND', x + 15, y - 20, d='VNEG decoupling')
+    c_('100n', '+3V3A', 'GND', x, y - 5, d='CPVDD')
+    c_('10u', '+3V3A', 'GND', x + 15, y - 5, d='CPVDD')
+    c_('100n', '+3V3A', 'GND', x + 30, y - 5, d='AVDD')
+    c_('10u', '+3V3A', 'GND', x + 45, y - 5, d='AVDD')
+    c_('100n', '+3V3', 'GND', x, y + 10, d='DVDD')
+    c_('10u', '+3V3', 'GND', x + 15, y + 10, d='DVDD')
+    c_('100n', '%s_LDOO' % ref, 'GND', x + 30, y + 10, d='LDOO')
+    c_('10u', '%s_LDOO' % ref, 'GND', x + 45, y + 10, d='LDOO')
+    r_('470', '%s_OUT' % lo, '%s_LINE' % lo, x + 70, y - 12)
+    c_('2.2n', '%s_LINE' % lo, 'GND', x + 90, y - 12)
+    r_('470', '%s_OUT' % ro, '%s_LINE' % ro, x + 70, y + 8)
+    c_('2.2n', '%s_LINE' % ro, 'GND', x + 90, y + 8)
+r_('100k', 'DAC_MUTE', 'GND', 445, 60, 'Keeps both DACs muted until GPIO4 goes high')
 
-# --- channels
-CH = [('FL', 'front left', 'white', 'RCJ-023', 'J2', 'U3', 1), ('FR', 'front right', 'red', 'RCJ-022', 'J3', 'U3', 2),
-      ('RL', 'rear left', 'white', 'RCJ-023', 'J4', 'U4', 1), ('RR', 'rear right', 'red', 'RCJ-022', 'J5', 'U4', 2)]
-text(300, 125, 'Per channel: 2nd-order Sallen-Key low-pass (3.9k / 3.9k, 2.2n feedback / 1n to ground, about 27 kHz, Q 0.74) to strip the sample images,\n'
-     'then a 10u DC block (the DAC idles at 1.22 V), 47k to ground, 100 R in series with the jack. Full scale about 0.86 Vrms. '
-     'Use C0G/NP0 for the 1n / 2.2n caps.', 1.4)
-for i, (ch, desc, colour, part, jack, opa, unit) in enumerate(CH):
-    y = 165 + i * 45
-    r1, r2, r3, r4 = 20 + i * 4, 21 + i * 4, 22 + i * 4, 23 + i * 4
-    c1, c2, c3 = 20 + i * 3, 21 + i * 3, 22 + i * 3
-    inp, outp = ('3', '1') if unit == 1 else ('5', '7')
-    inn = '2' if unit == 1 else '6'
-    place(OPA, opa, 'OPA2376AID', FP_SOIC, 335, y, {inp: '%s_N2' % ch, inn: '%s_OP' % ch, outp: '%s_OP' % ch},
-          unit=unit, first=(unit == 1), descr='Dual RRIO low-noise op-amp on 5 V (any RRIO dual in SOIC-8 with the standard pinout will do)')
-    place(R, 'R%d' % r1, '3.9k', FP_R, 365, y - 12, {'1': 'DAC_%s' % ch, '2': '%s_N1' % ch})
-    place(R, 'R%d' % r2, '3.9k', FP_R, 385, y - 12, {'1': '%s_N1' % ch, '2': '%s_N2' % ch})
-    place(C, 'C%d' % (20 + i * 3 + 20), '2.2n C0G', FP_C, 405, y - 12, {'1': '%s_N1' % ch, '2': '%s_OP' % ch})
-    place(C, 'C%d' % (21 + i * 3 + 20), '1n C0G', FP_C, 425, y - 12, {'1': '%s_N2' % ch, '2': 'GND'})
-    place(C, 'C%d' % (22 + i * 3 + 20), '10u', FP_C10, 445, y - 12, {'1': '%s_OP' % ch, '2': '%s_AC' % ch}, descr='DC block, + toward the op-amp')
-    place(R, 'R%d' % r3, '47k', FP_R, 470, y - 12, {'1': '%s_AC' % ch, '2': 'GND'})
-    place(R, 'R%d' % r4, '100', FP_R, 490, y - 12, {'1': '%s_AC' % ch, '2': '%s_LINE' % ch})
-    place(COAX, jack, 'RCA %s (%s)' % (ch, colour), 'AudioCarrier:RCA_Jack_SameSky_RCJ-02_Vertical', 530, y - 12,
-          {'1': '%s_LINE' % ch, '2': 'GND'}, descr='%s, face-mount RCA jack, %s: %s' % (part, colour, desc))
-    text(510, y - 2, '%s  %s' % (jack, colour.upper()), 1.6)
-place(OPA, 'U3', 'OPA2376AID', FP_SOIC, 335, 335, {'4': 'GND', '8': '+5VA'}, unit=3, first=False)
-place(OPA, 'U4', 'OPA2376AID', FP_SOIC, 385, 335, {'4': 'GND', '8': '+5VA'}, unit=3, first=False)
-place(C, 'C60', '100n', FP_C, 430, 335, {'1': '+5VA', '2': 'GND'}, descr='U3 decoupling, next to the pins')
-place(C, 'C61', '100n', FP_C, 450, 335, {'1': '+5VA', '2': 'GND'}, descr='U4 decoupling, next to the pins')
-place('power:PWR_FLAG', '#FLG03', 'PWR_FLAG', '', 25, 100, {'1': '+5VA'}, show_value=False)
+G('rca')
+for i, (ch, colour, part, jack, desc) in enumerate([('FL', 'white', 'RCJ-023', 'J2', 'front left'), ('FR', 'red', 'RCJ-022', 'J3', 'front right'),
+                                                      ('RL', 'white', 'RCJ-023', 'J4', 'rear left'), ('RR', 'red', 'RCJ-022', 'J5', 'rear right')]):
+    place(COAX, jack, 'RCA %s (%s)' % (ch, colour), FP_RCA, 500, 60 + i * 30, {'1': '%s_LINE' % ch, '2': 'GND'},
+          descr='%s, face-mount RCA jack, %s: %s' % (part, colour, desc))
+    text(515, 58 + i * 30, '%s  %s' % (jack, colour.upper()), 1.6)
+
+# --- microphone
+G('mic')
+text(30, 340, 'MICROPHONE: 3.5 mm TRS jack. Tip = electret mic (2.2k bias from filtered 3.3 V, DC-blocked), ring = second input (line / aux, no bias).\n'
+     'Mic preamp: OPA2376 non-inverting, gain 1 + 47k / 2.2k = 22 (27 dB), DC gain 1 at mid-supply (2.5 V). Ring input is a unity-gain buffer. '
+     'PCM1808 full scale is 3 Vp-p (about 1 Vrms).', 1.4)
+place(JACK, 'J6', '3.5mm TRS mic in', 'Connector_Audio:Jack_3.5mm_CUI_SJ1-3523N_Horizontal', 60, 380,
+      {'T': 'MIC_TIP', 'R': 'RING', 'S': 'GND'}, descr='Tip = mic, ring = aux input, sleeve = ground')
+r_('1k', '+3V3A', 'MICV', 90, 365)
+c_('10u', 'MICV', 'GND', 105, 365)
+r_('2.2k', 'MICV', 'MIC_TIP', 120, 365, 'Electret bias')
+c_('100p', 'MIC_TIP', 'GND', 135, 365, d='RF bypass at the jack')
+c_('1u', 'MIC_TIP', 'MIC_IN', 150, 365)
+r_('100k', 'MIC_IN', 'VMID', 165, 365)
+r_('10k', '+5VA', 'VMID', 180, 380)
+r_('10k', 'VMID', 'GND', 195, 380)
+c_('10u', 'VMID', 'GND', 210, 380)
+place(OPA, 'U3', 'OPA2376AID', FP_SOIC, 250, 380, {'3': 'MIC_IN', '2': 'MIC_FB', '1': 'MIC_OP'}, unit=1,
+      descr='Dual RRIO low-noise op-amp on 5 V (any RRIO dual in SOIC-8 with the standard pinout will do)')
+r_('47k', 'MIC_OP', 'MIC_FB', 280, 365)
+c_('100p', 'MIC_OP', 'MIC_FB', 295, 365, d='Roll-off, about 34 kHz')
+r_('2.2k', 'MIC_FB', 'MIC_G', 310, 365)
+c_('10u', 'MIC_G', 'GND', 325, 365)
+c_('1u', 'MIC_OP', 'ADC_INL', 340, 380)
+c_('1u', 'RING', 'RING_IN', 150, 400)
+r_('100k', 'RING_IN', 'VMID', 165, 400)
+place(OPA, 'U3', 'OPA2376AID', FP_SOIC, 250, 410, {'5': 'RING_IN', '6': 'RING_OP', '7': 'RING_OP'}, unit=2, first=False)
+c_('1u', 'RING_OP', 'ADC_INR', 340, 410)
+place(OPA, 'U3', 'OPA2376AID', FP_SOIC, 290, 410, {'4': 'GND', '8': '+5VA'}, unit=3, first=False)
+c_('100n', '+5VA', 'GND', 310, 410, d='U3 decoupling, next to the pins')
+
+G('adc')
+place(ADC, 'U4', 'PCM1808PW', 'Package_SO:TSSOP-14_4.4x5mm_P0.65mm', 400, 380, {
+    '1': 'ADC_VREF', '2': 'GND', '3': '+5VA', '4': '+3V3', '5': 'GND', '6': 'ADC_SCKI', '7': 'I2S_LRC',
+    '8': 'I2S_BCLK', '9': 'ADC_DOUT', '10': 'GND', '11': 'GND', '12': 'GND', '13': 'ADC_INL', '14': 'ADC_INR'},
+      descr='Slave mode: MD0 = MD1 = low, I2S 24-bit (FMT low). SCKI = 256 fS master clock from GPIO0')
+c_('100n', 'ADC_VREF', 'GND', 440, 365, d='VREF decoupling')
+c_('10u', 'ADC_VREF', 'GND', 455, 365, d='VREF decoupling')
+c_('100n', '+5VA', 'GND', 470, 365, d='VCC')
+c_('10u', '+5VA', 'GND', 485, 365, d='VCC')
+c_('100n', '+3V3', 'GND', 500, 365, d='VDD')
+c_('10u', '+3V3', 'GND', 515, 365, d='VDD')
+r_('33', 'BOOT', 'ADC_SCKI', 440, 395, 'Series damping on the master clock (GPIO0 doubles as the BOOT strap net)')
+text(430, 415, 'GPIO0 outputs the 12.288 MHz clock (256 x 48 kHz) after boot. The BOOT switch / J10 IO0 still pull it low to enter the ROM loader.', 1.4)
 
 # ----------------------------------------------------------------------------- write
 out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "A2")',
-       '  (title_block (title "DigiDash audio carrier") (date "2026-09-29") (rev "B")',
-       '    (comment 1 "ESP32-WROOM-32E + MAX5134 quad DAC -> 4 RCA line outputs")',
+       '  (title_block (title "DigiDash audio carrier") (date "2026-09-29") (rev "C")',
+       '    (comment 1 "ESP32-WROOM-32E + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + mic input")',
        '    (comment 2 "Carrier for a DigiDash accessory header position"))',
        '  (lib_symbols']
 for t in lib_text.values():
@@ -363,4 +449,6 @@ out.append('  )')
 out += body
 out += ['  (sheet_instances (path "/" (page "1")))', ')']
 open(OUT, 'w').write('\n'.join(out) + '\n')
-print('wrote', os.path.normpath(OUT), len(body), 'items')
+import json
+json.dump(refs_info, open(os.path.join(os.path.dirname(OUT), 'generate', 'refs.json'), 'w'), indent=1, sort_keys=True)
+print('wrote', os.path.normpath(OUT), len(body), 'items', len(refs_info), 'parts')
