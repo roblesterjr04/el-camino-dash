@@ -124,7 +124,7 @@ Registers (1 byte data each): **0x01** = theme (0 Classic, 1 Fallout); **0x02** 
 Full spec: [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md). One **MCP2562-E/P** (DIP-8) per node on the
 DigiDash board: VDD 5 V, Vio 3.3 V, STBY to GND, 10 kΩ TXD pull-up to 3.3 V. **120 Ω termination only at the left
 (R35 on U5) and right (R36 on U10) screens.** Route CANH/CANL as a pair: U5 → U6 → U7 → U8 → U9 → U10. **J16** is a
-CANH / CANL / GND tap for a USB-CAN adapter.
+CANH / CANL / GND tap for a USB-CAN adapter; **J17** beside it is the console cable.
 
 | Node | Transceiver | CAN TX | CAN RX |
 | ---- | ----------- | ------ | ------ |
@@ -140,10 +140,10 @@ pair; the DevKit's 3V3 pin stays unconnected. Slot number straps (read with pull
 grounded on slot 1, **GPIO23** on slot 2, neither on slot 0. Slot 0 additionally keeps the audio wiring below (I2S amps J14/J15, and an
 I2C link to the center that only bench firmware uses).
 
-**Console cable (planned, J17 not on the board yet):** the OLED + knobs board connects with one 4-pin locking cable:
-+5 V, GND, CANH, CANL (twisted pair). It is the far end of the bus after the right screen; it carries its own 120 Ω,
-and R36 at U10 goes behind a solder jumper that is closed only when no console is fitted. Details in
-[`docs/protocols/can_bus.md`](docs/protocols/can_bus.md#console-cable-planned-not-on-the-board-yet).
+**Console cable (J17, JST PH 4-pin next to J16):** 1 = +5 V, 2 = GND, 3 = CANL, 4 = CANH (twisted pair). The console
+(OLED + knobs board) is an unterminated branch: R35/R36 stay the only terminators, so the bus works with it unplugged,
+and the console board must not fit a 120 Ω. Keep the cable short (under ~30 cm at 500 kbit/s). Details in
+[`docs/protocols/can_bus.md`](docs/protocols/can_bus.md#console-cable-j17).
 
 ### Backup camera (center): TVP5150 video decoder module
 

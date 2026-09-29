@@ -32424,6 +32424,250 @@
 		)
 		(uuid "45d2cae5-a885-421d-943d-f1cc09cc57a1")
 	)
+	(symbol
+		(lib_id "Connector:Conn_01x04_Socket")
+		(at 411.48 261.62 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "99ed4f22-6488-4f5c-92d5-af6bcbacef8e")
+		(property "Reference" "J17"
+			(at 414.02 260.35 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "Console"
+			(at 414.02 262.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical"
+			(at 411.48 261.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 411.48 261.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Console (OLED + knobs board) cable: 1 +5V, 2 GND, 3 CANL, 4 CANH. Unterminated branch: keep the cable short (see docs/protocols/can_bus.md)"
+			(at 411.48 261.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "9fd57230-01d0-49ec-bdb5-3b631d3e79b8")
+		)
+		(pin "2"
+			(uuid "2150fa75-ea58-4a7f-8a18-b8e42b136b3b")
+		)
+		(pin "3"
+			(uuid "8b92c159-1d7a-43e8-b9d1-0dbf6c86aa73")
+		)
+		(pin "4"
+			(uuid "d7411c26-1e9c-4a5d-9cd5-b73fa3fdf953")
+		)
+		(instances
+			(project "DigiDash"
+				(path "/479f45a1-9765-42dd-bf6c-c6d42e49cd79"
+					(reference "J17")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 401.32 261.62 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "a7066e11-7666-4f0e-8699-e1dc43f09929")
+		(property "Reference" "#PWR146"
+			(at 401.32 267.97 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 401.32 265.43 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 401.32 261.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 401.32 261.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 401.32 261.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "114ec011-106d-4ca9-ada2-5dfe717e5b39")
+		)
+		(instances
+			(project "DigiDash"
+				(path "/479f45a1-9765-42dd-bf6c-c6d42e49cd79"
+					(reference "#PWR146")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+5V")
+		(at 401.32 259.08 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "6fa1699f-82c6-47df-96d3-3832a8cf770a")
+		(property "Reference" "#PWR147"
+			(at 405.13 259.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+5V"
+			(at 400.05 256.54 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 401.32 259.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 401.32 259.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 401.32 259.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "9c26f83d-0ba7-4561-a1f8-1c7da7c56838")
+		)
+		(instances
+			(project ""
+				(path "/479f45a1-9765-42dd-bf6c-c6d42e49cd79"
+					(reference "#PWR147")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "CANL"
+		(at 406.4 264.16 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "de4e46f4-51b5-4ec6-ab41-8d68ade79c24")
+	)
+	(label "CANH"
+		(at 406.4 266.7 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4cf747e4-684a-4905-9e1b-fea83e072199")
+	)
+	(wire
+		(pts
+			(xy 406.4 261.62) (xy 401.32 261.62)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bf6f0237-3ad0-479a-8c4f-36d306e34b83")
+	)
+	(wire
+		(pts
+			(xy 406.4 259.08) (xy 401.32 259.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6349d370-4f99-4031-8790-b6d8d26c7e0e")
+	)
 	(sheet_instances
 		(path "/"
 			(page "1")

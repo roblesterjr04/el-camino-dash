@@ -1,7 +1,7 @@
 # CAN bus
 
 The DigiDash board links the three displays, up to three ESP32 accessory cards and the console (OLED + knobs, on its
-own board at the end of a cable) on one CAN bus. **CAN is the link in the car** for everything except the sensor UART:
+own board at the end of a short cable) on one CAN bus. **CAN is the link in the car** for everything except the sensor UART:
 the I2C audio link (`cluster_i2c.md`) exists for bench setups only and is compiled in only by the `*-bench` / `_bench`
 PlatformIO envs.
 Shared code: `firmware/elc_can` (IDs in `elc_can_ids.h`, codecs in `elc_can_codec.h`, driver in `elc_can.h`).
@@ -14,10 +14,11 @@ each sensor frame onto CAN so accessory cards get the same data.
 
 - 500 kbit/s, 11-bit IDs, one **MCP2562-E/P** (DIP-8) per node: VDD = 5 V, Vio = 3.3 V (board 3.3 V), STBY tied low.
 - 120 Ω at the two ends only: **R35 at the left screen (U5)** and **R36 at the right screen (U10)**. Bus order:
-  U5 left → U6 slot 0 → U7 slot 1 → U8 slot 2 → U9 center → U10 right → J17 console (planned, see below).
+  U5 left → U6 slot 0 → U7 slot 1 → U8 slot 2 → U9 center → U10 right. The console hangs off J17 as an
+  unterminated branch (below); the bus is complete and terminated with or without it.
 - Each TXD has a 10 kΩ pull-up to 3.3 V, so a node that is booting (or a slot that is empty) holds the bus recessive.
   Slot RXD lines go through 1 kΩ so an unpowered DevKit is not fed through its RX pin.
-- **J16** (CANH, CANL, GND) is a tap for a USB-CAN adapter.
+- **J16** (CANH, CANL, GND) is a tap for a USB-CAN adapter; **J17** next to it is the console cable (below).
 
 | Node | Board part | CAN TX | CAN RX | Node number |
 | --- | --- | --- | --- | --- |
@@ -27,39 +28,37 @@ each sensor frame onto CAN so accessory cards get the same data.
 | Slot 0 (U3, audio bridge) | U6 | GPIO32 | GPIO33 | `0x10` |
 | Slot 1 (U11) | U7 | GPIO32 | GPIO33 | `0x11` |
 | Slot 2 (U12) | U8 | GPIO32 | GPIO33 | `0x12` |
-| Console (planned, own board via J17) | on the console | its DevKit's pins | | `0x04` |
+| Console (own board, cable to J17) | on the console | its DevKit's pins | | `0x04` |
 
 GPIO34/36 are P4 strapping pins but safe here: boot mode is set by GPIO35 (left pulled up), GPIO36 only
 matters when GPIO35 is low, and the TXD pull-up holds GPIO34 high during reset.
 
 Build flags: `ELC_CAN_TX_PIN` / `ELC_CAN_RX_PIN` (set in each `platformio.ini`; `-1` turns CAN off).
 
-### Console cable (planned; not on the board yet)
+### Console cable (J17)
 
 The console is its own board: an ESP32-DevKitC-32 (the same module as the slots), one MCP2562, the SSD1322 256×64
-OLED on SPI, the Select and Volume encoders and the Back and View keys. One cable runs from it to the DigiDash board.
+OLED on SPI, the Select and Volume encoders and the Back and View keys. One cable runs from it to **J17** on the
+DigiDash board, a JST PH 4-pin vertical header (B4B-PH-K) next to the J16 debug tap:
 
-- **J17 on DigiDash**, 4-pin locking (Molex Micro-Fit 3.0 or JST-XH): 1 = +5 V, 2 = GND, 3 = CANH, 4 = CANL.
-  CANH/CANL as a twisted pair; 22 AWG for power.
-- **The console is the end of the bus**, so the cable is not a stub: J17 sits after U10 on the CANH/CANL pair, the
-  console board carries its own 120 Ω, and **R36 at U10 goes through a solder jumper (JP_TERM)**, closed only when no
-  console is connected. Exactly two terminators either way (check: ~60 Ω between CANH and CANL, power off).
+| J17 pin | Signal |
+| --- | --- |
+| 1 | +5 V (from the DigiDash rail, via C23 at U10) |
+| 2 | GND |
+| 3 | CANL |
+| 4 | CANH |
+
+- **Termination stays on the DigiDash board** (R35 at U5, R36 at U10), so the bus works the same with the console
+  unplugged. **The console board has no 120 Ω.** Check: ~60 Ω between CANH and CANL with power off, console plugged
+  in or not.
+- The cable is therefore a **branch (stub)** off the bus, and a stub has to stay short: keep it as short as the dash
+  allows, ideally **under 30 cm at 500 kbit/s**. CANH/CANL as a twisted pair; 22–24 AWG is fine for the power pair.
+  If the console has to sit farther away (roughly beyond 1 m), run the whole bus at 250 kbit/s
+  (`ELC_CAN_BITRATE_KBPS=250` on every node), which about doubles the branch length it tolerates.
 - **Power:** from the DigiDash +5 V rail (LM2576T-5, 3 A, shared with the three displays and the slots). Budget about
   300 mA for the console (ESP32 with Wi-Fi off + OLED at full white); the console makes its own 3.3 V.
 - Node `0x04`, node type 2, message range `0x4C0`–`0x4FF` (after the three slots). Its messages are defined when its
   firmware is written.
-
-### Slot ID straps
-
-A card finds its slot by reading GPIO13 (ID0) and GPIO23 (ID1) with pull-ups; a pin grounded by the board reads as 1.
-
-| Slot | GPIO13 | GPIO23 |
-| --- | --- | --- |
-| 0 (U3) | open | open |
-| 1 (U11) | GND | open |
-| 2 (U12) | open | GND |
-
-Slot cards get 5 V and GND from the board and run from their own 3.3 V regulator (the DevKit 3V3 pin is not connected).
 
 ## Behaviour
 
