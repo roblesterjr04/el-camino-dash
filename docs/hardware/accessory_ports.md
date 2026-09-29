@@ -141,6 +141,9 @@ Carriers that need more (audio amplifiers) take +12 V from their header position
 
 ## Node numbers and CAN IDs
 
+What a carrier says on the bus to use the dash's alerts, sensors, menu, input and sounds is the channel protocol:
+[`docs/protocols/can_channels.md`](../protocols/can_channels.md). The ranges below are each node's private IDs.
+
 Without slot straps, a carrier's node number comes from its own firmware: each kind of accessory has a default, and a
 jumper or setting on the carrier moves it when two of the same kind are fitted. Every node heartbeats on
 `0x700 + node` once a second, so the center sees what is on the bus.

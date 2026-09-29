@@ -49,7 +49,7 @@ See `docs/protocols/can_bus.md`.
 | `arduino/sketches/encoder_controller` | RP2040 knobs / IR / OLED |
 | `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |
 | `scripts/export_*_rgb565_assets.py` | Regenerate the `*_gen.h` image headers from `assets/` |
-| `docs/protocols` | Wire formats: sensor UART, CAN bus, cluster/audio I2C, encoder UART |
+| `docs/protocols` | Wire formats: sensor UART, CAN bus, the accessory channel protocol on CAN (`can_channels.md`), cluster/audio I2C, encoder UART |
 | `tools/screenshot.py` | Screenshot a display over its USB console (`shot` command) |
 | `WIRING_PINOUT.md` | Vehicle harness |
 
