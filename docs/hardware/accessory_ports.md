@@ -16,9 +16,35 @@ There are two kinds of port with the same bus on them:
 
 ## Header position
 
+### Where they go
+
+The front of the DigiDash board belongs to the three screens (they plug face down onto J5 / J1 / J4), so **carriers
+mount on the back**, flat, with their parts facing away from the board into the dash cavity. The back already carries
+other plug-in boards that are **not** accessory ports and stay as they are: the TVP5150 video module (J13, parallel video
+straight into the center's camera pins) and the FRAM board (FRAM1, on the ATmega). They, and the tall or
+cable-bearing parts, are keep-outs for carrier positions:
+
+| Area on the back (board coordinates, mm) | Today | Next revision |
+| --- | --- | --- |
+| x −97…−51, y 16…41 | U11 DevKit (slot 1) | header position |
+| x −39…7, y 16…41 | U12 DevKit (slot 2) | header position |
+| x −112…−55, y 62…112 | U3 DevKit (slot 0, audio) and the J14 / J15 amplifier sockets | one or two header positions (the audio carrier) |
+| x ≈112…125, y 71…94 and toward the right edge | J13 TVP5150 video module | keep-out |
+| x ≈132…138, y 22…39 | FRAM board | keep-out |
+| x 16…34, y 80…110 | LM2576 (TO-220, standing), L1, C3 | keep-out (tall) |
+| x 60…89, y 60…66 | PTC thermistors TH1–TH4 (standing, ~17 mm) | keep-out (tall) |
+| bottom edge, y ≈ 111 | J6 / J7 / J9 / J10 harness connectors | keep clear for the plugs and cables |
+| left edge | J11 / J12 RCA jacks | keep clear for the plugs |
+| x 142…155, y 22…41 | J2 AVR ISP, J3 sensors | keep reachable |
+
+**Depth**: the DevKits in their sockets already stand about 20 mm off the back, as do the regulator and thermistors.
+A flat carrier (about 11 mm stack plus ordinary parts) fits in that same depth, so carriers add nothing to what the
+board already needs behind the dash. Standing (perpendicular) carriers are not part of the standard; if one is ever
+needed it can use a right-angle socket and an L-bracket on the same two M3 holes.
+
 ### Pinout
 
-Looking down on the DigiDash board (and on a carrier stacked on it, which faces the same way):
+Looking at the back of the DigiDash board (and at a carrier's component side, which faces the same way):
 
 | Pin | Signal | | Pin | Signal |
 | --- | --- | --- | --- | --- |
@@ -51,8 +77,10 @@ Footprints: [`DigiDash/DigiDash_Accessory.pretty`](../../DigiDash/DigiDash_Acces
 
   The pattern is deliberately not symmetric. A shrouded header takes a plain female header either way round, and
   turned 180° a carrier would put +12 V on its ground pin. With these holes it cannot be screwed down turned around.
-- **Standoffs**: M3, carrier above the DigiDash board, both boards face up (nothing is mirrored, unlike the screens,
-  which plug face down). The board-to-board height follows from the parts: a boxed header and an 8.5 mm female
+- **Standoffs**: M3, carrier behind the DigiDash board with its component side facing away from it and its female
+  header on the side facing the board. Seen from behind, pin 1 is in the same place on both. In KiCad the
+  `Port_Header_2x05` footprint is placed on the back layer (it flips; the asymmetric holes still stop a turned carrier)
+  and `Carrier_Header_2x05` goes on the carrier as drawn (socket on the carrier's bottom side). The board-to-board height follows from the parts: a boxed header and an 8.5 mm female
   header give about 11 mm. Check it against the parts on hand before ordering standoffs.
 - **Envelope**: a carrier may be any shape that clears the neighbouring positions. The space per position and the
   height limit under the enclosure are set with the board revision.

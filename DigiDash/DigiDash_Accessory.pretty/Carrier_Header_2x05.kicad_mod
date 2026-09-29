@@ -2,7 +2,7 @@
 	(version 20241229)
 	(generator "el-camino-dash")
 	(layer "F.Cu")
-	(descr "DigiDash carrier side of an accessory header position: 2x05 2.54 mm female header on the carrier underside, same pad positions as Port_Header_2x05 (both boards face up), and the same asymmetric M3 holes. See docs/hardware/accessory_ports.md")
+	(descr "DigiDash carrier side of an accessory header position: 2x05 2.54 mm female header on the carrier underside, same pad positions as Port_Header_2x05 (which is placed on the back of the DigiDash board; seen from behind both match), and the same asymmetric M3 holes. See docs/hardware/accessory_ports.md")
 	(tags "DigiDash accessory port carrier CAN 2x05 M3")
 	(property "Reference" "J**"
 		(at 1.27 -3.2 0)
@@ -38,7 +38,7 @@
 			)
 		)
 	)
-	(property "Description" "DigiDash carrier side: 2x05 2.54 mm female header fitted on the BOTTOM of the carrier (both boards face up, not mirrored) + matching M3 holes"
+	(property "Description" "DigiDash carrier side: 2x05 2.54 mm female header fitted on the BOTTOM of the carrier, facing the back of the DigiDash board + matching M3 holes"
 		(at 0 0 0)
 		(layer "F.Fab")
 		(hide yes)

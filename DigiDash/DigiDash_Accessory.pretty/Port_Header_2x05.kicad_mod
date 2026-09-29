@@ -2,7 +2,7 @@
 	(version 20241229)
 	(generator "el-camino-dash")
 	(layer "F.Cu")
-	(descr "DigiDash accessory header position (DigiDash side): shrouded 2x05 2.54 mm header plus two M3 holes, H1 at (1.27,-15.24) and H2 at (8.89,25.4) from pin 1 so a carrier cannot be mounted turned round. See docs/hardware/accessory_ports.md")
+	(descr "DigiDash accessory header position (DigiDash side, placed on the back layer): shrouded 2x05 2.54 mm header plus two M3 holes, H1 at (1.27,-15.24) and H2 at (8.89,25.4) from pin 1 so a carrier cannot be mounted turned round. See docs/hardware/accessory_ports.md")
 	(tags "DigiDash accessory port carrier CAN 2x05 M3")
 	(property "Reference" "J**"
 		(at 1.27 -7.2 0)
