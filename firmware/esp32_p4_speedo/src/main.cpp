@@ -7,6 +7,7 @@
 #include <cluster_i2c.h>
 #include <cluster_i2c_slave.h>
 #include <display_setup.h>
+#include <elc_can.h>
 #include <elc_gauges.h>
 #include <elc_watchdog.h>
 #include <gauge_console.h>
@@ -40,6 +41,23 @@ static volatile bool s_theme_dirty = false;
 static void on_cluster_i2c(uint8_t reg, uint8_t val, void *) {
   if (reg == CLUSTER_REG_THEME) {
     s_theme = cluster_theme_from_reg(val);
+    s_theme_dirty = true;
+  }
+}
+
+// The same theme also arrives over CAN (0x210) on the DigiDash board; either path is enough.
+#ifndef ELC_CAN_TX_PIN
+#define ELC_CAN_TX_PIN -1
+#endif
+#ifndef ELC_CAN_RX_PIN
+#define ELC_CAN_RX_PIN -1
+#endif
+static ElcCan s_can;
+
+static void on_can_frame(const ElcCanFrame &f, void *) {
+  ElcCanClusterState st;
+  if (elc_can_decode_cluster_state(f, st)) {
+    s_theme = cluster_theme_from_reg(st.theme);
     s_theme_dirty = true;
   }
 }
@@ -99,6 +117,15 @@ void setup() {
     s_theme_dirty = true;
   };
   cluster_i2c_slave_begin(CLUSTER_I2C_ADDR_SPEEDO, on_cluster_i2c, nullptr);
+  s_console.on_can = []() {
+    char st[320];
+    s_can.describe(st, sizeof(st));
+    Serial.println(st);
+  };
+  s_can.onFrame(on_can_frame, nullptr);
+  Serial.printf("CAN: %s (TX=%d RX=%d)\n",
+                s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_SPEEDO, ElcCanNodeType::Display) ? "up" : "off",
+                ELC_CAN_TX_PIN, ELC_CAN_RX_PIN);
   elc_loop_watchdog_begin();
 }
 
@@ -106,6 +133,7 @@ void loop() {
   elc_loop_watchdog_feed();
   elc_illumination_gpio_poll();
   persist_theme_if_changed();
+  s_can.poll();
   s_link.poll();
   drain_uart_text();
   s_console.poll(s_link);

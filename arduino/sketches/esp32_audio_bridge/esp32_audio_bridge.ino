@@ -16,6 +16,12 @@
  * ESP32-P4 center (Waveshare): connect this chip's I2C to the **same bus** as the round
  * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (this chip: SDA=GPIO21, SCL=GPIO22).
  *
+ * CAN accessory (DigiDash slot 0): when built with the elc_can library (PlatformIO,
+ * firmware/esp32_classic_bt_audio), the bridge also joins the CAN bus through its slot's MCP2562
+ * (TX = GPIO32, RX = GPIO33; slot number from the GPIO13/GPIO23 straps). It sends a heartbeat and
+ * the now-playing text + transport in its slot's ID range (docs/protocols/can_bus.md). The I2C
+ * link above stays as is; the center uses whichever is live.
+ *
  * Threading: AVRCP callbacks (BT task) update state and rebuild a prebuilt reply buffer under a
  * spinlock; the I2C onRequest handler only copies that buffer, so it answers quickly.
  */
@@ -30,6 +36,28 @@
 #include "esp_avrc_api.h"
 
 #include <cstdlib>
+
+// CAN is built in when the elc_can library is on the include path (PlatformIO build). The plain
+// arduino-cli build (arduino/scripts) has no CAN and behaves as before.
+#if __has_include(<elc_can.h>)
+#include <elc_can.h>
+#define AUDIO_BRIDGE_CAN 1
+#else
+#define AUDIO_BRIDGE_CAN 0
+#endif
+// DigiDash slot pinout: CAN TX/RX to the slot's transceiver, SLOT_ID straps (grounded = 1).
+#ifndef ELC_CAN_TX_PIN
+#define ELC_CAN_TX_PIN 32
+#endif
+#ifndef ELC_CAN_RX_PIN
+#define ELC_CAN_RX_PIN 33
+#endif
+#ifndef ELC_CAN_SLOT_ID0_PIN
+#define ELC_CAN_SLOT_ID0_PIN 13
+#endif
+#ifndef ELC_CAN_SLOT_ID1_PIN
+#define ELC_CAN_SLOT_ID1_PIN 23
+#endif
 
 /* Set to 1 (or -D in platformio.ini) to print AVRCP-built line on Serial when it changes / every 3s. */
 #ifndef AUDIO_BRIDGE_SERIAL_METADATA
@@ -84,6 +112,10 @@
 #if I2S_PIN_DATA == 22 || I2S_PIN_WS == 22 || I2S_PIN_BCK == 22 || I2S_PIN_DATA == 21 || I2S_PIN_WS == 21 || \
     I2S_PIN_BCK == 21
 #error "I2S pins collide with the I2C link to the center display (GPIO 21/22)"
+#endif
+#if AUDIO_BRIDGE_CAN && (I2S_PIN_DATA == ELC_CAN_TX_PIN || I2S_PIN_WS == ELC_CAN_TX_PIN || I2S_PIN_BCK == ELC_CAN_TX_PIN || \
+                         I2S_PIN_DATA == ELC_CAN_RX_PIN || I2S_PIN_WS == ELC_CAN_RX_PIN || I2S_PIN_BCK == ELC_CAN_RX_PIN)
+#error "I2S pins collide with the CAN transceiver pins of the DigiDash slot"
 #endif
 
 static constexpr uint8_t kRegMetadata = 0x01;
@@ -582,6 +614,56 @@ static void preload_reply(uint8_t reg) {
 /** Replies are preloaded in onReceive(); see preload_reply(). */
 void onRequest() {}
 
+#if AUDIO_BRIDGE_CAN
+static ElcCan s_can;
+static uint8_t s_can_slot = 0;
+static uint8_t s_can_text_serial = 0;
+static char s_can_text_sent[kMaxTrackLen + 1];
+static uint32_t s_can_text_ms = 0;
+
+/* Nothing on this board uses the theme yet; frames are drained (heartbeats are tracked by ElcCan). */
+static void can_begin() {
+  s_can_slot = elc_can_read_slot_id(ELC_CAN_SLOT_ID0_PIN, ELC_CAN_SLOT_ID1_PIN);
+  const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, (uint8_t)(ELC_CAN_NODE_SLOT0 + s_can_slot),
+                              ElcCanNodeType::AudioBridge);
+  Serial.printf("CAN: %s, slot %u (TX=%d RX=%d)\n", ok ? "up" : "off", (unsigned)s_can_slot, ELC_CAN_TX_PIN,
+                ELC_CAN_RX_PIN);
+}
+
+/** Now-playing text (on change and every second, so a late listener fills in) and transport (every call). */
+static void can_publish() {
+  char text[kMaxTrackLen + 1];
+  ElcCanAudioTransport t;
+  portENTER_CRITICAL(&s_track_mux);
+  memcpy(text, s_track, sizeof(text));
+  text[kMaxTrackLen] = '\0';
+  t.elapsed_s = s_elapsed_s;
+  t.duration_s = s_duration_s;
+  t.volume = s_vol_0_15;
+  portEXIT_CRITICAL(&s_track_mux);
+  t.connected = a2dp_sink && a2dp_sink->is_connected();
+
+  const uint32_t now = millis();
+  const bool changed = strncmp(text, s_can_text_sent, sizeof(text)) != 0;
+  if (changed) {
+    memcpy(s_can_text_sent, text, sizeof(text));
+    s_can_text_serial = (uint8_t)((s_can_text_serial + 1) & 0x0F);
+  }
+  t.text_serial = s_can_text_serial;
+  ElcCanFrame f;
+  elc_can_encode_audio_transport(s_can_slot, t, f);
+  s_can.send(f);
+  if (changed || now - s_can_text_ms >= 1000u) {
+    s_can_text_ms = now;
+    ElcCanFrame chunks[ELC_CAN_AUDIO_TEXT_CHUNKS];
+    elc_can_encode_audio_text(s_can_slot, s_can_text_serial, text, chunks);
+    for (const ElcCanFrame &c : chunks) {
+      s_can.send(c);
+    }
+  }
+}
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(200);
@@ -649,6 +731,9 @@ void setup() {
   a2dp_sink->set_on_connection_state_changed(a2dp_connection_cb);
   a2dp_sink->set_auto_reconnect(true);
   a2dp_sink->start(BT_DEVICE_NAME);
+#if AUDIO_BRIDGE_CAN
+  can_begin();
+#endif
 
   Serial.print(F("BT name: "));
   Serial.println(BT_DEVICE_NAME);
@@ -666,6 +751,16 @@ void setup() {
 }
 
 void loop() {
+#if AUDIO_BRIDGE_CAN
+  // Drain CAN often (the bus carries ~100 sensor frames/s); the rest runs every 250 ms.
+  s_can.poll();
+  static uint32_t s_last_tick_ms = 0;
+  if (millis() - s_last_tick_ms < 250u) {
+    delay(10);
+    return;
+  }
+  s_last_tick_ms = millis();
+#endif
   // The AVRCP play-status notification only fires on a change, so after a reboot mid-song it never
   // comes. The A2DP stream itself is the reliable signal: audio flowing = playing.
   const bool streaming = a2dp_sink && a2dp_sink->get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED;
@@ -682,5 +777,9 @@ void loop() {
 #if AUDIO_BRIDGE_SERIAL_METADATA
   serial_log_metadata_line();
 #endif
+#if AUDIO_BRIDGE_CAN
+  can_publish();
+#else
   delay(250);
+#endif
 }

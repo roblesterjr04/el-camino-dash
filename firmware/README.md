@@ -47,16 +47,25 @@ python3 tools/gauge_preview/preview.py faces.png 0,1,0 2,1,0 1,1,0   # theme,fac
 
 Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
 
+## CAN bus
+
+On the DigiDash board every display and accessory slot also sits on a 500 kbit/s CAN bus (one MCP2562 each; displays
+TX GPIO34 / RX GPIO36, slots TX GPIO32 / RX GPIO33). The center re-sends sensor frames (`0x100`–`0x104`) and the
+theme (`0x210`); speedo/TSPS take the theme from CAN or I2C, whichever arrives; the audio bridge sends now-playing in
+its slot range and the center prefers it over I2C when heard. Every node sends a 1 Hz heartbeat. Pins are build flags
+(`ELC_CAN_TX_PIN` / `ELC_CAN_RX_PIN`, `-1` = off). Spec: [docs/protocols/can_bus.md](../docs/protocols/can_bus.md).
+
 ## Layout
 
 | Directory | Role |
 |-----------|------|
 | `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, demo drive), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
+| `elc_can/` | Shared **CAN** library (displays and slot cards): IDs, frame codecs, TWAI driver wrapper with heartbeat and bus-off recovery. Host unit tests: `test/host/run_tests.sh`. |
 | `esp32_p4_ui/` | Shared **screen, touch and faces**: `p4_screen` (LVGL, double-buffered panel, optional legacy GFX layer, screenshot), `gauges/` (all gauge faces), `fonts/` (LVGL fonts), `gauge_console` (bench console for speedo/TSPS), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
 | `esp32_p4_speedo/` | **LEFT**: speedometer (MPH from Hall `speed_rpm` + wheel constants). |
 | `esp32_p4_center/` | **MIDDLE**: tach / clock / media / efficiency faces, LVGL menu, long-press gestures; I2C cluster master. |
 | `esp32_p4_tsps/` | **RIGHT**: fuel / oil / coolant / charge; Classic has two layouts (**3 s hold** switches). |
-| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + I2C metadata `0x2A` + optional cluster theme `0x3E` on `Wire1`). |
+| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + I2C metadata `0x2A` + optional cluster theme `0x3E` on `Wire1` + CAN accessory in DigiDash slot 0). |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
 ## Panel targets
@@ -98,8 +107,8 @@ sensor log, GPS data and Phone pages are still the older Arduino_GFX full-screen
 Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
 
 - center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
-  `drag <x> <y1> <y2> <ms>`, `knob left|right|press`, plus the Wi-Fi/TZ commands;
-- speedo / TSPS: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (TSPS).
+  `drag <x> <y1> <y2> <ms>`, `knob left|right|press`, `can`, plus the Wi-Fi/TZ commands;
+- speedo / TSPS: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (TSPS), `can`.
 
 Grab a screenshot from the Mac with:
 

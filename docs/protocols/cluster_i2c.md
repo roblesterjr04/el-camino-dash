@@ -1,5 +1,9 @@
 # Cluster and audio I2C
 
+On the DigiDash board the theme and the audio bridge's now-playing data also travel over CAN (`can_bus.md`). The I2C
+paths below stay in place: the displays accept the theme from either bus, and the center falls back to I2C for audio
+when no bridge is heard on CAN (album art is I2C only).
+
 ## Cluster bus (theme sync)
 
 A dedicated bus on GPIO 47 (SDA) / 48 (SCL), 100 kHz, with 3.3 V pull-ups. Master: center (`TwoWire(1)`, 20 ms timeout). Constants live in `firmware/esp32_p4_common/include/cluster_i2c.h`.

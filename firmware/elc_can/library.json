@@ -1,0 +1,12 @@
+{
+  "name": "elc_can",
+  "version": "1.0.0",
+  "description": "DigiDash CAN bus (TWAI + MCP2562): frame IDs, codecs, heartbeat and driver wrapper shared by the ESP32-P4 displays and ESP32 accessory slots",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "build": {
+    "includeDir": "include",
+    "srcDir": "src",
+    "libArchive": false
+  }
+}

@@ -119,6 +119,27 @@ Registers (1 byte data each): **0x01** = theme (0 Classic, 1 Fallout); **0x02** 
 
 **Center:** **`TwoWire(1)`** as **master** on **47/48** to broadcast to slaves after long-press gestures.
 
+### CAN bus (all three displays + accessory slots)
+
+Full spec: [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md). One **MCP2562-E/P** (DIP-8) per node on the
+DigiDash board: VDD 5 V, Vio 3.3 V, STBY to GND, 10 kΩ TXD pull-up to 3.3 V. **120 Ω termination only at the left
+(R35 on U5) and right (R36 on U10) screens.** Route CANH/CANL as a pair: U5 → U6 → U7 → U8 → U9 → U10. **J16** is a
+CANH / CANL / GND tap for a USB-CAN adapter.
+
+| Node | Transceiver | CAN TX | CAN RX |
+| ---- | ----------- | ------ | ------ |
+| Left screen (J5) | U5 | GPIO34 (header pin 31) | GPIO36 (header pin 23) |
+| Slot 0 (U3, audio bridge) | U6 | GPIO32 | GPIO33 (via 1 kΩ R28) |
+| Slot 1 (U11) | U7 | GPIO32 | GPIO33 (via 1 kΩ R30) |
+| Slot 2 (U12) | U8 | GPIO32 | GPIO33 (via 1 kΩ R32) |
+| Center screen (J1) | U9 | GPIO34 (header pin 31) | GPIO36 (header pin 23) |
+| Right screen (J4) | U10 | GPIO34 (header pin 31) | GPIO36 (header pin 23) |
+
+**Accessory slots** U3 / U11 / U12 all use the ESP32-DevKitC footprint (back side). Each gets 5 V + GND and its CAN
+pair; the DevKit's 3V3 pin stays unconnected. Slot number straps (read with pull-ups, grounded = 1): **GPIO13** is
+grounded on slot 1, **GPIO23** on slot 2, neither on slot 0. Slot 0 additionally keeps the audio wiring below (I2C to
+the center, I2S amps J14/J15).
+
 ### Backup camera (center): TVP5150 video decoder module
 
 Composite video → TVP5150AM1 module (2×10 header, OV7670-style order) → 8-bit BT.656 into the center's camera (DVP)
@@ -167,6 +188,10 @@ Use **`arduino/sketches/esp32_audio_bridge/esp32_audio_bridge.ino`** (or `firmwa
 **I2S** from the audio module to your DAC: assign **non-colliding** BCK/WS/DATA pins in the audio sketch (default I2S pins may conflict with I2C on some modules).
 
 Optional: connect ESP32-D to the **cluster** bus (**47/48**) as slave **0x3E** to mirror the global **theme** byte in NVS (see firmware).
+
+On the DigiDash board the ESP32-D sits in **accessory slot 0 (U3)** and also joins the **CAN bus** (TX GPIO32, RX
+GPIO33 through U6): it sends now-playing + transport there, and the center prefers that over I2C when it hears it. The
+I2C link stays wired so a bench setup without transceivers keeps working.
 
 **I2S amplifier** (MAX98357A, `esp32dev_external_i2s` build): DIN = **GPIO27**, BCLK = **GPIO14**, LRC = **GPIO25**, VIN = 5 V,
 GND. GAIN can float (9 dB). On the DigiDash board: **J14** (Amp L) and **J15** (Amp R), 7-pin sockets in the

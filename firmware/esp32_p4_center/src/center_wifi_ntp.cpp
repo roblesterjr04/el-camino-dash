@@ -6,6 +6,7 @@
 
 #include "center_audio_link.h"
 #include "center_camera.h"
+#include "center_can.h"
 #include "center_menu.h"
 #include <elc_gauges.h>
 
@@ -231,6 +232,12 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     Serial.printf("audio: art %s\n", art);
     return;
   }
+  if (line == "can") {  // bench: CAN counters and the nodes heard (heartbeats)
+    char st[320];
+    center_can_describe(st, sizeof(st));
+    Serial.println(st);
+    return;
+  }
   if (line == "perf") {
     const P4ScreenStats st = p4_screen_stats();
     const SensorPacketParser &sp = center_sensor_link().parser();
@@ -252,7 +259,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | can | tap <x> <y> [ms] | knob left|right|press | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }
