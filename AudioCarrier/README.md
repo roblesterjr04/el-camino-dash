@@ -8,7 +8,7 @@ connector that carries the four line outputs and the mic / aux inputs to panel-m
 
 | Files | |
 | --- | --- |
-| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 50 × 26 mm, 4 layers, parts on both sides. KiCad 10 |
+| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 50 × 26 mm, 4 layers, parts on both sides, **routed**. KiCad 10 |
 | `AudioCarrier.pretty` | The ESP32-PICO-MINI-02 footprint (land pattern from the Espressif datasheet). Everything else is stock KiCad or `DigiDash_Accessory` |
 | `generate/` | Scripts that produced the files (`gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py`) |
 
@@ -63,6 +63,21 @@ Use shielded cable (or a twisted pair per channel with its ground) for the pigta
   do not put metal right against that edge.
 - **Height:** the module is 2.4 mm, J2 (vertical PH) about 6 mm, and the pigtail plugs in from above.
 
+## Status
+
+**Routed.** DRC (with the schematic parity check, `generate/drc.py`): no errors, 0 unconnected; what is left is
+silkscreen warnings (text next to pads, the module outline at the edge) and two parity notes for J1's MP1 / MP2 (the
+M3 holes are GND on the board; the 2×5 header symbol has no pins for them). About 670 track segments and 150 vias.
+
+- Every ground pin except the module's has its own via to the In1 plane, placed before routing; the pours on the other
+  three layers are stitched to it. The module's ground pads are one pad group in its footprint (they are joined
+  inside the module), so its small corner pads need no copper of their own.
+- The schematic has had ERC: no errors (only off-grid warnings from the generated layout, and the embedded
+  `AudioCarrier:` symbols not being in a library table).
+- Check before ordering: the ESP32-PICO-MINI-02 land pattern against the module you buy, the standoff height
+  (11 mm stack) against the bottom-side parts (≤ 1.2 mm), and that nothing on the DigiDash board's back sits inside
+  this carrier's footprint at the position you use.
+
 ## Things to know
 
 - **Firmware is not written yet.** This board needs: I2S0 master with MCLK on GPIO0 (12.288 MHz at 48 kHz) and a
@@ -82,12 +97,18 @@ Use shielded cable (or a twisted pair per channel with its ground) for the pigta
 
 ## Regenerating
 
-KiCad 10 with its stock libraries, numpy in KiCad's python (`$KIPY -m pip install --user numpy`), and Freerouting 2.1
-(Java 21) for the routing step:
+KiCad 10 with its stock libraries, numpy in KiCad's python (`$KIPY -m pip install --user numpy`), and Freerouting
+**1.9.0** (Java 17 or newer; it opens its window while it routes). Freerouting 2.1 does not finish this board, and 1.9
+hangs if the DSN already has wiring, so the script routes once from scratch and then finishes with its own steps
+(joining any leftover piece of a net, ground vias and stitching).
 
 ```bash
 KIPY=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3
 python3 generate/gen_footprints.py && python3 generate/gen_sch.py   # also writes generate/refs.json (part groups for placement)
-$KIPY generate/gen_pcb.py --route freerouting-2.1.0.jar              # place, route, fill
-$KIPY generate/drc.py
+JAVA=/opt/homebrew/opt/openjdk@17/bin/java $KIPY generate/gen_pcb.py --route freerouting-1.9.0.jar   # place, route, fill
+python3 generate/drc.py
 ```
+
+`FR_PASSES` sets Freerouting's pass limit (default 120, the value this board was routed with). `--stitch` / `--fill`
+re-run only the ground stitching / zone fill on the routed board. After any schematic change run the generators again
+(or, in KiCad, **Update PCB from Schematic** and re-route by hand).

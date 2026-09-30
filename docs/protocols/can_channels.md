@@ -10,9 +10,9 @@ document defines that interface as a set of **channels**, one per dash service, 
 
 | Channel | What an accessory gets | Served by |
 | --- | --- | --- |
-| ALERT | Raise and clear alerts; the dash shows them, chimes and tracks acknowledgement | center (alert manager), every screen |
-| SENSOR | Publish readings with a unit; the dash can show, log and alarm on them | center (logger, thresholds), screens |
-| UI | A page of items (readouts, toggles, numbers, choices, buttons) in the dash menu | whichever screen shows the menu |
+| ALERT | Raise and clear alerts; the dash shows them, chimes and tracks acknowledgement | center (alert manager), the menu screen |
+| SENSOR | Publish readings with a unit; the dash can show, log and alarm on them. The center publishes the car's own readings here too | center (logger, thresholds), screens, console |
+| UI | A page of items (readouts, toggles, numbers, choices, buttons) in the dash menu; settings backed up on the center's SD card | whichever screen shows the menu; center (backup) |
 | INPUT | Send keys and knobs that drive the menu and media, or listen to them | menu screen, center, audio sink |
 | AUDIO_CMD | Play and stop sounds from the sink's library; volume, media transport | audio sink |
 | AUDIO_STREAM | Stream a voice-quality sound (short, one at a time) | audio sink |
@@ -167,7 +167,7 @@ Discovery. Every node that speaks the protocol implements this channel.
 
 | Op | Name | Payload after the opcode |
 | --- | --- | --- |
-| `0x01` | ANNOUNCE | protocol version u8 (1), node type u8, product u16, firmware version u16, unique ID u32 (from the MAC), description generation u8, produces u32, consumes u32, name (≤ 24 bytes) |
+| `0x01` | ANNOUNCE | protocol version u8 (1), node type u8, product u16, firmware version u16, unique ID u32 (from the MAC), description generation u8, produces u32, consumes u32, flags u8, name (≤ 24 bytes) |
 | `0x81` | QUERY | dest u8, what u8: bit0 ANNOUNCE, bit1 sensor descriptions, bit2 alert descriptions, bit3 UI item descriptions |
 | `0x82` | IDENTIFY | dest u8, seconds u8: blink an LED / beep so a person can find the board (0 = stop) |
 | `0x83` | RESTART | dest u8, magic u8 `0x5A` (from the center or a service tool only) |
@@ -179,6 +179,8 @@ Discovery. Every node that speaks the protocol implements this channel.
   QUERY to `0x00` with all bits set; nodes answer after **(node × 8) ms**, so they don't all talk at once.
 - **Description generation** bumps whenever any of the node's descriptions change (a firmware update, a setting that
   renames something). Receivers may cache descriptions keyed by (unique ID, generation) and skip asking again.
+- **ANNOUNCE flags**: bit0 the node's settings are at factory defaults (never changed, or just reset). The center
+  uses it to restore a backup (see [Settings backup](#settings-backup)).
 - The unique ID also catches two carriers set to the same node number: the center sees two ANNOUNCEs with one node
   number and different unique IDs, and raises an alert.
 - Node types extend the heartbeat's: 0 display, 1 audio bridge, 2 console, 3 sensor node, 4 input device, 5 audio
@@ -219,27 +221,31 @@ on this channel from node `0x01` exactly like an accessory's, so a buzzer or lam
 - DEFINE may be re-sent at any time to change text (e.g. "Trans temp 243 °F"); bump the generation byte in STATE so
   a receiver that missed it asks (QUERY bit2).
 - **Flags**: bit0 needs acknowledgement, bit1 latching (stays listed until acknowledged even after it clears), bit2
-  silent (no sound whatever the severity), bit3 show on every screen (default: the interface screen only).
+  silent (no sound whatever the severity), bit3 reserved (0).
 - **Sound**: `0x0000` = the default for the severity, `0xFFFF` = none, anything else a sound from the
   [registry](#sounds).
 - ACK goes to the alert's source so it can react (stop its own buzzer). The center tracks acknowledgement itself;
   the source does not have to answer.
 - SUMMARY is for simple nodes (a master-caution lamp on the console) that do not want to track every alert.
 
-| Severity | Name | On screen | Sound (default) |
+Alerts show on the **menu screen** only (the interface screen, `0x210`: the one that has the on-screen menu),
+wherever the menu has been put. The gauges on the other two screens are never covered.
+
+| Severity | Name | On the menu screen | Sound (default) |
 | --- | --- | --- | --- |
 | 0 | info | toast for 4 s, no list entry | none |
 | 1 | advisory | toast until cleared or acknowledged, listed | soft chime once |
-| 2 | caution | amber banner on the interface screen, listed | caution chime once |
-| 3 | warning | red overlay on the interface screen (every screen with flag bit3) | warning chime, repeating until acknowledged |
+| 2 | caution | amber banner, listed | caution chime once |
+| 3 | warning | red overlay, listed | warning chime, repeating until acknowledged |
 
 Accessories may not suppress another node's alert. The driver acknowledges with Select, a tap on the banner, or
 the alert list in the menu.
 
 ## SENSOR (`0x120 + node`)
 
-Readings from accessories, in known quantities, so the dash can convert, show, log and alarm on them without
-accessory-specific code.
+Readings in known quantities, so the dash can convert, show, log and alarm on them without accessory-specific code.
+The center publishes the car's own readings here as node `0x01` ([core sensors](#core-sensors-node-0x01)), so
+every consumer, the console included, reads one format.
 
 | Op | Name | Rate | Payload after the opcode |
 | --- | --- | --- | --- |
@@ -258,8 +264,32 @@ accessory-specific code.
   that wants its own wording leaves bit2 clear and uses ALERT.
 - **Period**: 50 ms minimum (20 Hz), 1000 ms for slow things. A VALUE is one frame, so 10 sensors at 10 Hz is about
   3 % of the bus.
-- The legacy sensor frames (`0x100`–`0x104`) stay as they are in v1. Mirroring the core readings onto this channel
-  (node `0x01`) is an option for later.
+
+### Core sensors (node `0x01`)
+
+The center converts each sensor-pack frame (`sensor_uart.md`) and sends the results on `0x121`. These are the
+readings for anything off the cluster: **the console reads its gauges' numbers here**, not from the legacy frames.
+
+| Sensor | Reading | Quantity | Exponent | Period | Status from |
+| --- | --- | --- | --- | --- | --- |
+| 0 | road speed | speed (km/h) | −1 | 50 ms | |
+| 1 | engine speed | rotational speed (rpm) | 0 | 50 ms | COIL_MISSING → 1 not ready |
+| 2 | fuel level | percent | −1 | 200 ms | POT_OPEN / POT_SHORT → 2 / 3, its *_POWER bit → 5 |
+| 3 | engine temperature | temperature (°C) | −1 | 200 ms | TEMP_OPEN / TEMP_SHORT → 2 / 3, its *_POWER bit → 5 |
+| 4 | oil pressure | pressure (kPa) | 0 | 200 ms | PRESS_OPEN / PRESS_SHORT → 2 / 3, its *_POWER bit → 5 |
+| 5 | charging | switch (1 = charging) | 0 | 200 ms | ALT_STUCK → 5 |
+| 6 | ambient temperature | temperature (°C) | −1 | 1000 ms | |
+| 7 | odometer | distance (m) | 0 | 1000 ms | ODO_STORE → 5; unknown → 1 |
+| 8 | distance to empty | distance (m) | 0 | 1000 ms | unknown → 1 |
+| 9 | fuel economy, instant | fuel economy (km/L) | −2 | 1000 ms | no economy → 1 |
+| 10 | fuel economy, trip | fuel economy (km/L) | −2 | 1000 ms | no economy → 1 |
+
+- About 70 frames/s, **~2 % of the bus**. With no sensor data for 400 ms (the gauges' NO DATA) every core sensor
+  goes to status 1, and VEHICLE flag bit5 clears.
+- The thresholds in their DEFINEs match the gauges' own redlines. Flag bit2 is clear: the center raises its warnings
+  (oil pressure, temperature, sensor faults) itself on ALERT with its own wording.
+- The legacy frames `0x100`–`0x104` stay, for the three screens only (they carry raw ADC values the gauge faces are
+  calibrated against, and they are internal). A new consumer never uses them.
 
 ## UI (`0x260 + node`)
 
@@ -289,17 +319,40 @@ Kinds:
 | 6 | text readout | from TEXT |
 
 Flags: bit0 read-only, bit1 ask to confirm before SET (actions like "Reset trip"), bit2 advanced (only under
-Service), bit3 live (VALUE streams while viewed).
+Service), bit3 live (VALUE streams while viewed), bit4 a setting (the center backs it up).
 
 - Up to 64 items per node, item numbers 0–254. ITEM descriptions are sent at boot and on QUERY bit3.
 - **Settings follow the existing `0x212` pattern**: the menu screen sends SET; the accessory applies it, saves it
-  itself (the dash does not store accessory settings) and answers with VALUE and RESULT, even when nothing
-  changed. Result: 0 ok, 1 out of range, 2 read-only, 3 busy, 4 unknown item. The menu shows the value from VALUE,
+  itself and answers with VALUE and RESULT, even when nothing changed. Result: 0 ok, 1 out of range, 2 read-only, 3 busy, 4 unknown item. The menu shows the value from VALUE,
   never the one it asked for.
 - **VIEW** is sent every 1 s while a page of the accessory is open. While the last VIEW is under 3 s old, the
   accessory sends VALUE / TEXT for the items under that group at up to 5 Hz; otherwise only on change. That keeps a
   page of live readouts off the bus when nobody looks at it.
-- Not in v1: accessory-drawn screens or custom widgets. Pixels over CAN run at about one small image per second
+### Settings backup
+
+The accessory is the owner of its settings: it saves them itself and works without the center. The **center keeps
+a copy on its SD card** so a replaced or re-flashed carrier gets them back.
+
+- **Backing up.** The center stores every VALUE of an item with flag bit4, together with that item's kind and label,
+  in `/accessories/<product>_<node>.json` (e.g. `0005_14.json`, hex), with the unique ID of the board it came from.
+  Written when a value changes, at most once every 5 s per node, like `settings.json`.
+- **Keyed by product and node**, not by board: a new board of the same product at the same node number is the same
+  accessory in the car.
+- **Restoring.** When a node ANNOUNCEs and a backup exists for its product and node, and once its ITEM descriptions
+  are in:
+  - same unique ID → nothing to do (the board has its own settings);
+  - different unique ID and ANNOUNCE flag bit0 set (factory defaults) → the center restores automatically: a SET
+    per backed-up item, from node `0x01`, one at a time, waiting for each RESULT;
+  - different unique ID and bit0 clear (a used board moved in) → nothing is sent; the accessory's page in the menu
+    offers **Restore saved settings** and **Keep this board's settings**.
+- Only items whose number, kind and label still match are restored, so a firmware update that changes the items
+  loses nothing but what changed. A value the accessory rejects (RESULT ≠ 0) is skipped and logged.
+- **Service → Accessories** lists the backups, including nodes not on the bus, with **Forget** for each.
+- If the center has no SD card, backup and restore are off; the accessories are unaffected.
+
+### Not in v1
+
+- Accessory-drawn screens or custom widgets. Pixels over CAN run at about one small image per second
   (see the album art in `can_bus.md`). Bar and dial kinds can be added later as new kind numbers.
 
 ## INPUT (`0x040 + node`)
@@ -438,6 +491,7 @@ u16) are free for a product's own use.
 | 7 | percent | % | | 17 | acceleration | g |
 | 8 | lambda | λ | | 18 | humidity | % RH |
 | 9 | air-fuel ratio | :1 (gasoline) | | 19 | duration | s |
+| | | | | 20 | fuel economy | km/L |
 
 ### Keys
 
@@ -483,7 +537,8 @@ At boot (after its heartbeat with flags bit0 set):
 - NET ANNOUNCE: node type 3, name "Trans temp", produces SENSOR + ALERT + UI, consumes SYSTEM.
 - SENSOR DEFINE sensor 0: temperature, exponent −1, flags log + gauge + center-alerts, period 200 ms, display
   400…1500 (40–150 °C), caution high 1100 (110 °C), warning high 1250 (125 °C), no lows.
-- UI ITEM 0: number "Offset", unit "°C", −50…50, exponent −1 (a calibration trim it saves itself).
+- UI ITEM 0: number "Offset", unit "°C", −50…50, exponent −1, flag bit4 (a calibration trim: it saves it
+  itself and the center backs it up, so a replacement board gets the same trim).
 
 Then 5 times a second, SENSOR VALUE sensor 0 = 1043 (104.3 °C), status ok, transfer ID 7, on ID `0x134`
 (`0x120 + 0x14`), one frame:
@@ -524,6 +579,7 @@ change to any other firmware: the audio sink and the menu screen already listen 
 | Traffic | Share of the bus |
 | --- | --- |
 | Legacy sensor, cluster, heartbeats, audio transport (today) | ~5 % |
+| Core sensors on SENSOR (center) | ~2 % |
 | SYSTEM, ALERT, INPUT, UI, NET, LOG | < 1 % |
 | Accessory sensors (budget: 20 values at 10 Hz) | ~6 % |
 | BULK and album art together (paced, only while transferring) | ≤ 34 % |
@@ -544,18 +600,20 @@ by bulk and stream traffic anyway, because those have the higher IDs.
 
 1. Transport (tail-byte framing, reassembly, retry) and NET in `firmware/elc_can`, with host tests; heartbeat flag.
 2. SYSTEM and LOG from the center.
-3. SENSOR and ALERT: the center's alert manager and the screens' banner and list; the center's own warnings move
-   onto ALERT.
-4. INPUT (with the console firmware) and AUDIO_CMD (on the audio bridge first, then the audio carrier).
-5. UI items in the menu.
+3. SENSOR and ALERT: the core sensors from the center, the center's alert manager and the menu screen's banner and
+   list; the center's own warnings move onto ALERT.
+4. INPUT and the console's readings from SENSOR (with the console firmware), and AUDIO_CMD (on the audio bridge
+   first, then the audio carrier).
+5. UI items in the menu, then the settings backup on the center's SD card.
 6. BULK (sound upload), then AUDIO_STREAM, then firmware update over CAN as its own profile.
 
 ## Open questions
 
 - **Retry**: how the TWAI controller reports arbitration loss with single-shot set, and whether bounded hardware
   retransmission is simpler than resending in software. Measure on the bench before step 1.
-- **Where alerts show**: the interface screen only (proposed), or cautions on every screen.
-- **Core sensors on SENSOR**: whether the center should also publish the legacy readings on this channel, so an
-  accessory reads a single format (costs about 3 % of the bus).
-- **Accessory settings storage**: proposed on the accessory. Alternative: the center stores them on the SD card
-  and restores them after a carrier is swapped.
+
+## Decided
+
+- Alerts show on the menu screen only.
+- The center publishes the core readings on SENSOR; the console (and every other consumer) reads them there.
+- Accessory settings are backed up on the center's SD card and restored to a replacement board.

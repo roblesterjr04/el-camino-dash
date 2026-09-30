@@ -73,6 +73,8 @@ spare cable port):
   300 mA for the console (ESP32-S3 with Wi-Fi off + OLED at full white); the console makes its own 3.3 V.
 - Node `0x13`, node type 2, message range `0x4C0`–`0x4FF` (the fourth accessory range). Its messages are defined when its
   firmware is written.
+- The console takes its readings (speed, rpm, fuel, temperature, oil, …) from the SENSOR channel of
+  [`can_channels.md`](can_channels.md) (center, node `0x01`), not from `0x100`–`0x104`.
 
 ## Behaviour
 
@@ -101,7 +103,7 @@ All multi-byte fields are little-endian.
 | `0x400 + 0x40·slot + msg` | accessory (slot = node − `0x10`) | accessory-specific | see below |
 | `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`; 0 today) |
 
-Sensor fields have the same meaning as in `sensor_uart.md`. Node types: 0 display, 1 audio bridge, 2 console.
+Sensor fields have the same meaning as in `sensor_uart.md`. `0x100`–`0x104` are for the three screens; other nodes read the converted readings on the SENSOR channel (`can_channels.md`). Node types: 0 display, 1 audio bridge, 2 console.
 
 ### Cluster settings
 

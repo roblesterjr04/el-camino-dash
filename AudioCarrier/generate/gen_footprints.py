@@ -22,8 +22,8 @@ def write(name, descr, tags, attr, body):
     open(os.path.join(OUT, name + '.kicad_mod'), 'w').write(txt)
 
 
-def smd(num, x, y, w, h):
-    return ('  (pad "%s" smd rect (at %g %g) (size %g %g) (layers "F.Cu" "F.Paste" "F.Mask"))' % (num, x, y, w, h))
+def smd(num, x, y, w, h, extra=''):
+    return ('  (pad "%s" smd rect (at %g %g) (size %g %g) (layers "F.Cu" "F.Paste" "F.Mask")%s)' % (num, x, y, w, h, extra))
 
 
 # ESP32-PICO-MINI-02: Espressif datasheet v1.7, figures 3 (pin layout) and 14 (recommended land pattern).
@@ -43,7 +43,9 @@ for gx in (-1.975, 0, 1.975):
     for gy in (-1.975, 0, 1.975):
         b.append(smd(49, gx, gy, 1.45, 1.45))
 for num, x, y in ((50, 5.95, -4.95), (51, 5.95, 4.95), (52, -5.95, 4.95), (53, -5.95, -4.95)):
-    b.append(smd(num, x, y, 0.7, 0.7))
+    b.append(smd(num, x, y, 0.7, 0.7, ' (zone_connect 2)'))     # solid: too small and too near the edge for spokes
+# all ground pads are one net inside the module: tell KiCad, so the corner pads need no copper of their own
+b.append('  (jumper_pad_groups ("%s"))' % '" "'.join(str(n) for n in [1, 2, 11, 14] + list(range(36, 54))))
 b += [rect(-6.6, -11, 6.6, 5.6, 'F.Fab', 0.1),
       '  (fp_line (start -6.6 -5.6) (end 6.6 -5.6) (stroke (width 0.1) (type solid)) (layer "F.Fab"))',
       rect(-6.75, -11.15, 6.75, 5.75, 'F.SilkS', 0.12),
