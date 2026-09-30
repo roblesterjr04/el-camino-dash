@@ -4,8 +4,13 @@
     tools/gauge_preview/build.sh
     python3 tools/gauge_preview/preview.py out.png 0,1,0 2,1,0 1,1,0
 
-Each spec is theme,face,variant[,nodata]: theme 0 Classic / 1 Fallout / 2 Modern; face 0 Speedo, 1 Tach,
-2 Clock, 3 Media, 4 Econ, 5 Right; variant = right display Classic layout (0 four gauges, 1 fuel + lamps).
+Each spec is theme,face,variant[,nodata[,phone]]: theme 0 Classic / 1 Fallout / 2 Modern; face 0 Speedo, 1 Tach,
+2 Clock, 3 Media, 4 Econ, 5 Right; variant = right display Classic layout (0 four gauges, 1 fuel + lamps);
+phone = the call card over the face, as `phone demo` on the consoles (incoming, active, waiting, held, pair;
+modifiers with +, e.g. active+muted+onphone); menu = the menu open on a page over the face (0 home … 6 phone),
+optionally with knob keys after a colon, separated by ; (r<n> rotate, p press, b back), e.g. 6:r2;p.
+
+    python3 tools/gauge_preview/preview.py phone.png 0,1,0,0,idle,6 2,1,0,0,pair,6 1,1,0,0,discover,6
 """
 import os
 import subprocess
@@ -28,9 +33,14 @@ def main():
             p = spec.split(",")
             theme, face, variant = p[0], p[1], p[2] if len(p) > 2 else "0"
             nodata = p[3] if len(p) > 3 else "0"
+            env = dict(os.environ)
+            if len(p) > 4 and p[4]:
+                env["PHONE"] = p[4].replace("+", " ")
+            if len(p) > 5 and p[5]:
+                env["MENU"] = p[5].replace(";", ",")
             ppm = os.path.join(tmp, f"{i}.ppm")
             r = subprocess.run([RENDER, ppm, theme, face, variant, "800", "800", nodata, "2"],
-                               capture_output=True, text=True, check=True)
+                               capture_output=True, text=True, check=True, env=env)
             sys.stderr.write(f"{spec}: {' | '.join(r.stderr.strip().splitlines())}\n")
             im = Image.open(ppm).convert("RGB")
             mask = Image.new("L", im.size, 0)

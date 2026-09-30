@@ -257,6 +257,164 @@ bool ElcCanAudioTextDecoder::feed(const ElcCanFrame &f) {
   return true;
 }
 
+// ---- console menu input / state ----
+
+void elc_can_encode_menu_input(const ElcCanMenuInput &m, ElcCanFrame &out) {
+  frame(out, ELC_CAN_ID_MENU_INPUT, 3);
+  out.data[0] = m.event;
+  out.data[1] = (uint8_t)m.value;
+  out.data[2] = m.from_node;
+}
+
+bool elc_can_decode_menu_input(const ElcCanFrame &f, ElcCanMenuInput &out) {
+  if (f.id != ELC_CAN_ID_MENU_INPUT || f.len < 3) return false;
+  out.event = f.data[0];
+  out.value = (int8_t)f.data[1];
+  out.from_node = f.data[2];
+  return true;
+}
+
+void elc_can_encode_menu_state(const ElcCanMenuState &s, ElcCanFrame &out) {
+  frame(out, ELC_CAN_ID_MENU_STATE, 5);
+  out.data[0] = s.open ? 1 : 0;
+  out.data[1] = s.screen;
+  out.data[2] = s.page;
+  out.data[3] = s.opened_by;
+  out.data[4] = (uint8_t)(s.text_serial & 0x0F);
+}
+
+bool elc_can_decode_menu_state(const ElcCanFrame &f, ElcCanMenuState &out) {
+  if (f.id != ELC_CAN_ID_MENU_STATE || f.len < 5) return false;
+  out.open = (f.data[0] & 1) != 0;
+  out.screen = f.data[1] <= ELC_CAN_SCREEN_RIGHT ? f.data[1] : ELC_CAN_SCREEN_CENTER;
+  out.page = f.data[2];
+  out.opened_by = f.data[3];
+  out.text_serial = (uint8_t)(f.data[4] & 0x0F);
+  return true;
+}
+
+// ---- time ----
+
+void elc_can_encode_time(const ElcCanTime &t, ElcCanFrame &out) {
+  frame(out, ELC_CAN_ID_TIME, 8);
+  put32(out.data, t.utc);
+  put16(out.data + 4, (uint16_t)t.offset_min);
+  out.data[6] = t.flags;
+  out.data[7] = (uint8_t)(t.place_serial & 0x0F);
+}
+
+bool elc_can_decode_time(const ElcCanFrame &f, ElcCanTime &out) {
+  if (f.id != ELC_CAN_ID_TIME || f.len < 8) return false;
+  out.utc = get32(f.data);
+  out.offset_min = (int16_t)get16(f.data + 4);
+  out.flags = f.data[6];
+  out.place_serial = (uint8_t)(f.data[7] & 0x0F);
+  return true;
+}
+
+// ---- phone ----
+
+void elc_can_encode_phone_status(uint8_t slot, const ElcCanPhoneStatus &s, ElcCanFrame &out) {
+  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_PHONE_STATUS), 8);
+  out.data[0] = s.flags;
+  out.data[1] = s.call;
+  put16(out.data + 2, s.call_s);
+  out.data[4] = (uint8_t)((s.signal & 0x0F) | ((s.battery & 0x0F) << 4));
+  out.data[5] = (uint8_t)((s.caller_serial & 0x0F) | ((s.list_serial & 0x0F) << 4));
+  out.data[6] = (uint8_t)((s.paired & 0x0F) | ((s.connected_index & 0x0F) << 4));
+  out.data[7] = s.call_volume;
+}
+
+bool elc_can_decode_phone_status(const ElcCanFrame &f, uint8_t *slot, ElcCanPhoneStatus &out) {
+  const int s = elc_can_slot_of(f.id);
+  if (s < 0 || f.id != elc_can_slot_id((uint8_t)s, ELC_CAN_AUDIO_MSG_PHONE_STATUS) || f.len < 8) return false;
+  if (slot) *slot = (uint8_t)s;
+  out.flags = f.data[0];
+  out.call = f.data[1];
+  out.call_s = get16(f.data + 2);
+  out.signal = (uint8_t)(f.data[4] & 0x0F);
+  out.battery = (uint8_t)(f.data[4] >> 4);
+  out.caller_serial = (uint8_t)(f.data[5] & 0x0F);
+  out.list_serial = (uint8_t)(f.data[5] >> 4);
+  out.paired = (uint8_t)(f.data[6] & 0x0F);
+  out.connected_index = (uint8_t)(f.data[6] >> 4);
+  out.call_volume = f.data[7];
+  return true;
+}
+
+void elc_can_encode_phone_text(uint8_t slot, uint8_t kind, uint8_t serial, const char *text,
+                               ElcCanFrame out[ELC_CAN_PHONE_TEXT_CHUNKS]) {
+  char buf[ELC_CAN_PHONE_TEXT_CHUNKS * 6] = {0};
+  if (text) {
+    size_t n = strlen(text);
+    if (n > ELC_CAN_PHONE_TEXT_MAX) n = ELC_CAN_PHONE_TEXT_MAX;
+    memcpy(buf, text, n);
+  }
+  for (uint8_t c = 0; c < ELC_CAN_PHONE_TEXT_CHUNKS; c++) {
+    frame(out[c], elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_PHONE_TEXT), 8);
+    out[c].data[0] = kind;
+    out[c].data[1] = (uint8_t)(((serial & 0x0F) << 4) | c);
+    memcpy(out[c].data + 2, buf + 6 * c, 6);
+  }
+}
+
+bool ElcCanPhoneTextDecoder::feed(const ElcCanFrame &f) {
+  const int s = elc_can_slot_of(f.id);
+  if (s < 0 || f.id != elc_can_slot_id((uint8_t)s, ELC_CAN_AUDIO_MSG_PHONE_TEXT) || f.len < 8) return false;
+  if (f.data[0] != _kind) return false;
+  const uint8_t serial = (uint8_t)(f.data[1] >> 4);
+  const uint8_t chunk = (uint8_t)(f.data[1] & 0x0F);
+  if (chunk >= ELC_CAN_PHONE_TEXT_CHUNKS) return false;
+  if (serial != _serial) {
+    _serial = serial;
+    _seen = 0;
+    memset(_buf, 0, sizeof(_buf));
+  }
+  memcpy(_buf + 6 * chunk, f.data + 2, 6);
+  _seen |= (uint8_t)(1u << chunk);
+  if (_seen != (1u << ELC_CAN_PHONE_TEXT_CHUNKS) - 1) return false;
+  _seen = 0;  // the sender repeats; accept the next complete copy too
+  memcpy(_done, _buf, ELC_CAN_PHONE_TEXT_MAX);
+  _done[ELC_CAN_PHONE_TEXT_MAX] = '\0';
+  _done_serial = serial;
+  _have = true;
+  return true;
+}
+
+void elc_can_encode_phone_pairing(uint8_t slot, uint32_t passkey, uint8_t seconds_left, ElcCanFrame &out) {
+  frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_PHONE_PAIRING), 5);
+  put32(out.data, passkey);
+  out.data[4] = seconds_left;
+}
+
+bool elc_can_decode_phone_pairing(const ElcCanFrame &f, uint8_t *slot, uint32_t *passkey, uint8_t *seconds_left) {
+  const int s = elc_can_slot_of(f.id);
+  if (s < 0 || f.id != elc_can_slot_id((uint8_t)s, ELC_CAN_AUDIO_MSG_PHONE_PAIRING) || f.len < 5) return false;
+  if (slot) *slot = (uint8_t)s;
+  if (passkey) *passkey = get32(f.data);
+  if (seconds_left) *seconds_left = f.data[4];
+  return true;
+}
+
+void elc_can_encode_phone_command(const ElcCanPhoneCommandMsg &c, ElcCanFrame &out) {
+  frame(out, ELC_CAN_ID_PHONE_COMMAND, 5);
+  out.data[0] = c.slot;
+  out.data[1] = c.command;
+  out.data[2] = c.arg;
+  out.data[3] = c.from_node;
+  out.data[4] = c.list_serial;
+}
+
+bool elc_can_decode_phone_command(const ElcCanFrame &f, ElcCanPhoneCommandMsg &out) {
+  if (f.id != ELC_CAN_ID_PHONE_COMMAND || f.len < 5) return false;
+  out.slot = f.data[0];
+  out.command = f.data[1];
+  out.arg = f.data[2];
+  out.from_node = f.data[3];
+  out.list_serial = f.data[4];
+  return true;
+}
+
 // ---- album art ----
 
 void elc_can_encode_art_request(const ElcCanArtRequest &r, ElcCanFrame &out) {

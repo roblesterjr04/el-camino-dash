@@ -451,6 +451,8 @@ void center_camera_loop(uint32_t now) {
 
 bool center_camera_showing() { return s_shown; }
 
+bool center_camera_reverse() { return s_rev; }
+
 void center_camera_set_mode(CameraMode mode) { s_mode = mode; }
 
 void center_camera_status(char *out, size_t n) {

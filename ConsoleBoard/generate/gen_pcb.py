@@ -37,19 +37,21 @@ mm = FromMM
 # ---- the OLED module (PARAMETERS: measure the module and edit these, then regenerate) ----------------------------------
 SCREEN_W, SCREEN_H = 100.0, 33.5  # the module's PCB outline (Waveshare-style 3.12" OLED, 2 x 8 header on the right edge)
 STRIP = 16.5                       # how far the board reaches below the module's bottom edge (15 to 18 mm wanted)
-HDR_FROM_RIGHT = 3.0               # the header's outer pin column is this far in from the module's right edge (ESTIMATE)
+HDR_SHIFT = 0.5                    # the socket's centre line (between its columns) is on the right holes' x, then this much closer to the edge
 HDR_PITCH = 2.54
-HOLE_INSET = 2.5                   # the module's four mounting holes: this far in from each edge (ESTIMATE, M2 standoffs)
-PIN1_TOP = True                    # pin 1 of the 2 x 8 header at the top, seen from the front (odd pins in the inner column)
+HOLE_DX, HOLE_DY = 94.0, 28.0      # the module's four mounting holes, centre to centre (measured), centred on the module; M2 standoffs
+HOLE_X = (SCREEN_W - HOLE_DX) / 2        # 3.0 mm in from the sides
+HOLE_Y = (SCREEN_H - HOLE_DY) / 2                # 2.75 mm in from the top and from the module's bottom edge
 KEY_X = (0.25, 0.75)               # BACK / VIEW centred behind the facia openings, as fractions of the width
 KEY_Y_FRAC = 0.75                  # and of the height
 
 W, H = SCREEN_W, SCREEN_H + STRIP
 OX, OY = 100.0, 80.0               # board origin on the sheet
 KEY_Y = H * KEY_Y_FRAC             # centre line of the keys and LEDs (the facia's openings)
-XS4 = [W / 2 - 8.0, W * KEY_X[0], W * KEY_X[1], W / 2 + 8.0]   # LED, BACK, VIEW, LED (the LEDs sit between the keys)
-HDR_X0 = W - HDR_FROM_RIGHT - HDR_PITCH            # inner pin column
-HDR_Y = SCREEN_H / 2 - 3.5 * HDR_PITCH             # 8 rows, centred on the module
+LED_OFF = 9.5                      # each key is flanked by an LED on either side
+LED_X = [W * KEY_X[0] - LED_OFF, W * KEY_X[0] + LED_OFF, W * KEY_X[1] - LED_OFF, W * KEY_X[1] + LED_OFF]
+HDR_X0 = W - HOLE_X + HDR_SHIFT + HDR_PITCH / 2    # outer pin column (KiCad's socket has pad 1 in the outer column, pad 2 inside it)
+HDR_Y = SCREEN_H / 2 - 3.5 * HDR_PITCH             # 8 rows, centred between the two right holes (= on the module)
 
 
 def P(x, y):
@@ -87,12 +89,14 @@ def load(fpid):
 BOT = H                             # bottom edge
 U1_X = 30.0                     # the ESP32-S3 module: clear of the header row (right edge) and of the M2 holes
 FIXED = {
-    'J1': (HDR_X0, HDR_Y, 0, 'F'),         # pin 1 top left of the pair, pins run down the right edge
+    'J1': (HDR_X0, HDR_Y, 0, 'F'),         # socket pad 1 top right of the pair (module pin 1 = pad 2, see gen_sch.py)
     'U1': (U1_X, 12.8, 0, 'B'),            # antenna end on the top edge, right of the screen header's row
-    'SW3': (XS4[1], KEY_Y, 0, 'F'),        # BACK
-    'SW4': (XS4[2], KEY_Y, 0, 'F'),        # VIEW
-    'D3': (XS4[0], KEY_Y, 90, 'F'),
-    'D4': (XS4[3], KEY_Y, 90, 'F'),
+    'SW3': (W * KEY_X[0], KEY_Y, 0, 'F'),  # BACK
+    'SW4': (W * KEY_X[1], KEY_Y, 0, 'F'),  # VIEW
+    'D3': (LED_X[0], KEY_Y, 90, 'F'),      # LEDs flank the keys
+    'D4': (LED_X[1], KEY_Y, 90, 'F'),
+    'D6': (LED_X[2], KEY_Y, 90, 'F'),
+    'D7': (LED_X[3], KEY_Y, 90, 'F'),
     'J3': (13.0, BOT - 4.8, 0, 'B'),       # CAN cable, side entry, opening past the bottom edge
     'J4': (29.0, BOT - 4.8, 0, 'B'),       # encoder 1 (Select)
     'J2': (W / 2, BOT - 3.7, 0, 'B'),      # USB-C, centred
@@ -100,21 +104,18 @@ FIXED = {
     'J6': (88.0, BOT - 2.5, 90, 'B'),      # IR header
     'SW1': (52.0, 5.5, 0, 'B'),            # RESET
     'SW2': (52.0, 11.0, 0, 'B'),           # BOOT
-    'H1': (HOLE_INSET, HOLE_INSET, 0, 'F'),
-    'H2': (W - HOLE_INSET, HOLE_INSET, 0, 'F'),
-    'H3': (HOLE_INSET, SCREEN_H - HOLE_INSET, 0, 'F'),
-    'H4': (W - HOLE_INSET, SCREEN_H - HOLE_INSET, 0, 'F'),
+    'H1': (HOLE_X, HOLE_Y, 0, 'F'),
+    'H2': (W - HOLE_X, HOLE_Y, 0, 'F'),
+    'H3': (HOLE_X, SCREEN_H - HOLE_Y, 0, 'F'),
+    'H4': (W - HOLE_X, SCREEN_H - HOLE_Y, 0, 'F'),
 }
-if not PIN1_TOP:
-    FIXED['J1'] = (HDR_X0 + HDR_PITCH, HDR_Y + 7 * HDR_PITCH, 180, 'F')
 SIDE = {'oled': 'B', 'esp': 'B', 'boot': 'B', 'power': 'B', 'usb': 'B', 'can': 'B', 'led': 'F', 'ui': 'B', 'mount': 'F', 'misc': 'B'}
 ANCHOR = {'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2'], 'can': ['J3'], 'power': ['J3', 'U1'], 'usb': ['J2'], 'oled': ['J1'],
-          'ui': ['J4', 'J5', 'SW3', 'SW4', 'J6'], 'led': ['D3', 'D4']}
+          'ui': ['J4', 'J5', 'SW3', 'SW4', 'J6'], 'led': ['D3', 'D4', 'D6', 'D7']}
 GROUP_ORDER = ['esp', 'usb', 'can', 'power', 'boot', 'oled', 'led', 'ui', 'mount', 'misc']
 POWER_NETS = {'+5V', '+3V3', 'VBUS', 'CAB_5V'}
 KEEP_SILK = {'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'SW1', 'SW2', 'SW3', 'SW4', 'U1'}
-HOLES = [(x, y) for x, y in [(HOLE_INSET, HOLE_INSET), (W - HOLE_INSET, HOLE_INSET), (HOLE_INSET, SCREEN_H - HOLE_INSET),
-                             (W - HOLE_INSET, SCREEN_H - HOLE_INSET)]]
+HOLES = [(HOLE_X, HOLE_Y), (W - HOLE_X, HOLE_Y), (HOLE_X, SCREEN_H - HOLE_Y), (W - HOLE_X, SCREEN_H - HOLE_Y)]
 HOLE_KEEP = 3.0                          # radius kept free of parts around them
 
 GRID = 0.2
@@ -374,8 +375,8 @@ def main():
         b.Add(t)
 
     BS = pcbnew.B_SilkS
-    silk('BACK', XS4[1], KEY_Y + 4.6, 1.0)
-    silk('VIEW', XS4[2], KEY_Y + 4.6, 1.0)
+    silk('BACK', W * KEY_X[0], KEY_Y + 4.6, 1.0)
+    silk('VIEW', W * KEY_X[1], KEY_Y + 4.6, 1.0)
     silk('OLED', W - 9.0, SCREEN_H - 2.5, 0.8)
     silk('CONSOLE', 70.0, 1.6, 0.8, BS)
     for jref, cap, legend in (('J3', 'CAN', '5V H L G'), ('J4', 'SELECT', 'G A B S'), ('J5', 'VOLUME', 'G A B S')):
@@ -914,6 +915,29 @@ def finish(b):
     print('finisher: %d links added' % fixed)
 
 
+def bridge_usb_vbus(b):
+    """The USB-C connector's two VBUS pad pairs (A4/B9, A9/B4) sit 4.8 mm apart with CC and D+/D- between them;
+    Freerouting sometimes leaves them apart. Join them behind the pad row, under the connector body (B.Cu), as the
+    first routed version of this board did."""
+    j2 = next(f for f in b.GetFootprints() if f.GetReference() == 'J2')
+    vb = [p for p in j2.Pads() if 'VBUS' in p.GetNetname()]
+    b.BuildConnectivity()
+    c = b.GetConnectivity()
+    if all(q in c.GetConnectedPads(vb[0]) or q is vb[0] for q in vb):
+        return
+    ox, oy = j2.GetPosition().x / 1e6, j2.GetPosition().y / 1e6
+    pts = [(-2.4, -3.68), (-2.4, -3.3), (-1.58, -2.48), (1.59, -2.48), (2.4, -3.29), (2.4, -3.68)]
+    for a, e in zip(pts, pts[1:]):
+        t = pcbnew.PCB_TRACK(b)
+        t.SetStart(VECTOR2I(mm(ox + a[0]), mm(oy + a[1])))
+        t.SetEnd(VECTOR2I(mm(ox + e[0]), mm(oy + e[1])))
+        t.SetWidth(mm(0.2))
+        t.SetLayer(pcbnew.B_Cu)
+        t.SetNet(vb[0].GetNet())
+        b.Add(t)
+    print('  joined the USB-C VBUS pad pairs behind the pad row')
+
+
 def unrouted(b):
     b.BuildConnectivity()
     return b.GetConnectivity().GetUnconnectedCount(False)
@@ -942,6 +966,7 @@ def freeroute(jar):
         rules(b)
         assert pcbnew.ImportSpecctraSES(b, ses)
         finish(b)
+        bridge_usb_vbus(b)
         pcbnew.ZONE_FILLER(b).Fill(b.Zones())
         left = unrouted(b)
         pcbnew.SaveBoard(PCB, b)

@@ -8,6 +8,8 @@
 
 #include <elc_fonts.h>
 #include <p4_screen.h>
+#include <phone_can.h>
+#include <ui_theme.h>
 
 #if defined(ARDUINO)
 #include <Arduino.h>
@@ -31,6 +33,7 @@ extern "C" uint32_t millis(void);
 #define IC_LOCK "\xEE\xA2\x97"
 #define IC_MINUS "\xEE\x85\x9B"
 #define IC_PLUS "\xEE\x85\x85"
+#define IC_BLUETOOTH "\xEE\x86\xA7"
 
 namespace {
 
@@ -41,33 +44,12 @@ constexpr float kCurveR = 490;  // wheel curvature (px)
 
 const UiMenuHost *H = nullptr;
 
-struct Theme {
-  lv_color_t bg, text, dim, faint, accent, ink, surface, line, ok, bad;
-  const lv_font_t *label, *title, *body, *sub;
-};
-
-// Theme numbering as on the cluster bus: 0 Classic, 1 Fallout, 2 Modern.
-Theme theme_for(uint8_t t) {
-  Theme th{};
-  if (t == 1) {
-    th = {lv_color_hex(0x010a04), lv_color_hex(0x5dff8f), lv_color_hex(0x2fae5c), lv_color_hex(0x17602f),
-          lv_color_hex(0xb8ffcc), lv_color_hex(0x021008), lv_color_hex(0x06200f), lv_color_hex(0x1a6a35),
-          lv_color_hex(0xb8ffcc), lv_color_hex(0xffb347), &elc_vt_72, &elc_vt_56, &elc_vt_36, &elc_vt_28};
-  } else if (t == 2) {
-    th = {lv_color_hex(0x060708), lv_color_hex(0xf3f5f6), lv_color_hex(0x9aa4aa), lv_color_hex(0x5d666c),
-          lv_color_hex(0xff7a2f), lv_color_hex(0x0b0c0d), lv_color_hex(0x171b1e), lv_color_hex(0x2b3136),
-          lv_color_hex(0x45d483), lv_color_hex(0xff3b30), &elc_sa_56, &elc_sa_46, &elc_sm_28, &elc_sm_22};
-  } else {
-    th = {lv_color_hex(0x0c0b09), lv_color_hex(0xefe7d5), lv_color_hex(0xa79d88), lv_color_hex(0x6f6758),
-          lv_color_hex(0xe8a33d), lv_color_hex(0x1e1405), lv_color_hex(0x1d1a15), lv_color_hex(0x3d372e),
-          lv_color_hex(0x7fcf8a), lv_color_hex(0xff6a55), &elc_bc_58, &elc_bc_46, &elc_b_28, &elc_b_22};
-  }
-  return th;
-}
+using Theme = UiTheme;
+Theme theme_for(uint8_t t) { return ui_theme(t); }
 
 uint8_t host_theme() { return H && H->theme ? H->theme() : 0; }
 
-enum class Act : uint8_t { View, Page, Phone };
+enum class Act : uint8_t { View, Page };
 struct Item {
   const char *icon;
   const char *label;
@@ -79,7 +61,7 @@ const Item kItems[] = {
     {IC_CLOCK, "Clock", Act::View, kUiViewClock},
     {IC_FUEL, "Efficiency", Act::View, kUiViewEcon},
     {IC_MUSIC, "Media", Act::View, kUiViewMedia},
-    {IC_PHONE, "Phone", Act::Phone, 0},
+    {IC_PHONE, "Phone", Act::Page, (uint8_t)UiMenuPage::Phone},
     {IC_WIFI, "Wi-Fi", Act::Page, (uint8_t)UiMenuPage::Wifi},
     {IC_BRIGHT, "Brightness", Act::Page, (uint8_t)UiMenuPage::Brightness},
     {IC_PALETTE, "Theme", Act::Page, (uint8_t)UiMenuPage::Theme},
@@ -130,6 +112,9 @@ int s_screens_sig = -1;
 
 // hold ring on the gauge screen
 lv_obj_t *s_hold_arc = nullptr, *s_hold_lbl = nullptr;
+
+// Phone page state, defined with the page below
+const char *ph_home_sub();
 
 // ---------------------------------------------------------------- small builders
 /** Plain rectangle. Not clickable unless marked (LVGL objects are clickable by default). */
@@ -213,7 +198,7 @@ void fade_in(lv_obj_t *o, uint32_t ms) {
   lv_anim_start(&a);
 }
 
-void back_home(lv_event_t *) { ui_menu_open(UiMenuPage::Home); }
+void back_home(lv_event_t *) { ui_menu_back(); }
 
 void add_back(lv_obj_t *page) { round_btn(page, IC_BACK, kW / 2, 716, 76, back_home); }
 
@@ -251,9 +236,6 @@ const char *item_sub(int i) {
         return "Bluetooth audio";
     }
   }
-  if (it.act == Act::Phone) {
-    return H->self_screen == kUiScreenCenter ? "Bluetooth link" : "Opens on the center";
-  }
   switch ((UiMenuPage)it.arg) {
     case UiMenuPage::Wifi: {
       char l1[48], l2[48];
@@ -275,6 +257,7 @@ const char *item_sub(int i) {
       snprintf(buf, sizeof(buf), "Menu %s \xC2\xB7 media %s", kLower[m > 2 ? 1 : m], kLower[media_screen() > 2 ? 1 : media_screen()]);
       return buf;
     }
+    case UiMenuPage::Phone: return ph_home_sub();
     default: return "Diagnostics";
   }
 }
@@ -288,9 +271,6 @@ void activate(int i) {
       H->set_center_view(it.arg);
     }
     ui_menu_close();
-  } else if (it.act == Act::Phone) {
-    ui_menu_close();
-    if (H->open_center_page) H->open_center_page(4);
   } else {
     ui_menu_open((UiMenuPage)it.arg);
   }
@@ -429,6 +409,8 @@ void build_home(lv_obj_t *page) {
     w.label = label(w.box, kItems[i].label, T.label, T.dim);
     lv_obj_align(w.label, LV_ALIGN_LEFT_MID, 124, -16);
     w.sub = label(w.box, item_sub(i), T.sub, T.faint);
+    lv_label_set_long_mode(w.sub, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(w.sub, 340);
     lv_obj_align(w.sub, LV_ALIGN_LEFT_MID, 126, 30);
   }
   for (int i = 0; i < kNumItems; i++) {
@@ -754,6 +736,510 @@ void build_service(lv_obj_t *page) {
   svc_refresh();
 }
 
+// ---------------------------------------------------------------- Phone
+// Pairing, the paired list, voice assistant and redial, from the audio bridge's phone state (phone_can.h;
+// docs/protocols/can_bus.md, "Phone"). The body is rebuilt from tick (never inside a click handler) when what it
+// shows changes; the status card and the pairing countdown update in place. The knob moves a focus ring over the
+// choices and presses the focused one; touch presses one directly.
+enum PhAct : uint8_t {
+  kPhPairYes, kPhPairNo, kPhPairNew, kPhStop, kPhPhone, kPhVoice, kPhRedial,
+  kPhConnect, kPhDisconnect, kPhForget, kPhForgetYes, kPhForgetNo,
+};
+enum class PhView : uint8_t { Gone, Confirm, List, Detail, Forget };
+
+constexpr int kPhMaxItems = 16;
+constexpr int kPhW = 460;  // body width (x 170..630)
+constexpr int kPhRowH = 60, kPhGap = 10;
+const char *const kPhBtName = "ElCamino-Media";  // the bridge's Bluetooth name (BT_DEVICE_NAME in the bridge sketch)
+
+struct PhItem {
+  uint8_t act, arg;
+  lv_obj_t *obj;
+  char label[40];
+};
+PhItem s_ph_items[kPhMaxItems];
+int s_ph_n = 0;
+int s_ph_focus = 0;
+uint8_t s_ph_focus_act = 0xFF, s_ph_focus_arg = 0;  // the focus, kept across rebuilds by what it does
+lv_obj_t *s_ph_st1 = nullptr, *s_ph_st2 = nullptr, *s_ph_body = nullptr, *s_ph_left = nullptr;
+uint32_t s_ph_sig = 0, s_ph_poll_ms = 0;
+bool s_ph_dirty = false;
+uint8_t s_ph_sel = 0xFF, s_ph_sel_serial = 0;  // the phone chosen in the list (index, and the list serial it was read with)
+bool s_ph_forget = false;                      // asking to confirm Forget
+
+/** Cut s to at most max bytes without splitting a UTF-8 sequence. */
+void utf8_cut(char *s, size_t max) {
+  if (strlen(s) <= max) return;
+  size_t k = max;
+  while (k > 0 && ((unsigned char)s[k] & 0xC0) == 0x80) k--;
+  s[k] = '\0';
+}
+
+const ElcCanPhoneStatus &ph_st() { return phone_can_status(); }
+bool ph_connected() { return phone_can_heard() && (ph_st().flags & ELC_CAN_PHONE_CONNECTED); }
+bool ph_hfp() { return ph_connected() && (ph_st().flags & ELC_CAN_PHONE_HFP); }
+
+/** Paired phone i's name, or "Phone n" until its name has arrived. */
+const char *ph_paired(uint8_t i, char *buf, size_t n) {
+  const char *nm = phone_can_paired_name(i);
+  if (nm[0]) return nm;
+  snprintf(buf, n, "Phone %u", (unsigned)i + 1u);
+  return buf;
+}
+
+const char *ph_connected_name() {
+  const char *nm = phone_can_phone_name();
+  if (nm[0]) return nm;
+  const uint8_t ci = ph_st().connected_index;
+  nm = ci < ph_st().paired ? phone_can_paired_name(ci) : "";
+  return nm[0] ? nm : "Phone";
+}
+
+void ph_code(char *out, size_t n) {
+  uint32_t c = 0;
+  if (phone_can_passkey(&c)) {
+    snprintf(out, n, "%03u %03u", (unsigned)(c / 1000u), (unsigned)(c % 1000u));  // leading zeros kept
+  } else {
+    snprintf(out, n, "--- ---");
+  }
+}
+
+/** "1:45 left" / "until a phone pairs", "" while the pairing window is closed. */
+void ph_left(char *out, size_t n) {
+  uint8_t left = 255;
+  if (!phone_can_pairing_window(&left)) {
+    out[0] = '\0';
+  } else if (left == 255) {
+    snprintf(out, n, "until a phone pairs");
+  } else {
+    snprintf(out, n, "%u:%02u left", (unsigned)(left / 60u), (unsigned)(left % 60u));
+  }
+}
+
+PhView ph_view() {
+  if (!phone_can_heard()) return PhView::Gone;
+  const ElcCanPhoneStatus &st = ph_st();
+  if (st.flags & ELC_CAN_PHONE_CONFIRM) return PhView::Confirm;  // a code to confirm comes first
+  if (s_ph_sel != 0xFF && (st.list_serial != s_ph_sel_serial || s_ph_sel >= st.paired)) {
+    s_ph_sel = 0xFF;  // the list changed: that index may be another phone now
+    s_ph_forget = false;
+  }
+  if (s_ph_sel == 0xFF) return PhView::List;
+  return s_ph_forget ? PhView::Forget : PhView::Detail;
+}
+
+/** Status card: who is connected, signal and battery. */
+void ph_status(char *l1, size_t n1, char *l2, size_t n2) {
+  const ElcCanPhoneStatus &st = ph_st();
+  if (!phone_can_heard()) {
+    snprintf(l1, n1, "Audio bridge not heard");
+    snprintf(l2, n2, "Phones connect through the audio bridge");
+  } else if (st.flags & ELC_CAN_PHONE_CONNECTED) {
+    snprintf(l1, n1, "%s", ph_connected_name());
+    char sig[24] = "", bat[24] = "";
+    if (st.signal <= 5) snprintf(sig, sizeof(sig), "Signal %u/5", (unsigned)st.signal);
+    if (st.battery <= 5) snprintf(bat, sizeof(bat), "Battery %u/5", (unsigned)st.battery);
+    const char *what = (st.flags & ELC_CAN_PHONE_VOICE) ? "Voice assistant on"
+                       : (st.flags & ELC_CAN_PHONE_HFP) ? "Hands-free"
+                                                        : "Audio only";
+    if (sig[0] || bat[0]) {
+      snprintf(l2, n2, "%s%s%s \xC2\xB7 %s", sig, sig[0] && bat[0] ? " \xC2\xB7 " : "", bat, what);
+    } else {
+      snprintf(l2, n2, "%s", what);
+    }
+  } else {
+    snprintf(l1, n1, "No phone connected");
+    if (st.paired) {
+      snprintf(l2, n2, "%u paired \xC2\xB7 choose one to connect", (unsigned)st.paired);
+    } else {
+      snprintf(l2, n2, "Pair a phone to start");
+    }
+  }
+}
+
+/** One line for the console and the wheel: the state that matters most. */
+void ph_summary(char *out, size_t n) {
+  const ElcCanPhoneStatus &st = ph_st();
+  char left[24];
+  ph_left(left, sizeof(left));
+  if (!phone_can_heard()) {
+    snprintf(out, n, "Audio bridge not heard");
+  } else if (st.flags & ELC_CAN_PHONE_CONFIRM) {
+    char code[12];
+    ph_code(code, sizeof(code));
+    // Keep the code whole within the console's 32 bytes: shorten the name instead.
+    char pn[24];
+    snprintf(pn, sizeof(pn), "%s", phone_can_pairing_name()[0] ? phone_can_pairing_name() : "phone");
+    const int room = 32 - (int)strlen("Pair with ? ") - (int)strlen(code);
+    utf8_cut(pn, room > 0 ? (size_t)room : 0);
+    snprintf(out, n, "Pair with %s? %s", pn, code);
+  } else if (left[0]) {
+    snprintf(out, n, "Discoverable \xC2\xB7 %s", left);
+  } else if (st.flags & ELC_CAN_PHONE_CONNECTED) {
+    snprintf(out, n, "Connected \xC2\xB7 %s", ph_connected_name());
+  } else {
+    snprintf(out, n, "No phone connected");
+  }
+}
+
+const char *ph_home_sub() {
+  static char buf[48];
+  const ElcCanPhoneStatus &st = ph_st();
+  if (!phone_can_heard()) return "Audio bridge not heard";
+  if (st.flags & ELC_CAN_PHONE_CONFIRM) return "Pairing request";
+  if (st.flags & ELC_CAN_PHONE_CONNECTED) {
+    snprintf(buf, sizeof(buf), "%s", ph_connected_name());
+    return buf;
+  }
+  if (st.flags & ELC_CAN_PHONE_PAIRING) return "Discoverable";
+  return "Not connected";
+}
+
+uint32_t fnv(uint32_t h, const void *p, size_t n) {
+  const uint8_t *b = (const uint8_t *)p;
+  for (size_t i = 0; i < n; i++) h = (h ^ b[i]) * 16777619u;
+  return h;
+}
+uint32_t fnv_str(uint32_t h, const char *s) { return fnv(h, s, strlen(s) + 1); }
+
+/** Everything the body shows (not the countdown, which updates in place). */
+uint32_t ph_signature() {
+  const PhView v = ph_view();
+  uint32_t h = fnv(2166136261u, &v, sizeof(v));
+  if (v == PhView::Gone) return h;
+  const ElcCanPhoneStatus &st = ph_st();
+  const uint8_t k[6] = {(uint8_t)(st.flags & (ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP | ELC_CAN_PHONE_PAIRING |
+                                              ELC_CAN_PHONE_CONFIRM | ELC_CAN_PHONE_VOICE)),
+                        st.paired, st.connected_index, st.list_serial, s_ph_sel, (uint8_t)s_ph_forget};
+  h = fnv(h, k, sizeof(k));
+  for (uint8_t i = 0; i < st.paired && i < ELC_CAN_PHONE_MAX_PAIRED; i++) h = fnv_str(h, phone_can_paired_name(i));
+  if (v == PhView::Confirm) {
+    char code[12];
+    ph_code(code, sizeof(code));
+    h = fnv_str(h, code);
+    h = fnv_str(h, phone_can_pairing_name());
+  }
+  return h;
+}
+
+void ph_style_focus(int i, bool on) {
+  if (i < 0 || i >= s_ph_n || !s_ph_items[i].obj) return;
+  lv_obj_set_style_border_color(s_ph_items[i].obj, on ? T.accent : T.line, 0);
+  lv_obj_set_style_border_width(s_ph_items[i].obj, on ? 3 : 2, 0);
+}
+
+void ph_set_focus(int i, bool scroll) {
+  if (s_ph_n == 0) return;
+  if (i < 0) i = 0;
+  if (i >= s_ph_n) i = s_ph_n - 1;
+  if (i != s_ph_focus) ph_style_focus(s_ph_focus, false);
+  s_ph_focus = i;
+  ph_style_focus(i, true);
+  s_ph_focus_act = s_ph_items[i].act;
+  s_ph_focus_arg = s_ph_items[i].arg;
+  if (scroll) lv_obj_scroll_to_view(s_ph_items[i].obj, LV_ANIM_ON);
+}
+
+void ph_activate(int i) {
+  if (i < 0 || i >= s_ph_n) return;
+  const PhItem it = s_ph_items[i];
+  const ElcCanPhoneStatus &st = ph_st();
+  uint8_t fa = it.act, fg = it.arg;  // where the focus goes after the rebuild
+  switch (it.act) {
+    case kPhPairYes: phone_can_send(ELC_CAN_PHONE_CMD_CONFIRM, 1); break;
+    case kPhPairNo: phone_can_send(ELC_CAN_PHONE_CMD_CONFIRM, 0); break;
+    case kPhPairNew: phone_can_send(ELC_CAN_PHONE_CMD_PAIRING, 1); fa = kPhStop; break;
+    case kPhStop: phone_can_send(ELC_CAN_PHONE_CMD_PAIRING, 0); fa = kPhPairNew; break;
+    case kPhVoice: phone_can_send(ELC_CAN_PHONE_CMD_VOICE, (st.flags & ELC_CAN_PHONE_VOICE) ? 0 : 1); break;
+    case kPhRedial: phone_can_send(ELC_CAN_PHONE_CMD_REDIAL, 0); break;
+    case kPhPhone:
+      s_ph_sel = it.arg;
+      s_ph_sel_serial = st.list_serial;
+      s_ph_forget = false;
+      fa = (ph_connected() && st.connected_index == it.arg) ? kPhDisconnect : kPhConnect;
+      fg = 0;
+      break;
+    case kPhConnect:
+    case kPhDisconnect:
+      if (it.act == kPhConnect) {
+        phone_can_send(ELC_CAN_PHONE_CMD_CONNECT, s_ph_sel);
+      } else {
+        phone_can_send(ELC_CAN_PHONE_CMD_DISCONNECT, 0);
+      }
+      fa = kPhPhone;
+      fg = s_ph_sel;
+      s_ph_sel = 0xFF;  // back to the list, where the connected mark moves once the bridge reports it
+      break;
+    case kPhForget: s_ph_forget = true; fa = kPhForgetNo; break;
+    case kPhForgetYes:
+      phone_can_send(ELC_CAN_PHONE_CMD_FORGET, s_ph_sel);
+      s_ph_sel = 0xFF;
+      s_ph_forget = false;
+      fa = kPhPairNew;
+      fg = 0;
+      break;
+    case kPhForgetNo: s_ph_forget = false; fa = kPhForget; fg = 0; break;
+    default: break;
+  }
+  s_ph_focus_act = fa;
+  s_ph_focus_arg = fg;
+  s_ph_dirty = true;  // tick rebuilds (this may be running inside the clicked object's handler)
+}
+
+void ph_clicked(lv_event_t *e) {
+  const int i = (int)(intptr_t)lv_event_get_user_data(e);
+  if (i < 0 || i >= s_ph_n) return;
+  ph_set_focus(i, false);
+  ph_activate(i);
+}
+
+lv_obj_t *ph_add(lv_obj_t *o, uint8_t act, uint8_t arg, const char *text) {
+  if (s_ph_n >= kPhMaxItems) return o;
+  PhItem &it = s_ph_items[s_ph_n];
+  it.act = act;
+  it.arg = arg;
+  it.obj = o;
+  snprintf(it.label, sizeof(it.label), "%s", text);
+  lv_obj_add_event_cb(o, ph_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)s_ph_n);
+  s_ph_n++;
+  return o;
+}
+
+/** A centred pill choice. */
+lv_obj_t *ph_button(int x, int y, int w, const char *text, lv_color_t color, uint8_t act, uint8_t arg = 0) {
+  lv_obj_t *b = pill(s_ph_body, x, y, w, 62, text, nullptr);
+  lv_obj_set_style_text_color(lv_obj_get_child(b, 0), color, 0);
+  return ph_add(b, act, arg, text);
+}
+
+/** A list row: icon, text, and a note on the right. */
+lv_obj_t *ph_row(int y, const char *icon, lv_color_t icon_color, const char *text, const char *note, lv_color_t note_color,
+                 uint8_t act, uint8_t arg = 0) {
+  lv_obj_t *row = box(s_ph_body, 0, y, kPhW, kPhRowH);
+  lv_obj_set_style_radius(row, 18, 0);
+  fill(row, T.surface);
+  outline(row, T.line, 2);
+  lv_obj_set_style_bg_color(row, T.line, LV_STATE_PRESSED);
+  lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+  int x = 22;
+  if (icon) {
+    lv_obj_t *ic = label(row, icon, &elc_icons_34, icon_color);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 16, 0);
+    x = 66;
+  }
+  const int note_w = note ? 130 : 0;
+  lv_obj_t *l = label(row, text, T.sub, T.text);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(l, kPhW - x - note_w - 20);
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, x, 0);
+  if (note) {
+    lv_obj_t *nl = label(row, note, T.sub, note_color);
+    lv_obj_align(nl, LV_ALIGN_RIGHT_MID, -20, 0);
+  }
+  return ph_add(row, act, arg, text);
+}
+
+lv_obj_t *ph_text(const char *text, const lv_font_t *font, lv_color_t color, int y, bool wrap = false) {
+  lv_obj_t *l = label(s_ph_body, text, font, color);
+  lv_obj_set_width(l, kPhW);
+  lv_label_set_long_mode(l, wrap ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
+  lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(l, 0, y);
+  return l;
+}
+
+const lv_font_t *ph_code_font() {
+  const uint8_t th = host_theme();
+  return th == 1 ? &elc_vt_120d : (th == 2 ? &elc_sa_136d : &elc_bc_64d);
+}
+
+void ph_refresh_status() {
+  if (!s_ph_st1) return;
+  char l1[64], l2[80];
+  ph_status(l1, sizeof(l1), l2, sizeof(l2));
+  if (strcmp(lv_label_get_text(s_ph_st1), l1) != 0) lv_label_set_text(s_ph_st1, l1);
+  if (strcmp(lv_label_get_text(s_ph_st2), l2) != 0) lv_label_set_text(s_ph_st2, l2);
+  if (s_ph_left) {
+    char left[24];
+    ph_left(left, sizeof(left));
+    if (strcmp(lv_label_get_text(s_ph_left), left) != 0) lv_label_set_text(s_ph_left, left);
+  }
+}
+
+void ph_build_body() {
+  if (!s_ph_body) return;
+  lv_obj_clean(s_ph_body);
+  lv_obj_scroll_to_y(s_ph_body, 0, LV_ANIM_OFF);
+  s_ph_n = 0;
+  s_ph_focus = 0;
+  s_ph_left = nullptr;
+  const PhView v = ph_view();
+  const ElcCanPhoneStatus &st = ph_st();
+  int def = 0;  // focus when the kept one is gone
+  char buf[80], nb[16];
+  switch (v) {
+    case PhView::Gone:
+      ph_text("The phone links through the audio\nbridge, which is not on the bus.", T.sub, T.faint, 60, true);
+      break;
+    case PhView::Confirm: {
+      const char *pn = phone_can_pairing_name();
+      if (pn[0]) {
+        snprintf(buf, sizeof(buf), "Pair with %s?", pn);
+      } else {
+        snprintf(buf, sizeof(buf), "Pair a new phone?");
+      }
+      ph_text(buf, T.body, T.text, 0);
+      char code[12];
+      ph_code(code, sizeof(code));
+      const lv_font_t *cf = ph_code_font();
+      const int ch = lv_font_get_line_height(cf);
+      const int cy = 44 + (170 - ch) / 2;  // centred in the band between the question and the hint
+      ph_text(code, cf, T.accent, cy);
+      ph_text("Check that the phone shows the same code", T.sub, T.dim, 222);
+      ph_button(0, 280, 222, "Reject", T.bad, kPhPairNo);
+      ph_button(238, 280, 222, "Pair", T.ok, kPhPairYes);
+      def = 1;
+      break;
+    }
+    case PhView::List: {
+      int y = 0;
+      if (st.flags & ELC_CAN_PHONE_PAIRING) {
+        lv_obj_t *win = box(s_ph_body, 0, y, kPhW, 132);
+        lv_obj_set_style_radius(win, 22, 0);
+        fill(win, T.surface);
+        outline(win, T.accent, 2);
+        snprintf(buf, sizeof(buf), "Discoverable as %s", kPhBtName);
+        lv_obj_t *l1 = label(win, buf, T.sub, T.text);
+        lv_obj_align(l1, LV_ALIGN_TOP_MID, 0, 12);
+        s_ph_left = label(win, "", T.sub, T.accent);
+        lv_obj_align(s_ph_left, LV_ALIGN_TOP_MID, 0, 42);
+        lv_obj_t *stop = pill(win, (kPhW - 180) / 2, 76, 180, 46, "Stop", nullptr);
+        lv_obj_set_style_text_color(lv_obj_get_child(stop, 0), T.bad, 0);
+        ph_add(stop, kPhStop, 0, "Stop pairing");
+        y += 132 + kPhGap;
+      }
+      if (ph_hfp()) {
+        const bool voice = (st.flags & ELC_CAN_PHONE_VOICE) != 0;
+        ph_row(y, nullptr, T.dim, "Voice assistant", voice ? "On" : nullptr, T.accent, kPhVoice);
+        y += kPhRowH + kPhGap;
+        ph_row(y, nullptr, T.dim, "Redial", nullptr, T.dim, kPhRedial);
+        y += kPhRowH + kPhGap;
+      }
+      if (!(st.flags & ELC_CAN_PHONE_PAIRING)) {
+        ph_row(y, IC_PLUS, T.accent, "Pair new phone", nullptr, T.dim, kPhPairNew);
+        y += kPhRowH + kPhGap;
+      }
+      lv_obj_t *hdr = label(s_ph_body, st.paired ? "PAIRED PHONES" : "NO PAIRED PHONES", T.sub, T.faint);
+      lv_obj_set_style_text_letter_space(hdr, 4, 0);
+      lv_obj_set_pos(hdr, 12, y + 10);
+      y += 48;
+      for (uint8_t i = 0; i < st.paired && i < ELC_CAN_PHONE_MAX_PAIRED; i++) {
+        const bool on = ph_connected() && st.connected_index == i;
+        ph_row(y, IC_BLUETOOTH, on ? T.accent : T.faint, ph_paired(i, nb, sizeof(nb)), on ? "Connected" : nullptr, T.ok,
+               kPhPhone, i);
+        y += kPhRowH + kPhGap;
+      }
+      lv_obj_t *pad = box(s_ph_body, 0, y, 1, 8);  // room below the last row when scrolled to the end
+      (void)pad;
+      break;
+    }
+    case PhView::Detail: {
+      const bool on = ph_connected() && st.connected_index == s_ph_sel;
+      ph_text(ph_paired(s_ph_sel, nb, sizeof(nb)), T.body, T.text, 0);
+      ph_text(on ? ((st.flags & ELC_CAN_PHONE_HFP) ? "Connected \xC2\xB7 hands-free" : "Connected")
+                 : "Paired \xC2\xB7 not connected",
+              T.sub, T.dim, 46);
+      ph_button(0, 110, kPhW, on ? "Disconnect" : "Connect", T.text, on ? kPhDisconnect : kPhConnect);
+      ph_button(0, 110 + 62 + 16, kPhW, "Forget", T.bad, kPhForget);
+      break;
+    }
+    case PhView::Forget:
+      snprintf(buf, sizeof(buf), "Forget %s?", ph_paired(s_ph_sel, nb, sizeof(nb)));
+      ph_text(buf, T.body, T.text, 0);
+      ph_text("It has to pair again before\nit can connect.", T.sub, T.dim, 60, true);
+      ph_button(0, 200, 222, "Cancel", T.text, kPhForgetNo);
+      ph_button(238, 200, 222, "Forget", T.bad, kPhForgetYes);
+      def = 0;
+      break;
+  }
+  if (v == PhView::List) {
+    lv_obj_add_flag(s_ph_body, LV_OBJ_FLAG_SCROLLABLE);
+  } else {
+    lv_obj_clear_flag(s_ph_body, LV_OBJ_FLAG_SCROLLABLE);
+  }
+  for (int i = 0; i < s_ph_n; i++) ph_style_focus(i, false);
+  int f = -1;
+  for (int i = 0; i < s_ph_n && f < 0; i++) {
+    if (s_ph_items[i].act == s_ph_focus_act && s_ph_items[i].arg == s_ph_focus_arg) f = i;
+  }
+  if (s_ph_n) {
+    s_ph_focus = f >= 0 ? f : (def < s_ph_n ? def : 0);
+    ph_set_focus(s_ph_focus, f >= 0);
+  }
+  s_ph_sig = ph_signature();
+  s_ph_dirty = false;
+  ph_refresh_status();
+}
+
+void build_phone(lv_obj_t *page) {
+  page_title(page, "Phone");
+  s_ph_sel = 0xFF;
+  s_ph_forget = false;
+  s_ph_focus_act = 0xFF;
+  lv_obj_t *card = box(page, 170, 176, 460, 96);
+  lv_obj_set_style_radius(card, 22, 0);
+  fill(card, T.surface);
+  outline(card, T.line, 2);
+  s_ph_st1 = label(card, "", T.body, T.text);
+  lv_label_set_long_mode(s_ph_st1, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(s_ph_st1, 420);
+  lv_obj_align(s_ph_st1, LV_ALIGN_TOP_LEFT, 20, 14);
+  s_ph_st2 = label(card, "", T.sub, T.dim);
+  lv_label_set_long_mode(s_ph_st2, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(s_ph_st2, 420);
+  lv_obj_align(s_ph_st2, LV_ALIGN_TOP_LEFT, 20, 56);
+  s_ph_body = box(page, 170, 288, kPhW, 376);
+  lv_obj_set_scroll_dir(s_ph_body, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(s_ph_body, LV_SCROLLBAR_MODE_OFF);
+  add_back(page);
+  ph_build_body();
+}
+
+void ph_tick() {
+  const uint32_t now = millis();
+  if (s_ph_dirty) {
+    ph_build_body();
+  } else if (now - s_ph_poll_ms >= 200u) {
+    s_ph_poll_ms = now;
+    if (ph_signature() != s_ph_sig) {
+      ph_build_body();
+    } else {
+      ph_refresh_status();
+    }
+  }
+}
+
+/** The Phone page for the console: the focused choice, and the state (or what the choice is about). */
+void ph_describe(char *m, size_t nm, char *sb, size_t ns) {
+  const PhView v = ph_view();
+  const bool focus = s_ph_n > 0 && s_ph_focus < s_ph_n;
+  snprintf(m, nm, "%s", focus ? s_ph_items[s_ph_focus].label : "Phone");
+  char nb[16];
+  switch (v) {
+    case PhView::Detail: snprintf(sb, ns, "%s", ph_paired(s_ph_sel, nb, sizeof(nb))); return;
+    case PhView::Forget: snprintf(sb, ns, "Forget %s?", ph_paired(s_ph_sel, nb, sizeof(nb))); return;
+    case PhView::List:
+      if (focus && s_ph_items[s_ph_focus].act == kPhPhone) {
+        const bool on = ph_connected() && ph_st().connected_index == s_ph_items[s_ph_focus].arg;
+        snprintf(sb, ns, "%s", on ? "Connected" : "Paired \xC2\xB7 not connected");
+        return;
+      }
+      break;
+    default: break;
+  }
+  ph_summary(sb, ns);
+}
+
 // ---------------------------------------------------------------- lifecycle
 void clear_page_refs() {
   s_wifi_status = s_wifi_status2 = s_wifi_list = s_wifi_scan_lbl = nullptr;
@@ -762,6 +1248,8 @@ void clear_page_refs() {
   memset(s_svc_dot, 0, sizeof(s_svc_dot));
   memset(s_screen_btn, 0, sizeof(s_screen_btn));
   s_demo_btn_lbl = nullptr;
+  s_ph_st1 = s_ph_st2 = s_ph_body = s_ph_left = nullptr;
+  s_ph_n = 0;
 }
 
 void tick(lv_timer_t *) {
@@ -800,6 +1288,8 @@ void tick(lv_timer_t *) {
     if (slow) svc_refresh();
   } else if (s_page_id == UiMenuPage::Screens) {
     if (screens_sig() != s_screens_sig) screens_restyle();
+  } else if (s_page_id == UiMenuPage::Phone) {
+    ph_tick();
   }
 }
 
@@ -886,6 +1376,7 @@ void ui_menu_open(UiMenuPage page) {
     case UiMenuPage::Theme: build_theme(s_page); break;
     case UiMenuPage::Screens: build_screens(s_page); break;
     case UiMenuPage::Service: build_service(s_page); break;
+    case UiMenuPage::Phone: build_phone(s_page); break;
   }
   fade_in(was_open ? s_page : s_root, was_open ? 200 : 220);
 }
@@ -922,6 +1413,8 @@ void ui_menu_rotate(int steps) {
     int v = (int)s_level + steps * 5;
     s_level = (uint8_t)(v < 10 ? 10 : (v > 100 ? 100 : v));
     bright_apply(true);
+  } else if (s_page_id == UiMenuPage::Phone) {
+    ph_set_focus(s_ph_focus + steps, true);
   }
 }
 
@@ -930,9 +1423,92 @@ void ui_menu_press() {
     ui_menu_open(UiMenuPage::Home);
   } else if (s_page_id == UiMenuPage::Home) {
     activate(s_target);
+  } else if (s_page_id == UiMenuPage::Phone) {
+    if (s_ph_n && !s_ph_dirty) ph_activate(s_ph_focus);  // not twice before the page shows the outcome
   } else {
     ui_menu_open(UiMenuPage::Home);
   }
+}
+
+void ui_menu_back() {
+  if (!s_root) {
+    return;
+  }
+  if (s_page_id == UiMenuPage::Phone && ph_view() == PhView::Forget) {
+    s_ph_forget = false;
+    s_ph_focus_act = kPhForget;
+    s_ph_dirty = true;
+  } else if (s_page_id == UiMenuPage::Phone && ph_view() == PhView::Detail) {
+    s_ph_focus_act = kPhPhone;
+    s_ph_focus_arg = s_ph_sel;
+    s_ph_sel = 0xFF;
+    s_ph_dirty = true;
+  } else if (s_page_id != UiMenuPage::Home) {
+    // Home with the wheel on the page just left.
+    for (int i = 0; i < kNumItems; i++) {
+      if (kItems[i].act == Act::Page && kItems[i].arg == (uint8_t)s_page_id) {
+        s_target = i;
+        s_pos = (float)i;
+      }
+    }
+    ui_menu_open(UiMenuPage::Home);
+  } else {
+    ui_menu_close();
+  }
+}
+
+void ui_menu_describe(char *m, size_t nm, char *sb, size_t ns) {
+  if (!m || !sb || !nm || !ns) {
+    return;
+  }
+  m[0] = sb[0] = '\0';
+  if (!s_root) {
+    return;
+  }
+  switch (s_page_id) {
+    case UiMenuPage::Home:
+      snprintf(m, nm, "%s", kItems[s_target].label);
+      snprintf(sb, ns, "%s", item_sub(s_target));
+      break;
+    case UiMenuPage::Wifi: {
+      char l2[64];
+      snprintf(m, nm, "Wi-Fi");
+      if (H->wifi_status) H->wifi_status(sb, ns, l2, sizeof(l2));
+      break;
+    }
+    case UiMenuPage::Brightness:
+      snprintf(m, nm, "Brightness %u%%", (unsigned)s_level);
+      snprintf(sb, ns, "%s", s_follow ? "Dims with headlights" : "Fixed level");
+      break;
+    case UiMenuPage::Theme: {
+      const uint8_t th = host_theme();
+      snprintf(m, nm, "Theme %s", th == 1 ? "Fallout" : (th == 2 ? "Modern" : "Classic"));
+      snprintf(sb, ns, "All three screens");
+      break;
+    }
+    case UiMenuPage::Screens:
+      snprintf(m, nm, "Menu %s \xC2\xB7 Media %s",
+               ui_screen_name(H->interface_screen ? H->interface_screen() : kUiScreenCenter), ui_screen_name(media_screen()));
+      snprintf(sb, ns, "Choose on the screen");
+      break;
+    case UiMenuPage::Service: {
+      snprintf(m, nm, "Service");
+      snprintf(sb, ns, "No faults");
+      for (int i = 0; i < 8 && H->service_row; i++) {
+        char v[48] = "";
+        int level = 1;
+        H->service_row(i, v, sizeof(v), &level);
+        if (level == 2) {
+          snprintf(sb, ns, "%s: %s", kSvcNames[i], v);
+          break;
+        }
+      }
+      break;
+    }
+    case UiMenuPage::Phone: ph_describe(m, nm, sb, ns); break;
+  }
+  utf8_cut(m, 32);
+  utf8_cut(sb, 32);
 }
 
 void ui_menu_hold_feedback(bool active, int32_t progress, const char *message) {

@@ -1,5 +1,7 @@
 #include <sensor_packet.h>
 
+#include <elc_sensor_units.h>
+
 #include <cmath>
 #include <cstring>
 
@@ -28,44 +30,6 @@ void uart_text_q_push(const char *s) {
 }
 
 }  // namespace
-
-static float map_adc(uint16_t raw, float in_lo, float in_hi, float out_lo, float out_hi) {
-  float r = (float)raw;
-  if (in_hi <= in_lo) {
-    return out_lo;
-  }
-  float t = (r - in_lo) / (in_hi - in_lo);
-  if (t < 0.0f) {
-    t = 0.0f;
-  }
-  if (t > 1.0f) {
-    t = 1.0f;
-  }
-  return out_lo + (out_hi - out_lo) * t;
-}
-
-// 100k NTC, B3950 — same as arduino_serial._thermistor_temp_f
-static float thermistor_temp_f(uint16_t raw_adc) {
-  if (raw_adc <= 0 || raw_adc >= 1023) {
-    return 100.0f;
-  }
-  const float therm_series_r = 100000.0f;
-  const float therm_nominal_r = 100000.0f;
-  const float therm_nominal_t_c = 25.0f;
-  const float therm_beta = 3950.0f;
-
-  float resistance = therm_series_r * ((1023.0f / (float)raw_adc) - 1.0f);
-  if (resistance <= 0.0f) {
-    return 100.0f;
-  }
-  float steinhart = logf(resistance / therm_nominal_r) / therm_beta;
-  steinhart += 1.0f / (therm_nominal_t_c + 273.15f);
-  float temp_c = (1.0f / steinhart) - 273.15f;
-  if (!std::isfinite(temp_c)) {
-    return 100.0f;
-  }
-  return (temp_c * 9.0f / 5.0f) + 32.0f;
-}
 
 static uint32_t be32(const uint8_t *p) {
   return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3];
@@ -255,10 +219,9 @@ SensorDerived SensorPacketParser::derive(const SensorPacketValues &p) {
     return d;
   }
   // Default ranges from arduino_serial defaults
-  d.fuel_pct = map_adc(p.pot_adc, 0.0f, 1023.0f, 0.0f, 100.0f);
-  d.oil_psi = map_adc(p.pressure_adc, 0.0f, 1023.0f, 0.0f, 100.0f);
-  d.coolant_temp_f = thermistor_temp_f(p.therm_adc);
-  // Map ADC to -100..+100 (same linear mapping as 10–16 V on the Pi gauge config)
-  d.system_amp = map_adc(p.voltage_adc, 0.0f, 1023.0f, -100.0f, 100.0f);
+  d.fuel_pct = elc_units_fuel_pct(p.pot_adc);
+  d.oil_psi = elc_units_oil_psi(p.pressure_adc);
+  d.coolant_temp_f = elc_units_coolant_f(p.therm_adc);
+  d.system_amp = elc_units_amp(p.voltage_adc);
   return d;
 }

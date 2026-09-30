@@ -10,7 +10,7 @@ Firmware for the three round MIPI displays: the **sensor_pack** UART (`arduino/s
 | Hold center **≥ 10 s** | Global | Next theme (**Classic → Modern → Fallout**) on all gauges; center **I2C-broadcasts** theme to speedo, TSPS, and optional ESP32-D; stored in **NVS** on each board. Release does not open the menu. |
 | Hold center **≥ 3 s** | Center | Next view: **Tach → Clock → Media → Efficiency** (Media only while the center is the media screen); NVS + CAN sync. |
 | Hold speedo / TSPS **≥ 3 s** on the **media screen** | That screen | Toggles its media view (the gauge stays the default). |
-| Hold TSPS **≥ 3 s** (Classic only, not the media screen) | TSPS | Toggles **classic_1 / classic_2** (NVS). GPIO bench toggle may remain (see TSPS `platformio.ini`). |
+| Hold TSPS **≥ 3 s** (Classic only, not the media screen) | TSPS | Toggles **classic_1 / classic_2**. The center owns this setting (CAN setting 11, NVS `rlayout` + `settings.json`, `0x210` flag bit2 = fuel + lamps), so the hold (and the GPIO bench toggle, and `variant`) asks the center and the right screen follows its answer; with no center heard it switches locally. The right screen keeps the last layout in its own NVS for boot. |
 
 Every face exists in all three themes. **Speedo** follows the global theme only (no sub-views).
 
@@ -32,7 +32,15 @@ The faces render on a Mac too, with the same code, which is how layouts are iter
 ```bash
 tools/gauge_preview/build.sh                                  # needs one PlatformIO build of the display firmware (for LVGL)
 python3 tools/gauge_preview/preview.py faces.png 0,1,0 2,1,0 1,1,0   # theme,face,variant — see the script
+python3 tools/gauge_preview/preview.py call.png 0,3,0,0,incoming 2,3,0,0,active+muted 1,3,0,0,pair   # call card
+python3 tools/gauge_preview/preview.py phone.png 0,1,0,0,idle,6 2,1,0,0,pair,6 1,1,0,0,discover,6 # menu Phone page
 ```
+
+**Call card.** While a call exists or a pairing code waits, the media screen covers its face (and the menu, if open)
+with a card in the theme's colours: the state (incoming, calling, call time, on hold, call waiting), the caller,
+Muted / Audio on phone, or "Pair with …?" and the six-digit code, and at the bottom what the console's two soft keys do
+now. The displays take no phone input: the card swallows touches. On the center it never covers the reversing camera.
+`esp32_p4_ui/src/phone_can.cpp`; protocol in `docs/protocols/can_bus.md` (Phone).
 
 ## Cluster I2C (center master)
 
@@ -55,7 +63,7 @@ TX GPIO34 / RX GPIO36, the audio carrier TX GPIO32 / RX GPIO33). The center re-s
 theme (`0x210`); speedo/TSPS take the theme from CAN or I2C, whichever arrives. The audio bridge sends now-playing,
 transport and album art in its node's range, and in the car that is the only audio link: the center's I2C audio code
 (`0x2A`, theme to `0x3E`) is compiled in only by its `*-bench` envs (`CENTER_AUDIO_I2C=1`), paired with the bridge's
-`esp32dev_bench` env. Every node sends a 1 Hz heartbeat. Pins are build flags
+`*_bench` envs (`esp32wrover_bench`, or `esp32dev_bench` on the WROOM board). Every node sends a 1 Hz heartbeat. Pins are build flags
 (`ELC_CAN_TX_PIN` / `ELC_CAN_RX_PIN`, `-1` = off). Spec: [docs/protocols/can_bus.md](../docs/protocols/can_bus.md).
 
 ## Layout
@@ -64,9 +72,10 @@ transport and album art in its node's range, and in the car that is the only aud
 |-----------|------|
 | `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, demo drive), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
 | `elc_can/` | Shared **CAN** library (displays and accessories): IDs, frame codecs, TWAI driver wrapper with heartbeat and bus-off recovery. Host unit tests: `test/host/run_tests.sh`. |
-| `esp32_p4_ui/` | Shared **screen, touch and faces**: `p4_screen` (LVGL, double-buffered panel, optional legacy GFX layer, screenshot), `gauges/` (all gauge faces), `fonts/` (LVGL fonts), `gauge_console` (bench console for speedo/TSPS), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
+| `esp32_p4_ui/` | Shared **screen, touch and faces**: `p4_screen` (LVGL, double-buffered panel, optional legacy GFX layer, screenshot), `gauges/` (all gauge faces), `fonts/` (LVGL fonts), `ui_menu` + `ui_theme` (menu and overlay colours / fonts per theme), `media_can` / `phone_can` (audio bridge on CAN: now playing and art; phone state and the call card), `gauge_console` (bench console for speedo/TSPS), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
 | `esp32_p4_display/` | **All three round displays**, one image. At boot each board reads its position strap (header pin 17 = GPIO4 on the DigiDash board: J5 left → 1 kΩ to GND, J4 right → 1 kΩ to its 3V3, J1 center → open) and runs as **LEFT** speedometer, **CENTER** (tach / clock / media / efficiency, Wi-Fi, GPS, SD, BLE, camera, the cluster settings; I2C cluster master) or **RIGHT** fuel / oil / coolant / charge (Classic has two layouts). `src/main.cpp` picks `center_*` or `side_*`; see `src/display_role.h`. |
-| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory on an audio carrier, node 0x10: now-playing, transport, album art). `esp32dev_bench` adds the bench I2C slaves (`0x2A` metadata, `0x3E` theme). |
+| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory on an audio carrier, node 0x10: now-playing, transport, album art). `esp32wrover` (DevKitC-VE, PSRAM; the default) or `esp32dev` (WROOM DevKitC-32); the `*_bench` envs add the bench I2C slaves (`0x2A` metadata, `0x3E` theme). |
+| `esp32s3_console/` | **Console board** (`ConsoleBoard/`, ESP32-S3, CAN node 0x13): SSD1322 OLED with two soft keys, Select / Volume knobs; the phone's only control (calls, pairing, paired phones), media keys, center view. UI state machine host-tested: `test/host/run_tests.sh`. |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
 ## Panel targets
@@ -108,20 +117,38 @@ hidden one of two DSI framebuffers, the panel flips on each refresh, and the red
 buffer by DMA, so nothing tears. Layers, bottom to top: the optional legacy Arduino_GFX canvas (center only, for
 its older full-screen pages), the gauge faces (`p4_screen_gauge_parent()`), and UI (`p4_screen_ui_parent()`).
 
-The menu (`esp32_p4_ui/ui_menu.cpp`) is pure LVGL: a wheel on the home page, and Wi-Fi, Brightness, Theme, Screens
-and Service pages, rebuilt in the active theme's colors and fonts each time it opens. It runs on any round screen:
+The menu (`esp32_p4_ui/ui_menu.cpp`) is pure LVGL: a wheel on the home page, and Wi-Fi, Brightness, Theme, Screens,
+Service and Phone pages, rebuilt in the active theme's colors and fonts each time it opens. It runs on any round screen:
 the center backs it with its own state (`center_menu.cpp`), the speedo and TSPS with CAN (`cluster_peer.cpp`: setting
 requests to the center, state from `0x210` / `0x213` / `0x214`, see `docs/protocols/can_bus.md`). The Screens page
-picks the **interface screen** (menu) and the **media screen**. The Wi-Fi password keyboard, sensor log, GPS data
-and Phone pages are still the older Arduino_GFX full-screen pages on the center; from a side screen they open there.
+picks the **interface screen** (menu) and the **media screen**. The Wi-Fi password keyboard, sensor log and GPS data
+pages are still the older Arduino_GFX full-screen pages on the center; from a side screen they open there.
+
+**Phone page** (any screen, from `phone_can`): the connected phone with signal and battery; *Pair new phone* (opens
+the bridge's pairing window, then "Discoverable as ElCamino-Media · m:ss left" and *Stop*); the paired list (choose
+one: *Connect* / *Disconnect*, *Forget* with a confirm); *Voice assistant* and *Redial* while a hands-free phone is
+connected. A phone asking to pair takes over the page ("Pair with …?", the code, *Pair* / *Reject*) and opens it on
+the interface screen by itself (not over the reversing camera); while the page is open there, the call card leaves
+the pairing request to it. Commands go to the bridge on `0x215` from this board's node.
+
+**Console** (`menu_can`, every screen): the interface screen applies the console's `0x216` (turn moves the wheel,
+brightness or the Phone page's focus; push opens / presses; Back goes back a page, then closes; Open opens a page)
+and sends `0x217` + texts `0x218` / `0x219` (`ui_menu_describe()`: the focused item or the page's key fact, and its
+value or hint) on change, every second while open and once on close. The center also sends the time (`0x220`, 1 Hz:
+UTC, local offset from the TZ, GPS flag; no NTP source exists, so that flag stays clear) and the street (`0x221`), and
+sets `0x213` bit7 while reversing (camera shown or reverse input on).
 
 Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
 
 - center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
-  `drag <x> <y1> <y2> <ms>`, `knob left|right|press`, `menu on left|center|right`, `media on left|center|right`,
+  `drag <x> <y1> <y2> <ms>`, `knob left|right|press|back`, `menu on left|center|right`, `media on left|center|right`,
   `can`, plus the Wi-Fi/TZ commands;
 - left / right: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (right), `can`;
-- every screen: `role [left|center|right|auto]` (position; see above).
+- every screen: `role [left|center|right|auto]` (position; see above), `phone` (phone state from the audio bridge,
+  with the paired list and the pairing window) and `phone demo idle|discover|incoming|active [muted] [onphone]|waiting|held|pair|off`
+  (synthetic bridge frames fed locally, to see the call card and the Phone page without a phone; the page's commands
+  act on the demo; `off` hands back to the bridge); `menu` (the `0x217` state and texts this board would send) and
+  `menu rotate <n>|press|back|open <0..6>` (as if from the console).
 
 Grab a screenshot from the Mac with:
 

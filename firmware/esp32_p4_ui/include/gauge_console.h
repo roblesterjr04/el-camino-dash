@@ -10,6 +10,7 @@
  *   theme 0|1|2     Classic / Fallout / Modern (normally set by the center over I2C)
  *   variant 0|1     right display Classic layout
  *   can             CAN counters and the nodes heard
+ *   phone [demo …]  phone state / call card demo (handled by the display firmware through on_line)
  * plus whatever on_line takes first (the unified display firmware's `role`).
  */
 struct GaugeConsole {

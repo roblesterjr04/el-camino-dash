@@ -207,9 +207,9 @@ Optional: connect ESP32-D to the **cluster** bus (**47/48**) as slave **0x3E** t
 On the DigiDash board the ESP32-D sits on an **audio carrier** on one of the header positions and talks to the center
 over the **CAN bus** only (TX GPIO32, RX GPIO33 through the carrier's MCP2562; GPIO13 / GPIO23 open = node 0x10):
 now-playing, transport and album art. The I2C wiring above is for **bench** setups without transceivers: it is used
-only by the center's `*-bench` envs and the bridge's `esp32dev_bench` env.
+only by the center's `*-bench` envs and the bridge's `*_bench` envs.
 
-**I2S amplifiers** (MAX98357A, `esp32dev_external_i2s` build) live on the audio carrier: DIN = **GPIO27**,
+**I2S amplifiers** (MAX98357A; I2S is the only audio output) live on the audio carrier: DIN = **GPIO27**,
 BCLK = **GPIO14**, LRC = **GPIO25**, GAIN can float (9 dB). Each amp is mono; SD selects the channel (tied to VIN through
 a jumper = left, through 680 kΩ = right, open = L+R mix). Power the amps from the port's +12 V through a 5 V buck on the
 carrier (at full volume they draw more than the port's 0.5 A at 5 V). The DevKit runs from the port's +5 V; its own 3V3

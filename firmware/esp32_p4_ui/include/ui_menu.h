@@ -11,11 +11,17 @@
  * requests to the center, state from 0x210 / 0x213).
  *
  * Home is a vertical wheel: the selected item sits in the middle, neighbours curve away along the rim.
- * Drag or tap to move, tap the middle item to open it. Pages: Wi-Fi, Brightness, Theme, Screens, Service.
+ * Drag or tap to move, tap the middle item to open it. Pages: Wi-Fi, Brightness, Theme, Screens, Service, Phone.
  * The menu is rebuilt in the current theme's colours and fonts each time it opens.
+ *
+ * The Phone page (pairing, the paired list, voice assistant, redial) reads the audio bridge's phone state from
+ * phone_can.h and sends its commands with phone_can_send(): that module is the same on every screen, so it is
+ * not part of the host.
  */
 
-enum class UiMenuPage : uint8_t { Home, Wifi, Brightness, Theme, Screens, Service };
+/** Page numbers match the console's MENU_INPUT / MENU_STATE (ElcCanMenuPage). */
+enum class UiMenuPage : uint8_t { Home, Wifi, Brightness, Theme, Screens, Service, Phone };
+static const uint8_t kUiMenuPages = 7;
 
 /** Screens, as in the CAN settings (ELC_CAN_SCREEN_*). */
 enum : uint8_t { kUiScreenLeft = 0, kUiScreenCenter = 1, kUiScreenRight = 2 };
@@ -66,8 +72,8 @@ struct UiMenuHost {
   bool (*demo)() = nullptr;
   void (*set_demo)(bool) = nullptr;
 
-  /** Open a full-screen page that only the center has (1 Wi-Fi keyboard/scan, 2 sensor log, 3 GPS data,
-   *  4 phone). On the center it opens locally; elsewhere it is requested on the center screen. */
+  /** Open a full-screen page that only the center has (1 Wi-Fi keyboard/scan, 2 sensor log, 3 GPS data).
+   *  On the center it opens locally; elsewhere it is requested on the center screen. */
   void (*open_center_page)(uint8_t which) = nullptr;
 };
 
@@ -77,9 +83,20 @@ void ui_menu_close();
 bool ui_menu_is_open();
 UiMenuPage ui_menu_page();
 
-/** Knob (console) navigation: turn moves the wheel or adjusts brightness; press opens / selects / goes home. */
+/** Knob (console) navigation: turn moves the wheel, adjusts brightness or moves the Phone page's focus; press opens
+ *  the menu / opens the wheel item / activates the Phone page's focused choice / goes home from other pages. */
 void ui_menu_rotate(int steps);
 void ui_menu_press();
+/** Back one step: a Phone page sub-view to its list, a page to Home, Home closes the menu. */
+void ui_menu_back();
+
+/**
+ * What the console's OLED shows for the menu (0x218 / 0x219), each at most 32 bytes (cut on a UTF-8 boundary):
+ * main = the focused wheel item, or the page's key fact ("Brightness 80%", "Theme Modern", the Phone page's
+ * focused choice); sub = that item's value / state, or a page hint ("Dims with headlights", "Connected · …").
+ * Both are "" while the menu is closed.
+ */
+void ui_menu_describe(char *main_text, size_t n_main, char *sub_text, size_t n_sub);
 
 /**
  * Hold feedback on the gauge screen: a ring fills to `progress` (0..1000) with `message` in a pill near the

@@ -1,29 +1,24 @@
 #!/usr/bin/env bash
-# Flash classic ESP32 Bluetooth audio bridge (esp32_audio_bridge) via PlatformIO.
-# Requires: pio in PATH, or: python3 -m platformio (pip install platformio).
+# Flash the classic ESP32 Bluetooth audio bridge (esp32_audio_bridge) via PlatformIO.
 #
 # Examples:
-#   ./flash.sh
-#   ./flash.sh --upload-port /dev/cu.usbserial-0001
-#   ./flash.sh --upload-port /dev/ttyUSB0
+#   ./flash.sh --upload-port /dev/cu.usbserial-0001                          # esp32wrover (DevKitC-VE, PSRAM)
+#   ENV=esp32wrover_bench ./flash.sh --upload-port /dev/cu.usbserial-0001    # bench: also the I2C slaves for the center
+#   ENV=esp32dev ./flash.sh ...                                               # the older WROOM DevKitC-32 (no PSRAM)
 set -euo pipefail
 cd "$(dirname "$0")"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  cat <<'EOF'
-Usage: ./flash.sh [--upload-port DEVICE] [-- ...extra platformio args]
-
-Builds env "esp32dev" and uploads. Pass --upload-port if more than one serial
-device is connected.
-
-From repo root you can run:
-  bash firmware/esp32_classic_bt_audio/flash.sh --upload-port /dev/cu.usbmodem1101
-EOF
+  sed -n '2,7p' "$0"
   exit 0
 fi
 
-if command -v pio >/dev/null 2>&1; then
-  exec pio run -e esp32dev -t upload "$@"
-else
-  exec python3 -m platformio run -e esp32dev -t upload "$@"
+# PlatformIO from the display firmware's venv (Python >= 3.10; ../esp32_p4_display/flash.sh creates it).
+PY=../esp32_p4_display/.venv/bin/python
+if [[ ! -x "${PY}" ]]; then
+  echo "No PlatformIO venv yet: run ../esp32_p4_display/flash.sh once (it creates ../esp32_p4_display/.venv)." >&2
+  exit 1
 fi
+# file://../elc_can can stay stuck on an old copy in libdeps; always reinstall it from the repo.
+rm -rf .pio/libdeps/*/elc_can 2>/dev/null || true
+exec "${PY}" -m platformio run -e "${ENV:-esp32wrover}" -t upload "$@"

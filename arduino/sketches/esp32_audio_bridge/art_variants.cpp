@@ -1,7 +1,18 @@
 #include "art_variants.h"
 
+#include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <new>
+
+void *art_alloc(size_t n) {
+  if (psramFound()) {
+    if (void *p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)) return p;
+  }
+  return heap_caps_malloc(n, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
 
 #if defined(__has_include) && __has_include(<JPEGDEC.h>) && __has_include(<JPEGENC.h>)
 #include <JPEGDEC.h>
@@ -19,7 +30,7 @@ struct Resampler {
   int strip_h = 0;
   uint16_t *prev = nullptr;   // last row of the previous strip
   int prev_y = -1;
-  uint16_t *out = nullptr;    // 128 × 128, RGB565
+  uint16_t *out = nullptr;    // kArtSmallSide², RGB565
   int next_row = 0;
   int16_t xa[kArtSmallSide], xb[kArtSmallSide];
   uint8_t wx[kArtSmallSide];
@@ -133,18 +144,35 @@ bool make_gray(const uint16_t *img, uint8_t gray[kArtGrayBytes]) {
 
 }  // namespace
 
+size_t art_variants_work_bytes() {
+  return sizeof(JPEGDEC) + sizeof(JPEGENC) + (size_t)kArtSmallSide * kArtSmallSide * 2 + (200 + 16) * 16 * 2 + 1024;
+}
+
 uint8_t art_make_variants(const uint8_t *jpg, size_t len, uint8_t *out_jpeg, size_t out_cap, size_t *out_len,
                           uint8_t gray48[kArtGrayBytes]) {
   if (out_len) *out_len = 0;
   if (!jpg || len < 4) {
     return 0;
   }
-  JPEGDEC *dec = new JPEGDEC();
+  // A failed `new` throws and aborts the board (it did, with the phone streaming), so check the heap first. With
+  // PSRAM everything below goes there and the Bluetooth stack's internal RAM is not touched.
+  const size_t frame = (size_t)kArtSmallSide * kArtSmallSide * 2;
+  if (psramFound()) {
+    if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) < frame ||
+        heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < art_variants_work_bytes()) {
+      return 0;
+    }
+  } else if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < art_variants_work_bytes() + kArtHeapReserve ||
+             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) < frame) {
+    return 0;
+  }
+  void *dec_mem = art_alloc(sizeof(JPEGDEC));
+  JPEGDEC *dec = dec_mem ? new (dec_mem) JPEGDEC() : nullptr;
   Resampler R;
   uint8_t made = 0;
-  R.out = (uint16_t *)malloc((size_t)kArtSmallSide * kArtSmallSide * 2);
+  R.out = (uint16_t *)art_alloc(frame);
   if (dec && R.out && dec->openRAM((uint8_t *)jpg, (int)len, on_draw)) {
-    // Largest decoder scale that still leaves at least 128 px on the short side.
+    // Largest decoder scale that still leaves at least kArtSmallSide px on the short side.
     const int sw = dec->getWidth(), sh = dec->getHeight();
     int scale = 1;
     while (scale < 8 && (sw < sh ? sw : sh) / (scale * 2) >= kArtSmallSide) {
@@ -156,8 +184,8 @@ uint8_t art_make_variants(const uint8_t *jpg, size_t len, uint8_t *out_jpeg, siz
     R.crop_x = (R.w - R.side) / 2;
     R.crop_y = (R.h - R.side) / 2;
     R.strip_h = 16;  // tallest MCU (4:2:0)
-    R.strip = (uint16_t *)malloc((size_t)(R.w + 16) * R.strip_h * 2);
-    R.prev = (uint16_t *)malloc((size_t)(R.w + 16) * 2);
+    R.strip = (uint16_t *)art_alloc((size_t)(R.w + 16) * R.strip_h * 2);
+    R.prev = (uint16_t *)art_alloc((size_t)(R.w + 16) * 2);
     for (int x = 0; x < kArtSmallSide; x++) {
       int a, b, w;
       sample(x, R.crop_x, R.side, R.w, a, b, w);
@@ -173,7 +201,8 @@ uint8_t art_make_variants(const uint8_t *jpg, size_t len, uint8_t *out_jpeg, siz
         if (gray48 && make_gray(R.out, gray48)) {
           made |= kArtHaveGray48;
         }
-        JPEGENC *enc = new JPEGENC();
+        void *enc_mem = art_alloc(sizeof(JPEGENC));
+        JPEGENC *enc = enc_mem ? new (enc_mem) JPEGENC() : nullptr;
         JPEGENCODE je;
         if (enc && out_jpeg && out_cap >= 1024 && enc->open(out_jpeg, (int)out_cap) == JPEGE_SUCCESS &&
             enc->encodeBegin(&je, kArtSmallSide, kArtSmallSide, JPEGE_PIXEL_RGB565, JPEGE_SUBSAMPLE_420,
@@ -182,10 +211,11 @@ uint8_t art_make_variants(const uint8_t *jpg, size_t len, uint8_t *out_jpeg, siz
           const int n = enc->close();
           if (n > 0 && (size_t)n <= out_cap) {
             if (out_len) *out_len = (size_t)n;
-            made |= kArtHaveJpeg128;
+            made |= kArtHaveJpegSmall;
           }
         }
-        delete enc;
+        if (enc) enc->~JPEGENC();
+        free(enc_mem);
       }
     }
     dec->close();
@@ -193,11 +223,14 @@ uint8_t art_make_variants(const uint8_t *jpg, size_t len, uint8_t *out_jpeg, siz
   free(R.strip);
   free(R.prev);
   free(R.out);
-  delete dec;
+  if (dec) dec->~JPEGDEC();
+  free(dec_mem);
   return made;
 }
 
 #else
+
+size_t art_variants_work_bytes() { return 0; }
 
 uint8_t art_make_variants(const uint8_t *, size_t, uint8_t *, size_t, size_t *out_len, uint8_t *) {
   if (out_len) *out_len = 0;

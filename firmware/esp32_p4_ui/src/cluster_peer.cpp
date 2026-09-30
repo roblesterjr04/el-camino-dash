@@ -230,6 +230,10 @@ const ElcCanClusterState &cluster_peer_state() { return s_st; }
 
 bool cluster_peer_show_media() { return is_media_screen() && (s_st.flags & ELC_CAN_CLUSTER_MEDIA_SHOWN); }
 
+bool cluster_peer_center_heard() { return center_heard(); }
+
+void cluster_peer_request(uint8_t setting, uint8_t value) { request(setting, value); }
+
 void cluster_peer_poll(uint32_t now_ms, int16_t x, int16_t y, bool down) {
   // Brightness: the center's setting, unless this screen's menu is adjusting it right now.
   const bool adjusting = ui_menu_is_open() && ui_menu_page() == UiMenuPage::Brightness;

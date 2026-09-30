@@ -47,3 +47,8 @@ const ElcCanClusterState &cluster_peer_state();
 
 /** This screen shows its media view now (instead of its gauge). */
 bool cluster_peer_show_media();
+
+/** The center's status (0x213, 1 Hz) was heard within 3 s: a setting request will be answered. */
+bool cluster_peer_center_heard();
+/** Ask the center to change a setting (0x212, ElcCanSetting); it answers with a fresh 0x210. */
+void cluster_peer_request(uint8_t setting, uint8_t value);

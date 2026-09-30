@@ -198,7 +198,7 @@ still reads its two straps (GPIO13 / GPIO23, pull-ups, grounded = 1): on a carri
 | --- | --- | --- |
 | Small sensor or relay nodes | ESP32-C3 or C6 | CAN controller (TWAI) built in, cheap, small |
 | Anything with a UI | ESP32-S3 | More pins and RAM, USB; the console |
-| Bluetooth audio | classic ESP32 (ESP32-DevKitC-32) | The only one with Bluetooth Classic (A2DP / AVRCP) |
+| Bluetooth audio | classic ESP32 with PSRAM (ESP32-DevKitC-VE / WROVER-E, or the carrier's PICO-MINI-02-N8R2) | The only one with Bluetooth Classic (A2DP / AVRCP). PSRAM: with a phone streaming, a PSRAM-less ESP32 has ~32 KB of RAM left, too little for the album-art copies |
 | Avoid | RP2040 | No CAN controller: needs an MCP2515 or software CAN |
 
 Each carrier has one CAN transceiver: MCP2562 (5 V VDD, 3.3 V VIO, STBY low), as on the DigiDash board today.
@@ -207,7 +207,8 @@ Each carrier has one CAN transceiver: MCP2562 (5 V VDD, 3.3 V VIO, STBY low), as
 
 What slot 0 does today, as a carrier on a header position:
 
-- ESP32-DevKitC-32 (the HiLetgo board) in 2×19 sockets, MCP2562 on GPIO32 (TX) / GPIO33 (RX, through 1 kΩ).
+- ESP32-DevKitC-VE (ESP32-WROVER-E, 8 MB PSRAM; same outline and 2×19 pinout as the DevKitC-32, which it replaces) in
+  2×19 sockets, MCP2562 on GPIO32 (TX) / GPIO33 (RX, through 1 kΩ). GPIO16 / 17 go to the PSRAM.
 - The two MAX98357A amplifiers (today's J14 / J15), with the speaker terminals on the carrier.
 - A 12 V → 5 V buck for the amplifiers from the header's +12 V: at full volume they draw more than the 0.5 A port
   fuse allows at 5 V. The DevKit runs from the port's +5 V (its own 3.3 V regulator; its 3V3 pin stays unconnected).

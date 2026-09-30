@@ -192,7 +192,7 @@ void center_audio_link_begin() {
 
 // ---------------------------------------------------------------- album art
 //
-// In the car, album art comes over CAN in two steps (media_can, shared with the other screens): 128x128 first,
+// In the car, album art comes over CAN in two steps (media_can, shared with the other screens): a small copy first,
 // then the phone's original. The center fetches it only while it is the media screen.
 //
 // Bench only (CENTER_AUDIO_I2C): the bridge also serves it in I2C chunks: write [0x10][idx_lo][idx_hi],

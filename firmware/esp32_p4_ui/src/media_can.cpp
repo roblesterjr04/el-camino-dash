@@ -67,9 +67,9 @@ void step(uint8_t id, uint8_t variant) {
   s_req_tries = 0;
 }
 
-/** After the 128 px copy (shown or not), step up to the original; after the original, stop. */
+/** After the small copy (shown or not), step up to the original; after the original, stop. */
 void next(uint8_t id) {
-  if (s_rx.variant() == ELC_CAN_ART_JPEG128) {
+  if (s_rx.variant() == ELC_CAN_ART_JPEG_SMALL) {
     step(id, ELC_CAN_ART_ORIGINAL);
   } else {
     s_done_id = id;
@@ -240,12 +240,12 @@ void media_can_poll(bool fetch_art) {
     if (s_art_valid) {
       media_art_clear();  // the previous track's picture
     }
-    step(id, ELC_CAN_ART_JPEG128);  // fast small picture first
+    step(id, ELC_CAN_ART_JPEG_SMALL);  // fast small picture first
   }
-  const char *vname = s_rx.variant() == ELC_CAN_ART_JPEG128 ? "128px" : "original";
+  const char *vname = s_rx.variant() == ELC_CAN_ART_JPEG_SMALL ? "small" : "original";
   if (s_rx.refused()) {
     MEDIA_LOG("[audio] album art #%u %s over CAN: not available (size %u), %s\n", (unsigned)id, vname,
-              (unsigned)s_rx.size(), s_rx.variant() == ELC_CAN_ART_JPEG128 ? "asking for the original" : "done");
+              (unsigned)s_rx.size(), s_rx.variant() == ELC_CAN_ART_JPEG_SMALL ? "asking for the original" : "done");
     next(id);
     return;
   }
@@ -265,7 +265,7 @@ void media_can_poll(bool fetch_art) {
     if (++s_req_tries > 20) {
       MEDIA_LOG("[audio] album art #%u %s over CAN: no progress, given up at chunk %u\n", (unsigned)id, vname,
                 (unsigned)s_rx.first_missing());
-      next(id);  // a 128px picture already shown stays up
+      next(id);  // a small picture already shown stays up
       return;
     }
     s_req_have = s_rx.chunks_have();
@@ -280,7 +280,7 @@ void media_can_poll(bool fetch_art) {
 
 void media_can_art_status(char *out, size_t n) {
   snprintf(out, n, "CAN: collecting id=%u %s %u/%u chunks (size %u, tries %u), decoded #%u %s %dx%d",
-           (unsigned)s_rx.art_id(), s_rx.variant() == ELC_CAN_ART_JPEG128 ? "128px" : "original",
+           (unsigned)s_rx.art_id(), s_rx.variant() == ELC_CAN_ART_JPEG_SMALL ? "small" : "original",
            (unsigned)s_rx.chunks_have(), (unsigned)(s_rx.sized() ? elc_can_art_chunks(s_rx.size()) : 0),
            (unsigned)s_rx.size(), (unsigned)s_req_tries, (unsigned)s_done_id, s_art_valid ? "shown" : "none",
            s_art_w, s_art_h);

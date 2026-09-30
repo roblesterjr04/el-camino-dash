@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include <WiFi.h>
 
 #include <cluster_i2c.h>
@@ -21,6 +22,7 @@
 #include "center_ble.h"
 #include "center_can.h"
 #include "center_audio_link.h"
+#include "center_camera.h"
 #include "center_gps.h"
 #include "center_menu.h"
 #include "center_sd_settings.h"
@@ -37,7 +39,6 @@ static uint16_t ui_rgb565(uint8_t r, uint8_t g, uint8_t b) {
 enum class UiPage : uint8_t {
   Closed = 0,
   Home,
-  FsPhone,
   FsPsk,
   FsSerial,
   FsGpsDiag,
@@ -73,6 +74,7 @@ static ClusterTheme s_theme = ClusterTheme::Classic;
 static uint8_t s_iface = ELC_CAN_SCREEN_CENTER;
 static uint8_t s_media = ELC_CAN_SCREEN_CENTER;
 static bool s_media_shown = false;
+static bool s_right_layout2 = false;  // right screen, Classic: fuel + lamps (else four gauges)
 
 static char s_scan_ssid[8][33];
 static uint8_t s_scan_enc[8];
@@ -294,6 +296,7 @@ void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs) {
     s_iface = prefs->getUChar("iface", ELC_CAN_SCREEN_CENTER);
     s_media = prefs->getUChar("media", ELC_CAN_SCREEN_CENTER);
     s_media_shown = prefs->getBool("mshown", false);
+    s_right_layout2 = prefs->getUChar("rlayout", 0) == 1;
   }
   if (s_iface > ELC_CAN_SCREEN_RIGHT) s_iface = ELC_CAN_SCREEN_CENTER;
   if (s_media > ELC_CAN_SCREEN_RIGHT) s_media = ELC_CAN_SCREEN_CENTER;
@@ -322,7 +325,8 @@ void center_ui_sync_cluster_bus() {
   st.media_screen = s_media;
   st.brightness = center_menu_brightness();
   st.flags = (uint8_t)((center_menu_dim_with_lights() ? ELC_CAN_CLUSTER_DIM_WITH_LIGHTS : 0) |
-                       (center_ui_media_shown() ? ELC_CAN_CLUSTER_MEDIA_SHOWN : 0));
+                       (center_ui_media_shown() ? ELC_CAN_CLUSTER_MEDIA_SHOWN : 0) |
+                       (s_right_layout2 ? ELC_CAN_CLUSTER_RIGHT_LAYOUT2 : 0));
   center_can_send_cluster(st);
 }
 
@@ -366,6 +370,20 @@ void center_ui_set_media_screen(uint8_t screen) {
   center_ui_sync_cluster_bus();
 }
 
+bool center_ui_right_layout2() { return s_right_layout2; }
+
+void center_ui_set_right_layout2(bool fuel_and_lamps) {
+  if (s_right_layout2 == fuel_and_lamps) {
+    return;
+  }
+  s_right_layout2 = fuel_and_lamps;
+  if (s_prefs) {
+    s_prefs->putUChar("rlayout", fuel_and_lamps ? 1 : 0);
+    center_sd_settings_sync(*s_prefs);
+  }
+  center_ui_sync_cluster_bus();
+}
+
 void center_ui_show_media(bool on) {
   if (s_media == ELC_CAN_SCREEN_CENTER) {
     center_ui_set_view(on ? CenterViewMode::Media : CenterViewMode::Tach);
@@ -404,6 +422,9 @@ void center_ui_apply_setting(const ElcCanSettingRequest &r) {
     case ELC_CAN_SET_DEMO: center_set_demo(r.value != 0); break;
     case ELC_CAN_ACT_WIFI_JOIN_SAVED: center_menu_wifi_join_saved(); break;
     case ELC_CAN_ACT_OPEN_CENTER_PAGE: center_menu_open_center_page(r.value); break;
+    case ELC_CAN_SET_RIGHT_LAYOUT:
+      if (r.value <= 1) center_ui_set_right_layout2(r.value == 1);
+      break;
     default: break;
   }
   center_ui_sync_cluster_bus();  // answer every request, so the asker sees the outcome even when nothing changed
@@ -437,7 +458,16 @@ void center_ui_set_theme(ClusterTheme t) {
 
 void center_ui_open_legacy_page(CenterLegacyPage p) {
   center_menu_close();
-  s_page = p == CenterLegacyPage::Phone ? UiPage::FsPhone : (p == CenterLegacyPage::SensorLog ? UiPage::FsSerial : UiPage::FsGpsDiag);
+  s_page = p == CenterLegacyPage::SensorLog ? UiPage::FsSerial : UiPage::FsGpsDiag;
+}
+
+void center_ui_leave_fullscreen() {
+  if (s_page == UiPage::Closed) {
+    return;
+  }
+  s_page = UiPage::Closed;
+  s_kb_shift = false;
+  center_shell_set_wifi_psk_pending(nullptr);
 }
 
 void center_ui_open_wifi_password(const char *ssid) {
@@ -480,7 +510,7 @@ bool center_ui_overlay_open() { return center_menu_is_open(); }
 
 bool center_ui_fullscreen() {
   return s_page == UiPage::FsPsk || s_page == UiPage::FsSerial || s_page == UiPage::FsGpsDiag ||
-         s_page == UiPage::FsWifiScan || s_page == UiPage::FsWifiConn || s_page == UiPage::FsPhone;
+         s_page == UiPage::FsWifiScan || s_page == UiPage::FsWifiConn;
 }
 
 static void draw_scan_progress(Arduino_GFX *t, int16_t sw, int16_t sh, uint32_t ms, float phase01) {
@@ -738,31 +768,6 @@ void center_ui_draw_fullscreen(Arduino_GFX *gfx) {
       t->print(lbl);
     }
     t->setFont(nullptr);
-  } else if (s_page == UiPage::FsPhone) {
-    t->setFont(&FreeSansBold10pt7b);
-    t->setTextSize(1);
-    t->setTextColor(0xFFFFu);
-    t->setCursor(kLayoutInset, kLayoutInset);
-    t->print("Phone");
-    t->setFont(nullptr);
-    t->setTextSize(1);
-    t->setTextColor(ui_rgb565(150, 150, 160));
-    t->setCursor(kLayoutInset, (int16_t)(kLayoutInset + 26));
-    t->print("Hands-free / cabin audio — integration TBD.");
-    t->setTextColor(0xFFFFu);
-    t->setFont(&FreeSansBold10pt7b);
-    const int16_t bw = 280;
-    const int16_t bh = 48;
-    const int16_t bx = (int16_t)((sw - bw) / 2);
-    const int16_t by = (int16_t)(sh - kLayoutInset - 8 - bh);
-    t->fillRoundRect(bx, by, bw, bh, 10, ui_rgb565(48, 48, 48));
-    t->drawRoundRect(bx, by, bw, bh, 10, ui_rgb565(140, 140, 140));
-    int16_t bx0 = 0, by0 = 0;
-    uint16_t tw = 0, th = 0;
-    t->getTextBounds("BACK", 0, 0, &bx0, &by0, &tw, &th);
-    t->setCursor((int16_t)(bx + (bw - (int16_t)tw) / 2), (int16_t)(by + (bh + (int16_t)th) / 2));
-    t->print("BACK");
-    t->setFont(nullptr);
   } else if (s_page == UiPage::FsSerial) {
     t->setCursor(kLayoutInset, kLayoutInset);
     t->print("Sensor UART");
@@ -902,6 +907,30 @@ void center_ui_draw_fullscreen(Arduino_GFX *gfx) {
   blit_round_canvas(gfx);
 }
 
+/** UTC from the system clock (GPS sets it), the local offset from the active TZ, the street from the geocoder. */
+static void send_time() {
+  ElcCanTime t;
+  uint64_t ms = 0;
+  if (center_wall_epoch_ms(&ms)) {
+    const time_t now = (time_t)(ms / 1000u);
+    struct tm lt, gt;
+    localtime_r(&now, &lt);
+    gmtime_r(&now, &gt);
+    int day = 0;  // local date minus UTC date: -1, 0, +1
+    if (lt.tm_year != gt.tm_year) {
+      day = lt.tm_year > gt.tm_year ? 1 : -1;
+    } else if (lt.tm_yday != gt.tm_yday) {
+      day = lt.tm_yday > gt.tm_yday ? 1 : -1;
+    }
+    t.utc = (uint32_t)now;
+    t.offset_min = (int16_t)(day * 1440 + (lt.tm_hour - gt.tm_hour) * 60 + (lt.tm_min - gt.tm_min));
+    // The clock is set from GPS only (no SNTP in this firmware), so NTP stays clear.
+    t.flags = (uint8_t)(ELC_CAN_TIME_VALID | (center_gps_have_position_fix() ? ELC_CAN_TIME_GPS : 0));
+  }
+  const char *street = center_gps_street_line();
+  center_can_send_time(t, street ? street : "");
+}
+
 void center_ui_loop() {
   const uint32_t now = millis();
   center_menu_loop();
@@ -910,8 +939,12 @@ void center_ui_loop() {
     center_ui_apply_setting(req);
   }
   static uint32_t s_status_ms = 0;
-  if (now - s_status_ms >= 1000u) {
+  static bool s_reverse_sent = false;
+  // Reverse (the rear camera): in the 1 Hz status, and at once when it changes (the console shows R).
+  const bool reverse = center_camera_showing() || center_camera_reverse();
+  if (now - s_status_ms >= 1000u || reverse != s_reverse_sent) {
     s_status_ms = now;
+    s_reverse_sent = reverse;
     const bool wf = WiFi.status() == WL_CONNECTED;
     ElcCanCenterStatus st;
     st.flags = (uint8_t)((wf ? ELC_CAN_STATUS_WIFI : 0) | (center_gps_have_position_fix() ? ELC_CAN_STATUS_GPS_FIX : 0) |
@@ -919,11 +952,18 @@ void center_ui_loop() {
                          (center_audio_link_ok() ? ELC_CAN_STATUS_AUDIO : 0) |
                          (center_sensor_link().demo() ? ELC_CAN_STATUS_DEMO : 0) |
                          (s_prefs && s_prefs->getString("wifi_ssid", "").length() ? ELC_CAN_STATUS_SAVED_WIFI : 0) |
-                         (center_menu_wifi_joining() ? ELC_CAN_STATUS_JOINING : 0));
+                         (center_menu_wifi_joining() ? ELC_CAN_STATUS_JOINING : 0) |
+                         (reverse ? ELC_CAN_STATUS_REVERSE : 0));
     st.rssi = wf ? (int8_t)WiFi.RSSI() : 0;
     // The name: the connected network, else the saved one.
     const String name = wf ? WiFi.SSID() : (s_prefs ? s_prefs->getString("wifi_ssid", "") : String());
     center_can_send_status(st, name.c_str());
+  }
+  // Wall time and place for the console (0x220 / 0x221), 1 Hz, half a second after the status.
+  static uint32_t s_time_ms = 500;
+  if (now - s_time_ms >= 1000u) {
+    s_time_ms = now;
+    send_time();
   }
   /* Rolling 2 s window: reset even when log is closed so the next open shows a fresh rate. */
   if (now - s_last_sensor_stats_ms >= 2000u) {
@@ -997,12 +1037,6 @@ void center_ui_on_touch_release(int16_t x, int16_t y) {
   if (center_ui_fullscreen()) {
     const int16_t sw = s_gfx->width();
     const int16_t sh = s_gfx->height();
-    if (s_page == UiPage::FsPhone) {
-      if (hit_cancel_bar(x, y, sw, sh)) {
-        menu_open_home();
-      }
-      return;
-    }
     if (s_page == UiPage::FsWifiScan || s_page == UiPage::FsSerial || s_page == UiPage::FsGpsDiag ||
         s_page == UiPage::FsWifiConn) {
       if (hit_cancel_bar(x, y, sw, sh)) {

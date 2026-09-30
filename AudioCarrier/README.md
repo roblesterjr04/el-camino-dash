@@ -121,7 +121,9 @@ solder tabs are ground.
   tolerant and just sits on it; the 33 R series resistor damps the clock. Pressing BOOT still enters the loader.
 - Program it over the 5-pin header J10 (GND, TX0, RX0, IO0, EN, 3.3 V logic) with the BOOT (SW2) and RESET (SW1)
   buttons. Power it from the port, not the adapter.
-- Order the module as **ESP32-PICO-MINI-02-N8R2** (8 MB flash, 2 MB PSRAM). Its flash and PSRAM use GPIO6–11 and GPIO16 / 17
+- Order the module as **ESP32-PICO-MINI-02-N8R2** (8 MB flash, 2 MB PSRAM). The PSRAM is needed: the bridge keeps its
+  album-art buffers there (build with `BOARD_HAS_PSRAM`, as the `esp32wrover` envs do); a PSRAM-less part would leave
+  Bluetooth ~32 KB of RAM while streaming. Its flash and PSRAM use GPIO6–11 and GPIO16 / 17
   internally; none of those are used here.
 - History (in git): the 50 × 26 mm single-position version (jacks on a JST PH pigtail), the 104 × 70 mm WROOM-32E
   version, the MAX5134 version and the DevKit + MAX98357A version.

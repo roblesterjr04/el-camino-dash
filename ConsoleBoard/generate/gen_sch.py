@@ -233,7 +233,7 @@ CAN = stock('Interface_CAN_LIN', 'MCP2562-E-SN')
 NUP = stock('Power_Protection', 'NUP2105L')
 USBC = stock('Connector', 'USB_C_Receptacle_USB2.0_16P')
 ESP = stock('RF_Module', 'ESP32-S3-WROOM-1')
-LDO = stock_as('Regulator_Linear', 'AP2204K-1.5', 'ConsoleBoard:AP2112K-3.3', 'AP2112K-3.3')
+LDO = stock_as('Regulator_Linear', 'SPX2920M3-3.3_SOT223', 'ConsoleBoard:AP7361C-33E', 'AP7361C-33E')  # SOT-223: 1 IN, 2 GND (tab), 3 OUT
 USBESD = stock_as('Power_Protection', 'USBLC6-2P6', 'ConsoleBoard:USBLC6-2SC6', 'USBLC6-2SC6')
 NFET = stock_as('Transistor_FET', 'Q_NMOS_GSD', 'ConsoleBoard:2N7002', '2N7002')
 for n in ('GND', '+5V', '+3V3', 'PWR_FLAG'):
@@ -278,24 +278,26 @@ text(15, 20, 'Screen sits on standoffs above the board, soldered to J1. CAN cabl
 
 # --- OLED header
 G('oled')
-OLED_PINS = {   # the 100 x 33.5 mm 3.12" module's 2 x 8 header. UNVERIFIED order (from a forum listing): check against the module
-    '1': '+3V3',       # VCC (3.3 to 5 V)
-    '2': 'GND', '3': 'GND',
-    '4': 'OLED_RST',   # RES
-    '5': 'OLED_CS',    # CS
-    '6': 'OLED_DC',    # D/C
-    '7': 'GND',        # R/W (parallel interface only, tied low for SPI)
-    '8': 'GND',        # E/RD (same)
-    '9': 'OLED_SCK',   # D0 = SCLK
-    '10': 'OLED_MOSI', # D1 = SDIN
-    '11': None,        # D2 (left open in SPI mode)
-    '12': 'GND', '13': 'GND', '14': 'GND', '15': 'GND', '16': 'GND',   # D3..D7 tied low in SPI mode
+OLED_PINS = {   # the 100 x 33.5 mm 3.12" SSD1322 module's 2 x 8 header (odd pins in the row marked 1, even in the row marked 2),
+    # as measured on the module in hand (and working on the bench): only the seven SPI pins are used
+    '1': 'GND',
+    '2': '+3V3',       # VCC
+    '3': None,         # NC
+    '4': 'OLED_SCK',   # D0 = CLK
+    '5': 'OLED_MOSI',  # D1 = DIN
+    '6': None, '7': None, '8': None, '9': None, '10': None, '11': None,   # D2..D7: open in SPI mode (as on the bench)
+    '12': None, '13': None,   # E/RD, R/W: open (the module holds them for SPI)
+    '14': 'OLED_DC',
+    '15': 'OLED_RST',  # RES
+    '16': 'OLED_CS',
 }
-place(HDR16, 'J1', 'OLED 2x8', 'Connector_PinHeader_2.54mm:PinHeader_2x08_P2.54mm_Vertical', 60, 60,
-      dict(OLED_PINS), descr='SSD1322 256x64 OLED module (100 x 33.5 mm), 4-wire SPI: 1 VCC, 2-3 GND, 4 RES, 5 CS, 6 D/C, 7 R/W GND, '
-      '8 E/RD GND, 9 D0 SCLK, 10 D1 SDIN, 11 D2 open, 12-16 D3-D7 GND. Pin order unverified')
-text(80, 40, 'J1: the module\'s own 2 x 8 pins solder into these holes (or a header between). Pin order from a forum listing, NOT verified: check it '
-     'against the module. In SPI mode the parallel-bus pins R/W, E/RD and D3-D7 are tied low here.', 1.4)
+# KiCad numbers a 2 x 8 socket mirrored (pad 1 outside, pad 2 inside it), so module pin n meets socket pad n+1 (odd n) or n-1 (even n)
+SOCKET_NETS = {str(int(k) + (1 if int(k) % 2 else -1)): v for k, v in OLED_PINS.items()}
+place(HDR16, 'J1', 'OLED 2x8 socket', 'Connector_PinSocket_2.54mm:PinSocket_2x08_P2.54mm_Vertical', 60, 60,
+      SOCKET_NETS, descr='SSD1322 256x64 OLED module (100 x 33.5 mm), 4-wire SPI: 1 GND, 2 VCC, 4 D0 CLK, 5 D1 DIN, 14 D/C, 15 RES, '
+      '16 CS; 3 and 6-13 open. Pinout measured on the module. Socket pads are numbered mirrored: module pin 1 plugs into pad 2, pin 2 into pad 1, and so on')
+text(80, 40, 'J1: female 2 x 8 socket on the front; the module\'s own pins plug into it. Pinout measured on the module: 1 GND, 2 VCC, 4 CLK, '
+     '5 DIN, 14 D/C, 15 RES, 16 CS; the parallel-bus pins stay open, as on the working bench setup.', 1.4)
 r_('100k', 'OLED_CS', '+3V3', 20, 100, 'Keeps the panel deselected while the ESP32 boots')
 
 # --- ESP32
@@ -326,12 +328,13 @@ text(100, 195, 'Native USB: hold BOOT, tap RESET, then upload over USB-C (or use
 
 # --- power
 G('power')
-text(15, 130, 'POWER: J3 +5 V (through the cable port PTC) or USB VBUS, ORed by two Schottkys into +5V. AP2112K-3.3 makes +3V3 (ESP32, OLED, CAN VIO, LEDs).', 1.4)
+text(15, 130, 'POWER: J3 +5 V (through the cable port PTC) or USB VBUS, ORed by two Schottkys into +5V. AP7361C-33E (1 A, 0.36 V dropout, SOT-223 for the heat) makes +3V3 (ESP32, OLED, CAN VIO, LEDs). The CAN transceiver takes its 5 V straight from the cable, ahead of the diode.', 1.4)
 place(DS, 'D1', 'B5819W', FP_SOD123, 30, 150, {'1': '+5V', '2': 'VBUS'}, descr='USB VBUS to +5V (cathode at +5V)')
 place(DS, 'D2', 'B5819W', FP_SOD123, 55, 150, {'1': '+5V', '2': 'CAB_5V'}, descr='Cable 5 V to +5V (cathode at +5V)')
 c_('10u', '+5V', 'GND', 80, 150)
 c_('100n', '+5V', 'GND', 95, 150)
-place(LDO, 'U3', 'AP2112K-3.3', 'Package_TO_SOT_SMD:SOT-23-5', 40, 190, {'1': '+5V', '2': 'GND', '3': '+5V', '4': None, '5': '+3V3'})
+place(LDO, 'U3', 'AP7361C-33E', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', 40, 190, {'1': '+5V', '2': 'GND', '3': '+3V3'},
+      descr='Diodes AP7361C-33E-13, 3.3 V 1 A LDO. Give the tab (GND) copper: it carries the heat')
 c_('10u', '+5V', 'GND', 60, 200, d='LDO input')
 c_('10u', '+3V3', 'GND', 75, 200, d='LDO output')
 place('power:PWR_FLAG', '#FLG01', 'PWR_FLAG', '', 25, 85, {'1': '+5V'}, show_value=False)
@@ -353,11 +356,11 @@ c_('100n', 'VBUS', 'GND', 100, 250)
 
 # --- CAN
 G('can')
-text(15, 280, 'CAN (node 0x13): MCP2562, VDD 5 V, VIO 3.3 V, STBY low. No 120 R: the console never terminates the bus. J3 pin order is the DigiDash cable-port one.', 1.4)
-place(CAN, 'U2', 'MCP2562-E/SN', FP_SOIC, 55, 315, {'1': 'CAN_TXD', '2': 'GND', '3': '+5V', '4': 'CAN_RXD', '5': '+3V3',
+text(15, 280, 'CAN (node 0x13): MCP2562, VDD 5 V straight from the cable (CAB_5V, ahead of the OR diode, so it stays above its 4.5 V minimum), VIO 3.3 V, STBY low. No 120 R: the console never terminates the bus. J3 pin order is the DigiDash cable-port one.', 1.4)
+place(CAN, 'U2', 'MCP2562-E/SN', FP_SOIC, 55, 315, {'1': 'CAN_TXD', '2': 'GND', '3': 'CAB_5V', '4': 'CAN_RXD', '5': '+3V3',
                                                       '6': 'CANL', '7': 'CANH', '8': 'GND'})
 r_('1k', 'CAN_RXD', 'CAN_RX', 95, 305, 'Series R on the receive line, as on the DigiDash board')
-c_('100n', '+5V', 'GND', 115, 305)
+c_('100n', 'CAB_5V', 'GND', 115, 305, d='MCP2562 VDD')
 c_('100n', '+3V3', 'GND', 130, 305)
 place(NUP, 'D5', 'NUP2105L', FP_SOT23, 100, 335, {'1': 'CANH', '2': 'CANL', '3': 'GND'}, descr='CAN ESD clamp at the cable')
 place(HDR4, 'J3', 'CAN to DigiDash', FP_PH, 20, 335, {'1': 'CAB_5V', '2': 'CANH', '3': 'CANL', '4': 'GND'},
@@ -365,14 +368,13 @@ place(HDR4, 'J3', 'CAN to DigiDash', FP_PH, 20, 335, {'1': 'CAB_5V', '2': 'CANH'
 
 # --- backlight LEDs
 G('led')
-text(220, 130, 'ORANGE LEDS: two 0603 LEDs from the same +3V3 rail as the OLED, each with its own 100 R (about 13 mA), switched on the low side by Q1. '
-     'GPIO38 runs PWM (LEDC) to dim them, the way the firmware sets the OLED contrast: one brightness value drives both.', 1.4)
-r_('100', '+3V3', 'LED_A1', 240, 170)
-r_('100', '+3V3', 'LED_A2', 240, 190)
-place(LEDSYM, 'D3', 'Orange', FP_LED, 270, 170, {'1': 'LED_K', '2': 'LED_A1'}, descr='Orange 0603, Vf about 2.0 V')
-place(LEDSYM, 'D4', 'Orange', FP_LED, 270, 190, {'1': 'LED_K', '2': 'LED_A2'}, descr='Orange 0603, Vf about 2.0 V')
-place(NFET, 'Q1', '2N7002', FP_SOT23, 310, 180, {'1': 'LED_PWM', '2': 'GND', '3': 'LED_K'})
-r_('100k', 'LED_PWM', 'GND', 330, 195, 'Keeps the LEDs off while the ESP32 boots')
+text(220, 130, 'YELLOW LEDS (to match the yellow OLED): four 0603 LEDs, one on each side of each key, from the same +3V3 rail as the OLED, each with its own 100 R (about 13 mA each, 52 mA total), '
+     'switched on the low side by Q1. GPIO38 runs PWM (LEDC) to dim them, the way the firmware sets the OLED contrast: one brightness value drives all four.', 1.4)
+for k, (dref, rn) in enumerate((('D3', 'LED_A1'), ('D4', 'LED_A2'), ('D6', 'LED_A3'), ('D7', 'LED_A4'))):
+    r_('100', '+3V3', rn, 240, 160 + 15 * k)
+    place(LEDSYM, dref, 'Yellow', FP_LED, 270, 160 + 15 * k, {'1': 'LED_K', '2': rn}, descr='Yellow (about 590 nm, to match the OLED) 0603, Vf about 2.0 V')
+place(NFET, 'Q1', '2N7002', FP_SOT23, 310, 190, {'1': 'LED_PWM', '2': 'GND', '3': 'LED_K'})
+r_('100k', 'LED_PWM', 'GND', 330, 205, 'Keeps the LEDs off while the ESP32 boots')
 
 # --- keys and encoders
 G('ui')

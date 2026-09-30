@@ -6,7 +6,7 @@ lib="$here/../.."
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 
-c++ -std=c++17 -Wall -Wextra -Werror -O1 -fsanitize=address,undefined \
+c++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-const-variable -Wno-unused-private-field -O1 -fsanitize=address,undefined \
   -I "$lib/include" \
   "$lib/src/elc_can_codec.cpp" "$lib/src/elc_can.cpp" "$here/test_elc_can_codec.cpp" \
   -o "$out/test_elc_can_codec"

@@ -8,10 +8,12 @@
 #include <cluster_i2c.h>
 #include <display_setup.h>
 #include <elc_can_ids.h>
+#include <menu_can.h>
 #include <sensor_link.h>
 #include <ui_menu.h>
 
 #include "center_audio_link.h"
+#include "center_camera.h"
 #include "center_can.h"
 #include "center_gps.h"
 #include "center_ui.h"
@@ -168,6 +170,10 @@ void h_service_row(int row, char *b, size_t n, int *level) {
 
 bool h_demo() { return center_sensor_link().demo(); }
 
+// ---- the console (menu_can)
+bool m_is_interface() { return center_ui_interface_screen() == ELC_CAN_SCREEN_CENTER; }
+bool m_may_open() { return !center_camera_showing(); }
+
 UiMenuHost make_host() {
   UiMenuHost h;
   h.self_screen = kUiScreenCenter;
@@ -213,6 +219,13 @@ void center_menu_begin(Preferences *prefs) {
   elc_backlight_set_user(s_level, s_follow);
   s_host = make_host();
   ui_menu_begin(&s_host);
+  MenuCanConfig mc;
+  mc.self_screen = ELC_CAN_SCREEN_CENTER;
+  mc.send = center_can_send;
+  mc.is_interface = m_is_interface;
+  mc.may_open = m_may_open;
+  mc.before_open = center_ui_leave_fullscreen;
+  menu_can_begin(mc);
 }
 
 uint8_t center_menu_brightness() { return s_level; }
@@ -234,7 +247,10 @@ void center_menu_open_center_page(uint8_t which) {
     case 1: center_menu_open(CenterMenuPage::Wifi); break;
     case 2: center_ui_open_legacy_page(CenterLegacyPage::SensorLog); break;
     case 3: center_ui_open_legacy_page(CenterLegacyPage::GpsDiag); break;
-    case 4: center_ui_open_legacy_page(CenterLegacyPage::Phone); break;
+    case 4:  // older side screens asked for the legacy phone page: the menu's Phone page replaces it
+      center_ui_leave_fullscreen();
+      center_menu_open(CenterMenuPage::Phone);
+      break;
     default: break;
   }
 }
@@ -243,7 +259,10 @@ void center_menu_open(CenterMenuPage page) { ui_menu_open((UiMenuPage)(uint8_t)p
 
 void center_menu_close() { ui_menu_close(); }
 
-void center_menu_loop() { h_wifi_poll(); }  // a join started here or from another screen finishes (and is saved)
+void center_menu_loop() {
+  h_wifi_poll();  // a join started here or from another screen finishes (and is saved)
+  menu_can_poll(millis());
+}
 
 bool center_menu_wifi_joining() { return s_joining; }
 

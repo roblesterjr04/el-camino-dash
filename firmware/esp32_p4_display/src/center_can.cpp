@@ -6,6 +6,8 @@
 
 #include <elc_can.h>
 #include <media_can.h>
+#include <menu_can.h>
+#include <phone_can.h>
 
 #ifndef ELC_CAN_TX_PIN
 #define ELC_CAN_TX_PIN -1
@@ -30,14 +32,23 @@ static void on_frame(const ElcCanFrame &f, void *) {
     }
     return;
   }
+  if (menu_can_frame(f)) {  // the console driving the menu (applied if the center is the interface screen)
+    return;
+  }
+  if (phone_can_frame(f)) {  // audio bridge: calls, pairing, the paired list
+    return;
+  }
   media_can_frame(f);  // audio bridge: now playing, album art
 }
 
 static bool send_frame(const ElcCanFrame &f) { return s_can.running() && s_can.send(f); }
 
+bool center_can_send(const ElcCanFrame &f) { return send_frame(f); }
+
 void center_can_begin() {
   s_can.onFrame(on_frame, nullptr);
   media_can_begin(send_frame);
+  phone_can_begin(send_frame, ELC_CAN_NODE_CENTER);  // the menu's Phone page sends phone commands
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_CENTER, ElcCanNodeType::Display);
   Serial.printf("CAN: %s (TX=%d RX=%d)\n", ok ? "up" : "off", ELC_CAN_TX_PIN, ELC_CAN_RX_PIN);
 }
@@ -103,6 +114,34 @@ void center_can_send_status(ElcCanCenterStatus st, const char *wifi_name) {
     ElcCanFrame t[ELC_CAN_TEXT_CHUNKS];
     elc_can_encode_text(ELC_CAN_ID_CENTER_TEXT, s_serial, s_name, t);
     for (const ElcCanFrame &c : t) {
+      s_can.send(c);
+    }
+  }
+}
+
+void center_can_send_time(ElcCanTime t, const char *place) {
+  if (!s_can.running()) {
+    return;
+  }
+  // Same scheme as the Wi-Fi name: the place goes out when it changes (new serial) and every 5 s.
+  static char s_place[ELC_CAN_TEXT_MAX + 1] = {0};
+  static uint8_t s_serial = 0;
+  static uint32_t s_place_ms = 0;
+  const char *p = place ? place : "";
+  const bool changed = strncmp(s_place, p, ELC_CAN_TEXT_MAX) != 0;
+  if (changed) {
+    snprintf(s_place, sizeof(s_place), "%s", p);
+    s_serial = (uint8_t)((s_serial + 1) & 0x0F);
+  }
+  t.place_serial = s_serial;
+  ElcCanFrame f;
+  elc_can_encode_time(t, f);
+  s_can.send(f);
+  if (changed || millis() - s_place_ms >= 5000u) {
+    s_place_ms = millis();
+    ElcCanFrame txt[ELC_CAN_TEXT_CHUNKS];
+    elc_can_encode_text(ELC_CAN_ID_PLACE_TEXT, s_serial, s_place, txt);
+    for (const ElcCanFrame &c : txt) {
       s_can.send(c);
     }
   }

@@ -38,9 +38,17 @@ EOF
   esac
 done
 
+# pioarduino needs Python >= 3.10; macOS's /usr/bin/python3 is 3.9, so take the newest python3.1x on PATH.
+py_boot() {
+  local v
+  for v in 3.14 3.13 3.12 3.11 3.10; do
+    command -v "python${v}" >/dev/null 2>&1 && { echo "python${v}"; return; }
+  done
+  echo python3
+}
 # Homebrew Python is PEP 668 "externally managed" — install PlatformIO inside a local venv.
 if [[ ! -x "${PY}" ]]; then
-  python3 -m venv "${VENV}"
+  "$(py_boot)" -m venv "${VENV}"
 fi
 if [[ -f requirements.txt ]]; then
   "${PIP}" install -q -r requirements.txt

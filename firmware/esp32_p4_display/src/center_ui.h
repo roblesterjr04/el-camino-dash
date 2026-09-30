@@ -15,7 +15,7 @@ void center_ui_begin(Arduino_GFX *gfx, Preferences *prefs);
 /** Sensor link owned by main.cpp (read-only access for the Service page). */
 const SensorLink &center_sensor_link();
 
-enum class CenterLegacyPage : uint8_t { Phone, SensorLog, GpsDiag };
+enum class CenterLegacyPage : uint8_t { SensorLog, GpsDiag };
 void center_ui_set_view(CenterViewMode v);    // persists + syncs the cluster bus
 void center_ui_set_theme(ClusterTheme t);     // persists + syncs the cluster bus
 
@@ -30,6 +30,12 @@ void center_ui_set_media_screen(uint8_t screen);
 bool center_ui_media_shown();
 void center_ui_show_media(bool on);
 void center_ui_open_legacy_page(CenterLegacyPage p);
+/** Leave an older full-screen page (keyboard, logs) without opening anything: the menu is about to open. */
+void center_ui_leave_fullscreen();
+/** Right screen's Classic layout (0x212 setting 11, NVS "rlayout" + settings.json): true = fuel + lamps, sent as
+ *  0x210 flag bit2; false = four gauges. */
+bool center_ui_right_layout2();
+void center_ui_set_right_layout2(bool fuel_and_lamps);
 void center_ui_open_wifi_password(const char *ssid);
 /** Bench/console: simulate a finger on the screen for hold_ms (implemented in main.cpp). */
 void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms);

@@ -3,6 +3,9 @@
 #include <esp_heap_caps.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
+#include <menu_can.h>
+#include <phone_can.h>
+#include <ui_menu.h>
 
 #include "center_audio_link.h"
 #include "center_camera.h"
@@ -159,6 +162,14 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
   if (display_role_command(line.c_str())) {  // role [left|center|right|auto]
     return;
   }
+  {
+    char reply[1024];
+    if (phone_can_command(line.c_str(), reply, sizeof(reply)) ||  // phone, phone demo …
+        menu_can_command(line.c_str(), reply, sizeof(reply))) {   // menu, menu rotate|press|back|open … (not "menu on")
+      Serial.println(reply);
+      return;
+    }
+  }
   if (line == "shot" || line == "shot legacy") {
     // Screenshot of what the panel shows (or the legacy drawing layer); tools/screenshot.py drives this.
 #if ARDUINO_USB_CDC_ON_BOOT
@@ -173,9 +184,11 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     Serial.println(line == "demo on" ? "ok: demo drive cycle on (sensor pack frames ignored)" : "ok: demo off (live sensor data)");
     return;
   }
-  if (line == "knob left" || line == "knob right" || line == "knob press") {  // bench: encoder knob
+  if (line == "knob left" || line == "knob right" || line == "knob press" || line == "knob back") {  // bench: encoder knob
     if (line == "knob press") {
       center_menu_press();
+    } else if (line == "knob back") {
+      ui_menu_back();
     } else {
       center_menu_rotate(line == "knob right" ? 1 : -1);
     }
@@ -283,7 +296,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | can | tap <x> <y> [ms] | knob left|right|press | role [left|center|right|auto] | menu on left|center|right | media on left|center|right | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | phone [demo idle|discover|incoming|active|waiting|held|pair|off] | menu [rotate <n>|press|back|open <0..6>] | can | tap <x> <y> [ms] | knob left|right|press|back | role [left|center|right|auto] | menu on left|center|right | media on left|center|right | wifi <ssid> [password] | forget | psk <wpa_password> | tz <posix>");
     Serial.println("Time: UTC from GPS RMC/ZDA; POSIX tz from coords when Wi‑Fi is up (timeapi.io), or set manually:");
     return;
   }

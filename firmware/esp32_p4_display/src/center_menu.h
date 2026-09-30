@@ -9,7 +9,7 @@
  * The menu opens on the center on a tap only when it is the interface screen; another screen can still ask
  * for a center-only page (Wi-Fi keyboard, logs, phone) over CAN.
  */
-enum class CenterMenuPage : uint8_t { Home, Wifi, Brightness, Theme, Screens, Service };
+enum class CenterMenuPage : uint8_t { Home, Wifi, Brightness, Theme, Screens, Service, Phone };
 
 void center_menu_begin(Preferences *prefs);
 void center_menu_open(CenterMenuPage page = CenterMenuPage::Home);
@@ -31,11 +31,12 @@ uint8_t center_menu_brightness();
 bool center_menu_dim_with_lights();
 void center_menu_set_brightness(uint8_t level, bool follow_lights, bool save);
 
-/** Call every loop: finishes Wi-Fi joins even with the menu closed. */
+/** Call every loop: finishes Wi-Fi joins even with the menu closed; the console's menu input and state (menu_can). */
 void center_menu_loop();
 /** Join the saved network (menu, or a request from another screen). */
 void center_menu_wifi_join_saved();
 bool center_menu_wifi_joining();
 
-/** Open a center-only page (ui_menu.h open_center_page: 1 Wi-Fi, 2 sensor log, 3 GPS data, 4 phone). */
+/** Open a center-only page (ui_menu.h open_center_page: 1 Wi-Fi, 2 sensor log, 3 GPS data). 4 (the old phone page,
+ *  from older side-screen firmware) opens the menu's Phone page here. */
 void center_menu_open_center_page(uint8_t which);

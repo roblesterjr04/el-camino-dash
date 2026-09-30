@@ -26,6 +26,9 @@ void center_camera_loop(uint32_t now_ms);
 /** The camera view is on screen (the gauges underneath can pause). */
 bool center_camera_showing();
 
+/** The reverse input is on (debounced, with the short hold after leaving reverse), whatever the camera mode. */
+bool center_camera_reverse();
+
 void center_camera_set_mode(CameraMode mode);
 
 /** One status line for the console (`cam`). */

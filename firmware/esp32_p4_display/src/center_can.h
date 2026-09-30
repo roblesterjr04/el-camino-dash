@@ -20,10 +20,15 @@ void center_can_send_sensor(const SensorPacketValues &v);
 void center_can_send_cluster(const ElcCanClusterState &st);
 /** Center status (0x213) and the Wi-Fi name (0x214), about once a second. text_serial is filled in here. */
 void center_can_send_status(ElcCanCenterStatus st, const char *wifi_name);
+/** Wall time (0x220) and the place name (0x221: on change and every 5 s). place_serial is filled in here. */
+void center_can_send_time(ElcCanTime t, const char *place);
+/** Put one frame on the bus (false when CAN is off or the queue is full). */
+bool center_can_send(const ElcCanFrame &f);
 /** Next setting request (0x212) from another screen or the console; false when none is waiting. */
 bool center_can_take_setting(ElcCanSettingRequest *out);
 
-// The audio bridge (now playing, album art) is handled by media_can (esp32_p4_ui), fed from here.
+// The audio bridge (now playing, album art; phone) is handled by media_can / phone_can (esp32_p4_ui), and the
+// console's menu input by menu_can, all fed from here.
 
 /** A heartbeat from this node within the last 3 s. */
 bool center_can_node_alive(uint8_t node);

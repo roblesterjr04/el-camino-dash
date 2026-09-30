@@ -166,6 +166,9 @@ void center_sd_settings_import(Preferences &prefs) {
   if (json_get_u8_field(j, "media", &v) && !prefs.isKey("media")) {
     prefs.putUChar("media", v);
   }
+  if (json_get_u8_field(j, "rlayout", &v) && !prefs.isKey("rlayout")) {
+    prefs.putUChar("rlayout", v);
+  }
   Serial.println("[sd] imported elcamino/settings.json → NVS");
 #else
   (void)prefs;
@@ -184,6 +187,7 @@ void center_sd_settings_sync(Preferences &prefs) {
   const uint8_t ctheme = prefs.getUChar("ctheme", 0);
   const uint8_t iface = prefs.getUChar("iface", 1);
   const uint8_t media = prefs.getUChar("media", 1);
+  const uint8_t rlayout = prefs.getUChar("rlayout", 0);
 
   String json;
   json.reserve(tz.length() + ssid.length() + psk.length() + 96);
@@ -201,6 +205,8 @@ void center_sd_settings_sync(Preferences &prefs) {
   json += (unsigned)iface;
   json += ",\"media\":";
   json += (unsigned)media;
+  json += ",\"rlayout\":";
+  json += (unsigned)rlayout;
   json += '}';
 
   File f = SD_MMC.open(kSettingsPath, "w", true);

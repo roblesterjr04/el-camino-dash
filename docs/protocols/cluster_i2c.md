@@ -3,7 +3,7 @@
 On the DigiDash board the theme and the audio bridge's now-playing data, transport and album art travel over CAN
 (`can_bus.md`). The displays accept the theme from either bus. **The audio bridge sections below are bench only:** the
 center reads `0x2A` and writes the theme to `0x3E` only when built with `CENTER_AUDIO_I2C=1` (its `*-bench` envs), and
-the bridge starts those slaves only in its `esp32dev_bench` env (or the plain arduino-cli build, which has no CAN).
+the bridge starts those slaves only in its `*_bench` envs (or the plain arduino-cli build, which has no CAN).
 
 ## Cluster bus (theme sync)
 

@@ -32,6 +32,17 @@ static const uint16_t ELC_CAN_ID_CENTER_TEXT = 0x214;      // [serial << 4 | chu
 
 // ---- requests to accessory cards ----
 static const uint16_t ELC_CAN_ID_AUDIO_ART_REQUEST = 0x211;  // slot u8, art id u8, first chunk u16, variant u8 (display -> bridge)
+static const uint16_t ELC_CAN_ID_PHONE_COMMAND = 0x215;  // slot u8, command u8, arg u8, from node u8, list serial u8 (console -> bridge)
+
+// ---- the console driving the menu on the interface screen, and that menu's state for the console's OLED ----
+static const uint16_t ELC_CAN_ID_MENU_INPUT = 0x216;       // event u8, value s8, from node u8 (console -> interface screen)
+static const uint16_t ELC_CAN_ID_MENU_STATE = 0x217;       // open u8, screen u8, page u8, opened by u8, text serial u8
+static const uint16_t ELC_CAN_ID_MENU_TEXT_MAIN = 0x218;   // [serial << 4 | chunk] + 7 bytes: the focused item or page
+static const uint16_t ELC_CAN_ID_MENU_TEXT_SUB = 0x219;    // [serial << 4 | chunk] + 7 bytes: its value or state
+
+// ---- wall time and place (center, from GPS / NTP) ----
+static const uint16_t ELC_CAN_ID_TIME = 0x220;        // UTC epoch s u32, local offset min s16, flags u8, place serial u8
+static const uint16_t ELC_CAN_ID_PLACE_TEXT = 0x221;  // [serial << 4 | chunk] + 7 bytes: street / place name
 
 // ---- accessory slots: slot n owns 0x400 + 0x40 * n .. + 0x3F ----
 static const uint16_t ELC_CAN_ID_SLOT_BASE = 0x400;
@@ -50,6 +61,9 @@ static const uint8_t ELC_CAN_AUDIO_MSG_TRANSPORT = 0x00;  // elapsed s u16, dura
 static const uint8_t ELC_CAN_AUDIO_MSG_TEXT = 0x01;       // [serial << 4 | chunk] + 7 bytes of "Artist - Title"
 static const uint8_t ELC_CAN_AUDIO_MSG_ART_INFO = 0x02;   // art id u8, size bytes u32, variant u8 (answers a request)
 static const uint8_t ELC_CAN_AUDIO_MSG_ART_DATA = 0x03;   // art id u8, variant << 14 | chunk u16, 5 bytes of image
+static const uint8_t ELC_CAN_AUDIO_MSG_PHONE_STATUS = 0x04;   // flags, call state, call s u16, signal/battery, serials, list, volume
+static const uint8_t ELC_CAN_AUDIO_MSG_PHONE_TEXT = 0x05;     // kind u8, [serial << 4 | chunk] u8, 6 bytes of text
+static const uint8_t ELC_CAN_AUDIO_MSG_PHONE_PAIRING = 0x06;  // passkey u32, pairing seconds left u8
 
 // ---- heartbeats: 0x700 + node, 1 Hz ----
 static const uint16_t ELC_CAN_ID_HEARTBEAT_BASE = 0x700;  // node type u8, fw version u16, uptime s u32, flags u8

@@ -122,17 +122,27 @@
  "D3": {
   "fp": "LED_SMD:LED_0603_1608Metric",
   "group": "led",
-  "value": "Orange"
+  "value": "Yellow"
  },
  "D4": {
   "fp": "LED_SMD:LED_0603_1608Metric",
   "group": "led",
-  "value": "Orange"
+  "value": "Yellow"
  },
  "D5": {
   "fp": "Package_TO_SOT_SMD:SOT-23",
   "group": "can",
   "value": "NUP2105L"
+ },
+ "D6": {
+  "fp": "LED_SMD:LED_0603_1608Metric",
+  "group": "led",
+  "value": "Yellow"
+ },
+ "D7": {
+  "fp": "LED_SMD:LED_0603_1608Metric",
+  "group": "led",
+  "value": "Yellow"
  },
  "H1": {
   "fp": "MountingHole:MountingHole_2.2mm_M2_Pad",
@@ -155,9 +165,9 @@
   "value": "MountingHole"
  },
  "J1": {
-  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x08_P2.54mm_Vertical",
+  "fp": "Connector_PinSocket_2.54mm:PinSocket_2x08_P2.54mm_Vertical",
   "group": "oled",
-  "value": "OLED 2x8"
+  "value": "OLED 2x8 socket"
  },
  "J2": {
   "fp": "Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal",
@@ -196,8 +206,8 @@
  },
  "R10": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "ui",
-  "value": "10k"
+  "group": "led",
+  "value": "100k"
  },
  "R11": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -230,6 +240,16 @@
   "value": "10k"
  },
  "R17": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "ui",
+  "value": "10k"
+ },
+ "R18": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "ui",
+  "value": "10k"
+ },
+ "R19": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "ui",
   "value": "10k"
@@ -267,12 +287,12 @@
  "R8": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "led",
-  "value": "100k"
+  "value": "100"
  },
  "R9": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "ui",
-  "value": "10k"
+  "group": "led",
+  "value": "100"
  },
  "SW1": {
   "fp": "Button_Switch_SMD:SW_SPST_PTS810",
@@ -305,9 +325,9 @@
   "value": "MCP2562-E/SN"
  },
  "U3": {
-  "fp": "Package_TO_SOT_SMD:SOT-23-5",
+  "fp": "Package_TO_SOT_SMD:SOT-223-3_TabPin2",
   "group": "power",
-  "value": "AP2112K-3.3"
+  "value": "AP7361C-33E"
  },
  "U4": {
   "fp": "Package_TO_SOT_SMD:SOT-23-6",

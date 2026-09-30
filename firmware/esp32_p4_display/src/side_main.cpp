@@ -14,8 +14,10 @@
 #include <gauge_console.h>
 #include <gauge_link.h>
 #include <media_can.h>
+#include <menu_can.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
+#include <phone_can.h>
 #include <sensor_link.h>
 #include <ui_menu.h>
 
@@ -80,7 +82,15 @@ static void on_cluster_i2c(uint8_t reg, uint8_t val, void *) {
 static bool can_send(const ElcCanFrame &f) { return s_can.running() && s_can.send(f); }
 static bool can_node_alive(uint8_t node) { return s_can.running() && s_can.nodeAlive(node); }
 
+static void set_classic2(bool v, const char *why);
+
 static void on_can_frame(const ElcCanFrame &f, void *) {
+  if (menu_can_frame(f)) {  // the console driving the menu (applied if this is the interface screen)
+    return;
+  }
+  if (phone_can_frame(f)) {  // audio bridge: calls, pairing, the paired list
+    return;
+  }
   cluster_peer_frame(f);  // settings, center status, audio bridge
   ElcCanClusterState st;
   if (elc_can_decode_cluster_state(f, st)) {
@@ -88,6 +98,11 @@ static void on_can_frame(const ElcCanFrame &f, void *) {
     if (t != s_theme) {
       s_theme = t;
       s_theme_dirty = true;
+    }
+    // The center owns the right screen's Classic layout (setting 11, flag bit2 = fuel + lamps).
+    const bool c2 = (st.flags & ELC_CAN_CLUSTER_RIGHT_LAYOUT2) == 0;
+    if (s_right && c2 != s_classic2) {
+      set_classic2(c2, "center");
     }
   }
 }
@@ -111,6 +126,19 @@ static void set_classic2(bool v, const char *why) {
   theme_save_classic2(v);
   Serial.printf("right: switched to classic_%d (%s)\n", v ? 2 : 1, why);
 }
+
+/** Switch the Classic layout: the center owns it (all screens and the console see it), so ask there and follow its
+ *  answer; with no center heard, switch here only. */
+static void request_classic2(bool v, const char *why) {
+  if (cluster_peer_center_heard()) {
+    cluster_peer_request(ELC_CAN_SET_RIGHT_LAYOUT, v ? 0 : 1);
+    Serial.printf("right: asked the center for classic_%d (%s)\n", v ? 2 : 1, why);
+  } else {
+    set_classic2(v, why);
+  }
+}
+
+static bool menu_is_interface() { return cluster_peer_state().interface_screen == s_role; }
 
 static void drain_uart_text() {
   char line[96];
@@ -166,14 +194,22 @@ void side_setup(uint8_t role) {
     s_theme_dirty = true;
   };
   if (s_right) {
-    s_console.on_variant = [](uint8_t v) { set_classic2(v == 0, "console"); };
+    s_console.on_variant = [](uint8_t v) { request_classic2(v == 0, "console"); };
   }
   s_console.on_can = []() {
     char st[320];
     s_can.describe(st, sizeof(st));
     Serial.println(st);
   };
-  s_console.on_line = display_role_command;
+  s_console.on_line = [](const char *line) {
+    char reply[1024];
+    if (phone_can_command(line, reply, sizeof(reply)) ||  // phone, phone demo …
+        menu_can_command(line, reply, sizeof(reply))) {   // menu, menu rotate|press|back|open …
+      Serial.println(reply);
+      return true;
+    }
+    return display_role_command(line);
+  };
   cluster_i2c_slave_begin(s_right ? CLUSTER_I2C_ADDR_TSPS : CLUSTER_I2C_ADDR_SPEEDO, on_cluster_i2c, nullptr);
 
   {
@@ -185,11 +221,17 @@ void side_setup(uint8_t role) {
     pc.link = &s_link;
     if (s_right) {
       // Not the media screen: the 3 s hold switches the Classic layout.
-      pc.on_hold = []() { set_classic2(!s_classic2, "3s hold"); };
+      pc.on_hold = []() { request_classic2(!s_classic2, "3s hold"); };
       pc.hold_enabled = []() { return s_theme == ClusterTheme::Classic; };
       pc.hold_message = "Release: switch layout";
     }
     cluster_peer_begin(pc);
+    phone_can_begin(can_send, pc.node);  // the menu's Phone page sends phone commands
+    MenuCanConfig mc;
+    mc.self_screen = role;
+    mc.send = can_send;
+    mc.is_interface = menu_is_interface;
+    menu_can_begin(mc);
   }
   s_can.onFrame(on_can_frame, nullptr);
   Serial.printf("CAN: %s (TX=%d RX=%d, node 0x%02X)\n",
@@ -215,7 +257,7 @@ void side_loop() {
     bool gpio_toggled = false;
     theme_poll_gpio_toggle(&gpio_toggled);
     if (gpio_toggled && s_theme == ClusterTheme::Classic) {
-      set_classic2(!s_classic2, "GPIO");
+      request_classic2(!s_classic2, "GPIO");
     }
   }
 
@@ -227,6 +269,7 @@ void side_loop() {
 #endif
     cluster_peer_poll(now, tx, ty, down);  // menu, media / layout hold, brightness
   }
+  menu_can_poll(now);  // the console's menu input and state (when this is the interface screen)
 
   static uint32_t s_dup_check_ms = 0;
   if (now - s_dup_check_ms >= 10000u) {
@@ -256,6 +299,7 @@ void side_loop() {
     }
     gauges_update(gd, now);
   }
+  phone_can_poll(cluster_peer_state().media_screen == s_role, now);  // call card on the media screen
   p4_screen_frame();
 
   s_link.poll();

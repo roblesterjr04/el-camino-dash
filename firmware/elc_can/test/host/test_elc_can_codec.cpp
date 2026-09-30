@@ -200,11 +200,11 @@ static void test_audio() {
 static void test_album_art() {
   std::printf("album art request, info and reassembly\n");
   ElcCanFrame f;
-  elc_can_encode_art_request(ElcCanArtRequest{0, 7, 300, ELC_CAN_ART_JPEG128}, f);
+  elc_can_encode_art_request(ElcCanArtRequest{0, 7, 300, ELC_CAN_ART_JPEG_SMALL}, f);
   CHECK(f.id == ELC_CAN_ID_AUDIO_ART_REQUEST && f.len == 5);
   ElcCanArtRequest q;
   CHECK(elc_can_decode_art_request(f, q) && q.slot == 0 && q.art_id == 7 && q.first_chunk == 300);
-  CHECK(q.variant == ELC_CAN_ART_JPEG128);
+  CHECK(q.variant == ELC_CAN_ART_JPEG_SMALL);
   f.len = 4;  // a requester from before variants: original
   CHECK(elc_can_decode_art_request(f, q) && q.variant == ELC_CAN_ART_ORIGINAL);
 
@@ -266,10 +266,10 @@ static void test_album_art() {
   static uint8_t gbuf[ELC_CAN_ART_GRAY48_BYTES], jbuf[1024];
   ElcCanArtReceiver rg, rj;
   rg.start(0, 9, ELC_CAN_ART_GRAY48, gbuf, sizeof(gbuf));
-  rj.start(0, 9, ELC_CAN_ART_JPEG128, jbuf, sizeof(jbuf));
+  rj.start(0, 9, ELC_CAN_ART_JPEG_SMALL, jbuf, sizeof(jbuf));
   ElcCanFrame ig, ij;
   elc_can_encode_art_info(0, 9, ELC_CAN_ART_GRAY48, sizeof(gray), ig);
-  elc_can_encode_art_info(0, 9, ELC_CAN_ART_JPEG128, sizeof(small_jpg), ij);
+  elc_can_encode_art_info(0, 9, ELC_CAN_ART_JPEG_SMALL, sizeof(small_jpg), ij);
   CHECK(rg.feed(ig) && !rj.feed(ig) && rj.feed(ij) && !rg.feed(ij));
   const uint16_t ng = elc_can_art_chunks(sizeof(gray)), nj = elc_can_art_chunks(sizeof(small_jpg));
   for (uint16_t i = 0; i < (ng > nj ? ng : nj); i++) {
@@ -280,7 +280,7 @@ static void test_album_art() {
       rg.feed(a);
     }
     if (i < nj) {
-      elc_can_encode_art_data(0, 9, ELC_CAN_ART_JPEG128, i, small_jpg, sizeof(small_jpg), b);
+      elc_can_encode_art_data(0, 9, ELC_CAN_ART_JPEG_SMALL, i, small_jpg, sizeof(small_jpg), b);
       CHECK(!rg.feed(b));
       rj.feed(b);
     }
@@ -290,8 +290,8 @@ static void test_album_art() {
 
   // "No such variant": size 0 is refused at once.
   ElcCanArtReceiver none;
-  none.start(0, 9, ELC_CAN_ART_JPEG128, jbuf, sizeof(jbuf));
-  elc_can_encode_art_info(0, 9, ELC_CAN_ART_JPEG128, 0, ij);
+  none.start(0, 9, ELC_CAN_ART_JPEG_SMALL, jbuf, sizeof(jbuf));
+  elc_can_encode_art_info(0, 9, ELC_CAN_ART_JPEG_SMALL, 0, ij);
   CHECK(none.feed(ij) && none.refused());
 }
 
@@ -310,12 +310,99 @@ static void test_inert_driver() {
   CHECK(!can.nodeAlive(ELC_CAN_NODE_SPEEDO));
 }
 
+static void test_phone() {
+  std::printf("phone status, text, pairing and commands\n");
+  ElcCanPhoneStatus s;
+  s.flags = ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP | ELC_CAN_PHONE_CALL_AUDIO;
+  s.call = ELC_CAN_CALL_ACTIVE;
+  s.call_s = 3725;
+  s.signal = 4;
+  s.battery = 2;
+  s.caller_serial = 9;
+  s.list_serial = 14;
+  s.paired = 3;
+  s.connected_index = 1;
+  s.call_volume = 11;
+  ElcCanFrame f;
+  elc_can_encode_phone_status(1, s, f);
+  CHECK(f.id == 0x444 && f.len == 8);
+  ElcCanPhoneStatus d;
+  uint8_t slot = 0xFF;
+  CHECK(elc_can_decode_phone_status(f, &slot, d) && slot == 1);
+  CHECK(d.flags == s.flags && d.call == s.call && d.call_s == 3725 && d.signal == 4 && d.battery == 2);
+  CHECK(d.caller_serial == 9 && d.list_serial == 14 && d.paired == 3 && d.connected_index == 1 && d.call_volume == 11);
+  ElcCanAudioTransport t;
+  CHECK(!elc_can_decode_audio_transport(f, nullptr, t));  // other messages of the slot are not transport
+
+  // Texts of different kinds share one ID; each decoder takes its own kind.
+  ElcCanFrame caller[ELC_CAN_PHONE_TEXT_CHUNKS], name[ELC_CAN_PHONE_TEXT_CHUNKS];
+  elc_can_encode_phone_text(0, ELC_CAN_PHONE_TEXT_CALLER, 3, "+1 (555) 010-4477", caller);
+  elc_can_encode_phone_text(0, ELC_CAN_PHONE_TEXT_PAIRED + 2, 14, "A phone name that is longer than 32 bytes", name);
+  ElcCanPhoneTextDecoder dc(ELC_CAN_PHONE_TEXT_CALLER), dn(ELC_CAN_PHONE_TEXT_PAIRED + 2);
+  bool done_c = false, done_n = false;
+  for (size_t i = 0; i < ELC_CAN_PHONE_TEXT_CHUNKS; i++) {
+    CHECK(caller[i].id == 0x405 && name[i].id == 0x405);
+    CHECK(!dn.feed(caller[i]));
+    CHECK(!dc.feed(name[i]));
+    done_c = dc.feed(caller[i]);
+    done_n = dn.feed(name[i]);
+  }
+  CHECK(done_c && std::strcmp(dc.text(), "+1 (555) 010-4477") == 0 && dc.serial() == 3);
+  CHECK(done_n && std::strlen(dn.text()) == ELC_CAN_PHONE_TEXT_MAX && dn.serial() == 14);
+  // A new serial restarts collection: half of the new text never mixes into the old.
+  elc_can_encode_phone_text(0, ELC_CAN_PHONE_TEXT_CALLER, 4, "Mom", caller);
+  CHECK(!dc.feed(caller[0]) && std::strcmp(dc.text(), "+1 (555) 010-4477") == 0);
+  for (size_t i = 1; i < ELC_CAN_PHONE_TEXT_CHUNKS; i++) dc.feed(caller[i]);
+  CHECK(std::strcmp(dc.text(), "Mom") == 0 && dc.serial() == 4);
+
+  uint32_t key = 0;
+  uint8_t left = 0;
+  elc_can_encode_phone_pairing(0, 123456, 97, f);
+  CHECK(f.id == 0x406 && elc_can_decode_phone_pairing(f, &slot, &key, &left) && slot == 0 && key == 123456 && left == 97);
+
+  ElcCanPhoneCommandMsg c{0, ELC_CAN_PHONE_CMD_FORGET, 2, ELC_CAN_NODE_CONSOLE, 14}, e;
+  elc_can_encode_phone_command(c, f);
+  CHECK(f.id == ELC_CAN_ID_PHONE_COMMAND && f.len == 5);
+  CHECK(elc_can_decode_phone_command(f, e) && e.command == ELC_CAN_PHONE_CMD_FORGET && e.arg == 2 &&
+        e.from_node == ELC_CAN_NODE_CONSOLE && e.list_serial == 14);
+  ElcCanArtRequest q;
+  CHECK(!elc_can_decode_art_request(f, q));
+}
+
+static void test_console_menu_and_time() {
+  std::printf("menu input / state and time\n");
+  ElcCanFrame f;
+  ElcCanMenuInput mi{ELC_CAN_MENU_ROTATE, -3, ELC_CAN_NODE_CONSOLE}, mo;
+  elc_can_encode_menu_input(mi, f);
+  CHECK(f.id == ELC_CAN_ID_MENU_INPUT && elc_can_decode_menu_input(f, mo) && mo.event == ELC_CAN_MENU_ROTATE && mo.value == -3 &&
+        mo.from_node == ELC_CAN_NODE_CONSOLE);
+  ElcCanMenuState ms, md;
+  ms.open = true;
+  ms.screen = ELC_CAN_SCREEN_RIGHT;
+  ms.page = ELC_CAN_PAGE_PHONE;
+  ms.opened_by = ELC_CAN_MENU_BY_CONSOLE;
+  ms.text_serial = 7;
+  elc_can_encode_menu_state(ms, f);
+  CHECK(elc_can_decode_menu_state(f, md) && md.open && md.screen == ELC_CAN_SCREEN_RIGHT && md.page == ELC_CAN_PAGE_PHONE &&
+        md.opened_by == ELC_CAN_MENU_BY_CONSOLE && md.text_serial == 7);
+  ElcCanTime t, u;
+  t.utc = 1790712987u;
+  t.offset_min = -300;
+  t.flags = ELC_CAN_TIME_VALID | ELC_CAN_TIME_GPS;
+  t.place_serial = 3;
+  elc_can_encode_time(t, f);
+  CHECK(f.id == ELC_CAN_ID_TIME && elc_can_decode_time(f, u) && u.utc == t.utc && u.offset_min == -300 && u.flags == t.flags &&
+        u.place_serial == 3);
+}
+
 int main() {
+  test_console_menu_and_time();
   test_sensor_round_trip();
   test_cluster_and_heartbeat();
   test_slot_ranges();
   test_audio();
   test_album_art();
+  test_phone();
   test_inert_driver();
   if (g_failures) {
     std::printf("%d failure(s)\n", g_failures);

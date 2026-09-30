@@ -41,7 +41,7 @@ void handle(GaugeConsole &c, SensorLink &link, String &line) {
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                   (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
   } else if (line == "help") {
-    Serial.println("Commands: shot | perf | demo on|off | theme 0|1|2 | variant 0|1 | can | role [left|center|right|auto]");
+    Serial.println("Commands: shot | perf | demo on|off | theme 0|1|2 | variant 0|1 | can | phone [demo incoming|active|waiting|held|pair|off] | role [left|center|right|auto]");
   } else if (line.length()) {
     Serial.println("err: unknown command (help)");
   }

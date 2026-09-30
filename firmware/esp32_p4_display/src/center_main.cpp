@@ -12,6 +12,7 @@
 #include <gauge_link.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
+#include <phone_can.h>
 #include <elc_watchdog.h>
 #include <sensor_link.h>
 
@@ -317,6 +318,8 @@ void center_loop() {
     center_ui_draw_fullscreen(gfx);
     p4_screen_legacy_dirty();
   }
+  // Call card while this is the media screen; never over the reversing camera.
+  phone_can_poll(center_ui_media_screen() == ELC_CAN_SCREEN_CENTER && !center_camera_showing(), now);
   p4_screen_note_app_us((uint32_t)(esp_timer_get_time() - draw_t0));
   p4_screen_frame();
 

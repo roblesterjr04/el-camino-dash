@@ -1,17 +1,17 @@
 /*
  * esp32_audio_bridge.ino — in-dash Bluetooth media hub (ESP32 classic BT only)
  *
- * - A2DP sink: phone / portable player streams stereo audio to the ESP32 **internal** DAC
- *   (GPIO25 / GPIO26 — classic ESP32 only) by default; optional I2S → external DAC/amp via define.
+ * - A2DP sink: phone / portable player streams stereo audio over I2S to an external DAC/amp
+ *   (BCK/WS/DOUT per I2S_PIN_*).
  * - AVRCP 1.x: title, artist, album, track #, genre, duration (typical car-infotainment metadata).
+ * - HFP hands-free: calls through the same DACs, microphone from the carrier's ADC (call_audio.*); pairing with
+ *   numeric comparison and the paired-phone list (phone.*). The console drives it over CAN (0x215); the serial
+ *   console has the same commands for the bench (`help`).
  * - I2C slave @ 0x2A for the center ESP32-P4: it reads a 48-byte snapshot (register 0x0F) with the
  *   "now playing" line + elapsed/duration/volume. Registers 0x01 / 0x05 remain for older hosts.
  *
  * HARDWARE: Bluetooth Classic (A2DP) exists on the original ESP32 only — not ESP32-S3 / C3 / S2.
  * Use a module such as ESP32-WROOM-32 and set FQBN to esp32:esp32:esp32 when building.
- *
- * External I2S: wire BCK/WS/DOUT per I2S_PIN_* and build with AUDIO_BRIDGE_USE_INTERNAL_DAC=0
- * (see firmware/esp32_classic_bt_audio/platformio.ini env esp32dev_external_i2s).
  *
  * ESP32-P4 center (Waveshare): connect this chip's I2C to the **same bus** as the round
  * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (this chip: SDA=GPIO21, SCL=GPIO22).
@@ -36,8 +36,11 @@
 #include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
 #include "art_variants.h"
+#include "call_audio.h"
 #include "cluster_theme_i2c.h"
 #include "esp_avrc_api.h"
+#include "esp_bt.h"
+#include "phone.h"
 
 #include <cstdlib>
 
@@ -101,13 +104,7 @@
 #define CLUSTER_THEME_SCL 19
 #endif
 
-// 1 (default) = built-in 8-bit DAC on GPIO25 (L) / GPIO26 (R). 0 = I2S → external DAC/amp — classic ESP32 only.
-// This flag only selects AnalogAudioStream vs I2SStream + pins; AVRCP + I2C slave metadata are identical in both builds.
-#ifndef AUDIO_BRIDGE_USE_INTERNAL_DAC
-#define AUDIO_BRIDGE_USE_INTERNAL_DAC 1
-#endif
-
-// I2S to external DAC (override per your PCB; ignored when AUDIO_BRIDGE_USE_INTERNAL_DAC=1).
+// I2S to the external DAC/amp (override per your PCB).
 // Avoid GPIO 21/22 (I2C to the center) and strapping pins (0, 2, 5, 12, 15).
 #ifndef I2S_PIN_BCK
 #define I2S_PIN_BCK 14
@@ -121,6 +118,21 @@
 #if I2S_PIN_DATA == 22 || I2S_PIN_WS == 22 || I2S_PIN_BCK == 22 || I2S_PIN_DATA == 21 || I2S_PIN_WS == 21 || \
     I2S_PIN_BCK == 21
 #error "I2S pins collide with the I2C link to the center display (GPIO 21/22)"
+#endif
+// Call audio (HFP): microphone ADC data in and its master clock (the audio carrier: PCM1808 on GPIO35, MCLK on GPIO0),
+// and the DACs' soft-mute line (carrier: GPIO4, high = play). -1 = not fitted (a DevKit with a DAC only: calls play,
+// the phone hears silence).
+#ifndef I2S_PIN_DIN
+#define I2S_PIN_DIN -1
+#endif
+#ifndef I2S_PIN_MCLK
+#define I2S_PIN_MCLK -1
+#endif
+#ifndef DAC_UNMUTE_PIN
+#define DAC_UNMUTE_PIN -1
+#endif
+#ifndef MIC_RIGHT_CHANNEL
+#define MIC_RIGHT_CHANNEL 0
 #endif
 #if AUDIO_BRIDGE_CAN && (I2S_PIN_DATA == ELC_CAN_TX_PIN || I2S_PIN_WS == ELC_CAN_TX_PIN || I2S_PIN_BCK == ELC_CAN_TX_PIN || \
                          I2S_PIN_DATA == ELC_CAN_RX_PIN || I2S_PIN_WS == ELC_CAN_RX_PIN || I2S_PIN_BCK == ELC_CAN_RX_PIN)
@@ -146,7 +158,13 @@ static constexpr size_t kSnapArtOff = 40;
 static constexpr uint8_t kRegArtChunk = 0x10;
 static constexpr uint8_t kArtMagic = 0xC7;
 static constexpr size_t kArtChunk = 120;
+#if defined(BOARD_HAS_PSRAM)
 static constexpr size_t kArtMax = 36 * 1024;
+#else
+// Without PSRAM the buffer comes out of the heap Bluetooth needs (A2DP + hands-free leave ~30 KB): larger covers
+// are skipped (s_art_overflow) rather than starving the stack.
+static constexpr size_t kArtMax = 16 * 1024;
+#endif
 enum : uint8_t { kArtNone = 0, kArtLoading = 1, kArtReady = 2 };
 static uint8_t *s_art = nullptr;          // JPEG bytes
 static volatile size_t s_art_rx = 0;      // bytes received so far / final size when ready
@@ -216,15 +234,11 @@ static void on_cluster_theme_receive(int) {
 }
 #endif
 
-#if AUDIO_BRIDGE_USE_INTERNAL_DAC
-// AnalogAudioStream drives I2S_MODE_DAC_BUILT_IN, sets DAC channel mode, and offsets PCM for the ROM DAC.
-AnalogAudioStream audio_output;
-#else
-I2SStream audio_output;
-#endif
-/* Created in setup(), not as a global: its constructor allocates through audio-tools' global
- * allocator, which lives in another file and may not be constructed yet (static init order) — the
- * global version crashed at boot with LoadProhibited in Allocator::allocate. */
+/* The I2S stream and the sink are created in setup(), not as globals: their constructors allocate
+ * through audio-tools' global allocator, which lives in another file and may not be constructed yet
+ * (static init order) — as globals they crashed at boot with LoadProhibited in Allocator::allocate. */
+static I2SStream *audio_output = nullptr;
+static CallGateStream *a2dp_output = nullptr;  // A2DP's way to audio_output, closed while a call owns I2S0
 static BluetoothA2DPSink *a2dp_sink = nullptr;
 
 /** Cover art data arrives in pieces on the BT task; copy it out before the callback returns. */
@@ -252,12 +266,25 @@ static void on_cover_art_data(const esp_avrc_ct_cb_param_t *p) {
   }
 }
 
-/** The library's sink plus AVRCP cover art (it does not handle the cover-art events itself). */
+/** The library's sink plus AVRCP cover art (it does not handle the cover-art events itself), and the hooks the phone
+ *  code needs: pairing events and which phone the media link is with. */
 class CoverArtSink : public BluetoothA2DPSink {
  public:
   explicit CoverArtSink(audio_tools::AudioStream &out) : BluetoothA2DPSink(out) {}
 
  protected:
+  void app_gap_callback(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) override {
+    BluetoothA2DPSink::app_gap_callback(event, param);
+    phone_gap_event(event, param);
+  }
+
+  void app_a2d_callback(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) override {
+    if (event == ESP_A2D_CONNECTION_STATE_EVT) {
+      phone_a2dp_connection(param->conn_stat.state, param->conn_stat.remote_bda);
+    }
+    BluetoothA2DPSink::app_a2d_callback(event, param);
+  }
+
   void app_rc_ct_callback(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) override {
     switch (event) {
       case ESP_AVRC_CT_REMOTE_FEATURES_EVT:
@@ -623,7 +650,46 @@ static void preload_reply(uint8_t reg) {
 /** Replies are preloaded in onReceive(); see preload_reply(). */
 void onRequest() {}
 
+/** A phone command from CAN or the serial console. Media transport and volume are the sink's; the rest is phone.cpp. */
+static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, bool check_serial) {
+  if (cmd == kPhoneCmdMedia) {
+    if (!a2dp_sink || !a2dp_sink->is_connected()) return false;
+    if (arg == 1) a2dp_sink->next();
+    else if (arg == 2) a2dp_sink->previous();
+    else if (a2dp_sink->get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED) a2dp_sink->pause();
+    else a2dp_sink->play();
+    return true;
+  }
+  if (cmd == kPhoneCmdMediaVolume) {
+    if (!a2dp_sink) return false;
+    const uint8_t v = arg > 15 ? 15 : arg;
+    a2dp_sink->set_volume((uint8_t)((v * 127 + 7) / 15));  // AVRCP absolute volume: the phone's slider follows
+    portENTER_CRITICAL(&s_track_mux);
+    s_vol_0_15 = v;
+    rebuild_snapshot_unlocked();
+    portEXIT_CRITICAL(&s_track_mux);
+    return true;
+  }
+  return phone_command(cmd, arg, list_serial, check_serial);
+}
+
 #if AUDIO_BRIDGE_CAN
+// phone.h mirrors the CAN numbering so it builds without the CAN library; keep them in step.
+static_assert(kPhoneConnected == (int)ELC_CAN_PHONE_CONNECTED && kPhoneHfp == (int)ELC_CAN_PHONE_HFP &&
+                  kPhoneCallAudio == (int)ELC_CAN_PHONE_CALL_AUDIO && kPhoneMicMuted == (int)ELC_CAN_PHONE_MIC_MUTED &&
+                  kPhonePairing == (int)ELC_CAN_PHONE_PAIRING && kPhoneConfirm == (int)ELC_CAN_PHONE_CONFIRM &&
+                  kPhoneInbandRing == (int)ELC_CAN_PHONE_INBAND_RING && kPhoneVoice == (int)ELC_CAN_PHONE_VOICE,
+              "phone flags");
+static_assert(kCallIncoming == (int)ELC_CAN_CALL_INCOMING && kCallDialing == (int)ELC_CAN_CALL_DIALING &&
+                  kCallAlerting == (int)ELC_CAN_CALL_ALERTING && kCallActive == (int)ELC_CAN_CALL_ACTIVE &&
+                  kCallWaiting == (int)ELC_CAN_CALL_WAITING && kCallHeld == (int)ELC_CAN_CALL_HELD,
+              "call states");
+static_assert(kPhoneCmdAnswer == (int)ELC_CAN_PHONE_CMD_ANSWER && kPhoneCmdEnd == (int)ELC_CAN_PHONE_CMD_END &&
+                  kPhoneCmdConfirm == (int)ELC_CAN_PHONE_CMD_CONFIRM && kPhoneCmdForget == (int)ELC_CAN_PHONE_CMD_FORGET &&
+                  kPhoneCmdAudioRoute == (int)ELC_CAN_PHONE_CMD_AUDIO_ROUTE && kPhoneCmdMediaVolume == (int)ELC_CAN_PHONE_CMD_MEDIA_VOLUME,
+              "phone commands");
+static_assert(kPhoneMaxPaired == (int)ELC_CAN_PHONE_MAX_PAIRED && kPhoneTextMax == (int)ELC_CAN_PHONE_TEXT_MAX, "phone sizes");
+
 static ElcCan s_can;
 static uint8_t s_can_slot = 0;
 static uint8_t s_can_text_serial = 0;
@@ -631,13 +697,13 @@ static char s_can_text_sent[kMaxTrackLen + 1];
 static uint32_t s_can_text_ms = 0;
 
 /* Album art over CAN: a display asks for an art id and variant from a chunk on (ART_REQUEST); the bridge answers
- * with ART_INFO and then streams ART_DATA to the end. Variants: the phone's original JPEG, a 128x128 JPEG (the
+ * with ART_INFO and then streams ART_DATA to the end. Variants: the phone's original JPEG, a small (kArtSmallSide²) JPEG (the
  * center shows it first, then steps up to the original) and a 48x48 4-bit grey image (console OLED); the small
  * ones are made once per cover, and the cover is announced only after that. Art frames lose arbitration to the
  * sensor and cluster frames, but they outrank heartbeats and the other slots (knob events from a console card),
  * so the streams are paced to one frame per kArtFrameUs in total: about a third of the bus. Smallest first. */
 static constexpr uint32_t kArtFrameUs = 800;
-static constexpr size_t kArtSmallCap = 16 * 1024;
+static constexpr size_t kArtSmallCap = kArtSmallSide >= 128 ? 16 * 1024 : 4 * 1024;  // 128 px ~2–5 KB, 64 px ~1.5–2.5 KB
 static uint32_t s_srv_credit_us = 0;
 struct ArtStream {
   uint8_t id = 0;       // art id being streamed (0 = idle)
@@ -647,7 +713,7 @@ struct ArtStream {
 static ArtStream s_srv[3];                  // index = ElcCanArtVariant
 static uint8_t s_var_id = 0;                // art id the variants below were made from (0 = none)
 static uint8_t s_var_made = 0;              // kArtHave* bits
-static uint8_t *s_var_jpg = nullptr;        // 128x128 JPEG
+static uint8_t *s_var_jpg = nullptr;        // small JPEG
 static size_t s_var_jpg_len = 0;
 static uint8_t s_var_gray[kArtGrayBytes];
 
@@ -664,7 +730,7 @@ static const uint8_t *art_variant(uint8_t v, uint32_t *size) {
     *size = (uint32_t)s_art_rx;
     return s_art;
   }
-  if (v == ELC_CAN_ART_JPEG128 && (s_var_made & kArtHaveJpeg128)) {
+  if (v == ELC_CAN_ART_JPEG_SMALL && (s_var_made & kArtHaveJpegSmall)) {
     *size = (uint32_t)s_var_jpg_len;
     return s_var_jpg;
   }
@@ -680,18 +746,29 @@ static void art_make_small() {
   if (s_art_state != kArtReady || s_var_id == s_art_id) {
     return;
   }
-  if (!s_var_jpg) {
-    s_var_jpg = static_cast<uint8_t *>(malloc(kArtSmallCap));
+  // The small JPEG buffer stays allocated once made, so only take it when the variants can be made at all.
+  if (!s_var_jpg && (psramFound() || ESP.getFreeHeap() >= kArtSmallCap + art_variants_work_bytes() + kArtHeapReserve)) {
+    s_var_jpg = static_cast<uint8_t *>(art_alloc(kArtSmallCap));
   }
   const uint32_t t0 = millis();
   s_var_made = art_make_variants(s_art, s_art_rx, s_var_jpg, s_var_jpg ? kArtSmallCap : 0, &s_var_jpg_len, s_var_gray);
   s_var_id = s_art_id;
-  Serial.printf("cover art #%u variants: 128px JPEG %s (%u bytes), 48px grey %s, %lu ms, heap %u\n", (unsigned)s_art_id,
-                (s_var_made & kArtHaveJpeg128) ? "ok" : "none", (unsigned)s_var_jpg_len,
-                (s_var_made & kArtHaveGray48) ? "ok" : "none", (unsigned long)(millis() - t0), (unsigned)ESP.getFreeHeap());
+  Serial.printf("cover art #%u variants: %dpx JPEG %s (%u bytes), 48px grey %s, %lu ms, heap %u (needs %u + %u reserve)\n",
+                (unsigned)s_art_id, kArtSmallSide, (s_var_made & kArtHaveJpegSmall) ? "ok" : "none", (unsigned)s_var_jpg_len,
+                (s_var_made & kArtHaveGray48) ? "ok" : "none", (unsigned long)(millis() - t0), (unsigned)ESP.getFreeHeap(),
+                (unsigned)art_variants_work_bytes(), (unsigned)kArtHeapReserve);
 }
 
 static void can_on_frame(const ElcCanFrame &f, void *) {
+  ElcCanPhoneCommandMsg pc;
+  if (elc_can_decode_phone_command(f, pc)) {
+    if (pc.slot == s_can_slot) {
+      const bool ok = run_phone_command(pc.command, pc.arg, pc.list_serial, true);
+      Serial.printf("phone command %u (%u) from node 0x%02X: %s\n", (unsigned)pc.command, (unsigned)pc.arg,
+                    (unsigned)pc.from_node, ok ? "ok" : "not done");
+    }
+    return;
+  }
   ElcCanArtRequest r;
   if (!elc_can_decode_art_request(f, r) || r.slot != s_can_slot || r.art_id == 0 || r.variant > ELC_CAN_ART_GRAY48) {
     return;  // theme etc.: nothing on this board uses it (heartbeats are tracked by ElcCan)
@@ -717,7 +794,7 @@ static void can_serve_art() {
   if (room) {
     room--;  // leave one place for transport / heartbeat
   }
-  static const uint8_t kOrder[3] = {ELC_CAN_ART_GRAY48, ELC_CAN_ART_JPEG128, ELC_CAN_ART_ORIGINAL};
+  static const uint8_t kOrder[3] = {ELC_CAN_ART_GRAY48, ELC_CAN_ART_JPEG_SMALL, ELC_CAN_ART_ORIGINAL};
   for (uint8_t v : kOrder) {
     ArtStream &st = s_srv[v];
     if (!st.id) continue;
@@ -796,17 +873,153 @@ static void can_publish() {
     }
   }
 }
+
+/** One phone text, only when the TX queue has room for all of it (it is repeated anyway). */
+static bool can_send_phone_text(uint8_t kind, uint8_t serial, const char *text) {
+  if (s_can.txFree() < ELC_CAN_PHONE_TEXT_CHUNKS + 1) return false;
+  ElcCanFrame chunks[ELC_CAN_PHONE_TEXT_CHUNKS];
+  elc_can_encode_phone_text(s_can_slot, kind, serial, text, chunks);
+  for (const ElcCanFrame &c : chunks) s_can.send(c);
+  return true;
+}
+
+/** Phone status on change and every second; texts and the pairing code on their schedules (can_bus.md, "Phone").
+ *  Runs every loop pass: a change (a call ringing) goes out within milliseconds. */
+static void can_publish_phone() {
+  static uint32_t s_sent_changes = 0, s_status_ms = 0, s_caller_ms = 0, s_conn_ms = 0, s_pairname_ms = 0,
+                  s_pairing_ms = 0, s_name_ms = 0;
+  static uint8_t s_caller_serial = 0xFF, s_list_serial = 0xFF, s_name_next = 0, s_names_due = 0;
+  const uint32_t now = millis();
+  const uint32_t changes = phone_changes();
+  const bool due = changes != s_sent_changes || now - s_status_ms >= 1000u;
+  if (!due && now - s_name_ms < 100u) return;  // nothing new: look at the slower texts ten times a second
+  PhoneState st;
+  phone_get(&st);
+  if (due) {
+    ElcCanPhoneStatus s;
+    s.flags = st.flags;
+    s.call = st.call;
+    s.call_s = st.call_s;
+    s.signal = st.signal;
+    s.battery = st.battery;
+    s.caller_serial = st.caller_serial;
+    s.list_serial = st.list_serial;
+    s.paired = st.paired;
+    s.connected_index = st.connected_index;
+    s.call_volume = st.call_volume;
+    ElcCanFrame f;
+    elc_can_encode_phone_status(s_can_slot, s, f);
+    if (s_can.send(f)) {
+      s_sent_changes = changes;
+      s_status_ms = now;
+    }
+  }
+  if ((st.flags & (kPhonePairing | kPhoneConfirm)) && now - s_pairing_ms >= 500u) {
+    ElcCanFrame f;
+    elc_can_encode_phone_pairing(s_can_slot, (st.flags & kPhoneConfirm) ? st.passkey : 0, st.pair_left, f);
+    if (s_can.send(f)) s_pairing_ms = now;
+  }
+  if (st.call != kCallIdle || st.caller_serial != s_caller_serial) {
+    if ((st.caller_serial != s_caller_serial || now - s_caller_ms >= 1000u) &&
+        can_send_phone_text(ELC_CAN_PHONE_TEXT_CALLER, st.caller_serial, st.caller)) {
+      s_caller_serial = st.caller_serial;
+      s_caller_ms = now;
+    }
+  }
+  if ((st.flags & kPhoneConfirm) && now - s_pairname_ms >= 1000u &&
+      can_send_phone_text(ELC_CAN_PHONE_TEXT_PAIRING, st.pairing_serial, st.pairing_name)) {
+    s_pairname_ms = now;
+  }
+  if ((st.flags & kPhoneConnected) && now - s_conn_ms >= 2000u &&
+      can_send_phone_text(ELC_CAN_PHONE_TEXT_CONNECTED, st.connected_serial, st.connected_name)) {
+    s_conn_ms = now;
+  }
+  // Paired names: all of them right after the list changes (one per pass, as the queue allows), then one every 0.5 s.
+  if (st.list_serial != s_list_serial) {
+    s_list_serial = st.list_serial;
+    s_name_next = 0;
+    s_names_due = st.paired;
+  }
+  if (st.paired && (s_names_due || now - s_name_ms >= 500u)) {
+    if (s_name_next >= st.paired) s_name_next = 0;
+    if (can_send_phone_text((uint8_t)(ELC_CAN_PHONE_TEXT_PAIRED + s_name_next), st.list_serial, st.paired_name[s_name_next])) {
+      s_name_next++;
+      s_name_ms = now;
+      if (s_names_due) s_names_due--;
+    }
+  } else if (!st.paired) {
+    s_names_due = 0;
+    s_name_ms = now;
+  }
+}
 #endif
+
+/** Bench console: phone commands and status without the console board (`help`). */
+static void serial_poll() {
+  static char line[64];
+  static size_t n = 0;
+  while (Serial.available()) {
+    const char c = (char)Serial.read();
+    if (c == '\r') continue;
+    if (c != '\n') {
+      if (n < sizeof(line) - 1) line[n++] = c;
+      continue;
+    }
+    line[n] = '\0';
+    n = 0;
+    char word[16] = {0}, rest[16] = {0};
+    if (sscanf(line, "%15s %15s", word, rest) < 1) continue;
+    const int num = atoi(rest);
+    const bool on = strcmp(rest, "off") != 0 && strcmp(rest, "no") != 0 && strcmp(rest, "0") != 0 &&
+                    strcmp(rest, "phone") != 0;
+    bool ok = true;
+    if (!strcmp(word, "phone")) {
+      phone_print_status();
+      continue;
+    } else if (!strcmp(word, "pair")) {
+      ok = run_phone_command(kPhoneCmdPairing, rest[0] ? on : 1, 0, false);
+    } else if (!strcmp(word, "confirm")) {
+      ok = run_phone_command(kPhoneCmdConfirm, on, 0, false);
+    } else if (!strcmp(word, "answer")) {
+      ok = run_phone_command(kPhoneCmdAnswer, 0, 0, false);
+    } else if (!strcmp(word, "end")) {
+      ok = run_phone_command(kPhoneCmdEnd, 0, 0, false);
+    } else if (!strcmp(word, "mute")) {
+      ok = run_phone_command(kPhoneCmdMicMute, rest[0] ? on : 1, 0, false);
+    } else if (!strcmp(word, "vol")) {
+      ok = run_phone_command(kPhoneCmdCallVolume, (uint8_t)num, 0, false);
+    } else if (!strcmp(word, "connect")) {
+      ok = run_phone_command(kPhoneCmdConnect, (uint8_t)num, 0, false);
+    } else if (!strcmp(word, "disconnect")) {
+      ok = run_phone_command(kPhoneCmdDisconnect, 0, 0, false);
+    } else if (!strcmp(word, "forget")) {
+      ok = run_phone_command(kPhoneCmdForget, (uint8_t)num, 0, false);
+    } else if (!strcmp(word, "redial")) {
+      ok = run_phone_command(kPhoneCmdRedial, 0, 0, false);
+    } else if (!strcmp(word, "voice")) {
+      ok = run_phone_command(kPhoneCmdVoice, rest[0] ? on : 1, 0, false);
+    } else if (!strcmp(word, "waiting")) {
+      ok = run_phone_command(kPhoneCmdCallWaiting, (uint8_t)num, 0, false);
+    } else if (!strcmp(word, "route")) {
+      ok = run_phone_command(kPhoneCmdAudioRoute, strcmp(rest, "phone") != 0, 0, false);
+    } else if (!strcmp(word, "play") || !strcmp(word, "next") || !strcmp(word, "prev")) {
+      ok = run_phone_command(kPhoneCmdMedia, word[0] == 'n' ? 1 : (word[1] == 'r' ? 2 : 0), 0, false);
+    } else {
+      Serial.println("Commands: phone | pair [on|off] | confirm yes|no | answer | end | mute [on|off] | vol 0-15 |");
+      Serial.println("  connect <n> | disconnect | forget <n> | redial | voice [on|off] | waiting 0|1|2 | route car|phone |");
+      Serial.println("  play | next | prev      (<n> = the index in `phone`)");
+      continue;
+    }
+    Serial.println(ok ? "ok" : "not done (no phone, no call, or a bad index)");
+  }
+}
 
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.println(F("esp32_audio_bridge: A2DP sink + AVRCP + I2C"));
-#if AUDIO_BRIDGE_USE_INTERNAL_DAC
-  Serial.println(F("Audio: internal DAC (GPIO25 L / GPIO26 R)"));
-#else
-  Serial.println(F("Audio: I2S → external DAC"));
-#endif
+  Serial.println(F("esp32_audio_bridge: A2DP sink + AVRCP + hands-free (HFP) + CAN"));
+  Serial.printf("Audio: I2S -> external DAC (BCK=%d WS=%d DOUT=%d), mic ADC DIN=%d MCLK=%d\n", I2S_PIN_BCK, I2S_PIN_WS,
+                I2S_PIN_DATA, I2S_PIN_DIN, I2S_PIN_MCLK);
 
   memset(s_track, 0, sizeof(s_track));
   memset(s_meta_artist, 0, sizeof(s_meta_artist));
@@ -822,24 +1035,28 @@ void setup() {
   rebuild_snapshot_unlocked();
 
   {
-#if AUDIO_BRIDGE_USE_INTERNAL_DAC
-    auto cfg = audio_output.defaultConfig(TX_MODE);
-    cfg.sample_rate = 44100;
-    cfg.channels = 2;
-    cfg.bits_per_sample = 16;
-    if (!audio_output.begin(cfg)) {
-      Serial.println(F("audio_output.begin (internal DAC) failed"));
-    }
-#else
-    auto cfg = audio_output.defaultConfig(TX_MODE);
+    audio_output = new I2SStream();
+    auto cfg = audio_output->defaultConfig(TX_MODE);
     cfg.pin_bck = I2S_PIN_BCK;
     cfg.pin_ws = I2S_PIN_WS;
     cfg.pin_data = I2S_PIN_DATA;
-    if (!audio_output.begin(cfg)) {
+    if (!audio_output->begin(cfg)) {
       Serial.println(F("audio_output.begin (I2S) failed"));
     }
-#endif
+    a2dp_output = new CallGateStream(*audio_output);
+    CallAudioPins pins;
+    pins.bck = I2S_PIN_BCK;
+    pins.ws = I2S_PIN_WS;
+    pins.dout = I2S_PIN_DATA;
+    pins.din = I2S_PIN_DIN;
+    pins.mclk = I2S_PIN_MCLK;
+    pins.mic_right = MIC_RIGHT_CHANNEL != 0;
+    call_audio_begin(audio_output, pins);
   }
+#if DAC_UNMUTE_PIN >= 0
+  pinMode(DAC_UNMUTE_PIN, OUTPUT);  // the carrier's DACs stay soft-muted until the I2S clocks run
+  digitalWrite(DAC_UNMUTE_PIN, HIGH);
+#endif
 
 #if AUDIO_BRIDGE_I2C
   /* I2C slave before A2DP/BT: host may poll 0x2A as soon as wires are live; avoid missing early reads. */
@@ -853,8 +1070,8 @@ void setup() {
   Wire1.onReceive(on_cluster_theme_receive);
 #endif
 
-  s_art = static_cast<uint8_t *>(malloc(kArtMax));
-  a2dp_sink = new CoverArtSink(audio_output);
+  s_art = static_cast<uint8_t *>(art_alloc(kArtMax));  // PSRAM when the board has it
+  a2dp_sink = new CoverArtSink(*a2dp_output);
   a2dp_sink->set_avrc_metadata_attribute_mask(
       ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM |
       ESP_AVRC_MD_ATTR_TRACK_NUM | ESP_AVRC_MD_ATTR_NUM_TRACKS | ESP_AVRC_MD_ATTR_GENRE |
@@ -866,14 +1083,22 @@ void setup() {
   a2dp_sink->set_avrc_rn_volumechange(avrc_volume_cb);
   a2dp_sink->set_on_connection_state_changed(a2dp_connection_cb);
   a2dp_sink->set_auto_reconnect(true);
+  phone_begin(a2dp_sink);
+  /* Classic BT only: hand the BLE controller's memory back to the heap before the controller starts (the album-art
+   * variants need ~37 KB while a phone is streaming). Must run before start(); it cannot be undone. */
+  const uint32_t heap_before_ble = ESP.getFreeHeap();
+  const esp_err_t ble_rel = esp_bt_controller_mem_release(ESP_BT_MODE_BLE);
+  Serial.printf("BLE memory release: %s, +%d bytes heap\n", esp_err_to_name(ble_rel), (int)(ESP.getFreeHeap() - heap_before_ble));
   a2dp_sink->start(BT_DEVICE_NAME);
+  phone_after_start();
 #if AUDIO_BRIDGE_CAN
   can_begin();
 #endif
 
   Serial.print(F("BT name: "));
   Serial.println(BT_DEVICE_NAME);
-  Serial.printf("cover art buffer %s, heap %u bytes free\n", s_art ? "ok" : "FAILED", (unsigned)ESP.getFreeHeap());
+  Serial.printf("cover art buffer %s, heap %u bytes free, PSRAM %u KB free (%dpx art copy)\n", s_art ? "ok" : "FAILED",
+                (unsigned)ESP.getFreeHeap(), (unsigned)(ESP.getFreePsram() / 1024), kArtSmallSide);
 #if AUDIO_BRIDGE_I2C
   Serial.print(F("I2C metadata 0x"));
   Serial.println(I2C_SLAVE_ADDR, HEX);
@@ -895,7 +1120,14 @@ void loop() {
   // Drain CAN often (the bus carries ~100 sensor frames/s) and keep album art flowing; the rest runs
   // every 250 ms.
   s_can.poll();
+  can_publish_phone();
   can_serve_art();
+  static uint32_t s_phone_ms = 0;
+  if (millis() - s_phone_ms >= 50u) {
+    s_phone_ms = millis();
+    phone_loop();
+    serial_poll();
+  }
   static uint32_t s_last_tick_ms = 0;
   if (millis() - s_last_tick_ms < 250u) {
     delay(2);
@@ -925,6 +1157,8 @@ void loop() {
 #if AUDIO_BRIDGE_CAN
   can_publish();
 #else
+  phone_loop();
+  serial_poll();
   delay(250);
 #endif
 }

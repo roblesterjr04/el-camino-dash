@@ -100,6 +100,12 @@ All multi-byte fields are little-endian.
 | `0x212` | a display / console | on demand | setting request: setting u8, value u8, from node u8 (see below) |
 | `0x213` | center | 1 Hz | center status: flags u8, Wi-Fi RSSI s8, text serial u8 |
 | `0x214` | center | on change + every 5 s | Wi-Fi network name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes (connected network, else the saved one) |
+| `0x215` | console (or any node) | on demand | phone command to an audio bridge: slot u8, command u8, arg u8, from node u8, list serial u8 (see *Phone*) |
+| `0x216` | console | on input | menu input for the interface screen: event u8, value s8, from node u8 (see *Console*) |
+| `0x217` | interface screen | on change + 1 s while open | menu state: open u8, screen u8, page u8, opened by u8 (0 touch, 1 console), text serial u8 |
+| `0x218` / `0x219` | interface screen | with `0x217` | menu texts for the console: the focused item or page / its value or state, 5 frames of `[serial << 4 \| chunk]` + 7 bytes each |
+| `0x220` | center | 1 Hz | time: UTC s u32, local offset min s16, flags u8 (bit0 valid, bit1 GPS, bit2 network), place serial u8 |
+| `0x221` | center | on change + every 5 s | place (street) name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes |
 | `0x400 + 0x40·slot + msg` | accessory (slot = node − `0x10`) | accessory-specific | see below |
 | `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`; 0 today) |
 
@@ -117,7 +123,8 @@ Screens are 0 left (speedometer), 1 center, 2 right.
   it, and `0x210` flag bit1 says it is showing. Only the screen showing media fetches album art.
 - **Brightness**: every screen applies the center's level; bit0 = dims with the headlights.
 
-`0x210` flags: bit0 dims with the headlights, bit1 media showing on the media screen. Older 2-byte frames still
+`0x210` flags: bit0 dims with the headlights, bit1 media showing on the media screen, bit2 the right screen's second
+Classic layout (fuel + lamps). Older 2-byte frames still
 decode (center, center, 100 %, dims).
 
 Any node changes a setting with `0x212`; the center applies it, saves it and answers with a fresh `0x210` (even
@@ -135,9 +142,10 @@ when nothing changed, so the asker sees the outcome). Settings:
 | 8 | demo drive cycle | 0 / 1 |
 | 9 | action: join the saved Wi-Fi network | — |
 | 10 | action: open a center-only page on the center | 1 Wi-Fi scan and passwords, 2 sensor log, 3 GPS data, 4 phone |
+| 11 | right screen layout (Classic) | 0 four gauges, 1 fuel + lamps; the right screen follows `0x210` bit2 |
 
 `0x213` flags: bit0 Wi-Fi connected, bit1 GPS fix, bit2 NMEA arriving, bit3 audio bridge heard, bit4 demo on,
-bit5 a saved network exists, bit6 joining a network. The text serial names the `0x214` text that goes with it.
+bit5 a saved network exists, bit6 joining a network, bit7 in reverse (the center shows the rear camera). The text serial names the `0x214` text that goes with it.
 The side screens build their menu's Wi-Fi and Service pages from these.
 
 The center's serial console sets the screens with `menu on left|center|right` and `media on left|center|right`.
@@ -152,13 +160,16 @@ Bus load is about 5 % (five 8-byte frames every 50 ms plus heartbeats and audio)
 | `0x01` text | `0x401` | on change + every 1 s | 5 frames: `[serial << 4 \| chunk 0–4]` + 7 bytes of "Artist - Title" (32 bytes max, zero padded) |
 | `0x02` art info | `0x402` | answers `0x211` | art id u8, size bytes u32 (0 = no such variant), variant u8 (6 bytes) |
 | `0x03` art data | `0x403` | after art info | art id u8, variant << 14 \| chunk u16, up to 5 bytes of image (chunk n = bytes 5n…5n+4) |
+| `0x04` phone status | `0x404` | on change + every 1 s | flags u8, call state u8, call s u16, signal \| battery << 4, caller serial \| list serial << 4, paired count \| connected index << 4, call volume 0–15 (see *Phone*) |
+| `0x05` phone text | `0x405` | see *Phone* | kind u8, `[serial << 4 \| chunk 0–5]`, 6 bytes of text (32 bytes max, zero padded) |
+| `0x06` phone pairing | `0x406` | 2 Hz while pairing | passkey u32 (the code to compare, valid with flag bit5), pairing seconds left u8 |
 
 The text serial bumps whenever the text changes; a receiver shows a text only once all five chunks of the serial named
 in the latest transport frame have arrived.
 
 The center takes now-playing, transport and album art from CAN only. A bench build of the center
 (`CENTER_AUDIO_I2C=1`, the `*-bench` envs) also reads a bridge wired to its I2C bus (`cluster_i2c.md`) when none is
-heard on CAN; a bench build of the bridge (`esp32dev_bench`) starts its I2C slaves. The default builds have no I2C
+heard on CAN; a bench build of the bridge (`esp32wrover_bench` / `esp32dev_bench`) starts its I2C slaves. The default builds have no I2C
 audio code at all.
 
 **Album art.** The transport frame names the cover that is ready (the phone's thumbnail, a JPEG of ~5–30 KB). The
@@ -168,7 +179,7 @@ ms), so there are three variants:
 | Variant | What | Typical size | Time on the bus |
 | --- | --- | --- | --- |
 | 0 original | the phone's JPEG, as received (usually 200×200) | 8–20 KB | 1.3–3.2 s |
-| 1 128 px | 128×128 JPEG, centre-cropped | 2–5 KB | 0.3–0.8 s |
+| 1 small | 128×128 JPEG, centre-cropped (64×64 from a bridge without PSRAM) | 2–5 KB (1.5–2.5 KB) | 0.3–0.8 s (0.1–0.4 s) |
 | 2 grey 48 | 48×48, 4 bits per pixel, row-major, left pixel in the high nibble (1152 bytes) | 1.1 KB | ~0.2 s |
 
 A receiver sends `0x211` (slot, art id, first chunk 0, variant). The bridge answers with art info (size; 0 means it
@@ -180,15 +191,115 @@ single-shot, so a receiver keeps a bitmap and, once its stream has been quiet fo
 missing chunk (it gives up on that variant after 20 requests that bring nothing). Receivers accept images up to
 48 KB (`ELC_CAN_ART_MAX_BYTES`).
 
-The **media screen** (the center by default) fetches in two steps: the 128 px copy first (shown as soon as it decodes), then the original, which
-replaces it. If the 128 px copy is not available it goes straight to the original; if the original fails, the 128 px
+The **media screen** (the center by default) fetches in two steps: the small copy first (shown as soon as it decodes), then the original, which
+replaces it. If the small copy is not available it goes straight to the original; if the original fails, the small
 picture stays. The **console** asks only for the 48×48 grey image, which its OLED shows as is.
+
+### Phone
+
+The bridge is also the car's hands-free unit (HFP 1.7 hands-free role, wideband speech): call audio plays through
+its DACs and the microphone comes in through its ADC. It keeps up to 8 paired phones (most recently used first) and
+connects one at a time. Calls are answered and ended on **the console** (soft keys, see *Console* below);
+pairing and the paired list are on the round-screen menu's **Phone** page. Codecs: `elc_can_codec.h`, `ElcCanPhone*`.
+
+**Phone status (`0x04`).** Flags byte:
+
+| Bit | Meaning |
+| --- | --- |
+| 0 | a phone is connected (any profile) |
+| 1 | hands-free link up (calls possible) |
+| 2 | call audio in the car (SCO link up) |
+| 3 | microphone muted |
+| 4 | pairing window open (discoverable) |
+| 5 | a phone waits for its code to be confirmed (the code is in `0x06`, its name in text kind 2) |
+| 6 | the phone plays its own ringtone through the car (in-band ring) |
+| 7 | voice assistant active |
+
+Call state: 0 idle, 1 incoming (ringing), 2 dialing, 3 alerting (the other end rings), 4 active, 5 active with a
+second call ringing (call waiting), 6 a call on hold. Call seconds count from the answer. Signal and battery are
+0–5 as the phone reports them, 15 = unknown. The connected index is the connected phone's place in the paired list
+(15 = none). Call volume is the speaker gain, 0–15.
+
+**Phone text (`0x05`).** One ID carries several texts, told apart by the kind byte; each is 6 frames of 6 bytes.
+A receiver keeps one decoder per kind it shows (`ElcCanPhoneTextDecoder`).
+
+| Kind | Text | Serial | Sent |
+| --- | --- | --- | --- |
+| 0 | the call the state is about, as the phone gives its number (no phone book on the bridge): in call waiting (5) the new, ringing call; on hold (6) the active call if there is one, else the held one | the caller serial in `0x04` | on change and every 1 s while a call exists |
+| 1 | the connected phone's name | own | every 2 s while connected |
+| 2 | the phone asking to pair | own | every 1 s while bit5 is set |
+| `0x10` + i | paired phone i (i < 8) | the list serial in `0x04` | all of them when the list changes, then one every 0.5 s in turn |
+
+A receiver shows the caller only when the decoded serial matches the caller serial of the latest status, and a
+paired name only when its serial matches the list serial (so a name from before a *Forget* is never shown).
+
+**Phone pairing (`0x06`).** Sent twice a second while the window is open or a code waits. Phones pair with
+**numeric comparison**: the phone shows a six-digit code, the console and the displays show the same code, and the
+user confirms on the menu's Phone page (interface screen, by touch or with the console's knob). The window opens on command for 2 minutes, and with no time limit (seconds left = 255)
+while nothing is paired: from boot, or after the last phone is forgotten. It closes when a phone pairs, on command
+(Stop), or when the time runs out. A phone that is not paired cannot pair outside the window; a paired phone can.
+
+**Phone command (`0x215`).** Any node can send it: the console for calls and media, the interface screen's Phone page for pairing and the paired list. Slot = the bridge's slot (node − `0x10`),
+from node = the sender. Commands that name a paired index carry the list serial they were read with, and the bridge
+ignores them if the list changed since. The bridge answers every command with a fresh `0x04`.
+
+| # | Command | Arg |
+| --- | --- | --- |
+| 1 | answer | — |
+| 2 | end: decline a ringing call, hang up, or cancel dialing | — |
+| 3 | microphone mute | 1 mute, 0 unmute |
+| 4 | call volume | 0–15 |
+| 5 | pairing window | 1 open (2 min), 0 close |
+| 6 | confirm the pairing code | 1 accept, 0 reject |
+| 7 | connect a paired phone | index |
+| 8 | disconnect the connected phone | — |
+| 9 | forget a paired phone (unpair) | index |
+| 10 | voice assistant | 1 start, 0 stop |
+| 11 | redial the last number | — |
+| 12 | call waiting | 0 decline the waiting call, 1 end the active call and answer, 2 hold the active call and answer (or swap) |
+| 13 | call audio | 1 in the car, 0 on the phone |
+| 14 | media | 0 play / pause, 1 next track, 2 previous track |
+| 15 | media volume | 0–15 |
+
+**Displays.** The media screen (`0x210`) shows a call card over its face while a call exists or a pairing code
+waits: the caller and the state (incoming, calling, the call time, on hold, muted), or "Pair with …" and the code.
+The card names what the console's two keys do; calls are answered and ended there. Pairing and the
+paired list are on the menu's **Phone** page (interface screen).
+
+### Console
+
+The console (node `0x13`, `firmware/esp32s3_console`) is a 256×64 amber OLED in 16 grey levels with two knobs
+(**Select**, **Volume**, each turns and pushes) and two keys under the OLED (**Back** left, **View** right). Its type
+follows the cluster theme (Barlow / Saira / VT323). Design reference: the *El Camino Cluster* prototype artifact.
+
+| Input | Drive pages | OLED menu | Round-screen menu open |
+| --- | --- | --- | --- |
+| Select turn | next / previous page | move, or change the value being edited (live) | moves it (`0x216` rotate) |
+| Select push | open the OLED menu | edit / confirm / open | opens the item (`0x216` press) |
+| Back | Now Playing | cancel the edit (the old value comes back), close | back a page, then close (`0x216` back) |
+| Volume turn | media volume (call volume in a call), with a bar over whatever shows | | |
+| Volume push | play / pause · hold: next track | | |
+| View | next center view (`0x212` setting 2) | | |
+
+- **Drive pages** (dots on the right edge): *Media* (48 px grey cover, title, artist, progress, play/pause), *Trip*
+  (Trip A, average MPG, range), *Engine* (oil, coolant, fuel, charge with bars, warnings blink), *Clock* (time, date,
+  place, GPS / NTP). Trip A is kept on the console (odometer at reset, in NVS).
+- **OLED menu**: Center view, Theme, Brightness, Dim with lights, Menu on, Media on, Right layout, Trip A (reset,
+  push again to confirm), OLED contrast (console only), Wi-Fi and Service (open that page on the interface screen).
+  Settings go to the center with `0x212`.
+- **Warnings take over** until acknowledged (push or Back), then blink as a badge: no sensor data, low oil pressure,
+  engine hot, not charging, low fuel, odometer not stored. **Reverse** (`0x213` bit7) shows R and the speed.
+- **Calls take over** like a warning, and only here do the keys become soft keys, labelled at the bottom of the OLED:
+  ringing = **Decline** (Back) / **Answer** (View); call waiting = **Ignore** / **Answer** (holds the active call);
+  calling = **End**; active = **End** / **Mute**; on hold = **End** / **Swap**. Everything else about phones
+  (pairing, the paired list) is on the menu's Phone page.
+- A change made elsewhere shows as a toast (theme, view, menu on, media on). Without CAN for 1 s it shows the bowtie.
 
 ## Reserved
 
 | Range | Use |
 | --- | --- |
 | `0x000`–`0x0FF`, `0x120`–`0x13F`, `0x240`–`0x3FF` | channels of the accessory protocol ([`can_channels.md`](can_channels.md) has the full map); do not use for anything else |
-| `0x220`–`0x22F` | GPS time / position (not sent yet) |
-| `0x4C0`–`0x4FF` | console (OLED + knobs board), messages to be defined |
+| `0x222`–`0x22F` | GPS position (not sent yet) |
+| `0x4C0`–`0x4FF` | console (OLED + knobs board), unused so far |
 | `0x500`–`0x6FF` | future; planned for accessory nodes `0x14`–`0x1B` (`docs/hardware/accessory_ports.md`) |

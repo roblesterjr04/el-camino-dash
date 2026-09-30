@@ -74,7 +74,7 @@ bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
 python3 arduino/scripts/monitor_sensor_pack.py --port /dev/cu.usbmodem101
 ```
 
-BT audio bridge (classic ESP32 only): `cd firmware/esp32_classic_bt_audio && pio run -e esp32dev -t upload`.
+BT audio bridge (classic ESP32 only): `firmware/esp32_classic_bt_audio/flash.sh --upload-port /dev/cu.…` (DevKitC-VE; `ENV=esp32dev` for the older WROOM board).
 
 **The sensor pack and the three displays must be flashed together** when the wire format changes (see `docs/protocols/sensor_uart.md`).
 

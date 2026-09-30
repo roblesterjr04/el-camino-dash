@@ -1,10 +1,15 @@
 // Host renderer: draws gauge faces with the firmware's LVGL code and writes PPM images.
 //   render <out.ppm> <theme 0..2> <face 0..5> <variant> [W H] [nodata] [steps]
+//   PHONE="<mode>" adds the call card (`phone demo <mode>`, e.g. "active muted"), 4 min 32 s into the call.
+//   MENU="<page>[:<keys>]" opens the menu on that page (0 home … 6 phone) over the face, then feeds knob keys
+//   (comma separated: r<n> rotate, p press, b back); with PHONE the phone demo runs underneath.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <lvgl.h>
 #include <elc_gauges.h>
+#include <phone_can.h>
+#include <ui_menu.h>
 
 void host_set_ms(uint32_t ms);
 static uint16_t *g_fb;
@@ -111,6 +116,53 @@ int main(int argc, char **argv) {
     ms += 16; host_set_ms(ms); g_flushed = 0; gauges_update(d, ms); lv_refr_now(nullptr);
     fprintf(stderr, "one step later: %ld px redrawn (%.1f%% of screen)\n", g_flushed, 100.0 * g_flushed / (W * H));
     for (int k = 0; k < 60; k++) { ms += 16; host_set_ms(ms); gauges_update(d, ms); lv_refr_now(nullptr); }
+  }
+  if (const char *mn = getenv("MENU")) {
+    static uint8_t s_th;
+    s_th = (uint8_t)atoi(argv[2]);
+    static UiMenuHost host;
+    host.theme = []() { return s_th; };
+    ui_menu_begin(&host);
+    if (const char *ph = getenv("PHONE")) {
+      char cmd[64], reply[1024];
+      snprintf(cmd, sizeof(cmd), "phone demo %s", ph);
+      phone_can_command(cmd, reply, sizeof(reply));
+    }
+    auto run = [&](int frames) {
+      for (int k = 0; k < frames; k++) {
+        ms += 16;
+        host_set_ms(ms);
+        phone_can_poll(true, ms);
+        lv_timer_handler();
+      }
+    };
+    ms += 25000;  // 25 s into the demo (the pairing countdown shows 1:35)
+    host_set_ms(ms);
+    run(5);
+    ui_menu_open((UiMenuPage)atoi(mn));
+    run(40);
+    for (const char *k = strchr(mn, ':'); k && *k; k = strchr(k, ',')) {
+      k++;
+      if (*k == 'r') ui_menu_rotate(atoi(k + 1));
+      if (*k == 'p') ui_menu_press();
+      if (*k == 'b') ui_menu_back();
+      run(40);
+    }
+    lv_refr_now(nullptr);
+    char m[64], sb[64];
+    ui_menu_describe(m, sizeof(m), sb, sizeof(sb));
+    fprintf(stderr, "menu: \"%s\" / \"%s\"\n", m, sb);
+  } else if (const char *ph = getenv("PHONE")) {
+    char cmd[64], reply[1024];
+    snprintf(cmd, sizeof(cmd), "phone demo %s", ph);
+    phone_can_command(cmd, reply, sizeof(reply));
+    ms += 272000;
+    host_set_ms(ms);
+    phone_can_poll(true, ms);
+    g_flushed = 0;
+    lv_refr_now(nullptr);
+    phone_can_describe(reply, sizeof(reply));
+    fprintf(stderr, "%s\n", reply);
   }
   FILE *f = fopen(argv[1], "wb");
   fprintf(f, "P6\n%d %d\n255\n", W, H);
