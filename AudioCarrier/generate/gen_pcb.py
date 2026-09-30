@@ -34,7 +34,10 @@ PCB = os.path.join(ROOT, 'AudioCarrier.kicad_pcb')
 PRO = os.path.join(ROOT, 'AudioCarrier.kicad_pro')
 mm = FromMM
 
-W, H = 50.0, 26.0          # the header-position envelope
+W, H = 50.0, 52.0          # a double bay: positions A (top half) and B (bottom half)
+RCA_Y = 27.2               # the RCA block's centre on the right edge
+JACK_Y = 46.6              # the 3.5 mm jack's centre on the right edge, below the block
+POCKET = (14.25, 37.81, 35.75, 47.81)   # underside kept clear over bay position B's shrouded header
 OX, OY = 100.0, 80.0       # board origin on the sheet
 
 
@@ -76,25 +79,26 @@ def load(fpid):
 FIXED = {
     'J1': (19.92, 18.08, 90, 'F'),
     'U1': (11.2, 6.5, 90, 'F'),          # antenna end on the left edge (x 0.2 ... 5.6), clear of MP1's screw head
-    'J2': (29.8, 22.4, 0, 'F'),          # JST PH 9, vertical, along the bottom edge
+    'J2': (W, RCA_Y, 90, 'F'),           # 2 x 2 RCA block, plug side off the right edge (rotation 90: its +y is board +x)
+    'J6': (W, JACK_Y, 180, 'F'),         # 3.5 mm jack (Tinkersphere TS3328), nose off the right edge, below the RCA block
+    'H1': (4.68, 42.81, 0, 'F'),         # M3 hole at bay position B, lower left (the lower right one is under the RCA block)
     'J10': (9.9, 24.0, 90, 'F'),         # programming header along the bottom edge
     'SW1': (3.6, 23.6, 0, 'F'),
     'SW2': (12.4, 19.3, 0, 'F'),
     'U2': (24.6, 10.6, 0, 'F'),          # CAN transceiver between the module and the header
-    'U7': (35.2, 4.3, 0, 'F'),           # 3.3 V regulator
+    'U7': (28.5, 26.0, 0, 'F'),          # 3.3 V regulator, in the band the old RCA row left free
     'U5': (11.6, 6.8, 90, 'B'),          # front DAC, under the module; its analog side faces the board, not the antenna
     'U6': (23.2, 6.8, 90, 'B'),          # rear DAC, same orientation as U5
-    'U4': (34.6, 7.4, 0, 'B'),           # ADC (its ground pins need vias clear of U7's tab above)
-    'U3': (38.6, 16.4, 0, 'B'),          # mic preamp
+    'U3': (9.5, 49.0, 0, 'B'),           # mic preamp, lower left (below B's left hole)
 }
 SIDE = {'port': 'F', 'power': 'F', 'esp': 'F', 'boot': 'F', 'can': 'F', 'misc': 'F',
-        'dac_f': 'B', 'dac_r': 'B', 'adc': 'B', 'mic': 'B', 'audio_io': 'B'}
+        'dac_f': 'B', 'dac_r': 'B', 'adc': 'B', 'mic': 'B', 'rca': 'F'}
 ANCHOR = {'power': ['U7'], 'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2', 'J10'], 'can': ['U2'], 'dac_f': ['U5'],
-          'dac_r': ['U6'], 'adc': ['U4'], 'mic': ['U3'], 'audio_io': ['J2'], 'port': ['J1']}
-GROUP_ORDER = ['esp', 'dac_f', 'dac_r', 'adc', 'mic', 'can', 'power', 'boot', 'port', 'audio_io', 'misc']
+          'dac_r': ['U6'], 'adc': ['U4'], 'mic': ['U3', 'J6'], 'rca': ['J2'], 'port': ['J1']}
+GROUP_ORDER = ['esp', 'dac_f', 'dac_r', 'adc', 'mic', 'can', 'power', 'boot', 'port', 'rca', 'misc']
 POWER_NETS = {'+5V', '+3V3', '+5VA', '+3V3A'}
-KEEP_SILK = {'J1', 'J2', 'SW1', 'SW2', 'JP1', 'JP2', 'U1'}
-HOLES = [(4.68, 16.81), (45.32, 9.19)]   # MP1 / MP2 of J1: M3 screw heads on top, standoffs underneath
+KEEP_SILK = {'J1', 'J2', 'J6', 'SW1', 'SW2', 'JP1', 'JP2', 'U1'}
+HOLES = [(4.68, 16.81), (45.32, 9.19), (4.68, 42.81)]   # A (J1's MP1 / MP2) and B's lower left (H1); B's lower right is not used
 HOLE_KEEP = 3.3                          # radius kept free of parts around them
 
 GRID = 0.2
@@ -189,6 +193,7 @@ def main():
         occ['F'].circle(hx, hy, HOLE_KEEP)
         occ['B'].circle(hx, hy, HOLE_KEEP)
     occ['B'].rect(0, 0, 6.0, 13.6)       # nothing metal under the antenna
+    occ['B'].rect(*POCKET)               # the double carrier sits over position B's header
 
     def put(ref, x, y, rot, side):
         fp = fps[ref]
@@ -211,8 +216,8 @@ def main():
             for k in range(c.OutlineCount()):
                 occ[s_].rect(*bb_mm(c.Outline(k).BBox()), pad=0.15)
         if tht:
-            for pad in fp.Pads():
-                if pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH and not pad.GetNumber().startswith('MP'):
+            for pad in fp.Pads():       # plated pins and locating pegs (non-plated holes) go through both sides
+                if pad.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH) and not pad.GetNumber().startswith('MP'):
                     for s_ in ('F', 'B'):
                         occ[s_].rect(*bb_mm(pad.GetBoundingBox()), pad=0.4)
 
@@ -237,7 +242,7 @@ def main():
     def prio(r):
         g = groups.get(r, {}).get('group', 'misc')
         nn = {p.GetNetname() for p in fps[r].Pads()}
-        return (GROUP_ORDER.index(g), 0 if (nn & POWER_NETS and 'GND' in nn) else 1,
+        return (GROUP_ORDER.index(g), 0 if r.startswith('U') else 1, 0 if (nn & POWER_NETS and 'GND' in nn) else 1,
                 0 if fps[r].GetValue() == '100n' else 1, r)
 
     rest.sort(key=prio)
@@ -338,9 +343,10 @@ def main():
             t.SetMirrored(True)
         b.Add(t)
 
-    jx, jy = FIXED['J2'][0], FIXED['J2'][1]
-    for k, s in enumerate(['FL', 'FR', 'G', 'RL', 'RR', 'G', 'MIC', 'AUX', 'G']):
-        silk(s, jx + 2 * k, jy - 2.75, 0.7)
+    # the jack columns, on the back (under the block): from the plug side the left column is FL / FR
+    silk('FL FR', 46.5, RCA_Y + 7.0, 0.9, pcbnew.B_SilkS, 90)
+    silk('RL RR', 46.5, RCA_Y - 7.0, 0.9, pcbnew.B_SilkS, 90)
+    silk('MIC / AUX', 44.5, JACK_Y - 5.4, 0.8, pcbnew.B_SilkS, 90)
     tx, ty = FIXED['J10'][0], FIXED['J10'][1]
     for k, s in enumerate(['G', 'TX', 'RX', 'IO0', 'EN']):
         silk(s, tx + 2.54 * k, ty - 2.3, 0.8)
@@ -348,13 +354,13 @@ def main():
 
     # ------------------------------------------------------------------ outline, zones
     corners = [(0, 0), (W, 0), (W, H), (0, H)]
-    for k in range(4):
+    for a_, e_ in (((0, 0), (W, 0)), ((W, 0), (W, H)), ((W, H), (0, H)), ((0, H), (0, 0))):
         sh = pcbnew.PCB_SHAPE(b)
         sh.SetShape(pcbnew.SHAPE_T_SEGMENT)
         sh.SetLayer(pcbnew.Edge_Cuts)
         sh.SetWidth(mm(0.05))
-        sh.SetStart(P(*corners[k]))
-        sh.SetEnd(P(*corners[(k + 1) % 4]))
+        sh.SetStart(P(*a_))
+        sh.SetEnd(P(*e_))
         b.Add(sh)
     for lay in (pcbnew.In1_Cu, pcbnew.F_Cu, pcbnew.B_Cu, pcbnew.In2_Cu):
         z = pcbnew.ZONE(b)
@@ -909,6 +915,12 @@ def freeroute(jar):
     b = pcbnew.LoadBoard(PCB)
     rules(b)
     stitch(b)
+    # a via too close to a through-hole pin's drill is redundant (the pin reaches its plane through its own hole)
+    holes = [(p.GetPosition(), p.GetDrillSize().x) for f in b.GetFootprints() for p in f.Pads() if p.GetDrillSize().x > 0]
+    for v in [v for v in b.GetTracks() if v.GetClass() == 'PCB_VIA' and any(
+            np.hypot((v.GetPosition().x - q.x) / 1e6, (v.GetPosition().y - q.y) / 1e6) < (v.GetDrill() + d) / 2e6 + 0.26
+            for q, d in holes)]:
+        b.Delete(v)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     pcbnew.SaveBoard(PCB, b)
 

@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "DigiDash2")(type "KiCad")(uri "${KIPRJMOD}/DigiDash2.pretty")(options "")(descr "DigiDash rev 2 footprints"))
+  (lib (name "DigiDash_Accessory")(type "KiCad")(uri "${KIPRJMOD}/../DigiDash/DigiDash_Accessory.pretty")(options "")(descr "Accessory port and carrier footprints (docs/hardware/accessory_ports.md)"))
+)

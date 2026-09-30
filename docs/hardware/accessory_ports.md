@@ -1,5 +1,36 @@
 # Accessory ports and carrier boards
 
+## Rev 2 (`DigiDash2/`): bays
+
+Rev 2 of the DigiDash board (`docs/hardware/digidash_rev2_plan.md`) replaces the four scattered header positions with
+**two bays**. The header pinout, the hole pattern and the carrier footprint (`Carrier_Header_2x05`) below are
+unchanged, so every single-size carrier fits either board.
+
+| Item | Rev 2 |
+| --- | --- |
+| Bay | **52 × 52 mm** on the back, at the top left. It holds two header positions stacked vertically: **A** (upper) and **B** (lower), 26 mm apart, each a standard 2×5 position with its asymmetric M3 holes and its own 0.5 A PTCs on +5 V and +12 V (switched). Bay 1 = J18 (A) + J19 (B), bay 2 = J20 (A) + J21 (B) |
+| Single carrier | 50 × 26 mm, as before, in A or B |
+| **Double carrier** | 50 × 52 mm (a whole bay). Its female header sits at **A**. It has M3 holes at A's two positions and at B's two positions (four standoffs). On its underside it keeps a pocket over **B's shrouded header** free of parts and through-hole pins: 21.5 × 10 mm centred on B's pins (a 2×5 shrouded header is 20.3 × 8.9 mm), full height of the 11 mm stack. The audio carrier (`AudioCarrier/`) is the first double carrier |
+| Bay power | A **4-pin Micro-Fit 3.0** (vertical) beside each bay: J14 to the right of bay 1, J15 to the right of bay 2. Pins 1–2 AUX 12 V, 3–4 AUX ground, about 10 A for both bays together. It comes from the board's separate AUX 12 V input (J13, own fuse at the car's fuse box). The AUX ground meets the logic ground at one point on the board. A carrier that needs real power (an amplifier, an output node driving loads) plugs in with a short pigtail. Pin 8 of the header stays the 0.5 A switched 12 V, for logic and "key on" |
+| Cable ports | **Four**: J17, J22, J23, J24 (JST PH 4-pin, pinout below), on the top edge |
+| Trunk port | **J25**, a 4-pin Micro-Fit 3.0 on the bottom edge that extends the bus itself to the rear of the car: 1 CANH, 2 CANL (twisted pair), 3 switched 12 V (1.1 A PTC), 4 GND, with its own ESD clamp. The right-end 120 Ω is on solder jumper JP2: cut it when a trunk cable is fitted, and fit 120 Ω at the far end of that cable. A remote node makes its own 5 V from the 12 V |
+| Switched 12 V | Pin 8 of every position, the trunk port and the camera come from a P-FET switched by the ignition (rev 1 fed pin 8 from the constant battery line, despite this document calling it switched) |
+
+### Parts for a header position
+
+| Part | On | Example part number | Notes |
+| --- | --- | --- | --- |
+| 2×5 shrouded box header, 2.54 mm, THT, straight | DigiDash board (`Port_Header_2x05`, back) | Würth **61201021621** (WR-BHD) | 20.36 × 8.75 mm, 9.1 mm tall, 3 A per contact. Keyed shroud; its inner cavity (6.35 mm wide) takes the carrier's socket or a keyed IDC ribbon plug |
+| 2×5 female socket, 2.54 mm, THT, 8.5 mm insulator | carrier underside (`Carrier_Header_2x05`) | Sullins **PPTC052LFBN-RC** | 5.08 mm wide, so it drops inside the box header's shroud and seats on its floor |
+| M3 hex standoffs, female–female | between the boards, at each M3 hole | **11 mm** (check against the parts on hand) | The socket (8.5 mm) sits on the box header's floor (about 2.6–3 mm up), which gives 11–11.5 mm board to board |
+
+The footprints carry KiCad's stock STEP models (`IDC-Header_2x05_P2.54mm_Vertical`, and `PinSocket_2x05_P2.54mm_Vertical`
+turned onto the carrier's underside), so the 3D viewer shows both boards stacked correctly.
+
+The rest of this document describes rev 1 (`DigiDash/`), where the header positions sit wherever there was room.
+
+## Rev 1 (`DigiDash/`)
+
 **Status: in the DigiDash schematic and PCB, placed and autorouted (Freerouting 2.1, 45° traces, no 90° corners away from pads).** The three ESP32-DevKitC slots (U3 / U11 / U12),
 their transceivers and the amplifier sockets J14 / J15 are gone. On the board now:
 

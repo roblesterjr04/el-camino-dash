@@ -224,7 +224,17 @@ R = stock('Device', 'R')
 C = stock('Device', 'C')
 CP = stock('Device', 'C_Polarized')
 FB = stock('Device', 'FerriteBead')
-HDR1x9 = stock('Connector_Generic', 'Conn_01x09')
+MH = stock('Mechanical', 'MountingHole_Pad')
+JACK = box_symbol('AudioCarrier:TS3328', 'J', 'TS3328 3.5mm jack',
+                  [('2', 'PIN_2', 'passive'), ('3', 'PIN_3', 'passive'), ('4', 'PIN_4', 'passive'), ('5', 'PIN_5', 'passive')], [],
+                  w=12.7, footprint='AudioCarrier:Jack_3.5mm_TS3328_Horizontal',
+                  descr='Tinkersphere TS3328 3.5 mm jack (right angle, 5 flat pins). Pin 4 has two tabs. The pin functions are from the vendor drawing and NOT verified: see JACK_MAP in gen_sch.py')
+RCA4 = box_symbol('AudioCarrier:PJRAS2X2', 'J', 'PJRAS2X2S01X',
+                  [('1', 'TIP_FL_white', 'passive'), ('2', 'TIP_FR_red', 'passive'), ('3', 'TIP_RL_white', 'passive'),
+                   ('4', 'TIP_RR_red', 'passive')],
+                  [('5', 'SLEEVE_L', 'passive'), ('6', 'SLEEVE_R', 'passive'), ('7', 'PLATE_L', 'passive'), ('8', 'PLATE_R', 'passive')],
+                  w=15.24, footprint='AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle',
+                  descr='Switchcraft PJRAS2X2S01X: 2 x 2 right-angle RCA jacks, white on top, red below. Left column FL / FR, right column RL / RR (seen from the plug side)')
 HDR2x5 = stock('Connector_Generic', 'Conn_02x05_Odd_Even')
 HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
 SJ = stock('Jumper', 'SolderJumper_2_Open')
@@ -398,23 +408,31 @@ for n, (grp, ref, din, lo, ro, y, name) in enumerate([('dac_f', 'U5', 'I2S_DOUT_
     c_('2.2n', '%s_LINE' % ro, 'GND', x + 90, y + 8)
 r_('100k', 'DAC_MUTE', 'GND', 445, 60, 'Keeps both DACs muted until GPIO4 goes high')
 
-G('audio_io')
-place(HDR1x9, 'J2', 'Audio I/O', 'Connector_JST:JST_PH_B9B-PH-K_1x09_P2.00mm_Vertical', 500, 80,
-      {'1': 'FL_LINE', '2': 'FR_LINE', '3': 'GND', '4': 'RL_LINE', '5': 'RR_LINE', '6': 'GND', '7': 'MIC_TIP',
-       '8': 'RING', '9': 'GND'},
-      descr='JST PH 9-pin (B9B-PH-K). Pigtail to panel jacks: 1 FL, 2 FR, 3 GND, 4 RL, 5 RR, 6 GND (RCA sleeves), 7 mic (TRS tip), 8 aux (TRS ring), 9 GND (TRS sleeve)')
-text(515, 60, 'J2 pigtail to panel jacks: RCA FL white (1), FR red (2), RL white (4), RR red (5), sleeves on 3 / 6.\n'
-     'TRS jack: tip = mic (7), ring = aux in (8), sleeve (9).', 1.4)
+G('rca')
+place(RCA4, 'J2', 'RCA block', 'AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle', 500, 90,
+      {'1': 'FL_LINE', '2': 'FR_LINE', '3': 'RL_LINE', '4': 'RR_LINE', '5': 'GND', '6': 'GND', '7': 'GND', '8': 'GND'},
+      descr='Switchcraft PJRAS2X2S01X on the right edge: FL white / FR red (left column), RL white / RR red (right column), seen from the plug side. Front-plate tabs and sleeves to ground')
+text(520, 80, 'J2: 2 x 2 RCA block (Switchcraft PJRAS2X2S01X, right angle)\nleft column FL white / FR red, right column RL white / RR red', 1.6)
+G('port')
+place(MH, 'H1', 'MountingHole', 'MountingHole:MountingHole_3.2mm_M3_Pad', 20, 300, {'1': 'GND'},
+      descr='M3 hole at bay position B, lower left. The lower right one is not used: the RCA block stands there')
 
 # --- microphone
 G('mic')
-text(30, 340, 'MICROPHONE: 3.5 mm TRS panel jack on the J2 pigtail. Tip = electret mic (2.2k bias from filtered 3.3 V, DC-blocked), ring = second input (line / aux, no bias).\n'
+text(30, 340, 'MICROPHONE: 3.5 mm TRS jack J6. Tip = electret mic (2.2k bias from filtered 3.3 V, DC-blocked), ring = second input (line / aux, no bias).\n'
      'Mic preamp: OPA2376 non-inverting, gain 1 + 47k / 2.2k = 22 (27 dB), DC gain 1 at mid-supply (2.5 V). Ring input is a unity-gain buffer. '
      'PCM1808 full scale is 3 Vp-p (about 1 Vrms).', 1.4)
 r_('1k', '+3V3A', 'MICV', 90, 365)
 c_('10u', 'MICV', 'GND', 105, 365)
 r_('2.2k', 'MICV', 'MIC_TIP', 120, 365, 'Electret bias')
-c_('100p', 'MIC_TIP', 'GND', 135, 365, d='RF bypass, at J2')
+c_('100p', 'MIC_TIP', 'GND', 135, 365, d='RF bypass, at the jack')
+# PROVISIONAL pin functions of the TS3328 (the vendor's drawing numbers the pins 2, 3, 4, 4, 5 but does not name them).
+# Read from its wiring diagram, which looks 4-pole: sleeve = 5, then the springs from the deepest: tip = 2, ring 1 = 4,
+# ring 2 = 3. A TRS plug's sleeve touches ring 2 and the sleeve spring, so 3 and 5 are both ground. Verify with a plug and
+# a meter (continuity from the plug's tip / ring / sleeve to each pin), then edit this table and re-run.
+JACK_MAP = {'2': 'MIC_TIP', '4': 'RING', '3': 'GND', '5': 'GND'}
+place(JACK, 'J6', '3.5mm mic / aux in', 'AudioCarrier:Jack_3.5mm_TS3328_Horizontal', 60, 380, JACK_MAP,
+      descr='Tinkersphere TS3328. Tip = mic, ring = aux in, sleeve = ground. Pin functions provisional (see JACK_MAP in gen_sch.py)')
 c_('1u', 'MIC_TIP', 'MIC_IN', 150, 365)
 r_('100k', 'MIC_IN', 'VMID', 165, 365)
 r_('10k', '+5VA', 'VMID', 180, 380)
@@ -451,8 +469,8 @@ text(430, 415, 'GPIO0 outputs the 12.288 MHz clock (256 x 48 kHz) after boot. Th
 out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "A2")',
-       '  (title_block (title "DigiDash audio carrier") (date "2026-09-29") (rev "D")',
-       '    (comment 1 "ESP32-PICO-MINI-02 + 2 x PCM5102A + PCM1808 -> 4 line outputs + mic input on a JST PH pigtail")',
+       '  (title_block (title "DigiDash audio carrier") (date "2026-09-30") (rev "E")',
+       '    (comment 1 "ESP32-PICO-MINI-02 + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + 3.5 mm mic / aux input (double bay)")',
        '    (comment 2 "Carrier for a DigiDash accessory header position"))',
        '  (lib_symbols']
 for t in lib_text.values():

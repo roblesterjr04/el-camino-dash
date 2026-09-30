@@ -1,0 +1,11 @@
+#VRML V2.0 utf8
+Transform { translation 0 2.69685 5.61024 children Shape { appearance Appearance { material Material { diffuseColor 0.08 0.08 0.08 } } geometry Box { size 10.6299 5.3937 11.2205 } } }
+Transform { translation 0 -0.295276 5.61024 children Shape { appearance Appearance { material Material { diffuseColor 0.75 0.75 0.75 } } geometry Box { size 11.0236 0.590551 11.2205 } } }
+Transform { translation -2.75591 -2.20472 8.36614 children Shape { appearance Appearance { material Material { diffuseColor 0.6 0.6 0.6 } } geometry Cylinder { radius 2.06693 height 3.22835 } } }
+Transform { translation -2.75591 -2.04724 8.36614 children Shape { appearance Appearance { material Material { diffuseColor 0.9 0.9 0.9 } } geometry Cylinder { radius 1.1811 height 2.91339 } } }
+Transform { translation -2.75591 -2.20472 2.85433 children Shape { appearance Appearance { material Material { diffuseColor 0.6 0.6 0.6 } } geometry Cylinder { radius 2.06693 height 3.22835 } } }
+Transform { translation -2.75591 -2.04724 2.85433 children Shape { appearance Appearance { material Material { diffuseColor 0.75 0.05 0.05 } } geometry Cylinder { radius 1.1811 height 2.91339 } } }
+Transform { translation 2.75591 -2.20472 8.36614 children Shape { appearance Appearance { material Material { diffuseColor 0.6 0.6 0.6 } } geometry Cylinder { radius 2.06693 height 3.22835 } } }
+Transform { translation 2.75591 -2.04724 8.36614 children Shape { appearance Appearance { material Material { diffuseColor 0.9 0.9 0.9 } } geometry Cylinder { radius 1.1811 height 2.91339 } } }
+Transform { translation 2.75591 -2.20472 2.85433 children Shape { appearance Appearance { material Material { diffuseColor 0.6 0.6 0.6 } } geometry Cylinder { radius 2.06693 height 3.22835 } } }
+Transform { translation 2.75591 -2.04724 2.85433 children Shape { appearance Appearance { material Material { diffuseColor 0.75 0.05 0.05 } } geometry Cylinder { radius 1.1811 height 2.91339 } } }

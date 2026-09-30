@@ -254,6 +254,11 @@
   "group": "power",
   "value": "600R @100MHz"
  },
+ "H1": {
+  "fp": "MountingHole:MountingHole_3.2mm_M3_Pad",
+  "group": "port",
+  "value": "MountingHole"
+ },
  "J1": {
   "fp": "DigiDash_Accessory:Carrier_Header_2x05",
   "group": "port",
@@ -265,9 +270,14 @@
   "value": "Program"
  },
  "J2": {
-  "fp": "Connector_JST:JST_PH_B9B-PH-K_1x09_P2.00mm_Vertical",
-  "group": "audio_io",
-  "value": "Audio I/O"
+  "fp": "AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle",
+  "group": "rca",
+  "value": "RCA block"
+ },
+ "J6": {
+  "fp": "AudioCarrier:Jack_3.5mm_TS3328_Horizontal",
+  "group": "mic",
+  "value": "3.5mm mic / aux in"
  },
  "JP1": {
   "fp": "Jumper:SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm",
