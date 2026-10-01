@@ -78,7 +78,7 @@ Check the exact pin numbers against the STM32G0B1 datasheet's alternate-function
    NMEA as it comes.
 2. Each fix (5 Hz with UBX): send `0x222` and `0x223`.
 3. Once a second: send `0x225` as soon as the second's message arrives, then `0x224` and `0x226`.
-4. Heartbeat `0x705` at 1 Hz (node type 3, sensor node). Channel protocol (`can_channels.md`): NET ANNOUNCE as product
+4. Heartbeat `0x700 + node` at 1 Hz (node type 3, sensor node; the node comes from the slot: `0x14 + (slot − 1)`). Channel protocol (`can_channels.md`): NET ANNOUNCE as product
    `0x0005` with the slot in its flags. A SENSOR description for "GPS speed" is optional.
 5. With no fix, or no puck: still send every frame at 1 Hz with fix type 0, so receivers know the card is alive.
 
@@ -87,7 +87,8 @@ to the UART on J6 otherwise. It keeps sending the time (`0x220`, flags bit1 = GP
 
 ## CAN messages
 
-Node `0x05` (a core node: `can_channels.md` reserves `0x04`–`0x0F`). Fixed IDs, little-endian, classic 8-byte frames.
+The card's node number comes from its slot (`0x14 + (slot − 1)`, `accessory_ports.md`); the GPS frames below are fixed
+message IDs, whatever the node, so a bus has one GPS card. Little-endian, classic 8-byte frames.
 
 | ID | Rate | Payload |
 | --- | --- | --- |

@@ -10,7 +10,7 @@ It goes in **any slot**. On it:
 - **USB-C** (mid-mount, left edge) to the ESP32-S3's native USB, **BOOT** and **RESET** buttons, a **debug serial**
   header, two LEDs
 
-CAN node `0x06`. Firmware: `docs/hardware/lte_card.md`, "Firmware".
+CAN node from its slot (`0x14 + (slot − 1)`). Firmware: `docs/hardware/lte_card.md`, "Firmware".
 
 > ## Measure the core board before ordering
 >

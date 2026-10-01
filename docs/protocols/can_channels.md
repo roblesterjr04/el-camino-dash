@@ -97,8 +97,8 @@ Five bits, `0x00`–`0x1F`, as in `can_bus.md`:
 | --- | --- |
 | `0x00` | never a source. As a destination: every node |
 | `0x01`–`0x03` | center, left, right screens |
-| `0x04`–`0x0F` | core nodes: `0x04` the sensor pack, `0x05` the GPS card (`docs/hardware/gps_card.md`), `0x06` the LTE gateway (`docs/hardware/lte_card.md`) |
-| `0x10`–`0x1B` | accessories with a private range (`0x13` = console) |
+| `0x04`–`0x0F` | the dash's own nodes: `0x04` the main board's sensor pack. `0x05`–`0x0F` reserved |
+| `0x10`–`0x1B` | accessories with a private range: `0x10`–`0x12` rev 1 carriers, `0x13` the console, **`0x14`–`0x19` the slot cards by slot (`0x14` + slot − 1)**, `0x1A`–`0x1B` other cable-port devices (`docs/hardware/accessory_ports.md`, Node numbers) |
 | `0x1C`–`0x1E` | accessories without a private range (channels only) |
 | `0x1F` | a service tool (laptop on the J16 tap with a USB-CAN adapter) |
 
@@ -639,7 +639,7 @@ uploader; the uploader checks the slot's CRC (BULK READ) before uploading again.
 
 ## Examples
 
-### A transmission-temperature carrier (node `0x14`)
+### A transmission-temperature card (in slot 1: node `0x14`)
 
 An ESP32-C3 with a thermistor. It needs no code in the dash.
 
@@ -663,7 +663,7 @@ At 110 °C the center raises "Trans temp high" (caution) from node `0x01`; at 12
 
 ### A multi-frame transfer: ALERT DEFINE
 
-Node `0x14` defines its own alert 0 instead: caution, needs acknowledgement, icon temperature, default sound, text
+The card (node `0x14` in slot 1) defines its own alert 0 instead: caution, needs acknowledgement, icon temperature, default sound, text
 "Trans fluid hot". Payload (22 bytes): `01 00 02 01 01 00 00` + the text. CRC-16 of the payload = `0xC15F`. Transfer
 ID 3, on ID `0x034` (`0x020 + 0x14`):
 

@@ -11,7 +11,7 @@ sends position, motion, quality, time and status on CAN (`docs/hardware/gps_card
   supply jumper, a 0.2 A PTC, 100 Ω series resistors and a USBLC6-2SC6 ESD array
 - **J3** SWD and **J4** debug serial, both right angle on the left edge, and one status LED
 
-No radio and no RF parts. CAN node `0x05`, 5 V from the slot only.
+No radio and no RF parts. CAN node from its slot (`0x14 + (slot − 1)`), 5 V from the slot only.
 
 | Files | |
 | --- | --- |
@@ -112,7 +112,7 @@ symbol nickname not being in a library table: the derived stock symbols are flat
 ## Things to know
 
 - **Firmware is not written yet.** See `docs/hardware/gps_card.md` (auto-baud on USART2, UBX-NAV-PVT at 5 Hz or NMEA,
-  CAN `0x222`–`0x226`, heartbeat `0x705`, NET ANNOUNCE as product `0x0005`). Build with STM32duino (generic G0B1KBUx
+  CAN `0x222`–`0x226`, heartbeat `0x700 + node`, NET ANNOUNCE as product `0x0005`). Build with STM32duino (generic G0B1KBUx
   variant) or STM32Cube. FDCAN clock from the 8 MHz HSE through the PLL.
 - **Flashing:** the STM32 comes from assembly blank. Use J3 with an ST-Link (V2 clones work); power the card from the
   slot, J3 pin 1 is only the voltage sense. With blank flash the G0 starts its ROM bootloader by itself, so J4 (USART1)

@@ -11,7 +11,7 @@ the clock master of the slot's **I2S rail**, which reaches every other slot (an 
   **3.5 mm jack** (Tinkersphere TS3328) for the mic / aux input
 - a **74LVC125** that puts the I2S clocks, the mic data and MCLK on the slot's link lines, for the partner card
 
-CAN node `0x10`, 5 V from the slot only. It fits rev 2 only (the 2×5 rev 1 version is in git history).
+CAN node from its slot (`0x14 + (slot − 1)`: `0x14` in slot 1), 5 V from the slot only. It fits rev 2 only (the 2×5 rev 1 version is in git history).
 
 | Files | |
 | --- | --- |
@@ -115,8 +115,9 @@ AudioCarrier`); both BOMs were rebuilt from the schematic.
   buffer on) once I2S is running, so the rail has clocks and mic data. Hand out RET over NET RAIL
   (`docs/protocols/can_channels.md`, one holder at a time) and mix what arrives on GPIO34 into the outputs, ducking the
   music.
-- **Node straps moved:** the PICO-MINI-02 has no GPIO23, so the second strap (JP2) is on **GPIO22**. GPIO13 (JP1) is
-  unchanged. `docs/hardware/accessory_ports.md` still says GPIO13 / GPIO23 for the DevKit.
+- **Node number:** from the slot ID (GPIO36), `0x14 + (slot − 1)`. The node straps JP1 / JP2 (GPIO13, GPIO22) are left
+  over from the rev 1 carrier: the firmware ignores them when it reads a valid slot, and the next revision of the card
+  can drop them.
 - **GPIO0 is the master clock and the BOOT strap.** It must be high (or free) at reset. The PCM1808 SCKI input is 5 V
   tolerant and just sits on it; the 33 R series resistor damps the clock. Pressing BOOT still enters the loader.
 - The module comes from assembly blank: J10 is the only way to load the first firmware. In slot 1 the parts side

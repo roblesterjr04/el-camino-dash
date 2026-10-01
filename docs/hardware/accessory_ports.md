@@ -49,7 +49,7 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 | **Switched 12 V** (8) | 0.5 A PTC per slot, on with the key | "Key on", relay coils, small 12 V loads |
 | **+3.3 V** (9) | 0.1 A PTC per slot, from the board's 1 A LDO | Small cards (an ID chip, a sensor) can skip their own regulator. Not for an ESP32 with its radio on |
 | **Constant 12 V** (10) | 0.2 A PTC per slot, from the battery after the reverse-polarity FET | Key-off jobs (GPS hot start, a clock alarm, logging after shutdown). A card that uses it sleeps below about 1 mA with the key off |
-| **Slot ID** (11) | A resistor to GND per slot: 1k, 3.3k, 6.8k, 12k, 22k, 47k (slot 1 … 6) | 10k pull-up to the card's 3.3 V, read on an ADC: about 0.30, 0.82, 1.34, 1.80, 2.27, 2.72 V. The card knows its slot and can derive its CAN node number |
+| **Slot ID** (11) | A resistor to GND per slot: 1k, 3.3k, 6.8k, 12k, 22k, 47k (slot 1 … 6) | 10k pull-up to the card's 3.3 V, read on an ADC: about 0.30, 0.82, 1.34, 1.80, 2.27, 2.72 V. The card knows its slot and **takes its CAN node number from it: `0x14 + (slot − 1)`** (see [Node numbers](#node-numbers-and-can-ids)) |
 | **WAKE** (12) | Shared by all slots, 100k to GND. It lifts the 5 V buck's EN through a diode (like the sensor pack's PWR_HOLD) and goes to the ATmega2560 (pin 88, ADC9 / PCINT17) | To start the dash with the key off, drive it **high (3.3 V) through a diode**; never drive it low. The 2560 wakes, sees why, and holds the power with PWR_HOLD while it needs it |
 | **LAMP** (13) | J7 pin 6 (the dash-light feed, a rheostat voltage) through 100k / 27k, clamped: 0–3.1 V | Dim LEDs or a display with the dash lights (ADC) |
 | **REV** (14) | J9 pin 1 (reverse lamp) through 100k / 27k, clamped: high = in reverse | Parking sensors, a rear camera, a beeper |
@@ -277,23 +277,33 @@ Carriers that need more (audio amplifiers) take +12 V from their header position
 What a carrier says on the bus to use the dash's alerts, sensors, menu, input and sounds is the channel protocol:
 [`docs/protocols/can_channels.md`](../protocols/can_channels.md). The ranges below are each node's private IDs.
 
-On rev 1 a carrier's node number comes from its own firmware: each kind of accessory has a default, and a jumper or
-setting on the carrier moves it when two of the same kind are fitted. On rev 2 a card can also read its slot ID (pin 11)
-and offset its default by the slot, so two identical cards in different slots never clash. Every node heartbeats on
-`0x700 + node` once a second, so the center sees what is on the bus.
+**A slot card's node number comes from its slot, never from its firmware or a jumper:**
 
-| Node | Message range | Default for |
+> **node = `0x14` + (slot − 1)**, slot 1 … 6 → `0x14` … `0x19`, read from the slot ID pin (11) at boot.
+
+No card kind has a node number of its own (not the audio card, not GPS, not LTE), so cards never need configuring,
+two identical cards in different slots never clash, and moving a card to another slot just changes its number. Nobody
+addresses a service by node number anyway: the center and the other cards find the audio sink, the gateway, the GPS
+source and so on from each node's NET ANNOUNCE (node type, product, produces / consumes;
+[`can_channels.md`](../protocols/can_channels.md)). Every node heartbeats on `0x700 + node` once a second, so the
+center sees what is on the bus.
+
+| Node | Message range | Who |
 | --- | --- | --- |
-| `0x10` | `0x400`–`0x43F` | audio bridge |
-| `0x11` | `0x440`–`0x47F` | (free) |
-| `0x12` | `0x480`–`0x4BF` | (free) |
-| `0x13` | `0x4C0`–`0x4FF` | console |
-| `0x14`–`0x1B` | `0x400 + 0x40·(node − 0x10)`, up to `0x6FF` | further accessories |
+| `0x10`–`0x12` | `0x400`–`0x4BF` | rev 1 carriers only (the audio bridge's GPIO13 / GPIO23 straps: open = `0x10`, a jumper to GND picks `0x11` / `0x12`) |
+| `0x13` | `0x4C0`–`0x4FF` | **the console** (`ELC_CAN_NODE_CONSOLE`, on a cable port). The one fixed accessory number |
+| `0x14`–`0x19` | `0x500`–`0x67F` (`0x400 + 0x40·(node − 0x10)`) | **slot cards**, by slot (slot 1 = `0x14` … slot 6 = `0x19`) |
+| `0x1A`–`0x1B` | `0x680`–`0x6FF` | other cable-port devices (set in their own configuration) |
 
-The ranges are the same as the first revision's (slot 0 = `0x400`, console = `0x4C0`); what changed is who picks the
-number. The console is node `0x13` (`ELC_CAN_NODE_CONSOLE`; it was `0x04` before it had firmware). The audio bridge
-still reads its two straps (GPIO13 / GPIO23, pull-ups, grounded = 1): on a carrier they are simply left open (node
-`0x10`), or a jumper to GND picks `0x11` / `0x12`.
+- **Reading the slot.** A card that reads no valid slot (the pin floats near 3.3 V: on the bench, or a rev 1 carrier)
+  does not guess: it stays off the bus and logs the reason on its debug serial, unless a build flag or its debug
+  console gives it a node for the bench.
+- **Fixed message IDs are not node numbers.** A card may still send fixed, documented message IDs (the GPS card's
+  `0x222`–`0x226`); those identify the data, not the sender, so a bus has one card of that kind.
+- The screens (`0x01`–`0x03`, from their position strap) and the main board's sensor pack (`0x04`) are part of the
+  dash itself, not cards.
+
+The private ranges are the same formula as the first revision's (`0x400` for `0x10`, `0x4C0` for the console).
 
 ## Choosing the MCU for a carrier
 
