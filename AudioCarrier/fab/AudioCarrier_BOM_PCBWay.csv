@@ -1,0 +1,29 @@
+Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,Side,Your Instructions / Notes
+1,U1,1,Espressif,ESP32-PICO-MINI-02-N8R2,"ESP32-PICO-MINI-02: ESP32 module, 8 MB flash, 2 MB PSRAM, PCB antenna",LGA (custom footprint),SMD,Top,"Must be -N8R2 (the PSRAM is needed); antenna on the left edge, keep-out as placed"
+2,U2,1,Microchip,MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
+3,U3,1,Texas Instruments,OPA2376AIDGKR,"OPA2376AIDGK: Dual low-noise RRIO op-amp (mic preamp, aux buffer)",VSSOP-8,SMD,Bottom,Any RRIO dual with the standard pinout will do
+4,U4,1,Texas Instruments,PCM1808PWR,"PCM1808PW: Stereo audio ADC, 24-bit (microphone / aux in)",TSSOP-14,SMD,Bottom,
+5,U5 U6,2,Texas Instruments,PCM5102APWR,"PCM5102APW: Stereo audio DAC, 32-bit, 2.1 Vrms ground-centred out",TSSOP-20,SMD,Bottom,"U5 front pair, U6 rear pair"
+6,U7,1,Advanced Monolithic Systems,AMS1117-3.3,AMS1117-3.3: LDO 3.3 V 1 A,SOT-223,SMD,Top,
+7,J1,1,Sullins,PPTC052LFBN-RC,"DigiDash port: 2 x 5 female socket, 2.54 mm, 8.5 mm (DigiDash port, underside)",THT,THT,Bottom (body),"THT socket mounted on the UNDERSIDE: insert from the bottom, solder on the top side (it plugs down into the DigiDash board). Footprint is on the top layer only for the pads."
+8,J10,1,,"2.54 mm pin header 1 x 5, vertical","Program: Programming header (GND, TX0, RX0, IO0, EN)",THT,THT,Top,ESP-Prog / USB-serial adapter
+9,J2,1,Switchcraft,PJRAS2X2S01X,"RCA block: RCA jacks, 2 x 2, right angle (front L/R, rear L/R)",THT (custom footprint),THT,Top,Check against the part: board-edge line (plate rear face) and 28.5 mm height
+10,J6,1,Tinkersphere,TS3328,"3.5mm mic / aux in: 3.5 mm audio jack, horizontal (mic tip / aux ring)",THT (custom footprint),THT,Top,Pin functions PROVISIONAL: verify tip/ring/sleeve with a meter before ordering. May need to be customer-supplied
+11,SW1,1,C&K,PTS810 SJM 250 SMTR LFS,RESET: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
+12,SW2,1,C&K,PTS810 SJM 250 SMTR LFS,BOOT: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
+13,FB1 FB2,2,,"600 ohm @ 100 MHz ferrite bead, 0603, >= 500 mA",600R @100MHz: Ferrite bead (analog supply filters),0603,SMD,Top,
+14,C1,1,,22u 0805 ceramic X5R 10 V,22u: Capacitor 22u X5R 10 V,0805,SMD,Top,
+15,C10 C33 C37 C38 C39,5,,1u 0603 ceramic X7R 16 V,1u: Capacitor 1u X7R 16 V,0603,SMD,Bottom/Top,
+16,C13 C14 C22 C23,4,,2.2u 0603 ceramic X5R 10 V,2.2u: Capacitor 2.2u X5R 10 V,0603,SMD,Bottom,
+17,C2 C5 C7 C8 C16 C25 C31 C34 C36 C42 C44,11,,10u 0603 ceramic X5R 10 V,10u: Capacitor 10u X5R 10 V,0603,SMD,Bottom/Top,
+18,C20 C21 C29 C30,4,,2.2n 0603 ceramic C0G/X7R 50 V,2.2n: Capacitor 2.2n C0G/X7R 50 V,0603,SMD,Bottom,
+19,C3,1,KEMET,T491A226K010AT,22u tant: Tantalum 22 uF 10 V (LDO output: needs some ESR),3216-18 (EIA A case),SMD,Top,Polarised: + to +3V3
+20,C32 C35,2,,100p 0603 ceramic C0G 50 V,100p: Capacitor 100p C0G 50 V,0603,SMD,Bottom,
+21,C4 C6 C9 C11 C12 C15 C17 C18 C19 C24 C26 C27 C28 C40 C41 C43 C45,17,,100n 0603 ceramic X7R 50 V,100n: Capacitor 100n X7R 50 V,0603,SMD,Bottom/Top,
+22,R1 R2 R12 R13,4,,10k 0603 1% 1/10 W,10k: Resistor 10k 1%,0603,SMD,Bottom/Top,
+23,R10 R15,2,,2.2k 0603 1% 1/10 W,2.2k: Resistor 2.2k 1%,0603,SMD,Bottom,mic bias / preamp gain
+24,R14,1,,47k 0603 1% 1/10 W,47k: Resistor 47k 1%,0603,SMD,Bottom,preamp feedback
+25,R17,1,,33 0603 1% 1/10 W,33: Resistor 33 1%,0603,SMD,Bottom,GPIO0 master clock damping
+26,R3 R9,2,,1k 0603 1% 1/10 W,1k: Resistor 1k 1%,0603,SMD,Bottom/Top,
+27,R4 R5 R6 R7,4,,470 0603 1% 1/10 W,470: Resistor 470 1%,0603,SMD,Bottom,DAC output filter
+28,R8 R11 R16,3,,100k 0603 1% 1/10 W,100k: Resistor 100k 1%,0603,SMD,Bottom,

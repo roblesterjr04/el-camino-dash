@@ -441,7 +441,13 @@ def main():
         freeroute(route)
 
 
+def fab_origin(b):
+    """Fab outputs (Gerbers, drill, centroid) measure from the board's bottom-left corner, as assemblers expect."""
+    b.GetDesignSettings().SetAuxOrigin(VECTOR2I(mm(OX), mm(OY + H)))
+
+
 def rules(b):
+    fab_origin(b)
     """Net classes and constraints, set on the board (SaveBoard writes them to the project file)."""
     ds = b.GetDesignSettings()
     ds.m_CopperEdgeClearance = mm(0.2)
@@ -922,8 +928,8 @@ def bridge_usb_vbus(b):
     j2 = next(f for f in b.GetFootprints() if f.GetReference() == 'J2')
     vb = [p for p in j2.Pads() if 'VBUS' in p.GetNetname()]
     b.BuildConnectivity()
-    c = b.GetConnectivity()
-    if all(q in c.GetConnectedPads(vb[0]) or q is vb[0] for q in vb):
+    joined = {o.m_Uuid.AsString() for o in b.GetConnectivity().GetConnectedItems(vb[0])} | {vb[0].m_Uuid.AsString()}
+    if all(q.m_Uuid.AsString() in joined for q in vb):
         return
     ox, oy = j2.GetPosition().x / 1e6, j2.GetPosition().y / 1e6
     pts = [(-2.4, -3.68), (-2.4, -3.3), (-1.58, -2.48), (1.59, -2.48), (2.4, -3.29), (2.4, -3.68)]
@@ -965,8 +971,8 @@ def freeroute(jar):
         b = pcbnew.LoadBoard(PCB)
         rules(b)
         assert pcbnew.ImportSpecctraSES(b, ses)
+        bridge_usb_vbus(b)      # before the finisher, so it does not try its own (one-via) join for VBUS
         finish(b)
-        bridge_usb_vbus(b)
         pcbnew.ZONE_FILLER(b).Fill(b.Zones())
         left = unrouted(b)
         pcbnew.SaveBoard(PCB, b)

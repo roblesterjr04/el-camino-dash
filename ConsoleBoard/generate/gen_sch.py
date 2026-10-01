@@ -291,11 +291,13 @@ OLED_PINS = {   # the 100 x 33.5 mm 3.12" SSD1322 module's 2 x 8 header (odd pin
     '15': 'OLED_RST',  # RES
     '16': 'OLED_CS',
 }
-# KiCad numbers a 2 x 8 socket mirrored (pad 1 outside, pad 2 inside it), so module pin n meets socket pad n+1 (odd n) or n-1 (even n)
-SOCKET_NETS = {str(int(k) + (1 if int(k) % 2 else -1)): v for k, v in OLED_PINS.items()}
+# Checked against the module in hand: its even row (2, 4, ... 16) faces the board's outer (right) edge, with pin 2 at the
+# bottom (toward the keys). J1's pads run top to bottom, odd ones in the outer column, so module pin n sits on pad 17 - n
+# (pin 2 VCC on pad 15, pin 1 GND on pad 16, ..., pin 16 CS on pad 1).
+SOCKET_NETS = {str(17 - int(k)): v for k, v in OLED_PINS.items()}
 place(HDR16, 'J1', 'OLED 2x8 socket', 'Connector_PinSocket_2.54mm:PinSocket_2x08_P2.54mm_Vertical', 60, 60,
       SOCKET_NETS, descr='SSD1322 256x64 OLED module (100 x 33.5 mm), 4-wire SPI: 1 GND, 2 VCC, 4 D0 CLK, 5 D1 DIN, 14 D/C, 15 RES, '
-      '16 CS; 3 and 6-13 open. Pinout measured on the module. Socket pads are numbered mirrored: module pin 1 plugs into pad 2, pin 2 into pad 1, and so on')
+      '16 CS; 3 and 6-13 open. Pinout measured on the module. Module pin n sits on socket pad 17 - n (even row on the outer edge, pin 2 at the bottom, checked on the module)')
 text(80, 40, 'J1: female 2 x 8 socket on the front; the module\'s own pins plug into it. Pinout measured on the module: 1 GND, 2 VCC, 4 CLK, '
      '5 DIN, 14 D/C, 15 RES, 16 CS; the parallel-bus pins stay open, as on the working bench setup.', 1.4)
 r_('100k', 'OLED_CS', '+3V3', 20, 100, 'Keeps the panel deselected while the ESP32 boots')

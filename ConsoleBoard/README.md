@@ -63,8 +63,8 @@ Strapping pins 0 (BOOT), 3, 45, 46 are not otherwise used.
 
 The pin order below was **measured on the module** (a 2 × 8 header: odd pins in the row marked "1", even pins in the row
 marked "2"), and the module works this way on the bench. Only the seven SPI pins are wired; the parallel-bus pins stay open,
-as on the bench. **Still check one thing with the module in hand:** which of its two rows faces the board edge. The board
-assumes module pin 1 lands on socket pad 2 (KiCad numbers sockets mirrored, see `SOCKET_NETS` in `generate/gen_sch.py`).
+as on the bench. Orientation, checked on the module: its even row (2 … 16) faces the board's outer (right) edge with pin 2
+at the bottom (toward the keys), so module pin *n* sits on socket pad 17 − *n* (`SOCKET_NETS` in `generate/gen_sch.py`).
 
 | Pin | Module | Board net | Pin | Module | Board net |
 | --- | --- | --- | --- | --- | --- |

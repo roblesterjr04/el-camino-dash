@@ -405,7 +405,13 @@ def main():
         freeroute(route)
 
 
+def fab_origin(b):
+    """Fab outputs (Gerbers, drill, centroid) measure from the board's bottom-left corner, as assemblers expect."""
+    b.GetDesignSettings().SetAuxOrigin(VECTOR2I(mm(OX), mm(OY + H)))
+
+
 def rules(b):
+    fab_origin(b)
     """Net classes and constraints, set on the board (SaveBoard writes them to the project file)."""
     ds = b.GetDesignSettings()
     ds.m_CopperEdgeClearance = mm(0.2)
