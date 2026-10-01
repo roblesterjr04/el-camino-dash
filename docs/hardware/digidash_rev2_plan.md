@@ -340,7 +340,7 @@ come from assembly blank (see [Programming](accessory_ports.md#programming-every
 | **Audio** (`AudioCarrier/`, drawn) | 1 (its 28.5 mm RCA block needs the open end) | ESP32-PICO-MINI-02 | Bluetooth A2DP / HFP, four line outputs, mic / aux input | 5 V, CAN, I2S master on links A (to slot 2), drives the audio bus |
 | **AI voice** | 2 (pairs with the audio card) | ESP32-S3 (or similar) | Listens to the mic, talks back through the speakers | 5 V, CAN, I2S slave on links A: hears LINK 2 (mic), speaks on LINK 3, LINK 4 MCLK if its codec needs it |
 | **GPS** ([spec](gps_card.md)) | any | STM32G0B1 (no radio) | Reads a remote GPS puck on a 4-pin cable (same pinout as J6) and sends position, speed, heading, fix and UTC on CAN `0x222`–`0x226`, node `0x05` | 5 V, CAN |
-| **LTE gateway** | any | ESP32-S3 + LTE modem | Internet for the dash: a Wi-Fi access point the center joins on its own (NET gateway, `can_channels.md`). Uploads trips / GPS tracks it hears on CAN | 5 V (or AUX 12 V for the modem's peaks), CAN, constant 12 V and WAKE for key-off uploads |
+| **LTE gateway** ([spec](lte_card.md)) | any | ESP32-S3 + an A7670 LTE Cat-1 core board on sockets | Internet for the dash: a Wi-Fi access point the center joins on its own (NET gateway, `can_channels.md`), node `0x06`. Later: uploads trips / GPS tracks it hears on CAN | 5 V (ESP32, CAN), AUX 12 V (the LTE board's peaks), CAN |
 | **Output / relay** | any | ESP32-C3 | Lights, fans, accessory power | AUX 12 V, CAN, LAMP / REV |
 
 - **GPS and LTE do not talk to each other directly.** CAN is a broadcast bus: the GPS card sends its position once and

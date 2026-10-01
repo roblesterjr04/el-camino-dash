@@ -96,7 +96,7 @@ Five bits, `0x00`–`0x1F`, as in `can_bus.md`:
 | --- | --- |
 | `0x00` | never a source. As a destination: every node |
 | `0x01`–`0x03` | center, left, right screens |
-| `0x04`–`0x0F` | core nodes: `0x04` the sensor pack, `0x05` the GPS card (`docs/hardware/gps_card.md`); the LTE gateway can take another |
+| `0x04`–`0x0F` | core nodes: `0x04` the sensor pack, `0x05` the GPS card (`docs/hardware/gps_card.md`), `0x06` the LTE gateway (`docs/hardware/lte_card.md`) |
 | `0x10`–`0x1B` | accessories with a private range (`0x13` = console) |
 | `0x1C`–`0x1E` | accessories without a private range (channels only) |
 | `0x1F` | a service tool (laptop on the J16 tap with a USB-CAN adapter) |
