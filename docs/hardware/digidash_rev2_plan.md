@@ -27,7 +27,8 @@ assembled by a board house, so:
 > which feeds the same three 10k / 20k dividers. The FRAM (odometer) travels with the card; a replacement card's
 > mileage is set in firmware. The sections below that put the 2560 "in the core" are the earlier plan; the pin
 > functions in the table below carry over (see the card's README for its pin map, which also moves battery sense and
-> the spare analog pins off the JTAG pins).
+> the spare analog pins off the JTAG pins). With the sensor pack gone the slot pitch also widened from 20.32 to
+> **25.4 mm** (slots at x 20 … 147), so a card's parts may stand 20 mm tall instead of 15.
 
 ## Goals
 

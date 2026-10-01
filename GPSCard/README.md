@@ -78,7 +78,7 @@ are also ROM bootloader ports.
   headers and the transceiver. R2 and the LED D1 sit straight below U1 pin 12 (PA5), on the open side of the QFN
   (fixed in `FIXED`: placed by the passive placer, R2 ended up beside the pin and Freerouting could not reach it).
 - **Parts side (F):** everything. Tallest part: J2 (about 6 mm) and the right-angle headers (about 2.5 mm), well under
-  the 15 mm limit. **Back (B):** no parts, only copper and the card name.
+  the 20 mm limit. **Back (B):** no parts, only copper and the card name.
 - **Layers:** 4, the audio card's stack and rules: F signal, In1 solid GND, In2 signal / GND fill, B signal / GND fill.
   0.2 mm tracks, 0.3 mm on the supplies (+5V, +3V3, puck power), 0.13 mm clearance, 0.6 / 0.3 mm vias: standard
   4-layer rules at JLCPCB / PCBWay. The spec says 2 layers are enough; 4 was used because the audio card's generator

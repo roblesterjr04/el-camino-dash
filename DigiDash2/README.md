@@ -28,10 +28,10 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | 3.3 V, 1.8 V | U11 AP7361C-33 (1 A), U12 AP2112K-1.8 | The board's own 3.3 V now feeds the CAN transceivers' VIO, the TVP5150's I/O, GPS and the I2C pull-ups (rev 1 borrowed the center screen's 3V3) |
 | Switched 12 V | Q5 P-FET high-side switch, turned on by the ignition through Q4 | Feeds pin 8 of every slot, the trunk port and the camera |
 | AUX 12 V | J13 (Mini-Fit Jr, vertical), 10 A mini-blade fuse, Q6 reverse P-FET, TVS | Slot power on pins 25–30 of every slot (no more bay plugs). Its return, AUX_GND, meets GND only at net tie NT1 |
-| Sensor serial in | J27 (1×2 pin header, back side, top edge above slot 5) and one 10k / 20k divider per screen | Optional: a jumper wire from the sensor card's J8 brings its 5 V sensor-frame serial line here, and the dividers take it to 3.3 V on pin 15 of J5 / J1 / J4 (the screens' sensor UART RX). With no wire fitted the screens' RX sits low and the data comes from CAN |
+| Sensor serial in | J27 (1×2 pin header, back side, top edge above slot 4) and one 10k / 20k divider per screen | Optional: a jumper wire from the sensor card's J8 brings its 5 V sensor-frame serial line here, and the dividers take it to 3.3 V on pin 15 of J5 / J1 / J4 (the screens' sensor UART RX). With no wire fitted the screens' RX sits low and the data comes from CAN |
 | Screens | J5 / J1 / J4 (same pin use as rev 1), U5 / U9 / U10 MCP2562 | 120 Ω at the left end, and at the right end through SW1-1 (switch it off when the trunk port carries the bus on) |
 | Video | U8 TVP5150AM1 (address 0x5C), 14.31818 MHz crystal, J11 RCA input (37.4 Ω + 37.4 Ω termination, per TI) | Same J1 pins as rev 1's module. RESETB: RC delay, plus the center's GPIO52 (J1 pin 36) |
-| Card slots | J31–J36 (slot 1–6), 2×15 sockets, 20.32 mm apart. Per slot: 0.5 A PTCs on 5 V and switched 12 V, 0.1 A on 3.3 V, 0.2 A on constant 12 V, a slot-ID resistor. Shared: CAN, WAKE (D-OR into the buck's EN), LAMP / REV levels (100k / 27k, clamped), the audio bus (its ground joins GND at NT2), AUX 12 V, and the I2S rail (BCK, WS, MIC, RET, MCLK on pins 15–18 and 24, bused to all six slots; the audio card is its clock master) | See [`accessory_ports.md`](../docs/hardware/accessory_ports.md#rev-2-digidash2-card-slots) |
+| Card slots | J31–J36 (slot 1–6), 2×15 sockets, 25.4 mm apart (cards' parts up to 20 mm tall). Per slot: 0.5 A PTCs on 5 V and switched 12 V, 0.1 A on 3.3 V, 0.2 A on constant 12 V, a slot-ID resistor. Shared: CAN, WAKE (D-OR into the buck's EN), LAMP / REV levels (100k / 27k, clamped), the audio bus (its ground joins GND at NT2), AUX 12 V, and the I2S rail (BCK, WS, MIC, RET, MCLK on pins 15–18 and 24, bused to all six slots; the audio card is its clock master) | See [`accessory_ports.md`](../docs/hardware/accessory_ports.md#rev-2-digidash2-card-slots) |
 | Cable ports, trunk | Cable ports J17, J22, J23, J24. Trunk J25 | As before |
 
 ## Connectors (what each one is, and what the silkscreen says)
@@ -70,10 +70,10 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
   for the buck's switch node, 2.0 mm with 0.3 mm clearance for the AUX 12 V path. Vias 0.6 / 0.3 mm (0.8 / 0.4 on the
   wide nets). These are standard 4-layer rules at JLCPCB / PCBWay.
 - **Placement:**
-  - The six slots in a row at the left (sockets centred at y 53, x 20 … 121.6), the AUX strip above them along the
+  - The six slots in a row at the left (sockets centred at y 53, x 20 … 147, 25.4 mm apart), the AUX strip above them along the
     top edge. Under each card's envelope (y 13 … 93) only parts under about 7 mm: the tall ones (electrolytics, fuse
     holder, inductor) are kept out, and the placer prints a "check:" line for any through-hole part it finds there.
-  - J27 (sensor serial in) above slot 5 on the top edge, outside the card envelopes. The top-right area the sensor
+  - J27 (sensor serial in) above slot 4 on the top edge, outside the card envelopes. The top-right area the sensor
     pack used to take is empty.
   - The screen transceivers, video decoder, power supply and harness connectors in the lower band.
   - Cable ports on the top edge. J7, J9, J6 and the trunk port on the bottom edge.
@@ -109,7 +109,7 @@ How it got there, in case a re-run differs:
   the heat at full load.
 - The parts on the back against the space behind the dash. The tallest are the 10 mm electrolytics, the fuse holder
   and the vertical connectors.
-- Mechanical: the slot pitch (20.32 mm) and the cards' 80 × 60 mm envelope against the case, and the height of every
+- Mechanical: the slot pitch (25.4 mm) and the cards' 80 × 60 mm envelope against the case, and the height of every
   main-board part under a card (under about 7 mm; the card's bottom edge sits about 8.5 mm up).
 - The slot socket footprint is our own (`DigiDash2.pretty/Slot_Socket_2x15_P2.54mm_Vertical`, numbered to mate with the
   card's right-angle header). Check pin 1 against a card in the 3D viewer before ordering.

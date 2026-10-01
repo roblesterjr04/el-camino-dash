@@ -89,7 +89,7 @@ No pull-ups on the LTE UART lines on this card: the core board's TXS0108E level 
 
 ## Board
 
-- **80 × 60 mm**, any slot. Parts side up to 15 mm. The core board on its 8.5 mm sockets comes to about 14 mm (8.5 +
+- **80 × 60 mm**, any slot. Parts side up to 20 mm. The core board on its 8.5 mm sockets comes to about 14 mm (8.5 +
   1.6 + its 4 mm tallest parts, the inductor and the USB socket): check with the board in hand.
 - **Placement (parts side):** the core board in the upper right, its SIM slot facing out (swapping the SIM means pulling
   the card); the ESP32-S3 module in the upper left with its antenna end on the top edge, away from the LTE antenna lead;

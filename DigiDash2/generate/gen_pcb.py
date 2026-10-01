@@ -78,12 +78,14 @@ def load(fpid):
 # Card slots (docs/hardware/accessory_ports.md): six 2x15 sockets in a row on the back, pin rows along y, pin 1 at the
 # bottom. A card stands on edge in each, its parts facing -x: slot 1, at the left end, faces off the end of the row, so
 # it is the slot for a card with tall parts. A card is 80 mm long, centred on its socket (y 13 .. 93).
-SLOT_X0, SLOT_PITCH, SLOT_YC = 20.0, 20.32, 53.0      # slot 1's socket centre x, the pitch, the sockets' centre y
+SLOT_X0, SLOT_PITCH, SLOT_YC = 20.0, 25.4, 53.0       # slot 1's socket centre x, the pitch, the sockets' centre y
 SLOTS = {'J%d' % (31 + i): SLOT_X0 + SLOT_PITCH * i for i in range(6)}       # ref: socket centre x
 CARD_HALF = 40.0
-# Under a card only parts up to about 7 mm tall (the card's bottom edge sits about 8.5 mm up): each slot's envelope runs
-# from 15 mm on its parts side (the next card's back) to 6 mm on the other (its own back and solder tails).
-ENVELOPES = [(0.0 if i == 0 else x - 15.0, SLOT_YC - CARD_HALF, x + 6.0, SLOT_YC + CARD_HALF)
+# A card's parts may stand up to SLOT_PITCH - 5.4 mm (20 mm at 25.4: the pitch less the board, the 2.5 mm back side
+# and a margin). Under a card only parts up to about 7 mm tall (the card's bottom edge sits about 8.5 mm up): each
+# slot's envelope runs from that height on its parts side to 6 mm on the other (its own back and solder tails).
+CARD_PARTS = SLOT_PITCH - 5.4
+ENVELOPES = [(0.0 if i == 0 else x - CARD_PARTS, SLOT_YC - CARD_HALF, x + 6.0, SLOT_YC + CARD_HALF)
              for i, x in enumerate(SLOTS.values())]
 TALL_RE = re.compile(r'CP_Elec|Fuseholder|L_Wuerth_HCI|L_12x12')
 HOLES_MH = {'H1': (4.0, 4.0), 'H2': (305.2, 4.0), 'H3': (4.0, 75.0), 'H4': (305.2, 75.0)}   # provisional
@@ -95,17 +97,18 @@ FIXED = {
     # AUX strip along the top edge, above the card envelopes (it feeds pins 25-30 of every slot)
     'J13': (16.0, 8.5, 0, 'B'), 'F1': (32.0, 8.0, 0, 'B'), 'Q6': (58.0, 8.0, 0, 'B'), 'D11': (72.0, 8.0, 0, 'B'),
     'NT1': (24.0, 13.5, 0, 'B'),
-    # sensor serial in (a jumper wire from the sensor card's J8): above the slot row, clear of the card envelopes, within
-    # reach of a card's left edge (which is at this end of the row) in any slot
+    # sensor serial in (a jumper wire from the sensor card's J8): above the slot row (over slot 4), clear of the card
+    # envelopes, within reach of a card's left edge (which is at this end of the row) in any slot
     'J27': (96.0, 6.0, 90, 'B'),
-    # video, next to the center header (J1); x 132 keeps it clear of slot 6's socket pins (J36, x 120.3 / 122.9)
-    'U8': (132.0, 64.0, 0, 'F'), 'J11': (152.0, 91.0, 0, 'B'),
-    'U11': (150.0, 66.0, 0, 'B'), 'U12': (140.0, 70.0, 0, 'B'),
+    # video, next to the center header (J1), on the front between slot 5's socket pins (J35, x 119.8 / 122.4) and slot
+    # 6's (J36, x 145.2 / 147.8); the RCA jack (tall) east of slot 6's envelope
+    'U8': (132.0, 64.0, 0, 'F'), 'J11': (162.0, 91.0, 0, 'B'),
+    'U11': (160.0, 60.0, 0, 'B'), 'U12': (139.0, 70.0, 0, 'B'),
     # power, beside J7
     'U2': (224.0, 78.0, 0, 'B'), 'Q2': (188.0, 84.0, 0, 'B'), 'Q5': (244.0, 66.0, 0, 'B'),
     # CAN transceivers beside their screen headers
     'U5': (64.0, 84.0, 0, 'F'), 'U9': (104.0, 74.0, 0, 'F'), 'U10': (244.0, 84.0, 0, 'F'),
-    'J16': (168.0, 88.0, 90, 'B'), 'D2': (166.0, 82.0, 0, 'B'),
+    'J16': (176.0, 76.0, 90, 'B'), 'D2': (172.0, 82.0, 0, 'B'),
 }
 SIDE_DEFAULT = 'B'
 ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'],

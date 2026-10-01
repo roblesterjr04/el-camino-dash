@@ -48,7 +48,7 @@ on the **left edge**, reachable with the card in its slot. Pin 1 is the square p
 | JP1 | 5V 12V | Speed sensor supply, solder jumper | 1-2 bridged as delivered = 5 V; cut it and bridge 2-3 = the slot's switched 12 V |
 
 **Serial fallback wiring (optional):** a 2-wire Dupont jumper from **J8 pin 2 (TX)** and **pin 1 (GND)** to the main
-board's **J27 pin 1 (TX IN)** and **pin 2 (GND)**. J27 is on the main board's back at the top edge, above slot 5,
+board's **J27 pin 1 (TX IN)** and **pin 2 (GND)**. J27 is on the main board's back at the top edge, above slot 4,
 within reach of a card's left edge in any slot. Without it the screens take the sensor frames from CAN only.
 
 ## Sender channels
@@ -128,7 +128,7 @@ channel never had a supply).
 - **Middle:** the 2560 at (32, 30), its ADC side toward J2, the sender front end between them; the MCP2515 and its
   crystal at the right; the MCP2562 above the slot's CAN pins and the FRAM beside it; J5 / J9 (jumpers) at the
   bottom left, J10 (spare) at the right edge.
-- **Parts side (F):** everything; tallest are the vertical pin headers (8.5 mm) and J4 (about 10 mm), under the 15 mm
+- **Parts side (F):** everything; tallest are the vertical pin headers (8.5 mm) and J4 (about 10 mm), under the 20 mm
   limit. **Back (B):** no parts.
 - **Layers and rules:** the GPS card's: F signal, In1 solid GND, In2 signal / GND fill, B signal / GND fill. 0.2 mm
   tracks, 0.3 mm on the supplies, 0.13 mm clearance, 0.6 / 0.3 mm vias, plus the **HV** class (TACH, TACH_R: 1.0 mm

@@ -26,7 +26,7 @@ CAN node from its slot (`0x14 + (slot − 1)`). Firmware: `docs/hardware/lte_car
 >    centred on the board's height (`CORE_ROW_A_DY`, `CORE_ROW_B_DY`).
 > 4. **Board outline**: `CORE_W` × `CORE_H` (now 44.45 × 31.75 mm), at `CORE_X0`, `CORE_Y0` (upper right). Nothing
 >    is placed under it on the parts side. Check the height: 8.5 mm sockets + 1.6 mm + its tallest part must stay under
->    the 15 mm parts-side limit, and the A7670 and IPEX plug underneath must clear the card (8.5 mm).
+>    the 20 mm parts-side limit, and the A7670 and IPEX plug underneath must clear the card (8.5 mm).
 > 5. **PEN and RST**: polarity, and whether the board pulls them up (and to what voltage). The card drives PEN through
 >    1k with a 100k pull-down (LTE off until the firmware raises it) and RST through 1k.
 > 6. **STA and NET levels** (1.8 V from VEXT, 3.3 V from the level shifter, or open-collector LED drive?). They come in

@@ -10,10 +10,10 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 
 | Item | Rev 2 |
 | --- | --- |
-| Slots | **Six**, J31–J36 = slot 1–6, in a row on the back at the left, **20.32 mm apart** (x 20 … 121.6 in board coordinates), sockets centred at y 53 |
+| Slots | **Six**, J31–J36 = slot 1–6, in a row on the back at the left, **25.4 mm apart** (x 20 … 147 in board coordinates; 20.32 mm in the first drawing), sockets centred at y 53 |
 | Socket | 2×15 female, 2.54 mm, vertical, 8.5 mm insulator: Sullins **PPTC152LFBN-RC** or equal. Footprint `DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical` (see [Numbering](#numbering)) |
 | Card | **80 × 60 mm**: the 80 mm edge goes in the slot (along the main board, top to bottom), and the card stands 60 mm tall, so its top edge is about 68.5 mm off the main board's back (the socket adds 8.5 mm). 1.6 mm thick. A right-angle 2×15 male header (2.54 mm, KiCad `PinHeader_2x15_P2.54mm_Horizontal`) centred on its bottom edge, the header's plastic body on the edge, so the pins stand 6 mm past it |
-| Parts side | Every card's parts face the same way, toward slot 1 (−x). Up to **15 mm** tall. **Slot 1** is at the end of the row and faces off it: no limit, so it is the slot for a card with tall parts (the audio card's RCA block is 28.5 mm) |
+| Parts side | Every card's parts face the same way, toward slot 1 (−x). Up to **20 mm** tall (the pitch less the board, the 2.5 mm back side and a margin). **Slot 1** is at the end of the row and faces off it: no limit, so it is the slot for a card with tall parts (the audio card's RCA block is 28.5 mm) |
 | Back side | Up to **2.5 mm** including solder tails (it faces the next card's parts) |
 | Under the cards | The main board keeps parts under about 7 mm in each card's envelope (the card's bottom edge sits about 8.5 mm up). `gen_pcb.py` keeps the tall parts out |
 | Links | **Neighbour pairs**: slots 1–2 share link set A, 3–4 set B, 5–6 set C. Nothing else on the main board touches them |
@@ -21,7 +21,7 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 | Cable ports | **Four**: J17, J22, J23, J24 (JST PH 4-pin, pinout below), on the top edge |
 | Trunk port | **J25**, a 4-pin Micro-Fit 3.0 on the bottom edge (moved to x 136, clear of the cards) that extends the bus itself to the rear of the car: 1 CANH, 2 CANL (twisted pair), 3 switched 12 V (1.1 A PTC), 4 GND, with its own ESD clamp. The right-end 120 Ω is switched by SW1-1: turn it off when a trunk cable is fitted, and fit 120 Ω at the far end of that cable |
 | Switched 12 V | Pin 8 of every slot, the trunk port and the camera come from a P-FET switched by the ignition |
-| Sensor card | The sensor pack is a card ([`SensorCard/`](../../SensorCard)): fixed CAN node `0x04`, any slot but slot 1. Its optional serial fallback reaches the screens through a jumper wire from its J8 to the main board's **J27** (top edge, above slot 5), which fans it out to the three screens |
+| Sensor card | The sensor pack is a card ([`SensorCard/`](../../SensorCard)): fixed CAN node `0x04`, any slot but slot 1. Its optional serial fallback reaches the screens through a jumper wire from its J8 to the main board's **J27** (top edge, above slot 4), which fans it out to the three screens |
 
 ### Slot pinout
 
@@ -103,7 +103,7 @@ no bootloader beyond what is in the chip's ROM, no firmware. A card without a pr
   | ESP32-S3 / C3 / C6 | Native USB (USB-C, or a 1 × 4 header with D+ / D−), or the UART header above | |
   | AVR | ISP, 2 × 3, 2.54 mm | MISO, 5V, SCK, MOSI, RST, GND (the standard 6-pin AVR ISP; the sensor card's J6) |
 
-- **Reachable with the card in its slot:** a card's parts side faces the next card about 20 mm away, so use a
+- **Reachable with the card in its slot:** a card's parts side faces the next card about 25 mm away, so use a
   **right-angle header on a side edge** (slot 1's card faces off the end of the row and can use a vertical one).
 - **Powered from the slot while flashing.** The programmer's supply pin is a reference only, so a card is never
   powered from both at once.

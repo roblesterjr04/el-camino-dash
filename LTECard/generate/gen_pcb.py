@@ -7,7 +7,7 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 
 The board is an 80 x 60 mm slot card (docs/hardware/accessory_ports.md, docs/hardware/lte_card.md): it stands on edge
 in a DigiDash slot, its right-angle 2x15 header centred on the bottom edge. Four layers (F signal, In1 GND plane, In2
-signal / pours, B signal). F is the parts side (15 mm limit: the core board on its 8.5 mm sockets is the tallest thing);
+signal / pours, B signal). F is the parts side (20 mm limit: the core board on its 8.5 mm sockets is the tallest thing);
 B faces the next card and has no parts. Upper left: the ESP32-S3 module, antenna at the top-left corner with the stock
 footprint's keep-out. Upper right: the LTE core board on two sockets. Left edge: USB-C (mid-mount, in a notch), BOOT /
 RESET, the debug serial header. Along the bottom: the LTE buck (by the AUX pins 25-30), the CAN transceiver and the 3.3 V

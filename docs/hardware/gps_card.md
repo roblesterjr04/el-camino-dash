@@ -63,7 +63,7 @@ Check the exact pin numbers against the STM32G0B1 datasheet's alternate-function
 
 ## Board
 
-- **80 × 60 mm** like every card, any slot. It is nearly empty: a few small chips. Parts on the parts side up to 15 mm;
+- **80 × 60 mm** like every card, any slot. It is nearly empty: a few small chips. Parts on the parts side up to 20 mm;
   the back only low SMD parts.
 - **Top edge** (the case panel): J2.
 - **Left edge:** J3 (SWD) and J4 (debug serial), right angle, so they can be reached with the card in its slot.
