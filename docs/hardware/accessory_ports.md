@@ -12,7 +12,7 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 | --- | --- |
 | Slots | **Six**, J31–J36 = slot 1–6, in a row on the back at the left, **20.32 mm apart** (x 20 … 121.6 in board coordinates), sockets centred at y 53 |
 | Socket | 2×15 female, 2.54 mm, vertical, 8.5 mm insulator: Sullins **PPTC152LFBN-RC** or equal. Footprint `DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical` (see [Numbering](#numbering)) |
-| Card | **80 × 40 mm** (provisional: the case sets it; one constant in each generator), 1.6 mm. A right-angle 2×15 male header (2.54 mm, KiCad `PinHeader_2x15_P2.54mm_Horizontal`) centred on its bottom edge, the header's plastic body on the edge, so the pins stand 6 mm past it |
+| Card | **80 × 60 mm**: the 80 mm edge goes in the slot (along the main board, top to bottom), and the card stands 60 mm tall, so its top edge is about 68.5 mm off the main board's back (the socket adds 8.5 mm). 1.6 mm thick. A right-angle 2×15 male header (2.54 mm, KiCad `PinHeader_2x15_P2.54mm_Horizontal`) centred on its bottom edge, the header's plastic body on the edge, so the pins stand 6 mm past it |
 | Parts side | Every card's parts face the same way, toward slot 1 (−x). Up to **15 mm** tall. **Slot 1** is at the end of the row and faces off it: no limit, so it is the slot for a card with tall parts (the audio card's RCA block is 28.5 mm) |
 | Back side | Up to **2.5 mm** including solder tails (it faces the next card's parts) |
 | Under the cards | The main board keeps parts under about 7 mm in each card's envelope (the card's bottom edge sits about 8.5 mm up). `gen_pcb.py` keeps the tall parts out |

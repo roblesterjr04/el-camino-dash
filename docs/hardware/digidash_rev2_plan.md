@@ -10,7 +10,7 @@ assembled by a board house, so:
   ports.
 
 > **Update 2026-10-01: bays → card slots.** The flat carriers proved too small, so the two bays are replaced by **six
-> 2×15 slots** for cards that stand on edge (80 × 40 mm, provisional; the case sets it), with their connectors on their
+> 2×15 slots** for cards that stand on edge (80 × 60 mm: 80 along the main board, 60 tall), with their connectors on their
 > top edge. The slot adds a 3.3 V and a constant 12 V feed, a slot ID, a WAKE line, the dash-light and reverse levels,
 > five link lines between neighbour-pair slots (1–2, 3–4, 5–6), a shared analog audio bus and AUX 12 V on the slot
 > itself (the bay power plugs J14 / J15 are gone). J6 is now a plain **serial port** (the center's UART2) instead of

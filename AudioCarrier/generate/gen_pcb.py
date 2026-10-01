@@ -4,7 +4,7 @@
 Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
   macOS: KIPY=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3
 
-The board is an 80 x 40 mm slot card (docs/hardware/accessory_ports.md): it stands on edge in a DigiDash slot, its
+The board is an 80 x 60 mm slot card (docs/hardware/accessory_ports.md): it stands on edge in a DigiDash slot, its
 right-angle 2x15 header centred on the bottom edge, its connectors and the module's antenna along the top edge. Four
 layers (F signal, In1 GND plane, In2 signal / power, B signal). F is the parts side (up to 28.5 mm: the RCA block, so
 the card goes in slot 1, whose parts side faces off the end of the row); B faces the next card and keeps to low SMD
@@ -35,7 +35,7 @@ PCB = os.path.join(ROOT, 'AudioCarrier.kicad_pcb')
 PRO = os.path.join(ROOT, 'AudioCarrier.kicad_pro')
 mm = FromMM
 
-W, H = 80.0, 40.0          # a slot card: the bottom edge (y = H) goes into the slot
+W, H = 80.0, 60.0          # a slot card: the bottom edge (y = H) goes into the slot
 U1_X = 8.0                 # the module's centre; its antenna end on the top edge, at the left corner
 RCA_X = 52.0               # the RCA block's centre on the top edge
 JACK_X = 72.0              # the 3.5 mm jack's centre on the top edge, right of the block
@@ -82,12 +82,12 @@ FIXED = {
     'U1': (U1_X, 11.2, 0, 'F'),          # antenna end on the top edge (y 0.2 ... 5.6), at the left corner
     'J2': (RCA_X, 0.0, 180, 'F'),        # 2 x 2 RCA block, plug side off the top edge (rotation 180: its +y is board -y)
     'J6': (JACK_X, 0.0, 270, 'F'),       # 3.5 mm jack (Tinkersphere TS3328), nose off the top edge, right of the block
-    'J10': (3.0, 36.5, 90, 'F'),         # programming header, lower left, beside the slot header
+    'J10': (3.0, H - 3.5, 90, 'F'),      # programming header, lower left, beside the slot header
     'SW1': (4.0, 21.5, 0, 'F'),
     'SW2': (11.0, 21.5, 0, 'F'),
-    'U2': (52.0, 27.0, 0, 'F'),          # CAN transceiver above the header's CAN pins (5 / 6)
-    'U7': (64.5, 27.0, 0, 'F'),          # 3.3 V regulator beside the 5 V pins (1 / 2)
-    'U8': (36.0, 27.0, 0, 'F'),          # link buffer above the LINK pins (15-18, 24)
+    'U2': (52.0, H - 13.0, 0, 'F'),      # CAN transceiver above the header's CAN pins (5 / 6)
+    'U7': (64.5, H - 13.0, 0, 'F'),      # 3.3 V regulator beside the 5 V pins (1 / 2)
+    'U8': (36.0, H - 13.0, 0, 'F'),      # link buffer above the LINK pins (15-18, 24)
     'U5': (44.0, 20.0, 90, 'B'),         # front DAC, behind the RCA block
     'U6': (54.0, 20.0, 90, 'B'),         # rear DAC, same orientation as U5
     'U4': (66.0, 20.0, 0, 'B'),          # ADC, between the DACs and the mic preamp

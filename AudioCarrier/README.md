@@ -1,6 +1,6 @@
 # Audio card
 
-A **slot card** for the DigiDash rev 2 board: **80 × 40 mm**, standing on edge in a 2×15 slot, its right-angle header
+A **slot card** for the DigiDash rev 2 board: **80 × 60 mm**, standing on edge in a 2×15 slot, its right-angle header
 on the bottom edge and its jacks on the top edge (`docs/hardware/accessory_ports.md`, rev 2 section). It goes in
 **slot 1**: the RCA block is 28.5 mm tall, and slot 1 is the one whose parts side faces off the end of the row. Its
 link partner is slot 2 (an AI voice card, for example). The directory keeps its old name. On it:
@@ -15,7 +15,7 @@ CAN node `0x10`, 5 V from the slot only. It fits rev 2 only (the 2×5 rev 1 vers
 
 | Files | |
 | --- | --- |
-| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 40 mm, 4 layers, parts on both sides. The schematic is the slot card; **the PCB file is still the old 50 × 52 mm carrier** until `gen_pcb.py` is run (see [Status](#status)). KiCad 10 |
+| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on both sides. The schematic is the slot card; **the PCB file is still the old 50 × 52 mm carrier** until `gen_pcb.py` is run (see [Status](#status)). KiCad 10 |
 | `AudioCarrier.pretty` | The ESP32-PICO-MINI-02 footprint (land pattern from the Espressif datasheet) and the RCA block (hole pattern from Switchcraft's PJRAS2X2S__X customer drawing), the 3.5 mm jack (from the drawing on Tinkersphere's TS3328 product page), and plain 3D models of both. Everything else is stock KiCad or `DigiDash_Accessory` |
 | `generate/` | Scripts that produced the files (`gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py`) |
 
@@ -60,7 +60,7 @@ solder tabs are ground.
 
 ## Board
 
-- **Outline:** 80 × 40 mm, no mounting holes: the slot and the case hold it. The RCA block's own screw hole (in the
+- **Outline:** 80 × 60 mm, no mounting holes: the slot and the case hold it. The RCA block's own screw hole (in the
   middle of the four jacks) fastens it to the case panel, so plug forces go to the case and not the slot.
 - **Slot header (J1):** right-angle 2×15 (`PinHeader_2x15_P2.54mm_Horizontal`) on the parts side, centred on the bottom
   edge: pin 1 is 17.78 mm right of the centre (seen from the parts side, top edge up), the pins count to the left, the
@@ -101,7 +101,7 @@ not been run, and `AudioCarrier.kicad_pcb` is still the routed 50 × 52 mm doubl
   edge. If the plate should sit flush with the case panel instead, the board edge moves 1.5 mm (the plate thickness).
   Check with the block in hand and against the case panel cut-out.
 - Check before ordering: the ESP32-PICO-MINI-02 land pattern against the module you buy, pin 1 of J1 against the main
-  board's slot in KiCad's 3D viewer, and the card's 80 × 40 mm outline against the case.
+  board's slot in KiCad's 3D viewer, and the card's 80 × 60 mm outline against the case.
 
 ## Things to know
 

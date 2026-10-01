@@ -312,7 +312,7 @@ def c_(v, a, b, x, y, fp=None, d=None):
 
 
 text(15, 12, 'AUDIO CARD  -  ESP32-PICO-MINI-02 + 2 x PCM5102A (4 line outputs) + PCM1808 (microphone input)', 3)
-text(15, 20, 'Card for a DigiDash slot, 80 x 40 mm, standing on edge (docs/hardware/accessory_ports.md); its place is slot 1 '
+text(15, 20, 'Card for a DigiDash slot, 80 x 60 mm, standing on edge (docs/hardware/accessory_ports.md); its place is slot 1 '
      '(the RCA block is 28.5 mm tall). CAN node 0x10 (both straps open). 5 V from the slot only; 3.3 V on board.', 1.6)
 
 # --- port

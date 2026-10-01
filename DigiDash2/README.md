@@ -117,7 +117,7 @@ segments and 1450 vias (1100+ of them GND stitching). 111 parts on the front, 11
   the heat at full load.
 - The parts on the back against the space behind the dash. The tallest are the 10 mm electrolytics, the fuse holder
   and the vertical connectors.
-- Mechanical: the slot pitch (20.32 mm) and the cards' 80 × 40 mm envelope against the case, and the height of every
+- Mechanical: the slot pitch (20.32 mm) and the cards' 80 × 60 mm envelope against the case, and the height of every
   main-board part under a card (under about 7 mm; the card's bottom edge sits about 8.5 mm up).
 - The slot socket footprint is our own (`DigiDash2.pretty/Slot_Socket_2x15_P2.54mm_Vertical`, numbered to mate with the
   card's right-angle header). Check pin 1 against a card in the 3D viewer before ordering.
