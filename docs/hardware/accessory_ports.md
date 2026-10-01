@@ -69,6 +69,29 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 - I2S between two cards uses all five: LINK 0 BCK, LINK 1 WS, LINK 2 data from the clock master, LINK 3 data to it,
   LINK 4 MCLK (for codecs that need it). The clock master is the card that owns the DACs (the audio card).
 
+### Programming (every card)
+
+**Every card must have a way to flash its MCU on the board.** Assume the chips arrive from assembly completely blank:
+no bootloader beyond what is in the chip's ROM, no firmware. A card without a programming header cannot be brought up.
+
+- A **programming header** on every card, wired for the MCU's native method:
+
+  | MCU | Header | Pins |
+  | --- | --- | --- |
+  | STM32 | SWD, 1 × 5, 2.54 mm | 3V3 (target sense, not a supply), SWDIO, SWCLK, NRST, GND |
+  | ESP32 (classic) | UART, 1 × 5, 2.54 mm, plus BOOT and RESET buttons | GND, TX0, RX0, IO0, EN |
+  | ESP32-S3 / C3 / C6 | Native USB (USB-C, or a 1 × 4 header with D+ / D−), or the UART header above | |
+  | AVR | ISP, 2 × 3, 2.54 mm | as the main board's J2 |
+
+- **Reachable with the card in its slot:** a card's parts side faces the next card about 20 mm away, so use a
+  **right-angle header on a side edge** (slot 1's card faces off the end of the row and can use a vertical one).
+- **Powered from the slot while flashing.** The programmer's supply pin is a reference only, so a card is never
+  powered from both at once.
+- A **debug serial** header (GND, TX, RX, 3.3 V logic) beside it is strongly recommended: log output, and a second way
+  to flash through the chip's ROM bootloader.
+- Firmware updates over CAN (BULK, `can_channels.md`) may come later, but they need firmware on the card to receive
+  them. The header is still needed for the first flash and for recovery.
+
 ### Numbering
 
 KiCad's stock female-socket footprints number their rows mirrored, for two boards mated face to face. A card standing

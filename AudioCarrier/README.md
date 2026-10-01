@@ -116,6 +116,8 @@ not been run, and `AudioCarrier.kicad_pcb` is still the routed 50 × 52 mm doubl
   unchanged. `docs/hardware/accessory_ports.md` still says GPIO13 / GPIO23 for the DevKit.
 - **GPIO0 is the master clock and the BOOT strap.** It must be high (or free) at reset. The PCM1808 SCKI input is 5 V
   tolerant and just sits on it; the 33 R series resistor damps the clock. Pressing BOOT still enters the loader.
+- The module comes from assembly blank: J10 is the only way to load the first firmware. In slot 1 the parts side
+  faces off the end of the row, so J10 (vertical) stays reachable with the card in its slot.
 - Program it over the 5-pin header J10 (GND, TX0, RX0, IO0, EN, 3.3 V logic) with the BOOT (SW2) and RESET (SW1)
   buttons. Power it from the port, not the adapter.
 - Order the module as **ESP32-PICO-MINI-02-N8R2** (8 MB flash, 2 MB PSRAM). The PSRAM is needed: the bridge keeps its

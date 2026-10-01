@@ -332,7 +332,8 @@ Decided:
 ## Expansion cards
 
 What the slots are for, as planned so far. Each card has its own MCU and CAN transceiver and speaks the channel
-protocol (`docs/protocols/can_channels.md`).
+protocol (`docs/protocols/can_channels.md`). **Every card has a programming header** reachable in its slot: the chips
+come from assembly blank (see [Programming](accessory_ports.md#programming-every-card)).
 
 | Card | Slot | MCU | What it does | Uses |
 | --- | --- | --- | --- | --- |

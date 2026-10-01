@@ -30,7 +30,7 @@ and cable work on either.
 | CAN transceiver | MCP2562 (VDD 5 V, VIO 3.3 V, STBY low) | As every other node. No termination |
 | 3.3 V | AP2112K-3.3 from the slot's 5 V | The MCU, the transceiver's VIO and a 3.3 V puck (most draw 25–50 mA) |
 | Clock | 8 MHz crystal (HSE) | CAN needs better timing accuracy than the internal oscillator gives over temperature |
-| Programming | **J3, SWD header: 1 × 5, 2.54 mm, right angle**, on the card's left edge: 1 3V3, 2 SWDIO, 3 SWCLK, 4 NRST, 5 GND | Takes a cheap ST-Link V2 (or clone) on dupont wires, or an ST-Link V3 / J-Link with an adapter. Right angle on the side edge so it can be reached with the card in its slot (the parts side faces the next card, 20 mm away). No BOOT0 strap: on the G0 it shares the SWCLK pin and option bytes set it |
+| Programming (required: the STM32 comes from assembly blank) | **J3, SWD header: 1 × 5, 2.54 mm, right angle**, on the card's left edge: 1 3V3, 2 SWDIO, 3 SWCLK, 4 NRST, 5 GND | Takes a cheap ST-Link V2 (or clone) on dupont wires, or an ST-Link V3 / J-Link with an adapter. Right angle on the side edge so it can be reached with the card in its slot (the parts side faces the next card, 20 mm away). No BOOT0 strap: on the G0 it shares the SWCLK pin and option bytes set it |
 | Debug serial | **J4: 1 × 3, 2.54 mm, right angle**, beside J3: 1 GND, 2 TX, 3 RX (USART1, 3.3 V) | Log output on an FTDI / USB-serial adapter. Also a fallback way to flash through the ST ROM bootloader |
 | Indicator | One LED: off = nothing from the puck, blinking = searching, steady = 3D fix | |
 
