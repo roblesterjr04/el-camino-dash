@@ -1,6 +1,6 @@
 # AM/FM radio card
 
-**Status: spec only.** No schematic or board yet. When it is drawn, it follows the audio card's generator pattern
+**Status: first-draft schematic in [`RadioCard/`](../../RadioCard/README.md); no board yet.** It follows the audio card's generator pattern
 (`AudioCarrier/generate/`, `GPSCard/`, `LTECard/`), and the GPS card's MCU and programming header.
 
 **Checked against the Si4730/31/34/35-D60 data sheet (Rev 1.1)**: pins, supplies, digital audio interface, reference
@@ -40,7 +40,7 @@ Tall parts: none. The card is 80 × 60 mm like every card, parts up to 15 mm, an
 
 | Part | Choice | Why |
 | --- | --- | --- |
-| Tuner | **Si4735-D60-GM** (AM / FM / SW / LW, RDS; 20-pin QFN, 3 × 3 mm, 0.5 mm pitch). **Not the Si4730**: it has no RDS processor. The Si4731-D60-GM is the AM/FM + RDS part if SW / LW are not wanted | One chip, I2C control, digital audio out (a slave interface: DCLK and DFS are inputs), no firmware to load. Not an automotive part. See [Why this tuner](#why-this-tuner) |
+| Tuner | **Si4735-D60-GU** (AM / FM / SW / LW, RDS; **SSOP-24**, hand-solderable; the -GM QFN-20 is the same silicon, but its land pattern is not a stock KiCad footprint). **Not the Si4730**: it has no RDS processor. The Si4731-D60-GM is the AM/FM + RDS part if SW / LW are not wanted | One chip, I2C control, digital audio out (a slave interface: DCLK and DFS are inputs), no firmware to load. Not an automotive part. See [Why this tuner](#why-this-tuner) |
 | MCU | **STM32G0B1KBU6** (as the GPS card) | FDCAN built in, 5 V tolerant I/O, I2C, plenty of flash for presets. Same SWD header and debug serial as the GPS card, so one programmer and one toolchain |
 | CAN transceiver | MCP2562 (VDD 5 V, VIO 3.3 V, STBY low) | As every node. **No termination** |
 | 3.3 V | AP2112K-3.3 from the slot's 5 V | MCU, transceiver VIO, and both tuner supplies: VA (2.7–5.5 V) and VD (1.62–3.6 V) both run at 3.3 V. The tuner draws about 10 mA on each in FM. VA gets its own ferrite and 22 nF (C1) close to the pin, VD 100 nF (C4) |
@@ -149,28 +149,30 @@ the same either way, so the card would only change the tuner and its matching.
 
 ## Si4735 hookup (from the data sheet)
 
-QFN-20 (GM), pins used. 3.3 V on VA and VD.
+SSOP-24 (GU), pins used. 3.3 V on VA and VD. (QFN-20 pin numbers differ; the data sheet's figure is the reference.)
 
 | Pin | Name | Goes to |
 | --- | --- | --- |
-| 2 | FMI | FM antenna through 1 nF |
-| 3 | RFGND | AM antenna return, to ground plane |
-| 4 | AMI | AM antenna through 0.47 µF |
-| 5 | RST | MCU (active low) |
-| 6 | SEN | strap (address) |
-| 7 | SCLK | MCU I2C SCL |
-| 8 | SDIO | MCU I2C SDA |
-| 9 | RCLK | 32.768 kHz oscillator |
-| 10 | VD | 3.3 V, 100 nF |
-| 11 | VA | 3.3 V (ferrite), 22 nF |
-| 12, pad | GND | ground |
-| 13, 14 | ROUT, LOUT | bench header (OPMODE 0xB5) |
-| 15 | DOUT | RET buffer through 600 Ω (R1) |
-| 16 | DFS | I2S WS (pin 16), through 2 kΩ (R2) |
-| 17 | GPO3 / DCLK | I2S BCK (pin 15), through 2 kΩ (R3) |
-| 18 | GPO2 / INT | MCU |
-| 19 | GPO1 | MCU (spare), must be high or open at reset |
-| 1, 20 | NC | leave floating |
+| 1 | DOUT | RET buffer through 600 Ω (R1) |
+| 2 | DFS | I2S WS (slot pin 16), through 2 kΩ (R2) |
+| 3 | GPO3 / DCLK | I2S BCK (slot pin 15), through 2 kΩ (R3) |
+| 4 | GPO2 / INT | MCU |
+| 5 | GPO1 | left open: must be high or open at reset |
+| 6, 7 | NC | leave floating |
+| 8 | FMI | FM antenna through 1 nF |
+| 9 | RFGND | ground |
+| 10, 11 | NC | tie to GND (SSOP only) |
+| 12 | AMI | AM antenna through 0.47 µF |
+| 13, 14 | GND | ground |
+| 15 | RST | MCU (active low) |
+| 16 | SEN | strap (address) |
+| 17 | SCLK | MCU I2C SCL |
+| 18 | SDIO | MCU I2C SDA |
+| 19 | RCLK | 32.768 kHz oscillator |
+| 20 | VD | 3.3 V, 100 nF |
+| 21 | VA | 3.3 V through a ferrite |
+| 22 | DBYP | 22 nF to VA (C1) |
+| 23, 24 | ROUT, LOUT | bench header (OPMODE 0xB5) |
 
 The 600 Ω / 2 kΩ / 2 kΩ series resistors and a 2–5 pF noise capacitor (C9) are the data sheet's optional digital-audio
 network, there to keep the digital edges out of the RF. They go on the card. DCLK min cycle 26 ns (the rail's 3.07 MHz
