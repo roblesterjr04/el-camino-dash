@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run KiCad's DRC (with the schematic parity check) on DigiDash2.kicad_pcb and print a summary.
 
-Uses kicad-cli (KiCad 8+). Expected result: no errors except the unconnected links listed in README.md, silkscreen
-warnings, and eight parity notes for the bay headers' MP1 / MP2 (the M3 holes are tied to GND on the board; the 2x05 header symbol has no pins for them).
+Uses kicad-cli (KiCad 8+). Expected result: no errors except the unconnected links listed in README.md, and
+silkscreen warnings.
 """
 import collections
 import os

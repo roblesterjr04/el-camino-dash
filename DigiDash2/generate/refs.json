@@ -354,6 +354,16 @@
   "group": "video",
   "value": "10u"
  },
+ "C63": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "slots",
+  "value": "100n"
+ },
+ "C64": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "slots",
+  "value": "100n"
+ },
  "C7": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "power",
@@ -398,6 +408,21 @@
   "fp": "Diode_SMD:D_SOD-323",
   "group": "video",
   "value": "PESD5V0S1BL"
+ },
+ "D16": {
+  "fp": "Package_TO_SOT_SMD:SOT-23",
+  "group": "slots",
+  "value": "BAT54S"
+ },
+ "D17": {
+  "fp": "Package_TO_SOT_SMD:SOT-23",
+  "group": "slots",
+  "value": "BAT54S"
+ },
+ "D18": {
+  "fp": "Package_TO_SOT_SMD:SOT-23",
+  "group": "slots",
+  "value": "BAT54S"
  },
  "D2": {
   "fp": "Package_TO_SOT_SMD:SOT-23",
@@ -452,57 +477,137 @@
  "F11": {
   "fp": "Fuse:Fuse_1812_4532Metric",
   "group": "ports",
-  "value": "PTC 0.5A"
+  "value": "PTC 1.1A"
  },
  "F12": {
   "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
+  "group": "slots",
   "value": "PTC 0.5A"
  },
  "F13": {
   "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
+  "group": "slots",
   "value": "PTC 0.5A"
  },
  "F14": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
-  "value": "PTC 0.5A"
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.1A"
  },
  "F15": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
-  "value": "PTC 0.5A"
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.2A"
  },
  "F16": {
   "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
+  "group": "slots",
   "value": "PTC 0.5A"
  },
  "F17": {
   "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
+  "group": "slots",
   "value": "PTC 0.5A"
  },
  "F18": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
-  "value": "PTC 0.5A"
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.1A"
  },
  "F19": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
-  "value": "PTC 1.1A"
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.2A"
  },
  "F2": {
   "fp": "Fuse:Fuse_1206_3216Metric",
   "group": "sensors",
   "value": "PTC 0.1A"
  },
+ "F20": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F21": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F22": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F23": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F24": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F25": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F26": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F27": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F28": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F29": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
  "F3": {
   "fp": "Fuse:Fuse_1206_3216Metric",
   "group": "sensors",
   "value": "PTC 0.1A"
+ },
+ "F30": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F31": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F32": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F33": {
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F34": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F35": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.2A"
  },
  "F4": {
   "fp": "Fuse:Fuse_1206_3216Metric",
@@ -589,16 +694,6 @@
   "group": "aux",
   "value": "AUX 12V in"
  },
- "J14": {
-  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical",
-  "group": "aux",
-  "value": "Bay 1 power"
- },
- "J15": {
-  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical",
-  "group": "aux",
-  "value": "Bay 2 power"
- },
  "J16": {
   "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
   "group": "screens",
@@ -609,30 +704,10 @@
   "group": "ports",
   "value": "Cable port 1"
  },
- "J18": {
-  "fp": "DigiDash_Accessory:Port_Header_2x05",
-  "group": "ports",
-  "value": "Bay 1A"
- },
- "J19": {
-  "fp": "DigiDash_Accessory:Port_Header_2x05",
-  "group": "ports",
-  "value": "Bay 1B"
- },
  "J2": {
   "fp": "Connector_IDC:IDC-Header_2x03_P2.54mm_Vertical",
   "group": "mcu",
   "value": "AVR-ISP-6"
- },
- "J20": {
-  "fp": "DigiDash_Accessory:Port_Header_2x05",
-  "group": "ports",
-  "value": "Bay 2A"
- },
- "J21": {
-  "fp": "DigiDash_Accessory:Port_Header_2x05",
-  "group": "ports",
-  "value": "Bay 2B"
  },
  "J22": {
   "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
@@ -664,6 +739,36 @@
   "group": "sensors",
   "value": "Sensors"
  },
+ "J31": {
+  "fp": "DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 1"
+ },
+ "J32": {
+  "fp": "DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 2"
+ },
+ "J33": {
+  "fp": "DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 3"
+ },
+ "J34": {
+  "fp": "DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 4"
+ },
+ "J35": {
+  "fp": "DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 5"
+ },
+ "J36": {
+  "fp": "DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 6"
+ },
  "J4": {
   "fp": "Connector_PinHeader_2.54mm:PinHeader_2x20_P2.54mm_Vertical",
   "group": "screens",
@@ -677,7 +782,7 @@
  "J6": {
   "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
   "group": "screens",
-  "value": "GPS Module"
+  "value": "Serial"
  },
  "J7": {
   "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0600_1x06_P3.00mm_Horizontal",
@@ -702,6 +807,11 @@
  "NT1": {
   "fp": "NetTie:NetTie-2_SMD_Pad2.0mm",
   "group": "power",
+  "value": "NetTie"
+ },
+ "NT2": {
+  "fp": "NetTie:NetTie-2_SMD_Pad2.0mm",
+  "group": "slots",
   "value": "NetTie"
  },
  "Q1": {
@@ -1109,15 +1219,80 @@
   "group": "video",
   "value": "100k"
  },
+ "R78": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "1k"
+ },
+ "R79": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "3.3k"
+ },
  "R8": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
   "value": "47k"
  },
+ "R80": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "6.8k"
+ },
+ "R81": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "12k"
+ },
+ "R82": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "22k"
+ },
+ "R83": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "47k"
+ },
+ "R84": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "100k"
+ },
+ "R85": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "47k"
+ },
+ "R86": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "47k"
+ },
+ "R87": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "100k"
+ },
+ "R88": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "27k"
+ },
+ "R89": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "100k"
+ },
  "R9": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
   "value": "100k"
+ },
+ "R90": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "27k"
  },
  "SW1": {
   "fp": "Button_Switch_SMD:SW_DIP_SPSTx02_Slide_KingTek_DSHP02TS_W7.62mm_P1.27mm",

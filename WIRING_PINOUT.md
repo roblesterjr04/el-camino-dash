@@ -78,8 +78,8 @@ OLED: SSD1322 256×64 (see sketch for U8g2 profile and `ELC_OLED_*` overrides).
 
 | Function | GPIO | Notes |
 | -------- | ---- | ----- |
-| GPS NMEA RX (GPS TX →) | 2 | UART2, 9600 8N1 (NEO-6M default; `GPS_UART_BAUD`) |
-| GPS TX (→ GPS RX) | 3 | optional |
+| Serial RX (device TX →) | 2 | UART2. Rev 2: J6 **SERIAL** pin 3 (was "GPS"). Today the firmware reads a GPS module here, 9600 8N1 (NEO-6M default; `GPS_UART_BAUD`); on rev 2 GPS moves to a slot card and J6 is a general serial port |
+| Serial TX (→ device RX) | 3 | UART2. Rev 2: J6 pin 2 |
 | Backlight PWM (3.4C) | 26 | `TSPS_BACKLIGHT_PIN`, active-low |
 | TF card (SDIO, 3.4C) | 39–44 | on-board slot: `elcamino/settings.json` on the card (Wi-Fi password stored in plain text) |
 

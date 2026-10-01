@@ -96,7 +96,7 @@ Five bits, `0x00`–`0x1F`, as in `can_bus.md`:
 | --- | --- |
 | `0x00` | never a source. As a destination: every node |
 | `0x01`–`0x03` | center, left, right screens |
-| `0x04`–`0x0F` | reserved for core nodes (a sensor pack or GPS on CAN, later) |
+| `0x04`–`0x0F` | reserved for core nodes (`0x04` the sensor pack; a GPS card or the LTE gateway can take one) |
 | `0x10`–`0x1B` | accessories with a private range (`0x13` = console) |
 | `0x1C`–`0x1E` | accessories without a private range (channels only) |
 | `0x1F` | a service tool (laptop on the J16 tap with a USB-CAN adapter) |
@@ -171,6 +171,12 @@ Discovery. Every node that speaks the protocol implements this channel.
 | `0x81` | QUERY | dest u8, what u8: bit0 ANNOUNCE, bit1 sensor descriptions, bit2 alert descriptions, bit3 UI item descriptions |
 | `0x82` | IDENTIFY | dest u8, seconds u8: blink an LED / beep so a person can find the board (0 = stop) |
 | `0x83` | RESTART | dest u8, magic u8 `0x5A` (from the center or a service tool only) |
+| `0x84` | LINK | dest u8 (the partner card), slot u8 (sender's), use u8, role u8, state u8, detail u16 (see [Links](#links-between-slot-cards)) |
+| `0x10` | WIFI OFFER | gateway → all, only in answer to WIFI QUERY: credentials generation u8, security u8, channel u8, flags u8, SSID length u8, SSID, password length u8, password (see [Network gateway](#network-gateway-wi-fi-from-a-card)) |
+| `0x11` | GATEWAY STATUS | gateway → all, 1 Hz and on change: uplink u8, signal bars u8, RSSI s8 (dBm), technology u8, Wi-Fi clients u8, data this month u16 (MB), credentials generation u8, flags u8 |
+| `0x8A` | WIFI QUERY | dest u8 (the gateway): send WIFI OFFER |
+| `0x8B` | GATEWAY CMD | dest u8, command u8, argument u16 |
+| `0x8C` | WIFI SHARE | dest u8 (the gateway), then the WIFI OFFER layout: another network the gateway may use for itself (the home Wi-Fi, for uploads in the garage) |
 
 - **produces / consumes** are bitmaps by channel number (bit 1 = ALERT, 9 = SENSOR, 19 = UI, …). The node that
   consumes AUDIO_CMD is the audio sink; the node that consumes ALERT and SENSOR descriptions is the center. Nobody
@@ -180,11 +186,64 @@ Discovery. Every node that speaks the protocol implements this channel.
 - **Description generation** bumps whenever any of the node's descriptions change (a firmware update, a setting that
   renames something). Receivers may cache descriptions keyed by (unique ID, generation) and skip asking again.
 - **ANNOUNCE flags**: bit0 the node's settings are at factory defaults (never changed, or just reset). The center
-  uses it to restore a backup (see [Settings backup](#settings-backup)).
+  uses it to restore a backup (see [Settings backup](#settings-backup)). Bits 1–3: the slot the node sits in on a
+  rev 2 board (1–6, read from the slot ID pin), 0 = not in a slot (cable port, rev 1 carrier, a screen).
 - The unique ID also catches two carriers set to the same node number: the center sees two ANNOUNCEs with one node
   number and different unique IDs, and raises an alert.
 - Node types extend the heartbeat's: 0 display, 1 audio bridge, 2 console, 3 sensor node, 4 input device, 5 audio
-  sink, 6 output / relay node, 0x7F service tool. Products are listed under [Registries](#registries).
+  sink, 6 output / relay node, 7 network gateway, 8 voice assistant, 0x7F service tool. Products are listed under [Registries](#registries).
+
+### Links between slot cards
+
+On a rev 2 board the two slots of a pair (1–2, 3–4, 5–6) share five link lines (`docs/hardware/accessory_ports.md`).
+A card drives none of them until its partner has agreed, over LINK:
+
+1. Each card learns its own slot from its slot ID pin and its partner's from the partner's ANNOUNCE (flags bits 1–3).
+2. The card that wants a link sends LINK with state 0 (offer): use, its role, detail.
+3. The partner answers LINK with state 1 (accept), or 2 (release: no). Only after an accept does either side drive
+   its lines. Either side ends it with state 2. A card that sees its partner's heartbeat stop releases its lines.
+
+| Field | Values |
+| --- | --- |
+| use | 0 none, 1 I2S, 2 UART, 3 SPI, 4 I2C, 5 sync pulses; `0x80`+ product-specific |
+| role | 0 the sender drives the clocks (I2S / SPI master, or the UART's first TX on LINK 0), 1 the sender follows |
+| detail | I2S: sample rate / 10 (4800 = 48 kHz), with LINK 0 BCK, 1 WS, 2 data from the clock master, 3 data to it, 4 MCLK (256 fS) or idle. UART: baud / 100 |
+
+The audio card (I2S master, slot 1) and a voice card (slot 2) are the first pair: the voice card offers use 1, role 1;
+the audio card accepts and enables its link buffer.
+
+### Network gateway (Wi-Fi from a card)
+
+A card with an internet uplink (an LTE card) runs a Wi-Fi access point, and the center joins it without anyone typing
+a password. Bulk data (web requests, map tiles, firmware) then goes over Wi-Fi; CAN only carries the status and the
+handshake.
+
+1. The gateway ANNOUNCEs as node type 7.
+2. The center sends WIFI QUERY. The gateway answers with WIFI OFFER (a multi-frame transfer, about 100 bytes). It never
+   sends the offer unasked.
+3. The center stores the network as its own saved entry, separate from the home Wi-Fi the user entered, and joins it.
+   When GATEWAY STATUS shows a new credentials generation it queries again.
+
+| Field | Values |
+| --- | --- |
+| security | 0 open, 1 WPA2-PSK, 2 WPA3-SAE, 3 WPA2 / WPA3 mixed |
+| channel | 0 any, else the 2.4 GHz channel |
+| flags (OFFER) | bit0 the uplink is up now, bit1 hidden SSID |
+| SSID / password | up to 32 / 63 bytes, UTF-8, no terminator |
+| uplink | 0 off, 1 searching, 2 registered, 3 data up |
+| technology | 0 none, 2 3G, 3 LTE, 4 5G, 5 LTE-M / NB-IoT |
+| flags (STATUS) | bit0 access point on, bit1 roaming, bit2 data cap reached |
+| command | 1 access point on, 2 access point off, 3 new random password (the generation goes up), 4 data cap in MB (argument), 5 forget the shared network |
+
+- **Which network first:** the center prefers the home Wi-Fi when it can see it (no mobile data used in the garage)
+  and falls back to the gateway. A setting can turn either off.
+- **Password:** the gateway makes a random one on first boot. The center shows the SSID, the password and a QR code
+  on a menu page, so a phone in the car can join too.
+- **Security:** the password crosses CAN in plain text, but only on request and only inside the car's wiring.
+- **WIFI SHARE** lets the center hand the gateway the home network, so the gateway uploads logs and GPS tracks over
+  home Wi-Fi when it is parked at home.
+- The same pattern serves any card that offers a network service (a logger with a web page): it says on CAN where to
+  find it, so nothing has to search the network.
 
 ## SYSTEM (`0x060 + node`)
 
@@ -475,7 +534,10 @@ u16) are free for a product's own use.
 | `0x0001` | round display (center / left / right) |
 | `0x0002` | audio bridge (classic ESP32, A2DP) |
 | `0x0003` | console (OLED + knobs) |
-| `0x0004` | audio carrier (four-channel) |
+| `0x0004` | audio carrier (four-channel); rev 2: the audio card |
+| `0x0005` | GPS / clock / motion card |
+| `0x0006` | LTE gateway card |
+| `0x0007` | AI voice card |
 
 ### Quantities
 

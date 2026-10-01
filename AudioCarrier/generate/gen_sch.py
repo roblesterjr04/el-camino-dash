@@ -224,7 +224,6 @@ R = stock('Device', 'R')
 C = stock('Device', 'C')
 CP = stock('Device', 'C_Polarized')
 FB = stock('Device', 'FerriteBead')
-MH = stock('Mechanical', 'MountingHole_Pad')
 JACK = box_symbol('AudioCarrier:TS3328', 'J', 'TS3328 3.5mm jack',
                   [('2', 'PIN_2', 'passive'), ('3', 'PIN_3', 'passive'), ('4', 'PIN_4', 'passive'), ('5', 'PIN_5', 'passive')], [],
                   w=12.7, footprint='AudioCarrier:Jack_3.5mm_TS3328_Horizontal',
@@ -235,7 +234,8 @@ RCA4 = box_symbol('AudioCarrier:PJRAS2X2', 'J', 'PJRAS2X2S01X',
                   [('5', 'SLEEVE_L', 'passive'), ('6', 'SLEEVE_R', 'passive'), ('7', 'PLATE_L', 'passive'), ('8', 'PLATE_R', 'passive')],
                   w=15.24, footprint='AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle',
                   descr='Switchcraft PJRAS2X2S01X: 2 x 2 right-angle RCA jacks, white on top, red below. Left column FL / FR, right column RL / RR (seen from the plug side)')
-HDR2x5 = stock('Connector_Generic', 'Conn_02x05_Odd_Even')
+HDR2x15 = stock('Connector_Generic', 'Conn_02x15_Odd_Even')
+BUF = stock_as('74xx', '74LS125', 'AudioCarrier:74LVC125', '74LVC125APW')
 HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
 SJ = stock('Jumper', 'SolderJumper_2_Open')
 SW = stock('Switch', 'SW_Push')
@@ -311,16 +311,24 @@ def c_(v, a, b, x, y, fp=None, d=None):
     return ref
 
 
-text(15, 12, 'AUDIO CARRIER  -  ESP32-PICO-MINI-02 + 2 x PCM5102A (4 line outputs) + PCM1808 (microphone input)', 3)
-text(15, 20, 'Carrier for one DigiDash header position (docs/hardware/accessory_ports.md). CAN node 0x10 (both straps open). '
-     '5 V from the port only; 3.3 V on board.', 1.6)
+text(15, 12, 'AUDIO CARD  -  ESP32-PICO-MINI-02 + 2 x PCM5102A (4 line outputs) + PCM1808 (microphone input)', 3)
+text(15, 20, 'Card for a DigiDash slot, 80 x 40 mm, standing on edge (docs/hardware/accessory_ports.md); its place is slot 1 '
+     '(the RCA block is 28.5 mm tall). CAN node 0x10 (both straps open). 5 V from the slot only; 3.3 V on board.', 1.6)
 
 # --- port
 G('port')
-place(HDR2x5, 'J1', 'DigiDash port', 'DigiDash_Accessory:Carrier_Header_2x05', 45, 55,
+place(HDR2x15, 'J1', 'DigiDash slot', 'Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal', 45, 55,
       {'1': '+5V', '2': '+5V', '3': 'GND', '4': 'GND', '5': 'CANH', '6': 'CANL', '7': 'GND', '8': None,
-       '9': None, '10': None}, descr='1,2 +5V; 3,4,7 GND; 5 CANH; 6 CANL; 8 +12V (not used); 9,10 reserved')
-text(70, 45, 'Pin 8 (+12 V) is not used: the board draws well under the 0.5 A port fuse.', 1.4)
+       '9': None, '10': None, '11': 'SLOT_ID', '12': None, '13': None, '14': None,
+       '15': 'LINK0', '16': 'LINK1', '17': 'LINK2', '18': 'LINK3', '19': 'GND', '20': 'GND',
+       '21': 'AUDIO_L', '22': 'AUDIO_R', '23': 'AUDIO_GND', '24': 'LINK4',
+       '25': None, '26': None, '27': None, '28': None, '29': None, '30': None},
+      descr='Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, '
+            'slot ID, LINK0-4 (I2S to the card in the partner slot), the analog audio bus. Not used: switched / constant 12 V, '
+            '3.3 V, WAKE, LAMP, REV, AUX 12 V')
+text(70, 40, 'Only 5 V is used: the card draws well under the slot\'s 0.5 A fuse. Slot ID (pin 11): 10k to 3.3 V here, '
+     'the slot\'s own resistor to GND on the main board, read on GPIO36.', 1.4)
+r_('10k', '+3V3', 'SLOT_ID', 25, 45, 'Slot ID pull-up (the main board has one resistor to GND per slot)')
 place('power:PWR_FLAG', '#FLG01', 'PWR_FLAG', '', 25, 85, {'1': '+5V'}, show_value=False)
 place('power:PWR_FLAG', '#FLG02', 'PWR_FLAG', '', 40, 85, {'1': 'GND'}, show_value=False)
 place('power:PWR_FLAG', '#FLG03', 'PWR_FLAG', '', 55, 85, {'1': '+5VA'}, show_value=False)
@@ -346,6 +354,7 @@ G('esp')
 en = {}
 sig = {'IO32': 'CAN_TXD', 'IO33': 'CAN_RX', 'IO14': 'I2S_BCLK', 'IO25': 'I2S_LRC', 'IO27': 'I2S_DOUT_F',
        'IO26': 'I2S_DOUT_R', 'I35': 'ADC_DOUT', 'IO4': 'DAC_MUTE', 'IO13': 'NODE0', 'IO22': 'NODE1',
+       'I34': 'LINK_SDIN', 'I36': 'SLOT_ID', 'IO21': 'LINK_EN_N',
        'IO0': 'BOOT', 'EN': 'EN', 'TXD0': 'UART_TX', 'RXD0': 'UART_RX', '3V3': '+3V3', 'GND': 'GND'}
 for num, (px, py, ang, nm, typ, u) in lib_pins[ESP].items():
     en[num] = sig.get(nm)
@@ -355,7 +364,8 @@ c_('10u', '+3V3', 'GND', 230, 290, d='Module supply, at pin 3')
 c_('100n', '+3V3', 'GND', 245, 290, d='Module supply, at pin 3')
 text(215, 150, 'I2S0 master: BCK GPIO14, WS GPIO25, DOUT GPIO27 (front DAC), DIN GPIO35 (PCM1808), MCLK GPIO0 (12.288 MHz for the ADC).\n'
      'I2S1 slave on the same BCK / WS pins: DOUT GPIO26 (rear DAC). GPIO4 = DAC mute (XSMT), pulled low. '
-     'GPIO32 / 33 CAN, GPIO13 / 22 node straps (the module has no GPIO23). GPIO12 / 2 / 15 / 5 left open (boot straps).', 1.4)
+     'GPIO32 / 33 CAN, GPIO13 / 22 node straps (the module has no GPIO23). GPIO12 / 2 / 15 / 5 left open (boot straps).\n'
+     'Slot: GPIO36 slot ID (ADC1), GPIO34 I2S1 data in from the partner card (LINK3), GPIO21 low enables the link buffer.', 1.4)
 
 G('boot')
 text(15, 150, 'BOOT / PROGRAMMING', 1.6)
@@ -414,8 +424,6 @@ place(RCA4, 'J2', 'RCA block', 'AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle
       descr='Switchcraft PJRAS2X2S01X on the right edge: FL white / FR red (left column), RL white / RR red (right column), seen from the plug side. Front-plate tabs and sleeves to ground')
 text(520, 80, 'J2: 2 x 2 RCA block (Switchcraft PJRAS2X2S01X, right angle)\nleft column FL white / FR red, right column RL white / RR red', 1.6)
 G('port')
-place(MH, 'H1', 'MountingHole', 'MountingHole:MountingHole_3.2mm_M3_Pad', 20, 300, {'1': 'GND'},
-      descr='M3 hole at bay position B, lower left. The lower right one is not used: the RCA block stands there')
 
 # --- microphone
 G('mic')
@@ -465,13 +473,34 @@ c_('100n', '+3V3', 'GND', 500, 365, d='VDD')
 r_('33', 'BOOT', 'ADC_SCKI', 440, 395, 'Series damping on the master clock (GPIO0 doubles as the BOOT strap net)')
 text(430, 415, 'GPIO0 outputs the 12.288 MHz clock (256 x 48 kHz) after boot. The BOOT switch / J10 IO0 still pull it low to enter the ROM loader.', 1.4)
 
+# --- links and the audio bus
+G('link')
+text(530, 300, 'LINKS (to the card in the partner slot, slot 2): a 74LVC125 drives LINK0 BCK, LINK1 WS, LINK2 the mic / aux data '
+     '(PCM1808 DOUT) and LINK4 MCLK, only while GPIO21 holds its enables low (pulled high: off at reset, off until the partner '
+     'is found on CAN). LINK3 (the partner\'s I2S data) comes in on GPIO34 (I2S1 data in).\n'
+     'AUDIO BUS: the front pair drives AUDIO_L / R through 100 R; AUDIO_GND joins this card\'s ground through 10 R.', 1.4)
+for unit, (oe, a, y, src, dst) in enumerate([('1', '2', '3', 'I2S_BCLK', 'LINK0'), ('4', '5', '6', 'I2S_LRC', 'LINK1'),
+                                             ('10', '9', '8', 'ADC_DOUT', 'LINK2'), ('13', '12', '11', 'ADC_SCKI', 'LINK4')]):
+    place(BUF, 'U8', '74LVC125APW', 'Package_SO:TSSOP-14_4.4x5mm_P0.65mm', 560, 330 + 18 * unit,
+          {oe: 'LINK_EN_N', a: src, y: dst + '_DRV'}, unit=unit + 1, first=(unit == 0),
+          descr='Quad buffer, 3-state (active-low enables): the link outputs')
+    r_('33', dst + '_DRV', dst, 600, 330 + 18 * unit, 'Series damping on ' + dst)
+place(BUF, 'U8', '74LVC125APW', 'Package_SO:TSSOP-14_4.4x5mm_P0.65mm', 640, 345, {'7': 'GND', '14': '+3V3'}, unit=5, first=False)
+c_('100n', '+3V3', 'GND', 660, 345, d='U8 decoupling')
+r_('10k', '+3V3', 'LINK_EN_N', 560, 410, 'Link buffer off until the firmware pulls GPIO21 low')
+r_('33', 'LINK3', 'LINK_SDIN', 600, 410, 'LINK3 in: series')
+r_('100k', 'LINK_SDIN', 'GND', 620, 410, 'GPIO34 has no pull: low when no partner card drives LINK3')
+r_('100', 'FL_LINE', 'AUDIO_L', 560, 440, 'Audio bus left (front pair)')
+r_('100', 'FR_LINE', 'AUDIO_R', 580, 440, 'Audio bus right (front pair)')
+r_('10', 'AUDIO_GND', 'GND', 600, 440, 'Audio bus ground: tied here through 10 R (ground lift), as the bus driver')
+
 # ----------------------------------------------------------------------------- write
 out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "A2")',
-       '  (title_block (title "DigiDash audio carrier") (date "2026-09-30") (rev "E")',
-       '    (comment 1 "ESP32-PICO-MINI-02 + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + 3.5 mm mic / aux input (double bay)")',
-       '    (comment 2 "Carrier for a DigiDash accessory header position"))',
+       '  (title_block (title "DigiDash audio card") (date "2026-10-01") (rev "F")',
+       '    (comment 1 "ESP32-PICO-MINI-02 + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + 3.5 mm mic / aux input")',
+       '    (comment 2 "Card for a DigiDash slot (2x15, on edge), slot 1"))',
        '  (lib_symbols']
 for t in lib_text.values():
     out.append('\n'.join('    ' + ln for ln in t.split('\n')))

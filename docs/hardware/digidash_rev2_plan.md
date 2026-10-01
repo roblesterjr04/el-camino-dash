@@ -6,7 +6,17 @@ assembled by a board house, so:
 - It goes SMD for everything that isn't a connector.
 - It puts the FRAM and the TVP5150 video decoder directly on the board.
 - It replaces the ATmega328P with an **ATmega2560** on CAN.
-- It trades the four scattered accessory ports for **two double bays** plus more cable ports.
+- It trades the four scattered accessory ports for **six card slots** (first drawn as two double bays) plus more cable
+  ports.
+
+> **Update 2026-10-01: bays → card slots.** The flat carriers proved too small, so the two bays are replaced by **six
+> 2×15 slots** for cards that stand on edge (80 × 40 mm, provisional; the case sets it), with their connectors on their
+> top edge. The slot adds a 3.3 V and a constant 12 V feed, a slot ID, a WAKE line, the dash-light and reverse levels,
+> five link lines between neighbour-pair slots (1–2, 3–4, 5–6), a shared analog audio bus and AUX 12 V on the slot
+> itself (the bay power plugs J14 / J15 are gone). J6 is now a plain **serial port** (the center's UART2) instead of
+> "GPS": GPS moves to a card. The spec is [`accessory_ports.md`](accessory_ports.md#rev-2-digidash2-card-slots); the
+> card ideas are under [Expansion cards](#expansion-cards). Sections below that talk about bays are the earlier plan,
+> kept for the reasoning.
 
 ## Goals
 
@@ -306,10 +316,36 @@ module gets tight, 4 layers at 309 × 104 mm is the fallback; price it before de
 
 Decided:
 - The board is fabbed and assembled by a board house. The outline is set by the screens and the dash, not by fab.
-- **Two double bays** (four header positions) and four cable ports.
+- **Six card slots** (2×15, cards on edge, links between neighbour pairs) and four cable ports. This replaced the
+  earlier decision of two double bays (four header positions).
+- CAN stays the only shared data bus. Real-time streams between two cards (I2S audio) use the links; bulk network data
+  uses Wi-Fi (see [Expansion cards](#expansion-cards)).
 - The sensor pack is on CAN (MCP2515 + MCP2562, node `0x04`), with the serial fan-out kept as a fallback.
 - The MCP2515 has its own 16 MHz crystal. It does not use the 2560's CLKO.
 - No dev boards: TVP5150AM1 and MB85RC256V on the board, and RN1 replaced by individual resistors.
-- Undersized connectors are upgraded. J7 goes to Micro-Fit 3.0, and the trunk port and bay power use locking connectors.
+- Undersized connectors are upgraded. J7 goes to Micro-Fit 3.0, and the trunk port uses a locking connector.
 - Trunk port on the board (locking Micro-Fit, CAN + switched 12 V), with the right screen's termination on a jumper.
-- Bay power: a separate AUX 12V input with its own protection and return, and a 4-pin Micro-Fit at each bay.
+- Slot power: a separate AUX 12V input with its own protection and return, on pins 25–30 of every slot (was: a 4-pin
+  Micro-Fit at each bay).
+- J6 is a general serial port (center UART2, 3.3 V: 3V3, TX, RX, GND), not a GPS connector. GPS goes on a card.
+
+## Expansion cards
+
+What the slots are for, as planned so far. Each card has its own MCU and CAN transceiver and speaks the channel
+protocol (`docs/protocols/can_channels.md`).
+
+| Card | Slot | MCU | What it does | Uses |
+| --- | --- | --- | --- | --- |
+| **Audio** (`AudioCarrier/`, drawn) | 1 (its 28.5 mm RCA block needs the open end) | ESP32-PICO-MINI-02 | Bluetooth A2DP / HFP, four line outputs, mic / aux input | 5 V, CAN, I2S master on links A (to slot 2), drives the audio bus |
+| **AI voice** | 2 (pairs with the audio card) | ESP32-S3 (or similar) | Listens to the mic, talks back through the speakers | 5 V, CAN, I2S slave on links A: hears LINK 2 (mic), speaks on LINK 3, LINK 4 MCLK if its codec needs it |
+| **GPS / clock / motion** | any | ESP32-C3 (or STM32G0) | Reads the GPS module's NMEA, sends position, speed, heading, fix and time on CAN (`0x222`–`0x22F` reserved). Optional RV-3028 clock with a coin cell and an LSM6DSO | 5 V, CAN, constant 12 V for GPS hot start, WAKE for a clock alarm |
+| **LTE gateway** | any | ESP32-S3 + LTE modem | Internet for the dash: a Wi-Fi access point the center joins on its own (NET gateway, `can_channels.md`). Uploads trips / GPS tracks it hears on CAN | 5 V (or AUX 12 V for the modem's peaks), CAN, constant 12 V and WAKE for key-off uploads |
+| **Output / relay** | any | ESP32-C3 | Lights, fans, accessory power | AUX 12 V, CAN, LAMP / REV |
+
+- **GPS and LTE do not talk to each other directly.** CAN is a broadcast bus: the GPS card sends its position once and
+  the center, the LTE card and anything else that wants it all hear it. Neither card needs to know the other exists.
+- **Bulk data is not for CAN.** At about 25 KB/s at best, CAN carries status, control and small messages. Web
+  requests, map tiles and firmware go over Wi-Fi from the LTE card's access point; CAN tells the center where that
+  access point is (and its password), so nothing is typed in.
+- **J6 (serial)** stays for a bench GPS module or any serial device on the center screen until the GPS card exists.
+

@@ -219,6 +219,11 @@
   "group": "adc",
   "value": "100n"
  },
+ "C46": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "link",
+  "value": "100n"
+ },
  "C5": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "power",
@@ -254,15 +259,10 @@
   "group": "power",
   "value": "600R @100MHz"
  },
- "H1": {
-  "fp": "MountingHole:MountingHole_3.2mm_M3_Pad",
-  "group": "port",
-  "value": "MountingHole"
- },
  "J1": {
-  "fp": "DigiDash_Accessory:Carrier_Header_2x05",
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal",
   "group": "port",
-  "value": "DigiDash port"
+  "value": "DigiDash slot"
  },
  "J10": {
   "fp": "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical",
@@ -291,23 +291,23 @@
  },
  "R1": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "boot",
+  "group": "port",
   "value": "10k"
  },
  "R10": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mic",
-  "value": "2.2k"
+  "value": "1k"
  },
  "R11": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mic",
-  "value": "100k"
+  "value": "2.2k"
  },
  "R12": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mic",
-  "value": "10k"
+  "value": "100k"
  },
  "R13": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -317,21 +317,31 @@
  "R14": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mic",
-  "value": "47k"
+  "value": "10k"
  },
  "R15": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mic",
-  "value": "2.2k"
+  "value": "47k"
  },
  "R16": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mic",
-  "value": "100k"
+  "value": "2.2k"
  },
  "R17": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mic",
+  "value": "100k"
+ },
+ "R18": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "adc",
+  "value": "33"
+ },
+ "R19": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
   "value": "33"
  },
  "R2": {
@@ -339,15 +349,60 @@
   "group": "boot",
   "value": "10k"
  },
+ "R20": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "33"
+ },
+ "R21": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "33"
+ },
+ "R22": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "33"
+ },
+ "R23": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "10k"
+ },
+ "R24": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "33"
+ },
+ "R25": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "100k"
+ },
+ "R26": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "100"
+ },
+ "R27": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "100"
+ },
+ "R28": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "link",
+  "value": "10"
+ },
  "R3": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "can",
-  "value": "1k"
+  "group": "boot",
+  "value": "10k"
  },
  "R4": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "dac_f",
-  "value": "470"
+  "group": "can",
+  "value": "1k"
  },
  "R5": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -356,7 +411,7 @@
  },
  "R6": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "dac_r",
+  "group": "dac_f",
   "value": "470"
  },
  "R7": {
@@ -367,12 +422,12 @@
  "R8": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "dac_r",
-  "value": "100k"
+  "value": "470"
  },
  "R9": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mic",
-  "value": "1k"
+  "group": "dac_r",
+  "value": "100k"
  },
  "SW1": {
   "fp": "Button_Switch_SMD:SW_SPST_PTS810",
@@ -418,5 +473,10 @@
   "fp": "Package_TO_SOT_SMD:SOT-223-3_TabPin2",
   "group": "power",
   "value": "AMS1117-3.3"
+ },
+ "U8": {
+  "fp": "Package_SO:TSSOP-14_4.4x5mm_P0.65mm",
+  "group": "link",
+  "value": "74LVC125APW"
  }
 }

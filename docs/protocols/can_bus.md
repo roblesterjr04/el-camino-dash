@@ -300,6 +300,6 @@ follows the cluster theme (Barlow / Saira / VT323). Design reference: the *El Ca
 | Range | Use |
 | --- | --- |
 | `0x000`–`0x0FF`, `0x120`–`0x13F`, `0x240`–`0x3FF` | channels of the accessory protocol ([`can_channels.md`](can_channels.md) has the full map); do not use for anything else |
-| `0x222`–`0x22F` | GPS position (not sent yet) |
+| `0x222`–`0x22F` | GPS position (the GPS card, rev 2; not sent yet) |
 | `0x4C0`–`0x4FF` | console (OLED + knobs board), unused so far |
 | `0x500`–`0x6FF` | future; planned for accessory nodes `0x14`–`0x1B` (`docs/hardware/accessory_ports.md`) |
