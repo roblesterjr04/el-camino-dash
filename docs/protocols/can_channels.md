@@ -192,7 +192,7 @@ Discovery. Every node that speaks the protocol implements this channel.
 - The unique ID also catches two carriers set to the same node number: the center sees two ANNOUNCEs with one node
   number and different unique IDs, and raises an alert.
 - Node types extend the heartbeat's: 0 display, 1 audio bridge, 2 console, 3 sensor node, 4 input device, 5 audio
-  sink, 6 output / relay node, 7 network gateway, 8 voice assistant, 0x7F service tool. Products are listed under [Registries](#registries).
+  sink, 6 output / relay node, 7 network gateway, 8 voice assistant, 9 radio / media source, 0x7F service tool. Products are listed under [Registries](#registries).
 
 ### Links between slot cards
 
@@ -584,6 +584,7 @@ u16) are free for a product's own use.
 | `0x0005` | GPS / clock / motion card |
 | `0x0006` | LTE gateway card |
 | `0x0007` | AI voice card |
+| `0x0008` | AM/FM radio card (`docs/hardware/radio_card.md`) |
 
 ### Quantities
 
