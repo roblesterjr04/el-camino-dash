@@ -106,6 +106,7 @@ All multi-byte fields are little-endian.
 | `0x218` / `0x219` | interface screen | with `0x217` | menu texts for the console: the focused item or page / its value or state, 5 frames of `[serial << 4 \| chunk]` + 7 bytes each |
 | `0x220` | center | 1 Hz | time: UTC s u32, local offset min s16, flags u8 (bit0 valid, bit1 GPS, bit2 network), place serial u8 |
 | `0x221` | center | on change + every 5 s | place (street) name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes |
+| `0x222`–`0x226` | GPS card (node `0x05`) | 5 Hz / 1 Hz | position, motion, quality, time (sent on the PPS edge), status: layouts in [`gps_card.md`](../hardware/gps_card.md#can-messages) |
 | `0x400 + 0x40·slot + msg` | accessory (slot = node − `0x10`) | accessory-specific | see below |
 | `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`; 0 today) |
 
@@ -300,6 +301,6 @@ follows the cluster theme (Barlow / Saira / VT323). Design reference: the *El Ca
 | Range | Use |
 | --- | --- |
 | `0x000`–`0x0FF`, `0x120`–`0x13F`, `0x240`–`0x3FF` | channels of the accessory protocol ([`can_channels.md`](can_channels.md) has the full map); do not use for anything else |
-| `0x222`–`0x22F` | GPS position (not sent yet) |
+| `0x227`–`0x22F` | more GPS card data, later |
 | `0x4C0`–`0x4FF` | console (OLED + knobs board), unused so far |
 | `0x500`–`0x6FF` | future; planned for accessory nodes `0x14`–`0x1B` (`docs/hardware/accessory_ports.md`) |

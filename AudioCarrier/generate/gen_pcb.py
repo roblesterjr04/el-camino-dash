@@ -4,12 +4,13 @@
 Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
   macOS: KIPY=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3
 
-The board is the 50 x 26 mm envelope of one DigiDash header position (docs/hardware/accessory_ports.md), centred on
-the two M3 holes of the carrier header. Four layers (F signal, In1 GND plane, In2 signal / power, B signal), parts
-on both sides: the module, power, CAN and the connectors on top (away from the DigiDash board), the DACs, ADC and mic
-preamp on the bottom (the 11 mm standoff gap). ICs and connectors are placed by hand below; every passive is then
-put at the free spot closest to the pins it connects to. With --route it runs Freerouting on a Specctra export and
-imports the result, then fills the ground planes.
+The board is an 80 x 60 mm slot card (docs/hardware/accessory_ports.md): it stands on edge in a DigiDash slot, its
+right-angle 2x15 header centred on the bottom edge, its connectors and the module's antenna along the top edge. Four
+layers (F signal, In1 GND plane, In2 signal / power, B signal). F is the parts side (up to 28.5 mm: the RCA block, so
+the card goes in slot 1, whose parts side faces off the end of the row); B faces the next card and keeps to low SMD
+parts (the DACs, ADC and mic preamp). ICs and connectors are placed by hand below; every passive is then put at the
+free spot closest to the pins it connects to. With --route it runs Freerouting on a Specctra export and imports the
+result, then fills the ground planes.
 """
 import json
 import os
@@ -34,10 +35,13 @@ PCB = os.path.join(ROOT, 'AudioCarrier.kicad_pcb')
 PRO = os.path.join(ROOT, 'AudioCarrier.kicad_pro')
 mm = FromMM
 
-W, H = 50.0, 52.0          # a double bay: positions A (top half) and B (bottom half)
-RCA_Y = 27.2               # the RCA block's centre on the right edge
-JACK_Y = 46.6              # the 3.5 mm jack's centre on the right edge, below the block
-POCKET = (14.25, 37.81, 35.75, 47.81)   # underside kept clear over bay position B's shrouded header
+W, H = 80.0, 60.0          # a slot card: the bottom edge (y = H) goes into the slot
+U1_X = 8.0                 # the module's centre; its antenna end on the top edge, at the left corner
+RCA_X = 52.0               # the RCA block's centre on the top edge
+JACK_X = 72.0              # the 3.5 mm jack's centre on the top edge, right of the block
+# Slot header: pin 1 at 17.78 mm right of the centre (the pins count to the left), its plastic body's outer face on
+# the bottom edge, so the pins stand 6 mm past the edge into the socket.
+J1_PIN1 = (W / 2 + 17.78, H - 6.58)
 OX, OY = 100.0, 80.0       # board origin on the sheet
 
 
@@ -73,32 +77,30 @@ def load(fpid):
 
 
 # ---------------------------------------------------------------------------------------------- placement plan
-# Carrier header J1 at 90 degrees: footprint (fx, fy) -> board (19.92 + fy, 18.08 - fx), so the envelope centre
-# (5.08, 5.08) is the board centre, MP1 lands at (4.68, 16.81) and MP2 at (45.32, 9.19).
-# (ref: (x, y, rotation, side)); side 'B' parts are flipped to the bottom.
+# (ref: (x, y, rotation, side)); side 'B' parts are flipped to the bottom. J1 (the slot header) is placed in main().
 FIXED = {
-    'J1': (19.92, 18.08, 90, 'F'),
-    'U1': (11.2, 6.5, 90, 'F'),          # antenna end on the left edge (x 0.2 ... 5.6), clear of MP1's screw head
-    'J2': (W, RCA_Y, 90, 'F'),           # 2 x 2 RCA block, plug side off the right edge (rotation 90: its +y is board +x)
-    'J6': (W, JACK_Y, 180, 'F'),         # 3.5 mm jack (Tinkersphere TS3328), nose off the right edge, below the RCA block
-    'H1': (4.68, 42.81, 0, 'F'),         # M3 hole at bay position B, lower left (the lower right one is under the RCA block)
-    'J10': (9.9, 24.0, 90, 'F'),         # programming header along the bottom edge
-    'SW1': (3.6, 23.6, 0, 'F'),
-    'SW2': (12.4, 19.3, 0, 'F'),
-    'U2': (24.6, 10.6, 0, 'F'),          # CAN transceiver between the module and the header
-    'U7': (28.5, 26.0, 0, 'F'),          # 3.3 V regulator, in the band the old RCA row left free
-    'U5': (11.6, 6.8, 90, 'B'),          # front DAC, under the module; its analog side faces the board, not the antenna
-    'U6': (23.2, 6.8, 90, 'B'),          # rear DAC, same orientation as U5
-    'U3': (9.5, 49.0, 0, 'B'),           # mic preamp, lower left (below B's left hole)
+    'U1': (U1_X, 11.2, 0, 'F'),          # antenna end on the top edge (y 0.2 ... 5.6), at the left corner
+    'J2': (RCA_X, 0.0, 180, 'F'),        # 2 x 2 RCA block, plug side off the top edge (rotation 180: its +y is board -y)
+    'J6': (JACK_X, 0.0, 270, 'F'),       # 3.5 mm jack (Tinkersphere TS3328), nose off the top edge, right of the block
+    'J10': (3.0, H - 3.5, 90, 'F'),      # programming header, lower left, beside the slot header
+    'SW1': (4.0, 21.5, 0, 'F'),
+    'SW2': (11.0, 21.5, 0, 'F'),
+    'U2': (52.0, H - 13.0, 0, 'F'),      # CAN transceiver above the header's CAN pins (5 / 6)
+    'U7': (64.5, H - 13.0, 0, 'F'),      # 3.3 V regulator beside the 5 V pins (1 / 2)
+    'U8': (36.0, H - 13.0, 0, 'F'),      # link buffer above the LINK pins (15-18, 24)
+    'U5': (44.0, 20.0, 90, 'B'),         # front DAC, behind the RCA block
+    'U6': (54.0, 20.0, 90, 'B'),         # rear DAC, same orientation as U5
+    'U4': (66.0, 20.0, 0, 'B'),          # ADC, between the DACs and the mic preamp
+    'U3': (74.0, 20.0, 0, 'B'),          # mic preamp, behind the 3.5 mm jack
 }
-SIDE = {'port': 'F', 'power': 'F', 'esp': 'F', 'boot': 'F', 'can': 'F', 'misc': 'F',
+SIDE = {'port': 'F', 'power': 'F', 'esp': 'F', 'boot': 'F', 'can': 'F', 'misc': 'F', 'link': 'F',
         'dac_f': 'B', 'dac_r': 'B', 'adc': 'B', 'mic': 'B', 'rca': 'F'}
 ANCHOR = {'power': ['U7'], 'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2', 'J10'], 'can': ['U2'], 'dac_f': ['U5'],
-          'dac_r': ['U6'], 'adc': ['U4'], 'mic': ['U3', 'J6'], 'rca': ['J2'], 'port': ['J1']}
-GROUP_ORDER = ['esp', 'dac_f', 'dac_r', 'adc', 'mic', 'can', 'power', 'boot', 'port', 'rca', 'misc']
+          'dac_r': ['U6'], 'adc': ['U4'], 'mic': ['U3', 'J6'], 'rca': ['J2'], 'port': ['J1'], 'link': ['U8', 'J1']}
+GROUP_ORDER = ['esp', 'dac_f', 'dac_r', 'adc', 'mic', 'can', 'power', 'boot', 'link', 'port', 'rca', 'misc']
 POWER_NETS = {'+5V', '+3V3', '+5VA', '+3V3A'}
 KEEP_SILK = {'J1', 'J2', 'J6', 'SW1', 'SW2', 'JP1', 'JP2', 'U1'}
-HOLES = [(4.68, 16.81), (45.32, 9.19), (4.68, 42.81)]   # A (J1's MP1 / MP2) and B's lower left (H1); B's lower right is not used
+HOLES = []                                # a slot card has no mounting holes: the slot and the case hold it
 HOLE_KEEP = 3.3                          # radius kept free of parts around them
 
 GRID = 0.2
@@ -142,7 +144,7 @@ def bb_mm(box):
 def courtyard(fp, side):
     fp.BuildCourtyardCaches()
     c = fp.GetCourtyard(pcbnew.F_CrtYd if side == 'F' else pcbnew.B_CrtYd)
-    if c.OutlineCount() == 0:          # J1 has only a B.CrtYd (its socket): use its pins, not the mounting holes
+    if c.OutlineCount() == 0:          # no courtyard on this side: use the pins
         bx = [bb_mm(p.GetBoundingBox()) for p in fp.Pads() if not p.GetNumber().startswith('MP')]
         return (min(v[0] for v in bx) - 0.25, min(v[1] for v in bx) - 0.25,
                 max(v[2] for v in bx) + 0.25, max(v[3] for v in bx) + 0.25)
@@ -192,8 +194,7 @@ def main():
     for hx, hy in HOLES:
         occ['F'].circle(hx, hy, HOLE_KEEP)
         occ['B'].circle(hx, hy, HOLE_KEEP)
-    occ['B'].rect(0, 0, 6.0, 13.6)       # nothing metal under the antenna
-    occ['B'].rect(*POCKET)               # the double carrier sits over position B's header
+    occ['B'].rect(U1_X - 6.8, 0, U1_X + 6.8, 6.0)     # nothing metal under the antenna
 
     def put(ref, x, y, rot, side):
         fp = fps[ref]
@@ -221,6 +222,20 @@ def main():
                     for s_ in ('F', 'B'):
                         occ[s_].rect(*bb_mm(pad.GetBoundingBox()), pad=0.4)
 
+    # the slot header: pins off the bottom edge, pad 2 below pad 1 (the row nearer the edge, the lower row of pins) and
+    # pad 3 left of pad 1. Turned this way each pin meets the same-numbered pad of the main board's slot socket.
+    for rot in (0, 90, 180, 270):
+        put('J1', 0, 0, rot, 'F')
+        q = {p.GetNumber(): p.GetPosition() for p in fps['J1'].Pads()}
+        d2 = (q['2'].x - q['1'].x, q['2'].y - q['1'].y)
+        d3 = (q['3'].x - q['1'].x, q['3'].y - q['1'].y)
+        if d2[1] > 0 and abs(d2[0]) < 1000 and d3[0] < 0 and abs(d3[1]) < 1000:
+            break
+    else:
+        raise SystemExit('no orientation of J1 puts pad 2 below pad 1 and pad 3 to its left')
+    side_of['J1'] = 'F'
+    put('J1', J1_PIN1[0], J1_PIN1[1], rot, 'F')
+    mark('J1')
     for ref, (x, y, rot, side) in FIXED.items():
         put(ref, x, y, rot, side)
         mark(ref)
@@ -236,8 +251,8 @@ def main():
                     out.setdefault(n, []).append((r, p.x / 1e6 - OX, p.y / 1e6 - OY))
         return out
 
-    placed = set(FIXED)
-    rest = [r for r in fps if r not in FIXED]
+    placed = set(FIXED) | {'J1'}
+    rest = [r for r in fps if r not in placed]
 
     def prio(r):
         g = groups.get(r, {}).get('group', 'misc')
@@ -320,14 +335,14 @@ def main():
     for item in fps['J1'].GraphicalItems():        # its 'socket on bottom' note runs through the J2 legend
         if item.GetClass() == 'PCB_TEXT':
             item.SetVisible(False)
-    for ref, dx, dy, rot in [('J1', -4.0, 1.27, 0), ('J2', -3.4, 0, 0), ('SW1', 0, -2.6, 0),
+    for ref, dx, dy, rot in [('J1', 3.5, 0, 0), ('J2', 0, 15.5, 0), ('SW1', 0, -2.6, 0),
                              ('SW2', 0, -2.6, 0), ('U1', 0, 0, 0)]:
         fp = fps[ref]
         c = courtyard(fp, 'F')
         t = fp.Reference()
         t.SetTextAngle(EDA_ANGLE(rot, pcbnew.DEGREES_T))
         if ref == 'U1':
-            t.SetPosition(P(11.2, 6.5))
+            t.SetPosition(P(U1_X, 8.0))
         else:
             t.SetPosition(P(fp.GetPosition().x / 1e6 - OX + dx, fp.GetPosition().y / 1e6 - OY + dy))
 
@@ -344,13 +359,13 @@ def main():
         b.Add(t)
 
     # the jack columns, on the back (under the block): from the plug side the left column is FL / FR
-    silk('FL FR', 46.5, RCA_Y + 7.0, 0.9, pcbnew.B_SilkS, 90)
-    silk('RL RR', 46.5, RCA_Y - 7.0, 0.9, pcbnew.B_SilkS, 90)
-    silk('MIC / AUX', 44.5, JACK_Y - 5.4, 0.8, pcbnew.B_SilkS, 90)
+    silk('FL FR', RCA_X + 7.0, 3.5, 0.9, pcbnew.B_SilkS)
+    silk('RL RR', RCA_X - 7.0, 3.5, 0.9, pcbnew.B_SilkS)
+    silk('MIC / AUX', JACK_X, 14.5, 0.8, pcbnew.B_SilkS)
     tx, ty = FIXED['J10'][0], FIXED['J10'][1]
     for k, s in enumerate(['G', 'TX', 'RX', 'IO0', 'EN']):
         silk(s, tx + 2.54 * k, ty - 2.3, 0.8)
-    silk('AUDIO CARRIER', 44.6, 2.0, 0.7, pcbnew.B_SilkS)
+    silk('AUDIO CARD  SLOT 1', 20.0, 28.0, 0.9, pcbnew.B_SilkS)
 
     # ------------------------------------------------------------------ outline, zones
     corners = [(0, 0), (W, 0), (W, H), (0, H)]

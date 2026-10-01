@@ -6,8 +6,8 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 
 Rev 1's outline (309.2 x 103.7 mm) and its three screen headers (J5 / J1 / J4, copied from DigiDash/DigiDash.kicad_pcb:
 provisional until the bezel is drawn). Four layers: F signal, In1 solid GND, In2 solid +5 V, B signal. Every SMD part
-is on the back (single-sided assembly); only the screen headers are on the front. Two double accessory bays at the top
-left with their AUX 12 V feed along the top edge, the sensor-pack core at the top right, and the screen transceivers,
+is on the back (single-sided assembly); only the screen headers are on the front. Six card slots in a row at the left
+(cards stand on edge) with the AUX 12 V feed along the top edge, the sensor-pack core at the top right, and the screen transceivers,
 video decoder, power supply and harness connectors in the lower band. ICs and connectors are placed by hand below; every
 passive then goes to the free spot closest to the pins it connects to. With --route: GND / +5 V fan-out vias, one
 Freerouting run, leftover links joined, GND stitching, zone fill.
@@ -75,20 +75,27 @@ def load(fpid):
 
 
 # ---------------------------------------------------------------------------------------------- placement plan
-BAY_X = (8.0, 68.0)        # left edge of bay 1 and bay 2 (each 52 x 52)
-BAY_Y = 16.0
-BAYS = {'J18': (0, 0), 'J19': (0, 1), 'J20': (1, 0), 'J21': (1, 1)}      # ref: (bay, A / B)
+# Card slots (docs/hardware/accessory_ports.md): six 2x15 sockets in a row on the back, pin rows along y, pin 1 at the
+# bottom. A card stands on edge in each, its parts facing -x: slot 1, at the left end, faces off the end of the row, so
+# it is the slot for a card with tall parts. A card is 80 mm long, centred on its socket (y 13 .. 93).
+SLOT_X0, SLOT_PITCH, SLOT_YC = 20.0, 20.32, 53.0      # slot 1's socket centre x, the pitch, the sockets' centre y
+SLOTS = {'J%d' % (31 + i): SLOT_X0 + SLOT_PITCH * i for i in range(6)}       # ref: socket centre x
+CARD_HALF = 40.0
+# Under a card only parts up to about 7 mm tall (the card's bottom edge sits about 8.5 mm up): each slot's envelope runs
+# from 15 mm on its parts side (the next card's back) to 6 mm on the other (its own back and solder tails).
+ENVELOPES = [(0.0 if i == 0 else x - 15.0, SLOT_YC - CARD_HALF, x + 6.0, SLOT_YC + CARD_HALF)
+             for i, x in enumerate(SLOTS.values())]
+TALL_RE = re.compile(r'CP_Elec|Fuseholder|L_Wuerth_HCI|L_12x12')
 HOLES_MH = {'H1': (4.0, 4.0), 'H2': (305.2, 4.0), 'H3': (4.0, 75.0), 'H4': (305.2, 75.0)}   # provisional
 # connectors on an edge: ref -> (edge, position along it); the body is turned so the plug side faces out
 EDGE = {'J17': ('top', 142.0), 'J22': ('top', 158.0), 'J23': ('top', 174.0), 'J24': ('top', 190.0),
         'J3': ('right', 24.0), 'J10': ('right', 48.0),
-        'J25': ('bottom', 78.0), 'J6': ('bottom', 100.0), 'J9': ('bottom', 176.0), 'J7': ('bottom', 204.0)}
+        'J25': ('bottom', 136.0), 'J6': ('bottom', 100.0), 'J9': ('bottom', 176.0), 'J7': ('bottom', 204.0)}
 # ref: (x, y, rotation, side)
 FIXED = {
-    # AUX strip along the top edge, and the bay power connectors in the gaps beside the bays
+    # AUX strip along the top edge, above the card envelopes (it feeds pins 25-30 of every slot)
     'J13': (16.0, 8.5, 0, 'B'), 'F1': (32.0, 8.0, 0, 'B'), 'Q6': (58.0, 8.0, 0, 'B'), 'D11': (72.0, 8.0, 0, 'B'),
     'NT1': (24.0, 13.5, 0, 'B'),
-    'J14': (64.0, 42.0, 90, 'B'), 'J15': (124.5, 42.0, 90, 'B'),
     # sensor-pack core
     'U1': (215.0, 30.0, 0, 'F'), 'U3': (246.0, 20.0, 0, 'F'), 'U6': (246.0, 40.0, 0, 'F'), 'U7': (196.0, 46.0, 0, 'F'),
     'J2': (291.0, 12.0, 0, 'B'), 'J12': (266.0, 7.0, 90, 'B'), 'J8': (282.0, 32.0, 0, 'B'), 'J26': (180.0, 60.0, 90, 'B'),
@@ -105,14 +112,14 @@ FIXED = {
 SIDE_DEFAULT = 'B'
 ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'], 'mcu': ['U1', 'U3', 'U6', 'U7'],
           'sensors': ['J3', 'J10', 'U4', 'U1'], 'screens': ['U5', 'U9', 'U10', 'J1', 'J4', 'J5', 'J9', 'J6'],
-          'video': ['U8', 'J11'], 'ports': ['J18', 'J19', 'J20', 'J21', 'J17', 'J22', 'J23', 'J24', 'J25']}
-GROUP_ORDER = ['mcu', 'video', 'power', 'aux', 'screens', 'sensors', 'ports', 'misc']
+          'video': ['U8', 'J11'], 'ports': ['J17', 'J22', 'J23', 'J24', 'J25'], 'slots': list(SLOTS) + ['NT2']}
+GROUP_ORDER = ['mcu', 'video', 'power', 'aux', 'screens', 'sensors', 'ports', 'slots', 'misc']
 POWER_NETS = {'+5V', '+3V3', '/+1V8', '/+1V8A', '/AVCC', '/12V_BATT', '/SW12', '/AUX12'}
 PLANES = {'GND': pcbnew.In1_Cu, '+5V': pcbnew.In2_Cu}
-KEEP_SILK = {'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7', 'J8', 'J9', 'J10', 'J11', 'J12', 'J13', 'J14', 'J15', 'J16', 'J17',
-             'J18', 'J19', 'J20', 'J21', 'J22', 'J23', 'J24', 'J25', 'J26', 'SW1', 'U1', 'U8'}
+KEEP_SILK = {'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7', 'J8', 'J9', 'J10', 'J11', 'J12', 'J13', 'J16', 'J17',
+             'J22', 'J23', 'J24', 'J25', 'J26', 'SW1', 'U1', 'U8'} | set(SLOTS)
 HOLE_KEEP = 3.3
-HOLES = []                 # filled with every M3 hole (board mounting holes and the bays' MP1 / MP2)
+HOLES = []                 # filled with every M3 hole (the board mounting holes)
 
 GRID = 0.25
 NX, NY = int(round(W / GRID)), int(round(H / GRID))
@@ -247,25 +254,39 @@ def main():
     for x, y in HOLES:
         occ['F'].circle(x, y, HOLE_KEEP)
         occ['B'].circle(x, y, HOLE_KEEP)
-    # bay headers: long axis of each 50 x 26 position horizontal, the position centred on its M3 hole pair
-    for ref, (bay, ab) in BAYS.items():
-        cx, cy = BAY_X[bay] + 26, BAY_Y + 13 + 26 * ab
-        for rot in (90, 270, 0, 180):
+    # card slots: turned so pad 2 sits at +x of pad 1 (the card's parts face -x) and pad 3 above pad 1 (pin 1 at the
+    # bottom); this is the only way round in which each pad meets the same-numbered pin of the card's header
+    for ref, xc in SLOTS.items():
+        for rot in (0, 90, 180, 270):
             put(ref, 0, 0, rot, 'B')
-            mp = sorted([(p.GetNumber(), p.GetPosition()) for p in fps[ref].Pads() if p.GetNumber().startswith('MP')])
-            (_, a), (_, e) = mp
-            if abs(a.x - e.x) > abs(a.y - e.y):
+            q = {p.GetNumber(): p.GetPosition() for p in fps[ref].Pads()}
+            d2 = (q['2'].x - q['1'].x, q['2'].y - q['1'].y)
+            d3 = (q['3'].x - q['1'].x, q['3'].y - q['1'].y)
+            if d2[0] > 0 and abs(d2[1]) < 1000 and d3[1] < 0 and abs(d3[0]) < 1000:
                 break
-        mx, my = (a.x + e.x) / 2e6 - OX, (a.y + e.y) / 2e6 - OY
-        put(ref, cx - mx, cy - my, rot, 'B')
+        else:
+            raise SystemExit('no orientation of %s puts pad 2 at +x and pad 3 above pad 1' % ref)
+        ps = [p.GetPosition() for p in fps[ref].Pads()]
+        mx = (min(v.x for v in ps) + max(v.x for v in ps)) / 2e6 - OX
+        my = (min(v.y for v in ps) + max(v.y for v in ps)) / 2e6 - OY
+        side_of[ref] = 'B'
+        put(ref, xc - mx, SLOT_YC - my, rot, 'B')
         mark(ref)
-        for p in fps[ref].Pads():
-            if p.GetNumber().startswith('MP'):
-                q = p.GetPosition()
-                HOLES.append((q.x / 1e6 - OX, q.y / 1e6 - OY))
-                occ['B'].circle(q.x / 1e6 - OX, q.y / 1e6 - OY, HOLE_KEEP)
-                occ['F'].circle(q.x / 1e6 - OX, q.y / 1e6 - OY, HOLE_KEEP)
-        occ['B'].rect(cx - 25, cy - 13, cx + 25, cy + 13)            # the carrier's envelope stays free of parts
+    under = Occ()                       # the card envelopes: no part taller than about 7 mm under a card
+    under.a[:] = False
+    for e in ENVELOPES:
+        under.rect(*e)
+
+    def tall_part(ref):
+        fp = fps[ref]
+        return TALL_RE.search(fp.GetFPIDAsString()) is not None or (
+            bool(fp.GetAttributes() & pcbnew.FP_THROUGH_HOLE) and ref not in SLOTS)
+
+    def check_envelope(ref, side):
+        c = courtyard(fps[ref], side)
+        hit = [e for e in ENVELOPES if not (c[2] <= e[0] or c[0] >= e[2] or c[3] <= e[1] or c[1] >= e[3])]
+        if hit and side == 'B' and tall_part(ref):
+            print('check: %s (through-hole or tall) is under a card envelope: confirm it is under 7 mm tall' % ref, c)
     # connectors on an edge
     for ref, (edge, along) in EDGE.items():
         best = None
@@ -295,17 +316,15 @@ def main():
             x = (-over - x1) if edge == 'left' else (W + over - x2)
         side_of[ref] = 'B'
         put(ref, x, y, rot, 'B')
+        check_envelope(ref, 'B')
         mark(ref)
-    envelopes = [(BAY_X[bay] + 1, BAY_Y + 26 * ab, BAY_X[bay] + 51, BAY_Y + 26 * ab + 26) for bay, ab in BAYS.values()]
     for ref, (x, y, rot, side) in FIXED.items():
         put(ref, x, y, rot, side)
-        c = courtyard(fps[ref], side)
-        hit = [e for e in envelopes if not (c[2] <= e[0] or c[0] >= e[2] or c[3] <= e[1] or c[1] >= e[3])]
-        assert not hit or side == 'F' or ref in BAYS, ('fixed part inside a bay envelope', ref, c)
+        check_envelope(ref, side)
         mark(ref)
 
     # ------------------------------------------------------------------ passives: closest free spot to their pins
-    placed = set(FIXED) | set(EDGE) | set(BAYS) | set(HOLES_MH) | {'J1', 'J4', 'J5'}
+    placed = set(FIXED) | set(EDGE) | set(SLOTS) | set(HOLES_MH) | {'J1', 'J4', 'J5'}
 
     def placed_pads():
         out = {}
@@ -339,7 +358,7 @@ def main():
         pads_by_net = placed_pads()
         best = None
         # SMD parts may go on either side (the screens stand well off the front); tall parts stay on the back
-        tall = re.search(r'CP_Elec|Fuseholder|L_Wuerth_HCI|L_12x12', fp.GetFPIDAsString()) is not None
+        tall = TALL_RE.search(fp.GetFPIDAsString()) is not None
         # R72 and R76 sit under the video decoder's data-pin row on the front and box its pins in: they go on the back
         either = (not (fp.GetAttributes() & pcbnew.FP_THROUGH_HOLE) and not tall and g not in ('power', 'aux')
                   and ref not in ('R72', 'R76', 'SW1'))
@@ -364,7 +383,13 @@ def main():
             x1, y1, x2, y2 = courtyard(fp, side)
             x1, y1, x2, y2 = x1 - 0.1, y1 - 0.1, x2 + 0.1, y2 + 0.1
             wc, hc = int(np.ceil((x2 - x1) / GRID)), int(np.ceil((y2 - y1) / GRID))
-            free = occ[side].free_mask(wc, hc)
+            if tall and side == 'B':        # tall parts stay out from under the cards
+                saved = occ['B'].a
+                occ['B'].a = saved | under.a
+                free = occ['B'].free_mask(wc, hc)
+                occ['B'].a = saved
+            else:
+                free = occ[side].free_mask(wc, hc)
             cx = xs[None, :] - GRID / 2 - x1
             cy = ys[:, None] - GRID / 2 - y1
             cost = np.zeros((NY, NX))
@@ -519,9 +544,9 @@ def rules(b):
             if m in names:
                 ns.SetNetclassPatternAssignment(m, cname)
         for m in names:                 # the per-position 5 V / 12 V feeds
-            if cname == 'Power' and re.match(r'^/(P\d_5V|C\d_5V)$', m):
+            if cname == 'Power' and re.match(r'^/(S\d_5V|S\d_3V3|S\d_BATT|C\d_5V)$', m):
                 ns.SetNetclassPatternAssignment(m, cname)
-            if cname == 'Power12' and re.match(r'^/P\d_12V$', m):
+            if cname == 'Power12' and re.match(r'^/S\d_12V$', m):
                 ns.SetNetclassPatternAssignment(m, cname)
     ns.RecomputeEffectiveNetclasses()
     b.SynchronizeNetsAndNetClasses(True)
@@ -1331,7 +1356,7 @@ LABELS = {
     'J1': ('CENTER SCREEN', None, None), 'J4': ('RIGHT SCREEN', None, None), 'J5': ('LEFT SCREEN', None, None),
     'J2': ('AVR ISP', None, '1 MISO  2 5V  3 SCK  4 MOSI  5 RST  6 GND'),
     'J3': ('SENSORS', {1: 'FUEL', 2: 'ETEMP', 3: 'ETEMP V', 4: 'ALT L', 5: 'AMB', 6: 'OILP V', 7: 'OILP', 8: 'GND'}, None),
-    'J6': ('GPS', {1: '3V3', 2: 'G RX', 3: 'G TX', 4: 'GND'}, None),
+    'J6': ('SERIAL', {1: '3V3', 2: 'TX', 3: 'RX', 4: 'GND'}, None),
     'J7': ('POWER IN', {1: '12V', 2: '12V', 3: 'GND', 4: 'GND', 5: 'IGN', 6: 'LAMP'}, None),
     'J8': ('RPM SEL', None, 'jumper A / B to GND'),
     'J9': ('CAMERA', {1: 'REV', 2: '12V', 3: '--', 4: 'GND'}, None),
@@ -1339,8 +1364,6 @@ LABELS = {
     'J11': ('VIDEO IN', None, None),
     'J12': ('FTDI 5V', {1: 'GND', 2: 'CTS', 3: '--', 4: 'RXI', 5: 'TXO', 6: 'DTR'}, None),
     'J13': ('AUX 12V IN', {1: '12V', 2: 'GND'}, None),
-    'J14': ('BAY 1 POWER', {1: '12V', 2: '12V', 3: 'GND', 4: 'GND'}, None),
-    'J15': ('BAY 2 POWER', {1: '12V', 2: '12V', 3: 'GND', 4: 'GND'}, None),
     'J16': ('CAN TAP', {1: 'H', 2: 'L', 3: 'GND'}, None),
     'J17': ('CABLE 1', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None), 'J22': ('CABLE 2', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None),
     'J23': ('CABLE 3', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None), 'J24': ('CABLE 4', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None),
@@ -1348,7 +1371,8 @@ LABELS = {
     'J26': ('SPARE I/O', None, '1 5V  2 GND  3 A5  4 A6  5 A7  6 A8  7 D44  8 D45  9 D46  10 D47'),
     'SW1': ('1 TERM  2 DEMO', None, 'ON = on; back side'),
 }
-BAY_TITLES = {'J18': 'BAY 1A', 'J19': 'BAY 1B', 'J20': 'BAY 2A', 'J21': 'BAY 2B'}
+# slots: the name and its link pair (A = slots 1-2, B = 3-4, C = 5-6); pin 1 is the square pad, at the bottom
+LABELS.update({'J%d' % (31 + i): ('SLOT %d  LINK %s' % (i + 1, 'ABC'[i // 2]), None, None) for i in range(6)})
 
 
 def add_labels(b):
@@ -1357,13 +1381,13 @@ def add_labels(b):
         w, h = len(s) * size * 1.0 + 0.5, size * 1.3
         return (h, w) if rot else (w, h)
 
-    known = {'BAY 1', 'BAY 2', 'AUX 12V', 'DIGIDASH REV 2'}
+    known = {'BAY 1', 'BAY 2', 'BAY 1A', 'BAY 1B', 'BAY 2A', 'BAY 2B', 'BAY 1 POWER', 'BAY 2 POWER', 'GPS', 'AUX 12V',
+             'DIGIDASH REV 2'}
     for title, pins, legend in LABELS.values():
         known.add(title)
         known.update((pins or {}).values())
         if legend:
             known.add(legend)
-    known.update(BAY_TITLES.values())
     for d in [d for d in b.GetDrawings() if d.GetClass() == 'PCB_TEXT' and d.GetLayer() in (pcbnew.F_SilkS, pcbnew.B_SilkS)
               and d.GetText() in known]:
         b.Delete(d)
@@ -1403,7 +1427,7 @@ def add_labels(b):
         if d.GetClass() == 'PCB_TEXT' and d.GetLayer() in (pcbnew.F_SilkS, pcbnew.B_SilkS):
             s_ = 'F' if d.GetLayer() == pcbnew.F_SilkS else 'B'
             occs[s_].rect(*bb_mm(d.GetBoundingBox()), pad=0.1)
-    for z in b.Zones():                 # the trunk port's and bays' keep-outs are not silk keep-outs
+    for z in b.Zones():                 # keep-outs are not silk keep-outs
         pass
 
     def put_text(side, s, x, y, size, rot):
@@ -1435,7 +1459,7 @@ def add_labels(b):
         return False
 
     missed = []
-    for ref, (title, pins, legend) in {**LABELS, **{r: (t, None, None) for r, t in BAY_TITLES.items()}}.items():
+    for ref, (title, pins, legend) in LABELS.items():
         fp = b.FindFootprintByReference(ref)
         if fp is None:
             continue
@@ -1449,11 +1473,6 @@ def add_labels(b):
         inx, iny = W / 2 - cx, H / 2 - cy               # toward the middle of the board
         along_x = (max(px) - min(px)) >= (max(py) - min(py))
         row = [(int(n), (q.x / 1e6 - OX, q.y / 1e6 - OY)) for n, q in numbered]
-        if ref in BAY_TITLES:
-            anchors = [(cx, cy + 8.0), (cx, cy - 8.0), (cx, cy + 12.0)]
-            if not place_near(side, title, 1.4, anchors, 0, reach=4.0):
-                missed.append(ref)
-            continue
         all_placed = True
         if pins:
             plan = []

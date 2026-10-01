@@ -285,7 +285,7 @@ DIPSW = stock('Switch', 'SW_DIP_x02')
 COAX = stock('Connector', 'Conn_Coaxial')
 MH = stock('Mechanical', 'MountingHole_Pad')
 HDR = {n: stock('Connector_Generic', 'Conn_01x%02d' % n) for n in (2, 3, 4, 6, 8)}
-HDR2 = {n: stock('Connector_Generic', 'Conn_02x%02d_Odd_Even' % n) for n in (2, 3, 5, 20)}
+HDR2 = {n: stock('Connector_Generic', 'Conn_02x%02d_Odd_Even' % n) for n in (2, 3, 5, 15, 20)}
 for n in ('GND', '+5V', '+3V3'):
     stock('power', n)
 stock('power', 'PWR_FLAG')
@@ -314,7 +314,7 @@ FP_SOIC8 = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_XTAL = 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm'
 FP_FB = 'Inductor_SMD:L_0603_1608Metric'
 FP_PH4 = 'Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal'
-FP_PORT = 'DigiDash_Accessory:Port_Header_2x05'
+FP_SLOT = 'DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical'   # numbered to mate with the card's right-angle header
 FP_DIPSW = 'Button_Switch_SMD:SW_DIP_SPSTx02_Slide_KingTek_DSHP02TS_W7.62mm_P1.27mm'
 
 
@@ -341,14 +341,14 @@ def zener(v, k, a, d=None):
 
 
 # fixed reference numbers first, so the auto-numbered parts do not take them
-for p, n in (('J', 26), ('U', 12), ('Q', 6), ('D', 3), ('F', 0), ('R', 0), ('C', 0)):
+for p, n in (('J', 36), ('U', 12), ('Q', 6), ('D', 3), ('F', 0), ('R', 0), ('C', 0)):
     cnt[p] = n
 
 # ============================================================================= sheet
 text(20, 15, 'DIGIDASH MAIN BOARD, REV 2  -  docs/hardware/digidash_rev2_plan.md', 5)
 text(20, 26, 'All SMD except connectors. ATmega2560 sensor pack on CAN (MCP2515 + MCP2562, node 0x04) with the UART '
-     'fan-out kept as a fallback. TVP5150AM1 and FRAM on the board. Two double accessory bays (four 2x5 positions), '
-     'four cable ports, a trunk port, and an AUX 12 V path for bay power.', 2)
+     'fan-out kept as a fallback. TVP5150AM1 and FRAM on the board. Six 2x15 card slots (cards stand on edge), '
+     'four cable ports, a trunk port, and an AUX 12 V path for the slots.', 2)
 
 # ----------------------------------------------------------------------------- power entry
 cur[0] = Block('power', 1, 'POWER: J7 (battery, ignition, illumination), reverse protection, TVS, 5 A buck '
@@ -392,7 +392,7 @@ r_('47k', 'HOLD_K', 'BUCK_EN', 'Hold resistor')
 r_('100k', 'PWR_HOLD', 'GND', 'Hold pulled low while the 2560 is in reset')
 # 3.3 V and 1.8 V
 place(LDO33, 'U11', 'AP7361C-33E', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', {'1': '+5V', '2': 'GND', '3': '+3V3'},
-      descr='3.3 V, 1 A LDO: CAN transceiver I/O, TVP5150 I/O, GPS, I2C pull-ups')
+      descr='3.3 V, 1 A LDO: CAN transceiver I/O, TVP5150 I/O, the serial port, the slots (0.1 A each), I2C pull-ups')
 c_('10u', '+5V', 'GND', 'U11 in')
 c_('10u', '+3V3', 'GND', 'U11 out')
 place(LDO18, 'U12', 'AP2112K-1.8', 'Package_TO_SOT_SMD:SOT-23-5',
@@ -401,8 +401,8 @@ c_('1u', '+3V3', 'GND', 'U12 in')
 c_('4.7u', '+1V8', 'GND', 'U12 out')
 place(FB, nid('FB'), '600R', FP_FB, {'1': '+1V8', '2': '+1V8A'}, descr='Ferrite: TVP5150 analog 1.8 V')
 c_('10u', '+1V8A', 'GND', 'TVP5150 analog bulk')
-# switched 12 V (bays pin 8, trunk port, camera)
-text(cur[0].x0 + 300, cur[0].y0 + 6, 'SW12 (switched 12 V for the bays\' pin 8, the trunk port and the camera): a P-FET high-side switch from 12V_BATT, on while the ignition is on.', 1.6)
+# switched 12 V (slots pin 8, trunk port, camera)
+text(cur[0].x0 + 300, cur[0].y0 + 6, 'SW12 (switched 12 V for the slots\' pin 8, the trunk port and the camera): a P-FET high-side switch from 12V_BATT, on while the ignition is on.', 1.6)
 place(PFET, 'Q5', 'SUD50P04-08', 'Package_TO_SOT_SMD:TO-252-2', {'1': 'Q5_G', '2': 'SW12', '3': '12V_BATT'},
       descr='SW12 high-side switch')
 r_('10k', '12V_BATT', 'Q5_G', 'Q5 gate pull-up (off)')
@@ -431,21 +431,17 @@ for i in range(4):
           descr='Board mounting hole, M3 (provisional: moves with the bezel)')
 
 # ----------------------------------------------------------------------------- AUX 12 V (bay power)
-cur[0] = Block('aux', 1, 'AUX 12 V: bay power from its own fused feed. Its return (AUX_GND) meets GND only at NT1.')
+cur[0] = Block('aux', 1, 'AUX 12 V: slot power from its own fused feed (pins 25-30 of every slot). Its return (AUX_GND) meets GND only at NT1.')
 place(HDR[2], 'J13', 'AUX 12V in', 'Connector_Molex:Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical',
       {'1': 'AUX_IN', '2': 'AUX_GND'}, descr='Mini-Fit Jr 2 pin: 1 AUX 12 V (own 10-15 A fuse at the fuse box, switched), 2 ground')
 place(FUSE, nid('F'), '10A mini blade', 'Fuse:Fuseholder_Blade_Mini_Keystone_3568', {'1': 'AUX_IN', '2': 'AUX_IN_F'},
-      descr='Board fuse for both bays together (mini blade, 10 A)')
+      descr='Board fuse for all six slots together (mini blade, 10 A)')
 place(PFET, 'Q6', 'SUD50P04-08', 'Package_TO_SOT_SMD:TO-252-2', {'1': 'Q6_G', '2': 'AUX_IN_F', '3': 'AUX12'},
       descr='AUX reverse-polarity protection (8 mOhm)')
 r_('10k', 'Q6_G', 'AUX_GND', 'Q6 gate to the AUX return')
 zener('BZT52C15', 'AUX12', 'Q6_G', 'Q6 gate-source clamp')
 place(DZ, nid('D'), 'SMCJ33A', 'Diode_SMD:D_SMC', {'1': 'AUX12', '2': 'AUX_GND'}, descr='AUX TVS')
 place(CP, nid('C'), '100u 50V', 'Capacitor_SMD:CP_Elec_10x10.5', {'1': 'AUX12', '2': 'AUX_GND'}, descr='AUX bulk')
-for i, ref in enumerate(('J14', 'J15')):
-    place(HDR[4], ref, 'Bay %d power' % (i + 1), 'Connector_Molex:Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical',
-          {'1': 'AUX12', '2': 'AUX12', '3': 'AUX_GND', '4': 'AUX_GND'},
-          descr='Bay %d power: Micro-Fit 3.0, 1-2 AUX 12 V, 3-4 AUX ground, about 10 A. Carriers plug in with a pigtail' % (i + 1))
 
 # ----------------------------------------------------------------------------- sensor pack core
 cur[0] = Block('mcu', 2, 'SENSOR PACK: ATmega2560, 16 MHz, 5 V. Firmware: arduino/sketches/sensor_pack (ported to this pin map)')
@@ -462,7 +458,8 @@ m.update({'10': '+5V', '31': '+5V', '61': '+5V', '80': '+5V', '100': 'AVCC', '11
           '78': 'ALT_L', '77': 'IGN_SENSE', '76': 'FUEL_MON', '75': 'TEMP_MON', '74': 'PRESS_MON',
           '73': 'VOLT_PWR_MON', '72': 'RPM_SEL_A', '71': 'RPM_SEL_B',
           '53': 'DEMO', '54': 'PWR_HOLD', '26': 'STATUS_LED',
-          '37': 'SPARE_D47', '38': 'SPARE_D46', '39': 'SPARE_D45', '40': 'SPARE_D44'})
+          '37': 'SPARE_D47', '38': 'SPARE_D46', '39': 'SPARE_D45', '40': 'SPARE_D44',
+          '88': 'WAKE_SENSE'})                                  # ADC9 / PCINT17: a slot card's WAKE request
 place(MCU, 'U1', 'ATmega2560-16AU', 'Package_QFP:TQFP-100_14x14mm_P0.5mm', m,
       descr='Sensor pack MCU. USART0 = FTDI header, USART1 = sensor frames (fallback), SPI = MCP2515 + ISP, ICP4 / ICP5 = tach / speed')
 for _ in range(4):
@@ -570,7 +567,7 @@ cur[0] = Block('screens', 1, 'SCREENS: J5 left, J1 center, J4 right (ESP32-P4, p
                '(VIO from the board 3.3 V). 120 R at the left (R) and right (bridged jumper) ends of the bus.')
 HDR_NETS = {
     'J1': {'1': '+5V', '3': '+5V', '5': 'GND', '8': 'V_D3', '10': 'GND', '11': 'V_D2', '12': 'V_D1', '13': 'GND',
-           '14': 'V_D0', '15': 'SENS_TX_C', '16': 'V_D7', '20': 'GPS_RX0', '22': 'GPS_TX0', '23': 'CAN_RX_C',
+           '14': 'V_D0', '15': 'SENS_TX_C', '16': 'V_D7', '20': 'SER_RX', '22': 'SER_TX', '23': 'CAN_RX_C',
            '24': 'V_VS', '25': 'V_PCLK', '26': 'GND', '27': 'REV_TRIGGER', '28': 'Illumination', '29': 'GND',
            '30': 'V_HS', '31': 'CAN_TX_C', '32': 'V_D6', '33': 'GND', '34': 'CL_SCL', '35': 'V_D5', '36': 'V_P17',
            '37': 'V_FID', '38': 'CL_SDA', '39': 'V_D4', '40': 'GND'},
@@ -603,7 +600,7 @@ place(HDR[3], 'J16', 'CAN debug', 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.
 r_('4.7k', '+3V3', 'CL_SDA', 'Cluster I2C pull-up (R15)')
 r_('4.7k', '+3V3', 'CL_SCL', 'Cluster I2C pull-up (R16)')
 # vehicle inputs to the screens
-text(cur[0].x0 + 300, cur[0].y0 + 6, 'Vehicle inputs to the screens (as rev 1): illumination (J7 pin 6), reverse (J9 pin 1), GPS (J6).', 1.6)
+text(cur[0].x0 + 300, cur[0].y0 + 6, 'Vehicle inputs to the screens (as rev 1): illumination (J7 pin 6), reverse (J9 pin 1). J6: serial port (center UART2).', 1.6)
 r_('10k', 'ILLUM_IN', 'Q1_B', 'Illumination base')
 r_('10k', 'Q1_B', 'GND', 'Illumination base pull-down')
 npn('Q1_B', 'GND', 'Illumination', 'Illumination: low = dim (GPIO24 on each screen, internal pull-up)', ref='Q1')
@@ -615,7 +612,9 @@ r_('10k', 'REV_IN', 'Q3_B', 'Reverse trigger base')
 r_('10k', 'Q3_B', 'GND', 'Reverse trigger base pull-down')
 npn('Q3_B', 'GND', 'REV_TRIGGER', 'Reverse: low = in reverse (center GPIO25)', ref='Q3')
 c_('100n', 'REV_TRIGGER', 'GND', 'Reverse filter')
-place(HDR[4], 'J6', 'GPS Module', FP_PH4, {'1': '+3V3', '2': 'GPS_TX0', '3': 'GPS_RX0', '4': 'GND'}, descr='Same pinout as rev 1')
+place(HDR[4], 'J6', 'Serial', FP_PH4, {'1': '+3V3', '2': 'SER_TX', '3': 'SER_RX', '4': 'GND'},
+      descr='Serial port: the center screen\'s UART2, 3.3 V logic. 1 3V3, 2 TX (out of the dash: to the device\'s RX), '
+            '3 RX (into the dash: from the device\'s TX), 4 GND. Same pins as rev 1\'s GPS connector')
 
 # ----------------------------------------------------------------------------- video
 cur[0] = Block('video', 3, 'VIDEO: composite (J11) -> TVP5150AM1 -> 8-bit BT.656 to the center\'s camera pins, '
@@ -653,15 +652,7 @@ for net in ('+1V8A', '+1V8A', '+1V8', '+3V3'):
 c_('10u', '+1V8', 'GND', 'U8 digital bulk')
 
 # ----------------------------------------------------------------------------- bays, cable ports, trunk
-cur[0] = Block('ports', 3, 'ACCESSORIES: bay 1 (J18 A, J19 B), bay 2 (J20 A, J21 B), 2x5 port header as rev 1. '
-               'Cable ports J17, J22, J23, J24 (JST PH). Trunk port J25 (bus extension, 12 V).')
-for i, ref in enumerate(('J18', 'J19', 'J20', 'J21')):
-    p = 'P%d' % (i + 1)
-    place(HDR2[5], ref, 'Bay %d%s' % (i // 2 + 1, 'AB'[i % 2]), FP_PORT,
-          {'1': p + '_5V', '2': p + '_5V', '3': 'GND', '4': 'GND', '5': 'CANH', '6': 'CANL', '7': 'GND', '8': p + '_12V',
-           '9': None, '10': None}, descr='Accessory header position (docs/hardware/accessory_ports.md); MP1 / MP2 to GND')
-    ptc('PTC 0.5A', '+5V', p + '_5V', ref + ' 5 V')
-    ptc('PTC 0.5A', 'SW12', p + '_12V', ref + ' switched 12 V')
+cur[0] = Block('ports', 3, 'CABLE PORTS J17, J22, J23, J24 (JST PH). Trunk port J25 (bus extension, 12 V).')
 for i, ref in enumerate(('J17', 'J22', 'J23', 'J24')):
     p = 'C%d' % (i + 1)
     place(HDR[4], ref, 'Cable port %d' % (i + 1), FP_PH4, {'1': p + '_5V', '2': 'CANH', '3': 'CANL', '4': 'GND'},
@@ -673,6 +664,42 @@ place(HDR[4], 'J25', 'Trunk port', 'Connector_Molex:Molex_Micro-Fit_3.0_43650-04
 ptc('PTC 1.1A', 'SW12', 'TRUNK_12V', 'Trunk 12 V')
 place(NUP, 'D3', 'NUP2105L', FP_SOT23, {'1': 'CANH', '2': 'CANL', '3': 'GND'}, descr='ESD clamp at the trunk port')
 
+# ----------------------------------------------------------------------------- card slots
+cur[0] = Block('slots', 3, 'SLOTS: six 2x15 sockets J31-J36 (slot 1-6), cards stand on edge (docs/hardware/accessory_ports.md). '
+               'Per slot: fused 5 V, switched 12 V, 3.3 V, constant 12 V, an ID resistor. Shared: CAN, WAKE, LAMP / REV levels, '
+               'the analog audio bus, AUX 12 V. LINK0-4 join neighbour pairs only: slots 1-2 (A), 3-4 (B), 5-6 (C).')
+SLOT_ID = ('1k', '3.3k', '6.8k', '12k', '22k', '47k')       # against the card's 10k pull-up to its 3.3 V
+for i in range(6):
+    n, s, lk = i + 1, 'S%d' % (i + 1), 'ABC'[i // 2]
+    place(HDR2[15], 'J%d' % (31 + i), 'Slot %d' % n, FP_SLOT,
+          {'1': s + '_5V', '2': s + '_5V', '3': 'GND', '4': 'GND', '5': 'CANH', '6': 'CANL', '7': 'GND', '8': s + '_12V',
+           '9': s + '_3V3', '10': s + '_BATT', '11': s + '_ID', '12': 'WAKE', '13': 'LAMP_LVL', '14': 'REV_LVL',
+           '15': 'LINK0_' + lk, '16': 'LINK1_' + lk, '17': 'LINK2_' + lk, '18': 'LINK3_' + lk, '19': 'GND', '20': 'GND',
+           '21': 'AUDIO_L', '22': 'AUDIO_R', '23': 'AUDIO_GND', '24': 'LINK4_' + lk,
+           '25': 'AUX12', '26': 'AUX12', '27': 'AUX12', '28': 'AUX_GND', '29': 'AUX_GND', '30': 'AUX_GND'},
+          descr='Card slot %d: 2x15 female socket, 2.54 mm, vertical (Sullins PPTC152LFBN-RC). The card carries a right-angle '
+                '2x15 male header on its bottom edge. Links pair with slot %d' % (n, n + 1 if n % 2 else n - 1))
+    ptc('PTC 0.5A', '+5V', s + '_5V', 'Slot %d 5 V' % n)
+    ptc('PTC 0.5A', 'SW12', s + '_12V', 'Slot %d switched 12 V' % n)
+    ptc('PTC 0.1A', '+3V3', s + '_3V3', 'Slot %d 3.3 V' % n, FP_PTC_S)
+    ptc('PTC 0.2A', '12V_BATT', s + '_BATT', 'Slot %d constant 12 V (key-off functions)' % n, FP_PTC_S)
+    r_(SLOT_ID[i], s + '_ID', 'GND', 'Slot %d ID: the card reads it against its own 10k pull-up to 3.3 V' % n)
+text(cur[0].x0 + 300, cur[0].y0 + 6, 'WAKE: a card drives it high (3.3 V, through its own diode) to start the 5 V rail with the key off; '
+     'the 2560 reads it and can take over with PWR_HOLD. LAMP_LVL / REV_LVL: J7 pin 6 and J9 pin 1 scaled to 0-3.3 V.', 1.6)
+r_('100k', 'WAKE', 'GND', 'WAKE idle low (cards only ever drive it high)')
+place(BAT54S, nid('D'), 'BAT54S', FP_SOT23, {'1': 'WAKE', '2': None, '3': 'WAKE_K'},
+      descr='Wake diode (pin 1 to pin 3): WAKE high lifts the buck EN, like PWR_HOLD; the second diode is unused')
+r_('47k', 'WAKE_K', 'BUCK_EN', 'Wake resistor (3.3 V in gives EN about 2 V; it starts above 1.2 V)')
+r_('47k', 'WAKE', 'WAKE_SENSE', 'WAKE into the 2560 (series: the 2560 may be unpowered)')
+for src, dst, what in (('ILLUM_IN', 'LAMP_LVL', 'Dash-light level (rheostat voltage) for the cards'),
+                       ('REV_IN', 'REV_LVL', 'Reverse level for the cards (high = in reverse)')):
+    r_('100k', src, dst, what + ': divider top (14.5 V -> 3.1 V)')
+    r_('27k', dst, 'GND', what + ': divider bottom')
+    c_('100n', dst, 'GND', what + ': filter')
+    place(BAT54S, nid('D'), 'BAT54S', FP_SOT23, {'1': 'GND', '2': '+3V3', '3': dst}, descr=what + ': clamp')
+place(NETTIE, 'NT2', 'NetTie', 'NetTie:NetTie-2_SMD_Pad2.0mm', {'1': 'GND', '2': 'AUDIO_GND'},
+      descr='The only joint between the slots\' audio-bus ground and the logic ground')
+
 # ----------------------------------------------------------------------------- write
 for b in blocks:
     col_y[b.col] = max(col_y[b.col], b.y + b.row_h + 25)
@@ -680,7 +707,7 @@ out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "User" 1820 %d)' % (max(col_y.values()) + 60),
        '  (title_block (title "DigiDash main board") (date "2026-09-30") (rev "2")',
-       '    (comment 1 "ATmega2560 sensor pack on CAN, TVP5150AM1, two accessory bays, AUX 12 V")',
+       '    (comment 1 "ATmega2560 sensor pack on CAN, TVP5150AM1, six card slots, AUX 12 V")',
        '    (comment 2 "docs/hardware/digidash_rev2_plan.md"))',
        '  (lib_symbols']
 for t in lib_text.values():

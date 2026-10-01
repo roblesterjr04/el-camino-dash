@@ -77,7 +77,8 @@ The 11-bit ID space, lowest (highest priority) first. Channel number = ID >> 5; 
 | `0x300`–`0x31F` | 24 | **AUDIO_STREAM** | raw |
 | `0x320`–`0x33F` | 25 | **BULK** (control) | transfer |
 | `0x340`–`0x35F` | 26 | **BULK_DATA** | raw |
-| `0x360`–`0x3BF` | 27–29 | reserved | |
+| `0x360`–`0x37F` | 27 | **ONLINE** (internet results from a gateway) | transfer |
+| `0x380`–`0x3BF` | 28–29 | reserved | |
 | `0x3C0`–`0x3DF` | 30 | **NET** | transfer |
 | `0x3E0`–`0x3FF` | 31 | **LOG** | transfer |
 | `0x400`–`0x6FF` | 32–55 | node-private ranges (`0x400 + 0x40·(node − 0x10)`): messages only that accessory's partners understand | private |
@@ -96,7 +97,7 @@ Five bits, `0x00`–`0x1F`, as in `can_bus.md`:
 | --- | --- |
 | `0x00` | never a source. As a destination: every node |
 | `0x01`–`0x03` | center, left, right screens |
-| `0x04`–`0x0F` | reserved for core nodes (a sensor pack or GPS on CAN, later) |
+| `0x04`–`0x0F` | core nodes: `0x04` the sensor pack, `0x05` the GPS card (`docs/hardware/gps_card.md`), `0x06` the LTE gateway (`docs/hardware/lte_card.md`) |
 | `0x10`–`0x1B` | accessories with a private range (`0x13` = console) |
 | `0x1C`–`0x1E` | accessories without a private range (channels only) |
 | `0x1F` | a service tool (laptop on the J16 tap with a USB-CAN adapter) |
@@ -171,6 +172,12 @@ Discovery. Every node that speaks the protocol implements this channel.
 | `0x81` | QUERY | dest u8, what u8: bit0 ANNOUNCE, bit1 sensor descriptions, bit2 alert descriptions, bit3 UI item descriptions |
 | `0x82` | IDENTIFY | dest u8, seconds u8: blink an LED / beep so a person can find the board (0 = stop) |
 | `0x83` | RESTART | dest u8, magic u8 `0x5A` (from the center or a service tool only) |
+| `0x84` | LINK | dest u8 (the partner card), slot u8 (sender's), use u8, role u8, state u8, detail u16 (see [Links](#links-between-slot-cards)) |
+| `0x10` | WIFI OFFER | gateway → all, only in answer to WIFI QUERY: credentials generation u8, security u8, channel u8, flags u8, SSID length u8, SSID, password length u8, password (see [Network gateway](#network-gateway-wi-fi-from-a-card)) |
+| `0x11` | GATEWAY STATUS | gateway → all, 1 Hz and on change: uplink u8, signal bars u8, RSSI s8 (dBm), technology u8, Wi-Fi clients u8, data this month u16 (MB), credentials generation u8, flags u8 |
+| `0x8A` | WIFI QUERY | dest u8 (the gateway): send WIFI OFFER |
+| `0x8B` | GATEWAY CMD | dest u8, command u8, argument u16 |
+| `0x8C` | WIFI SHARE | dest u8 (the gateway), then the WIFI OFFER layout: another network the gateway may use for itself (the home Wi-Fi, for uploads in the garage) |
 
 - **produces / consumes** are bitmaps by channel number (bit 1 = ALERT, 9 = SENSOR, 19 = UI, …). The node that
   consumes AUDIO_CMD is the audio sink; the node that consumes ALERT and SENSOR descriptions is the center. Nobody
@@ -180,11 +187,66 @@ Discovery. Every node that speaks the protocol implements this channel.
 - **Description generation** bumps whenever any of the node's descriptions change (a firmware update, a setting that
   renames something). Receivers may cache descriptions keyed by (unique ID, generation) and skip asking again.
 - **ANNOUNCE flags**: bit0 the node's settings are at factory defaults (never changed, or just reset). The center
-  uses it to restore a backup (see [Settings backup](#settings-backup)).
+  uses it to restore a backup (see [Settings backup](#settings-backup)). Bits 1–3: the slot the node sits in on a
+  rev 2 board (1–6, read from the slot ID pin), 0 = not in a slot (cable port, rev 1 carrier, a screen).
 - The unique ID also catches two carriers set to the same node number: the center sees two ANNOUNCEs with one node
   number and different unique IDs, and raises an alert.
 - Node types extend the heartbeat's: 0 display, 1 audio bridge, 2 console, 3 sensor node, 4 input device, 5 audio
-  sink, 6 output / relay node, 0x7F service tool. Products are listed under [Registries](#registries).
+  sink, 6 output / relay node, 7 network gateway, 8 voice assistant, 0x7F service tool. Products are listed under [Registries](#registries).
+
+### Links between slot cards
+
+On a rev 2 board the two slots of a pair (1–2, 3–4, 5–6) share five link lines (`docs/hardware/accessory_ports.md`).
+A card drives none of them until its partner has agreed, over LINK:
+
+1. Each card learns its own slot from its slot ID pin and its partner's from the partner's ANNOUNCE (flags bits 1–3).
+2. The card that wants a link sends LINK with state 0 (offer): use, its role, detail.
+3. The partner answers LINK with state 1 (accept), or 2 (release: no). Only after an accept does either side drive
+   its lines. Either side ends it with state 2. A card that sees its partner's heartbeat stop releases its lines.
+
+| Field | Values |
+| --- | --- |
+| use | 0 none, 1 I2S, 2 UART, 3 SPI, 4 I2C, 5 sync pulses; `0x80`+ product-specific |
+| role | 0 the sender drives the clocks (I2S / SPI master, or the UART's first TX on LINK 0), 1 the sender follows |
+| detail | I2S: sample rate / 10 (4800 = 48 kHz), with LINK 0 BCK, 1 WS, 2 data from the clock master, 3 data to it, 4 MCLK (256 fS) or idle. UART: baud / 100 |
+
+The audio card (I2S master, slot 1) and a voice card (slot 2) are the first pair: the voice card offers use 1, role 1;
+the audio card accepts and enables its link buffer.
+
+### Network gateway (Wi-Fi from a card)
+
+Most online work never needs this: the gateway does it and broadcasts the results on [ONLINE](#online-0x360--node).
+For bulk data (screen firmware, map tiles) and a phone in the car, a card with an internet uplink (an LTE card) can
+also run a Wi-Fi access point (off by default, turned on from the menu), and the center joins it without anyone typing
+a password. Bulk data (web requests, map tiles, firmware) then goes over Wi-Fi; CAN only carries the status and the
+handshake.
+
+1. The gateway ANNOUNCEs as node type 7.
+2. The center sends WIFI QUERY. The gateway answers with WIFI OFFER (a multi-frame transfer, about 100 bytes). It never
+   sends the offer unasked.
+3. The center stores the network as its own saved entry, separate from the home Wi-Fi the user entered, and joins it.
+   When GATEWAY STATUS shows a new credentials generation it queries again.
+
+| Field | Values |
+| --- | --- |
+| security | 0 open, 1 WPA2-PSK, 2 WPA3-SAE, 3 WPA2 / WPA3 mixed |
+| channel | 0 any, else the 2.4 GHz channel |
+| flags (OFFER) | bit0 the uplink is up now, bit1 hidden SSID |
+| SSID / password | up to 32 / 63 bytes, UTF-8, no terminator |
+| uplink | 0 off, 1 searching, 2 registered, 3 data up |
+| technology | 0 none, 2 3G, 3 LTE, 4 5G, 5 LTE-M / NB-IoT |
+| flags (STATUS) | bit0 access point on, bit1 roaming, bit2 data cap reached |
+| command | 1 access point on, 2 access point off, 3 new random password (the generation goes up), 4 data cap in MB (argument), 5 forget the shared network |
+
+- **Which network first:** the center prefers the home Wi-Fi when it can see it (no mobile data used in the garage)
+  and falls back to the gateway. A setting can turn either off.
+- **Password:** the gateway makes a random one on first boot. The center shows the SSID, the password and a QR code
+  on a menu page, so a phone in the car can join too.
+- **Security:** the password crosses CAN in plain text, but only on request and only inside the car's wiring.
+- **WIFI SHARE** lets the center hand the gateway the home network, so the gateway uploads logs and GPS tracks over
+  home Wi-Fi when it is parked at home.
+- The same pattern serves any card that offers a network service (a logger with a web page): it says on CAN where to
+  find it, so nothing has to search the network.
 
 ## SYSTEM (`0x060 + node`)
 
@@ -453,6 +515,49 @@ bytes 3–7 = 5 bytes of the object (chunk n = bytes 5n…5n+4). Up to 10 MB per
 - Kinds: 1 sound clip (object = slot, 16-bit PCM or IMA-ADPCM WAV, ≤ 64 KB), 2 firmware image (the update
   procedure is a later profile; v1 fixes only the transport), 3 file on the center's SD card, `0x80`+ product-specific.
 
+## ONLINE (`0x360 + node`)
+
+Internet results, for everyone. **The dash does as much of its online work as possible over CAN**: the node with the
+internet connection (the LTE gateway, `docs/hardware/lte_card.md`) does the lookups itself and broadcasts only the
+answers, which are a few dozen bytes. The screens never need Wi-Fi for these. Wi-Fi is kept for bulk data (screen
+firmware, map tiles) and for a phone in the car, and the gateway's access point is **off by default**.
+
+The rule: a result measured in bytes or a few kilobytes goes on ONLINE; anything in hundreds of kilobytes goes over Wi-Fi.
+
+| Op | Name | Sent | Payload after the opcode |
+| --- | --- | --- | --- |
+| `0x01` | PLACE | on change, and every 30 s | serial u8, flags u8, speed limit u8, country code (2 bytes, ISO 3166), street length u8, street, locality length u8, locality, region length u8, region |
+| `0x02` | WEATHER | every 15 min, and when the place moves more than 10 km | observed at u32 (UTC s), temperature s16 (0.1 °C), feels like s16 (0.1 °C), WMO weather code u8, humidity u8 (%), wind u16 (0.1 m/s), wind from u16 (degrees), rain chance u8 (% next 6 h), today's high s16, today's low s16 (0.1 °C), sunrise u32, sunset u32 (UTC s) |
+| `0x03` | TIMEZONE | on change, and every 5 min | UTC offset s8 (15-minute steps), flags u8 (bit0 daylight saving now), IANA name length u8, IANA name (e.g. `America/Chicago`) |
+| `0x04` | MESSAGE | when one arrives | id u8, source u8 (1 SMS, 2 online service), received at u32 (UTC s), sender length u8, sender, text length u8, text (≤ 160 bytes) |
+| `0x05` | ONLINE STATUS | 1 Hz | flags u8 (bit0 internet up, bit1 place valid, bit2 weather valid, bit3 time zone valid), seconds since the last place lookup u16, lookups this hour u8, last error u8 (0 none, 1 no fix, 2 no data connection, 3 service error, 4 rate limited) |
+| `0x81` | REFRESH | from anyone | dest u8 (the gateway), what u8 (bit0 place, bit1 weather, bit2 time zone): look it up now and broadcast |
+| `0x82` | MESSAGE READ | from the screen that showed it | dest u8 (the gateway), id u8 |
+
+- Strings are UTF-8, no terminator, each with its length byte in front. Street up to 48 bytes, locality and region up to
+  32 each.
+- **PLACE flags:** bit0 valid, bit1 from cache (no data connection right now), bit2 the speed limit is in mph (else
+  km/h); speed limit 0 = unknown. **serial** goes up with each new place, so a receiver can skip an unchanged repeat.
+- **Weather** codes are the WMO codes Open-Meteo uses (0 clear, 1–3 cloud, 45 / 48 fog, 51–67 rain, 71–77 snow, 80–82
+  showers, 95–99 thunder). Unknown values: `0x7FFF` for s16, `0xFF` for u8.
+- **Where the input comes from:** the gateway hears the GPS card's position (`can_bus.md` `0x222`) like every other
+  node. Nobody asks it for each lookup.
+- **When it looks up the place:** when the car has moved more than 50 m since the last lookup and at least 10 s have
+  passed, and once on boot. Stopped, it does not look up again. That stays well inside OpenStreetMap Nominatim's limit
+  (one request per second) and to about 1–2 MB of data per hour of driving.
+- **Services:** reverse geocoding from OpenStreetMap **Nominatim** (what the center uses over Wi-Fi today; the gateway
+  sends its own User-Agent as Nominatim's policy asks). Weather and the time zone from **Open-Meteo** (no key; one call
+  with `timezone=auto` returns both). The speed limit from OpenStreetMap's `maxspeed` tags through Overpass, optional
+  (0 when not looked up). Each service is a setting on the gateway, so another provider can replace it.
+- **The center** keeps sending the street on `0x221` and the time on `0x220` for the screens that read those today. It
+  takes them from ONLINE when it hears a gateway, and only falls back to its own Wi-Fi lookup when there is none.
+- **Messages:** the A7670 can receive SMS. The gateway forwards each one as MESSAGE (shown like an alert on the menu
+  screen) until a screen sends MESSAGE READ. Sending SMS from the dash is not in v1.
+- **Settings** (lookup interval, units, the APN, which services, access point on / off) are the gateway's UI items in the
+  menu, as for any accessory (see [UI](#ui-0x260--node)).
+- A gateway with no data connection keeps sending ONLINE STATUS and its cached PLACE (flags bit1), so the screens can
+  say why nothing updates.
+
 ## LOG (`0x3E0 + node`)
 
 | Op | Name | Payload after the opcode |
@@ -475,7 +580,10 @@ u16) are free for a product's own use.
 | `0x0001` | round display (center / left / right) |
 | `0x0002` | audio bridge (classic ESP32, A2DP) |
 | `0x0003` | console (OLED + knobs) |
-| `0x0004` | audio carrier (four-channel) |
+| `0x0004` | audio carrier (four-channel); rev 2: the audio card |
+| `0x0005` | GPS / clock / motion card |
+| `0x0006` | LTE gateway card |
+| `0x0007` | AI voice card |
 
 ### Quantities
 
@@ -580,7 +688,7 @@ change to any other firmware: the audio sink and the menu screen already listen 
 | --- | --- |
 | Legacy sensor, cluster, heartbeats, audio transport (today) | ~5 % |
 | Core sensors on SENSOR (center) | ~2 % |
-| SYSTEM, ALERT, INPUT, UI, NET, LOG | < 1 % |
+| SYSTEM, ALERT, INPUT, UI, NET, LOG, ONLINE | < 1 % |
 | Accessory sensors (budget: 20 values at 10 Hz) | ~6 % |
 | BULK and album art together (paced, only while transferring) | ≤ 34 % |
 | AUDIO_STREAM, one at a time (8 kHz / 16 kHz) | 16 % / 31 % |

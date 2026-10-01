@@ -1,33 +1,116 @@
 # Accessory ports and carrier boards
 
-## Rev 2 (`DigiDash2/`): bays
+## Rev 2 (`DigiDash2/`): card slots
 
-Rev 2 of the DigiDash board (`docs/hardware/digidash_rev2_plan.md`) replaces the four scattered header positions with
-**two bays**. The header pinout, the hole pattern and the carrier footprint (`Carrier_Header_2x05`) below are
-unchanged, so every single-size carrier fits either board.
+Rev 2 of the DigiDash board (`docs/hardware/digidash_rev2_plan.md`) has **six card slots** instead of bays. A card is
+a board that **stands on edge** in a 2×15 socket on the back of the main board, like a PC expansion card. It brings its
+own connectors out on its top edge, where the case puts them. The cable ports and the trunk port stay as below.
+
+### At a glance
 
 | Item | Rev 2 |
 | --- | --- |
-| Bay | **52 × 52 mm** on the back, at the top left. It holds two header positions stacked vertically: **A** (upper) and **B** (lower), 26 mm apart, each a standard 2×5 position with its asymmetric M3 holes and its own 0.5 A PTCs on +5 V and +12 V (switched). Bay 1 = J18 (A) + J19 (B), bay 2 = J20 (A) + J21 (B) |
-| Single carrier | 50 × 26 mm, as before, in A or B |
-| **Double carrier** | 50 × 52 mm (a whole bay). Its female header sits at **A**. It has M3 holes at A's two positions and at B's two positions (four standoffs). On its underside it keeps a pocket over **B's shrouded header** free of parts and through-hole pins: 21.5 × 10 mm centred on B's pins (a 2×5 shrouded header is 20.3 × 8.9 mm), full height of the 11 mm stack. The audio carrier (`AudioCarrier/`) is the first double carrier |
-| Bay power | A **4-pin Micro-Fit 3.0** (vertical) beside each bay: J14 to the right of bay 1, J15 to the right of bay 2. Pins 1–2 AUX 12 V, 3–4 AUX ground, about 10 A for both bays together. It comes from the board's separate AUX 12 V input (J13, own fuse at the car's fuse box). The AUX ground meets the logic ground at one point on the board. A carrier that needs real power (an amplifier, an output node driving loads) plugs in with a short pigtail. Pin 8 of the header stays the 0.5 A switched 12 V, for logic and "key on" |
+| Slots | **Six**, J31–J36 = slot 1–6, in a row on the back at the left, **20.32 mm apart** (x 20 … 121.6 in board coordinates), sockets centred at y 53 |
+| Socket | 2×15 female, 2.54 mm, vertical, 8.5 mm insulator: Sullins **PPTC152LFBN-RC** or equal. Footprint `DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical` (see [Numbering](#numbering)) |
+| Card | **80 × 60 mm**: the 80 mm edge goes in the slot (along the main board, top to bottom), and the card stands 60 mm tall, so its top edge is about 68.5 mm off the main board's back (the socket adds 8.5 mm). 1.6 mm thick. A right-angle 2×15 male header (2.54 mm, KiCad `PinHeader_2x15_P2.54mm_Horizontal`) centred on its bottom edge, the header's plastic body on the edge, so the pins stand 6 mm past it |
+| Parts side | Every card's parts face the same way, toward slot 1 (−x). Up to **15 mm** tall. **Slot 1** is at the end of the row and faces off it: no limit, so it is the slot for a card with tall parts (the audio card's RCA block is 28.5 mm) |
+| Back side | Up to **2.5 mm** including solder tails (it faces the next card's parts) |
+| Under the cards | The main board keeps parts under about 7 mm in each card's envelope (the card's bottom edge sits about 8.5 mm up). `gen_pcb.py` keeps the tall parts out |
+| Links | **Neighbour pairs**: slots 1–2 share link set A, 3–4 set B, 5–6 set C. Nothing else on the main board touches them |
+| AUX 12 V | From J13 (own fuse at the fuse box) and the board's 10 A fuse, on pins 25–30 of every slot. The old bay power plugs (J14 / J15) are gone |
 | Cable ports | **Four**: J17, J22, J23, J24 (JST PH 4-pin, pinout below), on the top edge |
-| Trunk port | **J25**, a 4-pin Micro-Fit 3.0 on the bottom edge that extends the bus itself to the rear of the car: 1 CANH, 2 CANL (twisted pair), 3 switched 12 V (1.1 A PTC), 4 GND, with its own ESD clamp. The right-end 120 Ω is on solder jumper JP2: cut it when a trunk cable is fitted, and fit 120 Ω at the far end of that cable. A remote node makes its own 5 V from the 12 V |
-| Switched 12 V | Pin 8 of every position, the trunk port and the camera come from a P-FET switched by the ignition (rev 1 fed pin 8 from the constant battery line, despite this document calling it switched) |
+| Trunk port | **J25**, a 4-pin Micro-Fit 3.0 on the bottom edge (moved to x 136, clear of the cards) that extends the bus itself to the rear of the car: 1 CANH, 2 CANL (twisted pair), 3 switched 12 V (1.1 A PTC), 4 GND, with its own ESD clamp. The right-end 120 Ω is switched by SW1-1: turn it off when a trunk cable is fitted, and fit 120 Ω at the far end of that cable |
+| Switched 12 V | Pin 8 of every slot, the trunk port and the camera come from a P-FET switched by the ignition |
 
-### Parts for a header position
+### Slot pinout
+
+| Pins | Odd | Even |
+| --- | --- | --- |
+| 1 / 2 | +5 V | +5 V |
+| 3 / 4 | GND | GND |
+| 5 / 6 | CANH | CANL |
+| 7 / 8 | GND | switched 12 V |
+| 9 / 10 | +3.3 V | constant 12 V |
+| 11 / 12 | slot ID | WAKE |
+| 13 / 14 | LAMP (dash-light level) | REV (reverse) |
+| 15 / 16 | LINK 0 | LINK 1 |
+| 17 / 18 | LINK 2 | LINK 3 |
+| 19 / 20 | GND | GND |
+| 21 / 22 | AUDIO L | AUDIO R |
+| 23 / 24 | AUDIO GND | LINK 4 |
+| 25 / 26 | AUX 12 V | AUX 12 V |
+| 27 / 28 | AUX 12 V | AUX GND |
+| 29 / 30 | AUX GND | AUX GND |
+
+| Signal | On the main board | What a card does with it |
+| --- | --- | --- |
+| **+5 V** (1, 2) | 0.5 A PTC per slot | Main logic supply. Two pins share the current |
+| **CANH / CANL** (5, 6) | The board's bus, ground on both sides of the pair | One MCP2562 (5 V VDD, 3.3 V VIO). **Never terminate** |
+| **Switched 12 V** (8) | 0.5 A PTC per slot, on with the key | "Key on", relay coils, small 12 V loads |
+| **+3.3 V** (9) | 0.1 A PTC per slot, from the board's 1 A LDO | Small cards (an ID chip, a sensor) can skip their own regulator. Not for an ESP32 with its radio on |
+| **Constant 12 V** (10) | 0.2 A PTC per slot, from the battery after the reverse-polarity FET | Key-off jobs (GPS hot start, a clock alarm, logging after shutdown). A card that uses it sleeps below about 1 mA with the key off |
+| **Slot ID** (11) | A resistor to GND per slot: 1k, 3.3k, 6.8k, 12k, 22k, 47k (slot 1 … 6) | 10k pull-up to the card's 3.3 V, read on an ADC: about 0.30, 0.82, 1.34, 1.80, 2.27, 2.72 V. The card knows its slot, its link partner (slot 1 ↔ 2, …) and can derive its CAN node number |
+| **WAKE** (12) | Shared by all slots, 100k to GND. It lifts the 5 V buck's EN through a diode (like the sensor pack's PWR_HOLD) and goes to the ATmega2560 (pin 88, ADC9 / PCINT17) | To start the dash with the key off, drive it **high (3.3 V) through a diode**; never drive it low. The 2560 wakes, sees why, and holds the power with PWR_HOLD while it needs it |
+| **LAMP** (13) | J7 pin 6 (the dash-light feed, a rheostat voltage) through 100k / 27k, clamped: 0–3.1 V | Dim LEDs or a display with the dash lights (ADC) |
+| **REV** (14) | J9 pin 1 (reverse lamp) through 100k / 27k, clamped: high = in reverse | Parking sensors, a rear camera, a beeper |
+| **LINK 0–4** (15–18, 24) | Bare traces between the two slots of a pair only (A: 1–2, B: 3–4, C: 5–6) | Whatever the two cards agree: I2S, SPI, UART, I2C, sync pulses. See [Link rules](#link-rules) |
+| **AUDIO L / R** (21, 22) | Shared by all slots, bare | Line level. One card drives it (the audio card), any card listens |
+| **AUDIO GND** (23) | Shared; joins GND only at net tie NT2 | The reference for AUDIO L / R. The driving card ties it to its ground through about 10 Ω; listeners use it as their input reference |
+| **AUX 12 V / GND** (25–30) | Three pins each, from the AUX input (10 A board fuse, no per-slot fuse). AUX GND meets GND only at NT1 | High-current loads: amplifiers, output nodes. About 5–6 A per card (2 A per contact), all slots together under the 10 A fuse |
+
+### Link rules
+
+- The links join the **two slots of a pair** and nothing else, so two pairs can each run their own link at the same
+  time. Put two cards that need to talk directly in the same pair: slots 1–2, 3–4 or 5–6.
+- **High impedance until the partner is known.** A card leaves every link pin undriven (or behind a 3-state buffer)
+  until it has seen its partner on CAN (NET ANNOUNCE from the partner slot's card, which it can tell from the slot ID
+  in the ANNOUNCE) and both agree on the use. That way a card never fights an unknown neighbour.
+- Drivers put about 33 Ω in series at the pin. Inputs have a weak pull (100k) so an empty partner slot reads idle.
+- I2S between two cards uses all five: LINK 0 BCK, LINK 1 WS, LINK 2 data from the clock master, LINK 3 data to it,
+  LINK 4 MCLK (for codecs that need it). The clock master is the card that owns the DACs (the audio card).
+
+### Programming (every card)
+
+**Every card must have a way to flash its MCU on the board.** Assume the chips arrive from assembly completely blank:
+no bootloader beyond what is in the chip's ROM, no firmware. A card without a programming header cannot be brought up.
+
+- A **programming header** on every card, wired for the MCU's native method:
+
+  | MCU | Header | Pins |
+  | --- | --- | --- |
+  | STM32 | SWD, 1 × 5, 2.54 mm | 3V3 (target sense, not a supply), SWDIO, SWCLK, NRST, GND |
+  | ESP32 (classic) | UART, 1 × 5, 2.54 mm, plus BOOT and RESET buttons | GND, TX0, RX0, IO0, EN |
+  | ESP32-S3 / C3 / C6 | Native USB (USB-C, or a 1 × 4 header with D+ / D−), or the UART header above | |
+  | AVR | ISP, 2 × 3, 2.54 mm | as the main board's J2 |
+
+- **Reachable with the card in its slot:** a card's parts side faces the next card about 20 mm away, so use a
+  **right-angle header on a side edge** (slot 1's card faces off the end of the row and can use a vertical one).
+- **Powered from the slot while flashing.** The programmer's supply pin is a reference only, so a card is never
+  powered from both at once.
+- A **debug serial** header (GND, TX, RX, 3.3 V logic) beside it is strongly recommended: log output, and a second way
+  to flash through the chip's ROM bootloader.
+- Firmware updates over CAN (BULK, `can_channels.md`) may come later, but they need firmware on the card to receive
+  them. The header is still needed for the first flash and for recovery.
+
+### Numbering
+
+KiCad's stock female-socket footprints number their rows mirrored, for two boards mated face to face. A card standing
+in the slot meets it differently, so the slot uses its own footprint, generated by `DigiDash2/generate/gen_footprints.py`:
+its pads are numbered like a pin header (pad 2 at +2.54 mm from pad 1, the pads counting down the rows). With the
+socket on the back and turned as `gen_pcb.py` places it (pin 1 at the bottom, the even row toward +x), **each socket
+pad meets the same-numbered pin** of a card's `PinHeader_2x15_P2.54mm_Horizontal`, placed on the card with its pins
+off the bottom edge, pad 2 below pad 1 and pad 3 to the left of pad 1 (seen from the card's parts side, top edge up,
+pin 1 is at the right). `AudioCarrier/generate/gen_pcb.py` shows how; both generators check the orientation from the
+pads and stop if it is wrong.
+
+### Parts
 
 | Part | On | Example part number | Notes |
 | --- | --- | --- | --- |
-| 2×5 shrouded box header, 2.54 mm, THT, straight | DigiDash board (`Port_Header_2x05`, back) | Würth **61201021621** (WR-BHD) | 20.36 × 8.75 mm, 9.1 mm tall, 3 A per contact. Keyed shroud; its inner cavity (6.35 mm wide) takes the carrier's socket or a keyed IDC ribbon plug |
-| 2×5 female socket, 2.54 mm, THT, 8.5 mm insulator | carrier underside (`Carrier_Header_2x05`) | Sullins **PPTC052LFBN-RC** | 5.08 mm wide, so it drops inside the box header's shroud and seats on its floor |
-| M3 hex standoffs, female–female | between the boards, at each M3 hole | **11 mm** (check against the parts on hand) | The socket (8.5 mm) sits on the box header's floor (about 2.6–3 mm up), which gives 11–11.5 mm board to board |
+| 2×15 female socket, 2.54 mm, vertical, 8.5 mm insulator | main board (`Slot_Socket_2x15_P2.54mm_Vertical`, back) | Sullins **PPTC152LFBN-RC** | 3 A per contact |
+| 2×15 male header, 2.54 mm, right angle, dual row | card's bottom edge (`PinHeader_2x15_P2.54mm_Horizontal`) | any with 6 mm mating pins | The plastic body sits on the card's edge |
 
-The footprints carry KiCad's stock STEP models (`IDC-Header_2x05_P2.54mm_Vertical`, and `PinSocket_2x05_P2.54mm_Vertical`
-turned onto the carrier's underside), so the 3D viewer shows both boards stacked correctly.
-
-The rest of this document describes rev 1 (`DigiDash/`), where the header positions sit wherever there was room.
+The rest of this document describes rev 1 (`DigiDash/`) and its 2×5 header positions, which rev 2 no longer has.
 
 ## Rev 1 (`DigiDash/`)
 
@@ -175,8 +258,9 @@ Carriers that need more (audio amplifiers) take +12 V from their header position
 What a carrier says on the bus to use the dash's alerts, sensors, menu, input and sounds is the channel protocol:
 [`docs/protocols/can_channels.md`](../protocols/can_channels.md). The ranges below are each node's private IDs.
 
-Without slot straps, a carrier's node number comes from its own firmware: each kind of accessory has a default, and a
-jumper or setting on the carrier moves it when two of the same kind are fitted. Every node heartbeats on
+On rev 1 a carrier's node number comes from its own firmware: each kind of accessory has a default, and a jumper or
+setting on the carrier moves it when two of the same kind are fitted. On rev 2 a card can also read its slot ID (pin 11)
+and offset its default by the slot, so two identical cards in different slots never clash. Every node heartbeats on
 `0x700 + node` once a second, so the center sees what is on the bus.
 
 | Node | Message range | Default for |
@@ -203,9 +287,10 @@ still reads its two straps (GPIO13 / GPIO23, pull-ups, grounded = 1): on a carri
 
 Each carrier has one CAN transceiver: MCP2562 (5 V VDD, 3.3 V VIO, STBY low), as on the DigiDash board today.
 
-## Example: the audio carrier
+## Example: the audio carrier (rev 1)
 
-What slot 0 does today, as a carrier on a header position:
+Rev 2's audio card (`AudioCarrier/`, slot 1) is described in [`AudioCarrier/README.md`](../../AudioCarrier/README.md).
+What slot 0 did on rev 1, as a carrier on a header position:
 
 - ESP32-DevKitC-VE (ESP32-WROVER-E, 8 MB PSRAM; same outline and 2×19 pinout as the DevKitC-32, which it replaces) in
   2×19 sockets, MCP2562 on GPIO32 (TX) / GPIO33 (RX, through 1 kΩ). GPIO16 / 17 go to the PSRAM.
