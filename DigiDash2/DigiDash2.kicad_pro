@@ -428,27 +428,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/P3_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/P2_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/P4_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/C2_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/C3_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/P1_5V"
+        "pattern": "/S6_5V"
       },
       {
         "netclass": "Power",
@@ -456,7 +436,83 @@
       },
       {
         "netclass": "Power",
+        "pattern": "/S3_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S1_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S1_3V3"
+      },
+      {
+        "netclass": "Power",
         "pattern": "/C1_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C3_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S3_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S1_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S4_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S4_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S2_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C2_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S3_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S6_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S2_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S6_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S4_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S2_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_BATT"
       },
       {
         "netclass": "Power12",
@@ -476,19 +532,27 @@
       },
       {
         "netclass": "Power12",
-        "pattern": "/P2_12V"
+        "pattern": "/S3_12V"
       },
       {
         "netclass": "Power12",
-        "pattern": "/P1_12V"
+        "pattern": "/S5_12V"
       },
       {
         "netclass": "Power12",
-        "pattern": "/P3_12V"
+        "pattern": "/S6_12V"
       },
       {
         "netclass": "Power12",
-        "pattern": "/P4_12V"
+        "pattern": "/S2_12V"
+      },
+      {
+        "netclass": "Power12",
+        "pattern": "/S1_12V"
+      },
+      {
+        "netclass": "Power12",
+        "pattern": "/S4_12V"
       },
       {
         "netclass": "Switch",

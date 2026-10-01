@@ -15,7 +15,7 @@ CAN node `0x10`, 5 V from the slot only. It fits rev 2 only (the 2×5 rev 1 vers
 
 | Files | |
 | --- | --- |
-| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on both sides. The schematic is the slot card; **the PCB file is still the old 50 × 52 mm carrier** until `gen_pcb.py` is run (see [Status](#status)). KiCad 10 |
+| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on both sides. Placed and routed (see [Status](#status)). KiCad 10 |
 | `AudioCarrier.pretty` | The ESP32-PICO-MINI-02 footprint (land pattern from the Espressif datasheet) and the RCA block (hole pattern from Switchcraft's PJRAS2X2S__X customer drawing), the 3.5 mm jack (from the drawing on Tinkersphere's TS3328 product page), and plain 3D models of both. Everything else is stock KiCad or `DigiDash_Accessory` |
 | `generate/` | Scripts that produced the files (`gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py`) |
 
@@ -89,11 +89,12 @@ solder tabs are ground.
 
 ## Status
 
-**Schematic: done** (the slot card, 96 parts; regenerated with KiCad 10's libraries). **PCB: not regenerated.** The
-slot change (2026-10-01) was made where KiCad could not run, so `gen_pcb.py` (new outline, slot header, placement) has
-not been run, and `AudioCarrier.kicad_pcb` is still the routed 50 × 52 mm double-bay carrier. Run the commands under
-[Regenerating](#regenerating), then fix what placement or DRC reports (a part that does not fit stops the script with
-"no room for", and prints the occupancy map).
+**Schematic: done** (the slot card, 96 parts). **PCB: placed and routed** (2026-10-01): 80 × 60 mm, 4 layers, 90
+placed parts. DRC with the schematic parity check: **no errors, nothing unconnected**; 30 silkscreen warnings (text at the
+edge, over pads, overlapping). Freerouting left one link (U8 pin 7, GND, boxed in by the link traces); it was joined by
+hand with a short F.Cu track to a GND via, and AUDIO_L on In2 jogs 0.05 mm around that via. A fresh `gen_pcb.py --route`
+run will not reproduce that fix and may leave other links. Fab outputs in `fab/` (`python3 ../tools/fab_export.py
+AudioCarrier`); both BOMs were rebuilt from the schematic.
 
 - **The RCA block's footprint** is drawn from Switchcraft's customer drawing
   (`https://switchcraft.com/assets/1/24/pjras2x2s__x_series_cd.pdf`; it is proprietary, so it is not copied here). One

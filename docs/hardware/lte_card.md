@@ -1,7 +1,8 @@
 # LTE gateway card
 
-**Status: spec only.** No schematic or board yet. When it is drawn, it follows the audio card's generator pattern
-(`AudioCarrier/generate/`).
+**Status: drawn, not ordered.** Schematic and routed 4-layer board in [`LTECard/`](../../LTECard/README.md), made by
+generator scripts in the audio card's pattern (`LTECard/generate/`). The core board's pin order and row spacing in it are
+still the provisional ones below: measure the board in hand before ordering (see the list in `LTECard/README.md`).
 
 A slot card that gives the dash internet. An **ESP32-S3** talks to an **LTE Cat-1 core board** (a ready-made
 breakout, plugged in on pin headers) and **does the dash's online work itself**: street name, weather, time zone,
