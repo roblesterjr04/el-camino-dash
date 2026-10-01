@@ -197,6 +197,22 @@ bool elc_can_decode_heartbeat(const ElcCanFrame &f, ElcCanHeartbeat &out) {
   return true;
 }
 
+bool ElcCanBridgeSeen::feed(const ElcCanFrame &f, uint32_t now_ms) {
+  ElcCanHeartbeat hb;
+  if (!elc_can_decode_heartbeat(f, hb)) return false;
+  if (hb.node >= ELC_CAN_NODE_SLOT0 && hb.node < ELC_CAN_NODE_SLOT0 + ELC_CAN_RANGE_COUNT) {
+    const int s = hb.node - ELC_CAN_NODE_SLOT0;
+    _bridge[s] = hb.type == ElcCanNodeType::AudioBridge;
+    _ms[s] = now_ms;
+  }
+  return true;
+}
+
+bool ElcCanBridgeSeen::ok(int slot, uint32_t now_ms) const {
+  if (slot < 0 || slot >= ELC_CAN_RANGE_COUNT || slot == ELC_CAN_RANGE_CONSOLE || !_bridge[slot]) return false;
+  return now_ms - _ms[slot] <= kMaxAgeMs;
+}
+
 void elc_can_encode_audio_transport(uint8_t slot, const ElcCanAudioTransport &t, ElcCanFrame &out) {
   frame(out, elc_can_slot_id(slot, ELC_CAN_AUDIO_MSG_TRANSPORT), 8);
   put16(out.data, t.elapsed_s);

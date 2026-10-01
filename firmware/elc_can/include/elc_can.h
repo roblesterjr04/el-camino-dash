@@ -81,5 +81,10 @@ class ElcCan {
   ElcCanNodeInfo _nodes[ELC_CAN_MAX_NODES];
 };
 
-/** Slot number (0..2) from the DigiDash SLOT_ID straps: a grounded pin reads as 1. -1 pin = not strapped. */
+/** Rev 1 carrier: strap value (0..2) from the two SLOT_ID straps, a grounded pin reads as 1. -1 pin = not strapped.
+ *  The node is ELC_CAN_NODE_SLOT0 + that value. */
 uint8_t elc_can_read_slot_id(int id0_pin, int id1_pin);
+
+/** Rev 2 slot card: the slot (1 .. 6) from the slot ID pin (slot pin 11, 10k to 3.3 V on the card) on an ADC pin,
+ *  0 when no main board pulls it down. The node is elc_can_node_for_card_slot() of it. */
+uint8_t elc_can_read_card_slot(int adc_pin);

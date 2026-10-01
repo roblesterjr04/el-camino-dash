@@ -139,6 +139,27 @@ struct ElcCanHeartbeat {
 void elc_can_encode_heartbeat(const ElcCanHeartbeat &h, ElcCanFrame &out);
 bool elc_can_decode_heartbeat(const ElcCanFrame &f, ElcCanHeartbeat &out);
 
+/** Which accessory ranges belong to a live audio bridge, learned from heartbeats (node type AudioBridge). Node numbers
+ *  come from the slot a card sits in, so any range may be a bridge, and any other card's private messages share the
+ *  same offsets: a receiver feeds every frame here and drops range frames for which ok() is false. */
+class ElcCanBridgeSeen {
+ public:
+  static const uint32_t kMaxAgeMs = 3000;
+  /** Call with every received frame; returns true when it was a heartbeat. */
+  bool feed(const ElcCanFrame &f, uint32_t now_ms);
+  /** True when range `slot` (node - 0x10) sent an AudioBridge heartbeat within kMaxAgeMs. */
+  bool ok(int slot, uint32_t now_ms) const;
+  /** True when f is in an accessory range that is not a live bridge (the receiver should ignore it). */
+  bool reject(const ElcCanFrame &f, uint32_t now_ms) const {
+    const int s = elc_can_slot_of(f.id);
+    return s >= 0 && !ok(s, now_ms);
+  }
+
+ private:
+  uint32_t _ms[ELC_CAN_RANGE_COUNT] = {0};
+  bool _bridge[ELC_CAN_RANGE_COUNT] = {false};
+};
+
 // ---- audio bridge (slot range) ----
 static const size_t ELC_CAN_AUDIO_TEXT_MAX = 32;   // same limit as the I2C snapshot
 static const size_t ELC_CAN_AUDIO_TEXT_CHUNKS = 5; // 5 x 7 bytes >= 32 + NUL

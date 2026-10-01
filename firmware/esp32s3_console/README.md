@@ -59,4 +59,6 @@ For the bench, without knobs wired: `help`, `state` (CAN, phone status and texts
 current screen as text with its soft-key labels), `key left|right`, `sel +N|-N|press`, `vol +N|-N|press`. Every
 command the console sends is logged as `tx 0x215 phone ANSWER arg 0 slot 0 list 3`.
 
-Until an audio bridge is heard, commands go to slot 0 (node `0x10`, the default bridge).
+The console follows the first audio bridge it hears: a node whose heartbeat says audio bridge (node type 1). Its
+node follows its card slot (`0x14` for the audio card in slot 1). Until a bridge is heard, phone commands are not
+sent at all, and frames in another card's message range are ignored.

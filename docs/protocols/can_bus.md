@@ -240,7 +240,7 @@ user confirms on the menu's Phone page (interface screen, by touch or with the c
 while nothing is paired: from boot, or after the last phone is forgotten. It closes when a phone pairs, on command
 (Stop), or when the time runs out. A phone that is not paired cannot pair outside the window; a paired phone can.
 
-**Phone command (`0x215`).** Any node can send it: the console for calls and media, the interface screen's Phone page for pairing and the paired list. Slot = the bridge's slot (node − `0x10`),
+**Phone command (`0x215`).** Any node can send it: the console for calls and media, the interface screen's Phone page for pairing and the paired list. Slot = the bridge's message-range index (node − `0x10`: 4 for the audio card in card slot 1), learned from its heartbeat and frames; a receiver accepts a range's audio frames only while that node's heartbeat says audio bridge (node type 1),
 from node = the sender. Commands that name a paired index carry the list serial they were read with, and the bridge
 ignores them if the list changed since. The bridge answers every command with a fresh `0x04`.
 
