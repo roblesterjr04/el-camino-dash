@@ -30,7 +30,8 @@ and cable work on either.
 | CAN transceiver | MCP2562 (VDD 5 V, VIO 3.3 V, STBY low) | As every other node. No termination |
 | 3.3 V | AP2112K-3.3 from the slot's 5 V | The MCU, the transceiver's VIO and a 3.3 V puck (most draw 25–50 mA) |
 | Clock | 8 MHz crystal (HSE) | CAN needs better timing accuracy than the internal oscillator gives over temperature |
-| Programming | SWD: Tag-Connect TC2030-NL pads (or a 2 × 5 1.27 mm header), BOOT0 pulled low | |
+| Programming | **J3, SWD header: 1 × 5, 2.54 mm, right angle**, on the card's left edge: 1 3V3, 2 SWDIO, 3 SWCLK, 4 NRST, 5 GND | Takes a cheap ST-Link V2 (or clone) on dupont wires, or an ST-Link V3 / J-Link with an adapter. Right angle on the side edge so it can be reached with the card in its slot (the parts side faces the next card, 20 mm away). No BOOT0 strap: on the G0 it shares the SWCLK pin and option bytes set it |
+| Debug serial | **J4: 1 × 3, 2.54 mm, right angle**, beside J3: 1 GND, 2 TX, 3 RX (USART1, 3.3 V) | Log output on an FTDI / USB-serial adapter. Also a fallback way to flash through the ST ROM bootloader |
 | Indicator | One LED: off = nothing from the puck, blinking = searching, steady = 3D fix | |
 
 ### GPS connector (J2)
@@ -55,7 +56,8 @@ Pin for pin the same as J6 on the main board. A puck with a different plug gets 
 | Slot ID | an ADC input with 10k to 3.3 V | The main board's resistor to GND sets the slot (see `accessory_ports.md`) |
 | LED | GPIO | |
 | HSE | OSC_IN / OSC_OUT | 8 MHz |
-| Debug UART | USART1 on test pads | Log output |
+| SWD | PA13 SWDIO, PA14 SWCLK, NRST | To J3 |
+| Debug UART | USART1 TX / RX | To J4 |
 
 Check the exact pin numbers against the STM32G0B1 datasheet's alternate-function table when the schematic is drawn.
 
@@ -64,6 +66,7 @@ Check the exact pin numbers against the STM32G0B1 datasheet's alternate-function
 - **80 × 60 mm** like every card, any slot. It is nearly empty: a few small chips. Parts on the parts side up to 15 mm;
   the back only low SMD parts.
 - **Top edge** (the case panel): J2.
+- **Left edge:** J3 (SWD) and J4 (debug serial), right angle, so they can be reached with the card in its slot.
 - **Bottom edge:** the 2×15 right-angle header, placed exactly as on the audio card (`AudioCarrier/generate/gen_pcb.py`
   has the orientation check), with the MCU, transceiver and regulator near it.
 - **Layers:** 2 are enough (no RF, slow signals). 4 only if it is panelised with the other cards.
