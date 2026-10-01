@@ -750,14 +750,19 @@ def stitch(b, pitch=2.0, fanout=None):
                 if any(o.PointInside(t.GetPosition()) for t in gv):
                     continue
                 bb = o.BBox()
+                bx1, by1, bx2, by2 = bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6
+                # only the copper near this island: a dense card has thousands of items and many small islands
+                near = [it for it in lg if _bbox(it)[0] < bx2 + 1 and _bbox(it)[2] > bx1 - 1 and
+                        _bbox(it)[1] < by2 + 1 and _bbox(it)[3] > by1 - 1]
+                vias_xy = [(t.GetPosition().x / 1e6, t.GetPosition().y / 1e6) for t in b.GetTracks() if t.GetClass() == 'PCB_VIA']
+                vias_xy = [(vx, vy) for vx, vy in vias_xy if bx1 - 1 < vx < bx2 + 1 and by1 - 1 < vy < by2 + 1]
                 done = False
-                for yy in np.arange(bb.GetTop() / 1e6 + 0.3, bb.GetBottom() / 1e6 - 0.3, 0.1):
-                    for xx in np.arange(bb.GetLeft() / 1e6 + 0.3, bb.GetRight() / 1e6 - 0.3, 0.1):
+                for yy in np.arange(by1 + 0.3, by2 - 0.3, 0.2):
+                    for xx in np.arange(bx1 + 0.3, bx2 - 0.3, 0.2):
                         x, y = float(xx), float(yy)
                         if o.PointInside(VECTOR2I(mm(x), mm(y))) and spot_ok(x, y) and \
-                                all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
-                                all(np.hypot(x - t.GetPosition().x / 1e6, y - t.GetPosition().y / 1e6) > 0.9
-                                    for t in b.GetTracks() if t.GetClass() == 'PCB_VIA'):
+                                all(seg_ok(near, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
+                                all(np.hypot(x - vx, y - vy) > 0.9 for vx, vy in vias_xy):
                             via(x, y)
                             lg = geo(b)
                             k += 1
@@ -772,6 +777,16 @@ def stitch(b, pitch=2.0, fanout=None):
 
 
 CU = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+
+
+def _bbox(it):
+    """(x1, y1, x2, y2) of a geo() item."""
+    _, kind, g, _ = it
+    if kind == 'c':
+        return (g[0] - g[2], g[1] - g[2], g[0] + g[2], g[1] + g[2])
+    if kind == 's':
+        return (min(g[0], g[2]) - g[4], min(g[1], g[3]) - g[4], max(g[0], g[2]) + g[4], max(g[1], g[3]) + g[4])
+    return g
 
 
 def geo(b):
@@ -869,12 +884,21 @@ def finish(b):
         hw = (0.3 if net in POWER_NETS else 0.2) / 2
         items = geo(b)
         main_ = ends(clusters[0])
+        all_items = items
+
+        def local(a, e, m=5.0):
+            """The copper within m mm of the box around a and e (checking the whole dense board per step is too slow)."""
+            x1, x2 = min(a[0], e[0]) - m, max(a[0], e[0]) + m
+            y1, y2 = min(a[1], e[1]) - m, max(a[1], e[1]) + m
+            return [it for it in all_items if _bbox(it)[0] < x2 and _bbox(it)[2] > x1 and _bbox(it)[1] < y2 and _bbox(it)[3] > y1]
+
         for cl in clusters[1:]:
             pairs = sorted(((np.hypot(a[0] - e[0], a[1] - e[1]), a, e) for a in main_ for e in ends(cl)), key=lambda t: t[0])
             done = False
             for d, a, e in pairs[:60]:
                 if d > 10:
                     break
+                items = local(a, e)
                 for lay in CU:
                     if lay not in a[2] or lay not in e[2]:
                         continue
@@ -897,7 +921,8 @@ def finish(b):
                 if done:
                     break
             if not done:                # through one via beside either end
-                for d, a, e in pairs[:40]:
+                for d, a, e in pairs[:12]:
+                    items = local(a, e)
                     for s0, s1 in ((a, e), (e, a)):
                         for r in np.arange(0.7, 3.6, 0.15):
                             for ang in np.arange(0, 2 * np.pi, np.pi / 12):
@@ -977,16 +1002,27 @@ def freeroute(jar):
         java = os.environ.get('JAVA', 'java')
         subprocess.check_call([java, '-jar', jar, '-de', dsn, '-do', ses, '-mp', str(passes[rnd % len(passes)]), '-mt', '1'], cwd=TMP,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        b = pcbnew.LoadBoard(PCB)
-        rules(b)
-        assert pcbnew.ImportSpecctraSES(b, ses)
-        finish(b)
-        pcbnew.ZONE_FILLER(b).Fill(b.Zones())
-        left = unrouted(b)
-        pcbnew.SaveBoard(PCB, b)
-        print('round %d: %d tracks and vias, %d unrouted' % (rnd + 1, len(b.GetTracks()), left))
+        left = import_ses(ses)
+        print('round %d: %d unrouted' % (rnd + 1, left))
         if left == 0:
             break
+    finish_board()
+
+
+def import_ses(ses):
+    """Load the Freerouting session into the board (which has the fan-out vias), join leftovers, fill."""
+    b = pcbnew.LoadBoard(PCB)
+    rules(b)
+    assert pcbnew.ImportSpecctraSES(b, ses)
+    finish(b)
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    left = unrouted(b)
+    pcbnew.SaveBoard(PCB, b)
+    return left
+
+
+def finish_board():
+    """Ground stitching, then drop vias that crowd a through-hole pin, fill."""
     b = pcbnew.LoadBoard(PCB)
     rules(b)
     stitch(b, pitch=STITCH_PITCH)
@@ -1008,5 +1044,8 @@ if __name__ == '__main__':
             stitch(bb, pitch=STITCH_PITCH)
         pcbnew.ZONE_FILLER(bb).Fill(bb.Zones())
         pcbnew.SaveBoard(PCB, bb)
+    elif '--from-ses' in sys.argv:        # the pre-route board (placement + fan-out) is in PCB; resume from the last session
+        print('%d unrouted after the import' % import_ses(os.path.join(TMP, 'sensorcard.ses')))
+        finish_board()
     else:
         main()
