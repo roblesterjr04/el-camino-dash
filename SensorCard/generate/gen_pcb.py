@@ -70,7 +70,10 @@ def netlist():
     nets = {}
     for n in r.find('nets'):
         for node in n:
-            nets[(node.get('ref'), node.get('pin'))] = n.get('name')
+            name = n.get('name')
+            if name.startswith('unconnected-('):   # the schematic spells '/' inside these as {slash}
+                name = 'unconnected-(' + name[len('unconnected-('):].replace('/', '{slash}')
+            nets[(node.get('ref'), node.get('pin'))] = name
     return comps, nets
 
 
@@ -104,8 +107,8 @@ FIXED = {
     'U4': (43.5, H - 15.0, 0, 'F'),           # FRAM
     # jumpers and the spare header (vertical, parts side)
     'J5': (11.0, 50.0, 0, 'F'),               # RPM select (2x2)
-    'J9': (16.5, 50.0, 0, 'F'),               # demo (1x2)
-    'J10': (73.5, 27.0, 0, 'F'),              # spare I/O (2x5)
+    'J9': (18.5, 50.0, 0, 'F'),               # demo (1x2)
+    'J10': (73.5, 30.0, 0, 'F'),              # spare I/O (2x5), below the optocoupler
 }
 SIDE = {'port': 'F', 'mcu': 'F', 'prog': 'F', 'sensors': 'F', 'speed': 'F', 'tach': 'F', 'misc': 'F'}
 ANCHOR = {'port': ['J1'], 'mcu': ['U1'], 'prog': ['J6', 'J7', 'J8'], 'sensors': ['J2', 'U1'], 'speed': ['J3', 'JP1'],
