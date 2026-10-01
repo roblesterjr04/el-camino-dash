@@ -33,6 +33,21 @@ own; low would report a sensor-power fault); A1 pull-down 100 kΩ (100k NTC); A2
 
 Analog and digital pin map, thermistor math, and fault behavior: see comments and tables in `arduino/sketches/sensor_pack/sensor_pack.ino`.
 
+### Rev 2: the sensor card
+
+On the rev 2 board (`DigiDash2/`) the sensor pack is a **slot card**, [`SensorCard/`](SensorCard/README.md) (ATmega2560,
+CAN node `0x04`), and the vehicle's sensor wiring plugs into the card's top edge instead of the main board:
+
+| Card connector | Pins |
+| --- | --- |
+| J2 senders (JST PH 12) | 1 FUEL, 2 FUEL return, 3 ETEMP, 4 ETEMP V, 5 ETEMP return, 6 OILP, 7 OILP V, 8 OILP return, 9 AMB, 10 AMB return, 11 ALT L, 12 GND |
+| J3 speed (JST PH 4) | 1 sensor power (5 V, or switched 12 V by JP1), 2 signal, 3 GND, 4 GND / shield |
+| J4 tach (Micro-Fit 3.0, 2 pin) | 1 coil negative / HEI tach / ignition box tach output, 2 GND |
+
+Ignition sense and battery voltage come from the slot (switched and constant 12 V), not a harness wire. The serial
+fan-out to the screens is optional: a jumper wire from the card's J8 (pin 2 TX, pin 1 GND) to the main board's J27
+(pin 1 TX IN, pin 2 GND). Sender resistor choices: see the card's README.
+
 ---
 
 ## Encoder controller

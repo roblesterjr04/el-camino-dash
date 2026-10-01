@@ -97,7 +97,7 @@ Five bits, `0x00`–`0x1F`, as in `can_bus.md`:
 | --- | --- |
 | `0x00` | never a source. As a destination: every node |
 | `0x01`–`0x03` | center, left, right screens |
-| `0x04`–`0x0F` | the dash's own nodes: `0x04` the main board's sensor pack. `0x05`–`0x0F` reserved |
+| `0x04`–`0x0F` | the dash's own nodes: `0x04` the sensor pack (the sensor card, `SensorCard/`; a fixed number in any slot). `0x05`–`0x0F` reserved |
 | `0x10`–`0x1B` | accessories with a private range: `0x10`–`0x12` rev 1 carriers, `0x13` the console, **`0x14`–`0x19` the slot cards by slot (`0x14` + slot − 1)**, `0x1A`–`0x1B` other cable-port devices (`docs/hardware/accessory_ports.md`, Node numbers) |
 | `0x1C`–`0x1E` | accessories without a private range (channels only) |
 | `0x1F` | a service tool (laptop on the J16 tap with a USB-CAN adapter) |

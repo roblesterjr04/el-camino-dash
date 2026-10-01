@@ -21,6 +21,7 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 | Cable ports | **Four**: J17, J22, J23, J24 (JST PH 4-pin, pinout below), on the top edge |
 | Trunk port | **J25**, a 4-pin Micro-Fit 3.0 on the bottom edge (moved to x 136, clear of the cards) that extends the bus itself to the rear of the car: 1 CANH, 2 CANL (twisted pair), 3 switched 12 V (1.1 A PTC), 4 GND, with its own ESD clamp. The right-end 120 Ω is switched by SW1-1: turn it off when a trunk cable is fitted, and fit 120 Ω at the far end of that cable |
 | Switched 12 V | Pin 8 of every slot, the trunk port and the camera come from a P-FET switched by the ignition |
+| Sensor card | The sensor pack is a card ([`SensorCard/`](../../SensorCard)): fixed CAN node `0x04`, any slot but slot 1. Its optional serial fallback reaches the screens through a jumper wire from its J8 to the main board's **J27** (top edge, above slot 5), which fans it out to the three screens |
 
 ### Slot pinout
 
@@ -50,7 +51,7 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 | **+3.3 V** (9) | 0.1 A PTC per slot, from the board's 1 A LDO | Small cards (an ID chip, a sensor) can skip their own regulator. Not for an ESP32 with its radio on |
 | **Constant 12 V** (10) | 0.2 A PTC per slot, from the battery after the reverse-polarity FET | Key-off jobs (GPS hot start, a clock alarm, logging after shutdown). A card that uses it sleeps below about 1 mA with the key off |
 | **Slot ID** (11) | A resistor to GND per slot: 1k, 3.3k, 6.8k, 12k, 22k, 47k (slot 1 … 6) | 10k pull-up to the card's 3.3 V, read on an ADC: about 0.30, 0.82, 1.34, 1.80, 2.27, 2.72 V. The card knows its slot and **takes its CAN node number from it: `0x14 + (slot − 1)`** (see [Node numbers](#node-numbers-and-can-ids)) |
-| **WAKE** (12) | Shared by all slots, 100k to GND. It lifts the 5 V buck's EN through a diode (like the sensor pack's PWR_HOLD) and goes to the ATmega2560 (pin 88, ADC9 / PCINT17) | To start the dash with the key off, drive it **high (3.3 V) through a diode**; never drive it low. The 2560 wakes, sees why, and holds the power with PWR_HOLD while it needs it |
+| **WAKE** (12) | Shared by all slots, 100k to GND. It lifts the 5 V buck's EN through a diode | To start (or keep) the dash running with the key off, drive it **high (about 3.3 V) through a diode**; never drive it low. The sensor card holds it this way after key-off to finish its shutdown work, and reads it (through 47k, on its ATmega2560's ADC9 / PCINT17) to see that another card woke the dash |
 | **LAMP** (13) | J7 pin 6 (the dash-light feed, a rheostat voltage) through 100k / 27k, clamped: 0–3.1 V | Dim LEDs or a display with the dash lights (ADC) |
 | **REV** (14) | J9 pin 1 (reverse lamp) through 100k / 27k, clamped: high = in reverse | Parking sensors, a rear camera, a beeper |
 | **I2S rail** (15–18, 24) | Five bare traces bused to all six slots: BCK, WS, MIC, RET, MCLK | Digital audio between cards. The audio card is the only clock master; any card listens; one card at a time talks back on RET. See [I2S rail rules](#i2s-rail-rules) |
@@ -100,7 +101,7 @@ no bootloader beyond what is in the chip's ROM, no firmware. A card without a pr
   | STM32 | SWD, 1 × 5, 2.54 mm | 3V3 (target sense, not a supply), SWDIO, SWCLK, NRST, GND |
   | ESP32 (classic) | UART, 1 × 5, 2.54 mm, plus BOOT and RESET buttons | GND, TX0, RX0, IO0, EN |
   | ESP32-S3 / C3 / C6 | Native USB (USB-C, or a 1 × 4 header with D+ / D−), or the UART header above | |
-  | AVR | ISP, 2 × 3, 2.54 mm | as the main board's J2 |
+  | AVR | ISP, 2 × 3, 2.54 mm | MISO, 5V, SCK, MOSI, RST, GND (the standard 6-pin AVR ISP; the sensor card's J6) |
 
 - **Reachable with the card in its slot:** a card's parts side faces the next card about 20 mm away, so use a
   **right-angle header on a side edge** (slot 1's card faces off the end of the row and can use a vertical one).
@@ -277,7 +278,8 @@ Carriers that need more (audio amplifiers) take +12 V from their header position
 What a carrier says on the bus to use the dash's alerts, sensors, menu, input and sounds is the channel protocol:
 [`docs/protocols/can_channels.md`](../protocols/can_channels.md). The ranges below are each node's private IDs.
 
-**A slot card's node number comes from its slot, never from its firmware or a jumper:**
+**A slot card's node number comes from its slot, never from its firmware or a jumper** (one exception, the sensor
+card, below):
 
 > **node = `0x14` + (slot − 1)**, slot 1 … 6 → `0x14` … `0x19`, read from the slot ID pin (11) at boot.
 
@@ -300,8 +302,10 @@ center sees what is on the bus.
   console gives it a node for the bench.
 - **Fixed message IDs are not node numbers.** A card may still send fixed, documented message IDs (the GPS card's
   `0x222`–`0x226`); those identify the data, not the sender, so a bus has one card of that kind.
-- The screens (`0x01`–`0x03`, from their position strap) and the main board's sensor pack (`0x04`) are part of the
-  dash itself, not cards.
+- The screens (`0x01`–`0x03`, from their position strap) and the sensor pack (`0x04`) are part of the dash itself.
+  The sensor pack now lives on a slot card ([`SensorCard/`](../../SensorCard)), but it **keeps the fixed node `0x04`**
+  whatever slot it is in: the screens and the center treat `0x04` as the sensor pack, and there is only ever one. It
+  does not read the slot ID pin. It may go in any slot but slot 1 (kept for the audio card's tall parts).
 
 The private ranges are the same formula as the first revision's (`0x400` for `0x10`, `0x4C0` for the console).
 

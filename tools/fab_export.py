@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write a board's fab outputs into <BOARD_DIR>/fab: Gerbers + drill files (fab/gerbers, zipped), the placement file
 and a PCBWay / JLC centroid. Coordinates are measured from the drill / place origin, which each board's gen_pcb.py
-sets to the board's bottom-left corner.
+sets to the board's bottom-left corner. Not-fitted (DNP) parts are left out of the placement files.
 
     python3 tools/fab_export.py AudioCarrier [DigiDash2 ...]
 
@@ -43,7 +43,7 @@ def export(board_dir):
             z.write(f, os.path.basename(f))
 
     place = os.path.join(fab, name + '_placement.csv')
-    run('pcb', 'export', 'pos', '--format', 'csv', '--units', 'mm', '--side', 'both', '--use-drill-file-origin',
+    run('pcb', 'export', 'pos', '--format', 'csv', '--units', 'mm', '--side', 'both', '--use-drill-file-origin', '--exclude-dnp',
         '-o', place, pcb)
     rows = list(csv.DictReader(open(place)))
     with open(os.path.join(fab, name + '_centroid.csv'), 'w', newline='') as f:

@@ -44,11 +44,6 @@
   "group": "power",
   "value": "PWR_FLAG"
  },
- "#FLG10": {
-  "fp": "",
-  "group": "power",
-  "value": "PWR_FLAG"
- },
  "#FLG11": {
   "fp": "",
   "group": "power",
@@ -111,7 +106,7 @@
  },
  "C19": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "100n"
  },
  "C2": {
@@ -121,53 +116,53 @@
  },
  "C20": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "100n"
  },
  "C21": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "100n"
  },
  "C22": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "100n"
  },
  "C23": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "mcu",
-  "value": "10u"
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "screens",
+  "value": "100n"
  },
  "C24": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "100n"
  },
  "C25": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "100n"
  },
  "C26": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "18p"
+  "group": "screens",
+  "value": "100n"
  },
  "C27": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "18p"
+  "group": "video",
+  "value": "100n"
  },
  "C28": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "video",
   "value": "100n"
  },
  "C29": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "100n"
+  "group": "video",
+  "value": "18p"
  },
  "C3": {
   "fp": "Capacitor_SMD:C_1210_3225Metric",
@@ -176,53 +171,53 @@
  },
  "C30": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
+  "group": "video",
   "value": "18p"
  },
  "C31": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "18p"
+  "group": "video",
+  "value": "1u"
  },
  "C32": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "100n"
+  "group": "video",
+  "value": "1u"
  },
  "C33": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "100n"
+  "group": "video",
+  "value": "1u"
  },
  "C34": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "100n"
+  "group": "video",
+  "value": "1u"
  },
  "C35": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "sensors",
-  "value": "10n"
+  "group": "video",
+  "value": "100n"
  },
  "C36": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "sensors",
-  "value": "10n"
+  "group": "video",
+  "value": "100n"
  },
  "C37": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "sensors",
-  "value": "10n"
+  "group": "video",
+  "value": "100n"
  },
  "C38": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "sensors",
-  "value": "10n"
+  "group": "video",
+  "value": "100n"
  },
  "C39": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "sensors",
-  "value": "100n"
+  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "group": "video",
+  "value": "10u"
  },
  "C4": {
   "fp": "Capacitor_SMD:C_1210_3225Metric",
@@ -231,52 +226,12 @@
  },
  "C40": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "sensors",
+  "group": "slots",
   "value": "100n"
  },
  "C41": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "sensors",
-  "value": "1n"
- },
- "C42": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
-  "value": "100n"
- },
- "C43": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
-  "value": "100n"
- },
- "C44": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
-  "value": "100n"
- },
- "C45": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
-  "value": "100n"
- },
- "C46": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
-  "value": "100n"
- },
- "C47": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
-  "value": "100n"
- },
- "C48": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
-  "value": "100n"
- },
- "C49": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "screens",
+  "group": "slots",
   "value": "100n"
  },
  "C5": {
@@ -284,84 +239,9 @@
   "group": "power",
   "value": "2.2u 100V"
  },
- "C50": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "100n"
- },
- "C51": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "100n"
- },
- "C52": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "18p"
- },
- "C53": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "18p"
- },
- "C54": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "1u"
- },
- "C55": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "1u"
- },
- "C56": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "1u"
- },
- "C57": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "1u"
- },
- "C58": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "100n"
- },
- "C59": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "100n"
- },
  "C6": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "power",
-  "value": "100n"
- },
- "C60": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "100n"
- },
- "C61": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "video",
-  "value": "100n"
- },
- "C62": {
-  "fp": "Capacitor_SMD:C_0805_2012Metric",
-  "group": "video",
-  "value": "10u"
- },
- "C63": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "slots",
-  "value": "100n"
- },
- "C64": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "slots",
   "value": "100n"
  },
  "C7": {
@@ -380,46 +260,26 @@
   "value": "47u 10V"
  },
  "D10": {
-  "fp": "Diode_SMD:D_SOD-123",
-  "group": "aux",
-  "value": "BZT52C15"
- },
- "D11": {
   "fp": "Diode_SMD:D_SMC",
   "group": "aux",
   "value": "SMCJ33A"
  },
- "D12": {
-  "fp": "LED_SMD:LED_0603_1608Metric",
-  "group": "mcu",
-  "value": "green"
- },
- "D13": {
-  "fp": "Package_TO_SOT_SMD:SOT-23",
-  "group": "sensors",
-  "value": "BAT54S"
- },
- "D14": {
-  "fp": "Diode_SMD:D_SOD-123",
-  "group": "sensors",
-  "value": "1N4148W"
- },
- "D15": {
+ "D11": {
   "fp": "Diode_SMD:D_SOD-323",
   "group": "video",
   "value": "PESD5V0S1BL"
  },
- "D16": {
+ "D12": {
   "fp": "Package_TO_SOT_SMD:SOT-23",
   "group": "slots",
   "value": "BAT54S"
  },
- "D17": {
+ "D13": {
   "fp": "Package_TO_SOT_SMD:SOT-23",
   "group": "slots",
   "value": "BAT54S"
  },
- "D18": {
+ "D14": {
   "fp": "Package_TO_SOT_SMD:SOT-23",
   "group": "slots",
   "value": "BAT54S"
@@ -455,13 +315,13 @@
   "value": "BZT52C5V1"
  },
  "D8": {
-  "fp": "Package_TO_SOT_SMD:SOT-23",
+  "fp": "Diode_SMD:D_SOD-123",
   "group": "power",
-  "value": "BAT54S"
+  "value": "BZT52C15"
  },
  "D9": {
   "fp": "Diode_SMD:D_SOD-123",
-  "group": "power",
+  "group": "aux",
   "value": "BZT52C15"
  },
  "F1": {
@@ -470,14 +330,14 @@
   "value": "10A mini blade"
  },
  "F10": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
-  "value": "PTC 0.5A"
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.1A"
  },
  "F11": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
-  "value": "PTC 1.1A"
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "slots",
+  "value": "PTC 0.2A"
  },
  "F12": {
   "fp": "Fuse:Fuse_1812_4532Metric",
@@ -520,9 +380,9 @@
   "value": "PTC 0.2A"
  },
  "F2": {
-  "fp": "Fuse:Fuse_1206_3216Metric",
-  "group": "sensors",
-  "value": "PTC 0.1A"
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "screens",
+  "value": "PTC 0.5A"
  },
  "F20": {
   "fp": "Fuse:Fuse_1812_4532Metric",
@@ -575,9 +435,9 @@
   "value": "PTC 0.5A"
  },
  "F3": {
-  "fp": "Fuse:Fuse_1206_3216Metric",
-  "group": "sensors",
-  "value": "PTC 0.1A"
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "ports",
+  "value": "PTC 0.5A"
  },
  "F30": {
   "fp": "Fuse:Fuse_1206_3216Metric",
@@ -589,64 +449,39 @@
   "group": "slots",
   "value": "PTC 0.2A"
  },
- "F32": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "slots",
-  "value": "PTC 0.5A"
- },
- "F33": {
-  "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "slots",
-  "value": "PTC 0.5A"
- },
- "F34": {
-  "fp": "Fuse:Fuse_1206_3216Metric",
-  "group": "slots",
-  "value": "PTC 0.1A"
- },
- "F35": {
-  "fp": "Fuse:Fuse_1206_3216Metric",
-  "group": "slots",
-  "value": "PTC 0.2A"
- },
  "F4": {
-  "fp": "Fuse:Fuse_1206_3216Metric",
-  "group": "sensors",
-  "value": "PTC 0.1A"
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "ports",
+  "value": "PTC 0.5A"
  },
  "F5": {
-  "fp": "Fuse:Fuse_1206_3216Metric",
-  "group": "sensors",
-  "value": "PTC 0.1A"
+  "fp": "Fuse:Fuse_1812_4532Metric",
+  "group": "ports",
+  "value": "PTC 0.5A"
  },
  "F6": {
   "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "screens",
+  "group": "ports",
   "value": "PTC 0.5A"
  },
  "F7": {
   "fp": "Fuse:Fuse_1812_4532Metric",
   "group": "ports",
-  "value": "PTC 0.5A"
+  "value": "PTC 1.1A"
  },
  "F8": {
   "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
+  "group": "slots",
   "value": "PTC 0.5A"
  },
  "F9": {
   "fp": "Fuse:Fuse_1812_4532Metric",
-  "group": "ports",
+  "group": "slots",
   "value": "PTC 0.5A"
  },
  "FB1": {
   "fp": "Inductor_SMD:L_0603_1608Metric",
   "group": "power",
-  "value": "600R"
- },
- "FB2": {
-  "fp": "Inductor_SMD:L_0603_1608Metric",
-  "group": "mcu",
   "value": "600R"
  },
  "H1": {
@@ -674,20 +509,10 @@
   "group": "screens",
   "value": "Center Screen - Master"
  },
- "J10": {
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
-  "group": "sensors",
-  "value": "Speed Tach"
- },
  "J11": {
   "fp": "DigiDash2:RCA_RCJ-02x_FaceMount",
   "group": "video",
   "value": "Video in"
- },
- "J12": {
-  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
-  "group": "mcu",
-  "value": "FTDI"
  },
  "J13": {
   "fp": "Connector_Molex:Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical",
@@ -703,11 +528,6 @@
   "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
   "group": "ports",
   "value": "Cable port 1"
- },
- "J2": {
-  "fp": "Connector_IDC:IDC-Header_2x03_P2.54mm_Vertical",
-  "group": "mcu",
-  "value": "AVR-ISP-6"
  },
  "J22": {
   "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
@@ -729,15 +549,10 @@
   "group": "ports",
   "value": "Trunk port"
  },
- "J26": {
-  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical",
-  "group": "mcu",
-  "value": "Spare I/O"
- },
- "J3": {
-  "fp": "Connector_JST:JST_PH_S8B-PH-K_1x08_P2.00mm_Horizontal",
-  "group": "sensors",
-  "value": "Sensors"
+ "J27": {
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+  "group": "screens",
+  "value": "Sensor serial in"
  },
  "J31": {
   "fp": "DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical",
@@ -788,11 +603,6 @@
   "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0600_1x06_P3.00mm_Horizontal",
   "group": "power",
   "value": "Vehicle power"
- },
- "J8": {
-  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical",
-  "group": "sensors",
-  "value": "RPM_SEL"
  },
  "J9": {
   "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
@@ -852,52 +662,52 @@
  "R10": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
-  "value": "10k"
+  "value": "22k"
  },
  "R11": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
-  "value": "4.7k"
- },
- "R12": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "power",
-  "value": "22k"
- },
- "R13": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "power",
   "value": "10k"
  },
- "R14": {
+ "R12": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "aux",
   "value": "10k"
  },
+ "R13": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "screens",
+  "value": "1k"
+ },
+ "R14": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "screens",
+  "value": "1k"
+ },
  "R15": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "10k"
  },
  "R16": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "1k"
+  "group": "screens",
+  "value": "10k"
  },
  "R17": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "10k"
  },
  "R18": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "10k"
+  "group": "screens",
+  "value": "120"
  },
  "R19": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "10k"
+  "group": "screens",
+  "value": "120"
  },
  "R2": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -906,53 +716,53 @@
  },
  "R20": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "10k"
+  "group": "screens",
+  "value": "4.7k"
  },
  "R21": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "4.7k"
  },
  "R22": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "4.7k"
+  "group": "screens",
+  "value": "10k"
  },
  "R23": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "10k"
  },
  "R24": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "20k"
+  "group": "screens",
+  "value": "10k"
  },
  "R25": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
+  "group": "screens",
   "value": "10k"
  },
  "R26": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "20k"
+  "group": "screens",
+  "value": "10k"
  },
  "R27": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "10k"
+  "group": "screens",
+  "value": "20k"
  },
  "R28": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "20k"
+  "group": "screens",
+  "value": "10k"
  },
  "R29": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "100k"
+  "group": "screens",
+  "value": "20k"
  },
  "R3": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -961,53 +771,53 @@
  },
  "R30": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "mcu",
-  "value": "22k"
+  "group": "screens",
+  "value": "10k"
  },
  "R31": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "470"
+  "group": "screens",
+  "value": "20k"
  },
  "R32": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "video",
+  "value": "37.4"
  },
  "R33": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
+  "group": "video",
+  "value": "37.4"
  },
  "R34": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "video",
+  "value": "22"
  },
  "R35": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
+  "group": "video",
+  "value": "100k"
  },
  "R36": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "100k"
+  "group": "video",
+  "value": "10k"
  },
  "R37": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "video",
+  "value": "10k"
  },
  "R38": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
+  "group": "video",
   "value": "10k"
  },
  "R39": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "video",
+  "value": "100k"
  },
  "R4": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -1016,53 +826,53 @@
  },
  "R40": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "100k"
+  "group": "slots",
+  "value": "1k"
  },
  "R41": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "slots",
+  "value": "3.3k"
  },
  "R42": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "slots",
+  "value": "6.8k"
  },
  "R43": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "slots",
+  "value": "12k"
  },
  "R44": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "slots",
+  "value": "22k"
  },
  "R45": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "22k"
+  "group": "slots",
+  "value": "47k"
  },
  "R46": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
+  "group": "slots",
+  "value": "100k"
  },
  "R47": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "22k"
+  "group": "slots",
+  "value": "47k"
  },
  "R48": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
+  "group": "slots",
+  "value": "100k"
  },
  "R49": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
+  "group": "slots",
+  "value": "27k"
  },
  "R5": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -1071,238 +881,38 @@
  },
  "R50": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
+  "group": "slots",
+  "value": "100k"
  },
  "R51": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
- },
- "R52": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
- },
- "R53": {
-  "fp": "Resistor_SMD:R_1206_3216Metric",
-  "group": "sensors",
-  "value": "4.7k"
- },
- "R54": {
-  "fp": "Resistor_SMD:R_1206_3216Metric",
-  "group": "sensors",
-  "value": "4.7k"
- },
- "R55": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
- },
- "R56": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
- },
- "R57": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "1k"
- },
- "R58": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "1k"
- },
- "R59": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "10k"
+  "group": "slots",
+  "value": "27k"
  },
  "R6": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
   "value": "442k"
  },
- "R60": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "10k"
- },
- "R61": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "10k"
- },
- "R62": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "120"
- },
- "R63": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "120"
- },
- "R64": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "4.7k"
- },
- "R65": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "4.7k"
- },
- "R66": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "10k"
- },
- "R67": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "10k"
- },
- "R68": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "10k"
- },
- "R69": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "screens",
-  "value": "10k"
- },
  "R7": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
   "value": "90.9k"
  },
- "R70": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "37.4"
- },
- "R71": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "37.4"
- },
- "R72": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "22"
- },
- "R73": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "100k"
- },
- "R74": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "10k"
- },
- "R75": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "10k"
- },
- "R76": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "10k"
- },
- "R77": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "video",
-  "value": "100k"
- },
- "R78": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "1k"
- },
- "R79": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "3.3k"
- },
  "R8": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
-  "value": "47k"
- },
- "R80": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "6.8k"
- },
- "R81": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "12k"
- },
- "R82": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "22k"
- },
- "R83": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "47k"
- },
- "R84": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "100k"
- },
- "R85": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "47k"
- },
- "R86": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "47k"
- },
- "R87": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "100k"
- },
- "R88": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "27k"
- },
- "R89": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "100k"
+  "value": "10k"
  },
  "R9": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "power",
-  "value": "100k"
- },
- "R90": {
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
-  "value": "27k"
+  "value": "4.7k"
  },
  "SW1": {
   "fp": "Button_Switch_SMD:SW_DIP_SPSTx02_Slide_KingTek_DSHP02TS_W7.62mm_P1.27mm",
   "group": "screens",
-  "value": "TERM / DEMO"
- },
- "U1": {
-  "fp": "Package_QFP:TQFP-100_14x14mm_P0.5mm",
-  "group": "mcu",
-  "value": "ATmega2560-16AU"
+  "value": "TERM"
  },
  "U10": {
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
@@ -1324,30 +934,10 @@
   "group": "power",
   "value": "TPS54560BDDA"
  },
- "U3": {
-  "fp": "Package_SO:SOIC-18W_7.5x11.6mm_P1.27mm",
-  "group": "mcu",
-  "value": "MCP2515-I/SO"
- },
- "U4": {
-  "fp": "Package_DIP:SMDIP-4_W7.62mm",
-  "group": "sensors",
-  "value": "PC817"
- },
  "U5": {
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
   "group": "screens",
   "value": "MCP2562-E/SN"
- },
- "U6": {
-  "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
-  "group": "mcu",
-  "value": "MCP2562-E/SN"
- },
- "U7": {
-  "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
-  "group": "mcu",
-  "value": "MB85RC256V"
  },
  "U8": {
   "fp": "Package_QFP:TQFP-32_5x5mm_P0.5mm",
@@ -1358,16 +948,6 @@
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
   "group": "screens",
   "value": "MCP2562-E/SN"
- },
- "Y1": {
-  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
-  "group": "mcu",
-  "value": "16MHz"
- },
- "Y2": {
-  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
-  "group": "mcu",
-  "value": "16MHz"
  },
  "Y3": {
   "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",

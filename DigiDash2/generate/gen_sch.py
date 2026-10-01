@@ -346,9 +346,9 @@ for p, n in (('J', 36), ('U', 12), ('Q', 6), ('D', 3), ('F', 0), ('R', 0), ('C',
 
 # ============================================================================= sheet
 text(20, 15, 'DIGIDASH MAIN BOARD, REV 2  -  docs/hardware/digidash_rev2_plan.md', 5)
-text(20, 26, 'All SMD except connectors. ATmega2560 sensor pack on CAN (MCP2515 + MCP2562, node 0x04) with the UART '
-     'fan-out kept as a fallback. TVP5150AM1 and FRAM on the board. Six 2x15 card slots (cards stand on edge), '
-     'four cable ports, a trunk port, and an AUX 12 V path for the slots.', 2)
+text(20, 26, 'All SMD except connectors. The sensor pack is a slot card (SensorCard/, CAN node 0x04); J27 takes its optional '
+     'sensor-frame serial line (a jumper wire) and fans it out to the three screens. TVP5150AM1 on the board. Six 2x15 card '
+     'slots (cards stand on edge), four cable ports, a trunk port, and an AUX 12 V path for the slots.', 2)
 
 # ----------------------------------------------------------------------------- power entry
 cur[0] = Block('power', 1, 'POWER: J7 (battery, ignition, illumination), reverse protection, TVS, 5 A buck '
@@ -381,15 +381,11 @@ r_('10.2k', 'BUCK_FB', 'GND', 'Feedback bottom (R6)')
 r_('16.9k', 'BUCK_COMP', 'BUCK_CZ', 'Compensation (R4)')
 c_('4.7n', 'BUCK_CZ', 'GND', 'Compensation (C5)')
 c_('47p', 'BUCK_COMP', 'GND', 'Compensation (C8)')
-text(cur[0].x0, cur[0].y0 + 6, 'EN: the 5 V rail runs while the ignition is on, or while the sensor pack holds it (PWR_HOLD) to finish after key-off.\\n'
-     'IGN 12 V -> 442k / 90.9k (starts above ~6.5 V), clamped by a 5.1 V zener (EN abs. max 8.4 V). PWR_HOLD (5 V) -> BAT54S -> 47k also lifts EN.', 1.6)
+text(cur[0].x0, cur[0].y0 + 6, 'EN: the 5 V rail runs while the ignition is on, or while a card holds WAKE high (the sensor card does, to finish after key-off).\\n'
+     'IGN 12 V -> 442k / 90.9k (starts above ~6.5 V), clamped by a 5.1 V zener (EN abs. max 8.4 V). WAKE -> BAT54S -> 47k also lifts EN (slots block).', 1.6)
 r_('442k', 'IGN_IN', 'BUCK_EN', 'EN divider top, from the ignition line (R1 in the TI example)')
 r_('90.9k', 'BUCK_EN', 'GND', 'EN divider bottom (R2)')
 zener('BZT52C5V1', 'BUCK_EN', 'GND', 'EN clamp')
-place(BAT54S, nid('D'), 'BAT54S', FP_SOT23, {'1': 'PWR_HOLD', '2': None, '3': 'HOLD_K'},
-      descr='Hold diode (pin 1 to pin 3): PWR_HOLD high keeps EN up after key-off; the second diode is unused')
-r_('47k', 'HOLD_K', 'BUCK_EN', 'Hold resistor')
-r_('100k', 'PWR_HOLD', 'GND', 'Hold pulled low while the 2560 is in reset')
 # 3.3 V and 1.8 V
 place(LDO33, 'U11', 'AP7361C-33E', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', {'1': '+5V', '2': 'GND', '3': '+3V3'},
       descr='3.3 V, 1 A LDO: CAN transceiver I/O, TVP5150 I/O, the serial port, the slots (0.1 A each), I2C pull-ups')
@@ -423,7 +419,6 @@ place('power:PWR_FLAG', '#FLG06', 'PWR_FLAG', '', {'1': '+1V8A'})
 place('power:PWR_FLAG', '#FLG07', 'PWR_FLAG', '', {'1': 'ILLUM_IN'})
 place('power:PWR_FLAG', '#FLG08', 'PWR_FLAG', '', {'1': '12V_BATT'})
 place('power:PWR_FLAG', '#FLG09', 'PWR_FLAG', '', {'1': '+5V'})
-place('power:PWR_FLAG', '#FLG10', 'PWR_FLAG', '', {'1': 'AVCC'})
 place('power:PWR_FLAG', '#FLG11', 'PWR_FLAG', '', {'1': 'AUX12'})
 place('power:PWR_FLAG', '#FLG12', 'PWR_FLAG', '', {'1': 'SW12'})
 for i in range(4):
@@ -442,125 +437,6 @@ r_('10k', 'Q6_G', 'AUX_GND', 'Q6 gate to the AUX return')
 zener('BZT52C15', 'AUX12', 'Q6_G', 'Q6 gate-source clamp')
 place(DZ, nid('D'), 'SMCJ33A', 'Diode_SMD:D_SMC', {'1': 'AUX12', '2': 'AUX_GND'}, descr='AUX TVS')
 place(CP, nid('C'), '100u 50V', 'Capacitor_SMD:CP_Elec_10x10.5', {'1': 'AUX12', '2': 'AUX_GND'}, descr='AUX bulk')
-
-# ----------------------------------------------------------------------------- sensor pack core
-cur[0] = Block('mcu', 2, 'SENSOR PACK: ATmega2560, 16 MHz, 5 V. Firmware: arduino/sketches/sensor_pack (ported to this pin map)')
-m = {str(n): None for n in range(1, 101)}
-m.update({'10': '+5V', '31': '+5V', '61': '+5V', '80': '+5V', '100': 'AVCC', '11': 'GND', '32': 'GND', '62': 'GND',
-          '81': 'GND', '99': 'GND', '98': 'AREF', '30': 'RESET', '33': 'XTAL2', '34': 'XTAL1',
-          '2': 'FTDI_RX', '3': 'FTDI_TX',                       # USART0: FTDI header
-          '45': 'SENS_RX1', '46': 'SENS_TX1',                  # USART1: sensor frames to the screens (fallback)
-          '19': 'CAN_CS', '20': 'SCK', '21': 'MOSI', '22': 'MISO', '6': 'CAN_INT',
-          '43': 'I2C_SCL', '44': 'I2C_SDA',                    # TWI: FRAM
-          '35': 'TACH_SIG', '36': 'SPEED_SIG',                 # ICP4 / ICP5
-          '97': 'FUEL_ADC', '96': 'ENGINE_TEMP_ADC', '95': 'OIL_PRESSURE_ADC', '94': 'AMB_TEMP_ADC',
-          '93': 'BATT_SENSE', '92': 'SPARE_A5', '91': 'SPARE_A6', '90': 'SPARE_A7', '89': 'SPARE_A8',
-          '78': 'ALT_L', '77': 'IGN_SENSE', '76': 'FUEL_MON', '75': 'TEMP_MON', '74': 'PRESS_MON',
-          '73': 'VOLT_PWR_MON', '72': 'RPM_SEL_A', '71': 'RPM_SEL_B',
-          '53': 'DEMO', '54': 'PWR_HOLD', '26': 'STATUS_LED',
-          '37': 'SPARE_D47', '38': 'SPARE_D46', '39': 'SPARE_D45', '40': 'SPARE_D44',
-          '88': 'WAKE_SENSE'})                                  # ADC9 / PCINT17: a slot card's WAKE request
-place(MCU, 'U1', 'ATmega2560-16AU', 'Package_QFP:TQFP-100_14x14mm_P0.5mm', m,
-      descr='Sensor pack MCU. USART0 = FTDI header, USART1 = sensor frames (fallback), SPI = MCP2515 + ISP, ICP4 / ICP5 = tach / speed')
-for _ in range(4):
-    c_('100n', '+5V', 'GND', 'U1 VCC pins')
-c_('10u', '+5V', 'GND', 'U1 bulk')
-place(FB, nid('FB'), '600R', FP_FB, {'1': '+5V', '2': 'AVCC'}, descr='AVCC filter')
-c_('100n', 'AVCC', 'GND', 'AVCC')
-c_('100n', 'AREF', 'GND', 'AREF (AVCC reference selected in firmware)')
-place(XTAL, 'Y1', '16MHz', FP_XTAL, {'1': 'XTAL1', '2': 'GND', '3': 'XTAL2', '4': 'GND'}, descr='16 MHz, 3225, CL about 10 pF')
-c_('18p', 'XTAL1', 'GND', 'Y1 load')
-c_('18p', 'XTAL2', 'GND', 'Y1 load')
-r_('10k', '+5V', 'RESET', 'Reset pull-up')
-c_('100n', 'FTDI_DTR', 'RESET', 'Auto-reset from the FTDI header DTR')
-place(HDR2[3], 'J2', 'AVR-ISP-6', 'Connector_IDC:IDC-Header_2x03_P2.54mm_Vertical',
-      {'1': 'MISO', '2': '+5V', '3': 'SCK', '4': 'MOSI', '5': 'RESET', '6': 'GND'}, descr='ISP (USBasp or AVRISP mkII; USBtiny is unreliable above 128 KB)')
-place(HDR[6], 'J12', 'FTDI', 'Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical',
-      {'1': 'GND', '2': 'GND', '3': None, '4': 'FTDI_RX', '5': 'FTDI_TX', '6': 'FTDI_DTR'},
-      descr='FTDI 6-pin (5 V logic): 1 GND, 2 CTS (grounded), 3 VCC (not used: power from the board), 4 adapter TX, 5 adapter RX, 6 DTR')
-place(LED, nid('D'), 'green', 'LED_SMD:LED_0603_1608Metric', {'1': 'LED_K', '2': 'STATUS_LED'}, descr='Status (D13)')
-r_('1k', 'LED_K', 'GND', 'Status LED')
-r_('10k', 'DEMO', 'GND', 'Demo mode pulled low (sensor frames are real data)')
-place(HDR2[5], 'J26', 'Spare I/O', 'Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical',
-      {'1': '+5V', '2': 'GND', '3': 'SPARE_A5', '4': 'SPARE_A6', '5': 'SPARE_A7', '6': 'SPARE_A8', '7': 'SPARE_D44',
-       '8': 'SPARE_D45', '9': 'SPARE_D46', '10': 'SPARE_D47'}, descr='Unused 2560 pins: ADC5-8, D44-D47 (PWM capable)')
-r_('10k', '+5V', 'SENS_RX1', 'USART1 RX idle high (keepalive now arrives on CAN; test point for a wired return)')
-# CAN
-place(CANC, 'U3', 'MCP2515-I/SO', 'Package_SO:SOIC-18W_7.5x11.6mm_P1.27mm',
-      {'1': 'SNS_TXCAN', '2': 'SNS_RXCAN', '3': None, '4': None, '5': None, '6': None, '7': 'CAN_OSC2', '8': 'CAN_OSC1',
-       '9': 'GND', '10': None, '11': None, '12': 'CAN_INT', '13': 'SCK', '14': 'MOSI', '15': 'MISO', '16': 'CAN_CS',
-       '17': 'RESET', '18': '+5V'}, descr='Sensor pack CAN controller (node 0x04)')
-c_('100n', '+5V', 'GND', 'U3')
-r_('10k', '+5V', 'CAN_CS', 'Keeps U3 off the SPI bus while the 2560 is being programmed')
-r_('10k', '+5V', 'CAN_INT', 'CAN_INT pull-up')
-place(XTAL, 'Y2', '16MHz', FP_XTAL, {'1': 'CAN_OSC1', '2': 'GND', '3': 'CAN_OSC2', '4': 'GND'}, descr='MCP2515 clock, own crystal')
-c_('18p', 'CAN_OSC1', 'GND', 'Y2 load')
-c_('18p', 'CAN_OSC2', 'GND', 'Y2 load')
-place(XCVR, 'U6', 'MCP2562-E/SN', FP_SOIC8,
-      {'1': 'SNS_TXCAN', '2': 'GND', '3': '+5V', '4': 'SNS_RXCAN', '5': '+5V', '6': 'CANL', '7': 'CANH', '8': 'GND'},
-      descr='Sensor pack CAN transceiver, VIO 5 V, no termination')
-c_('100n', '+5V', 'GND', 'U6 VDD / VIO')
-# FRAM
-place(FRAM, 'U7', 'MB85RC256V', FP_SOIC8,
-      {'1': 'GND', '2': 'GND', '3': 'GND', '4': 'GND', '5': 'I2C_SDA', '6': 'I2C_SCL', '7': 'GND', '8': '+5V'},
-      descr='32 KB I2C FRAM, address 0x50: odometer (A / B slots with CRC-8)')
-c_('100n', '+5V', 'GND', 'U7')
-r_('4.7k', '+5V', 'I2C_SDA', 'TWI pull-up')
-r_('4.7k', '+5V', 'I2C_SCL', 'TWI pull-up')
-# sensor frame fan-out (fallback): one divider per screen, 5 V -> 3.3 V
-text(cur[0].x0 + 300, cur[0].y0 + 6, 'Sensor UART fallback: USART1 TX -> 10k / 20k divider per screen (5 V -> 3.3 V) -> pin 15 of J5 / J1 / J4.', 1.6)
-for side in ('L', 'C', 'R'):
-    r_('10k', 'SENS_TX1', 'SENS_TX_' + side, 'Divider top, %s screen' % side)
-    r_('20k', 'SENS_TX_' + side, 'GND', 'Divider bottom, %s screen' % side)
-# battery voltage
-r_('100k', '12V_BATT', 'BATT_SENSE', 'Battery sense top (16 V -> 2.9 V)')
-r_('22k', 'BATT_SENSE', 'GND', 'Battery sense bottom')
-c_('100n', 'BATT_SENSE', 'GND', 'Battery sense filter')
-
-# ----------------------------------------------------------------------------- sensor inputs
-cur[0] = Block('sensors', 2, 'SENSOR INPUTS (as rev 1, SMD): J3 senders, J10 speed / tach, ignition, alternator L, RPM select')
-place(HDR[8], 'J3', 'Sensors', 'Connector_JST:JST_PH_S8B-PH-K_1x08_P2.00mm_Horizontal',
-      {'1': 'FUEL', '2': 'ENGINE_TEMP', '3': 'ENGINE_TEMP_VIN', '4': 'ALT_L_IN', '5': 'AMB_TEMP',
-       '6': 'OIL_PRESSURE_VIN', '7': 'OIL_PRESSURE', '8': 'GND'}, descr='Same pinout as rev 1')
-ptc('PTC 0.1A', '+5V', 'FUEL_VIN', 'Fuel sender feed (TH1 on rev 1)', FP_PTC_S)
-r_('470', 'FUEL_VIN', 'FUEL', 'Fuel sender pull-up')
-r_('1k', 'FUEL_VIN', 'FUEL_MON', 'Fuel feed monitor')
-r_('10k', 'FUEL_MON', 'GND', 'Monitor pull-down')
-ptc('PTC 0.1A', '+5V', 'ENGINE_TEMP_VIN', 'Temperature sender feed (TH2)', FP_PTC_S)
-r_('1k', 'ENGINE_TEMP_VIN', 'TEMP_MON', 'Temperature feed monitor')
-r_('10k', 'TEMP_MON', 'GND', 'Monitor pull-down')
-r_('100k', 'ENGINE_TEMP', 'GND', 'Temperature pull-down')
-ptc('PTC 0.1A', '+5V', 'OIL_PRESSURE_VIN', 'Oil pressure sender feed (TH3)', FP_PTC_S)
-r_('1k', 'OIL_PRESSURE_VIN', 'PRESS_MON', 'Oil feed monitor')
-r_('10k', 'PRESS_MON', 'GND', 'Monitor pull-down')
-r_('1k', 'OIL_PRESSURE', 'GND', 'Oil pressure pull-down')
-r_('100k', 'AMB_TEMP', 'GND', 'Ambient (100k NTC) pull-down')
-for net in ('FUEL', 'ENGINE_TEMP', 'OIL_PRESSURE', 'AMB_TEMP'):
-    r_('1k', net, net + '_ADC', 'ADC series (protection)')
-    c_('10n', net + '_ADC', 'GND', 'ADC filter')
-r_('22k', 'ALT_L_IN', 'ALT_L', 'Alternator L divider top')
-r_('10k', 'ALT_L', 'GND', 'Alternator L divider bottom')
-c_('100n', 'ALT_L', 'GND', 'Alternator L filter')
-r_('22k', 'IGN_IN', 'IGN_SENSE', 'Ignition sense divider top')
-r_('10k', 'IGN_SENSE', 'GND', 'Ignition sense divider bottom')
-c_('100n', 'IGN_SENSE', 'GND', 'Ignition sense filter')
-r_('10k', '+5V', 'VOLT_PWR_MON', 'Charge channel has no supply of its own: monitor held high (as rev 1)')
-place(HDR[4], 'J10', 'Speed Tach', FP_PH4, {'1': 'SPEED', '2': 'TACH', '3': 'SPEED_VIN', '4': 'GND'}, descr='Same pinout as rev 1')
-ptc('PTC 0.1A', '+5V', 'SPEED_VIN', 'Hall sensor feed (TH4)', FP_PTC_S)
-r_('1k', 'SPEED_VIN', 'GND', 'Hall feed load (as rev 1)')
-r_('10k', '+5V', 'SPEED', 'Hall output pull-up (open collector)')
-r_('1k', 'SPEED', 'SPEED_SIG', 'Speed input series (new in rev 2)')
-place(BAT54S, nid('D'), 'BAT54S', FP_SOT23, {'1': 'GND', '2': '+5V', '3': 'SPEED_SIG'}, descr='Speed input clamp (new in rev 2)')
-c_('1n', 'SPEED_SIG', 'GND', 'Speed input filter')
-r_('4.7k', 'TACH', 'TACH_R', 'Coil input, 1206 (two in series for the voltage)', FP_R1206)
-r_('4.7k', 'TACH_R', 'TACH_LED', 'Coil input, 1206', FP_R1206)
-place(OPTO, 'U4', 'PC817', 'Package_DIP:SMDIP-4_W7.62mm', {'1': 'TACH_LED', '2': 'GND', '3': 'GND', '4': 'TACH_OC'},
-      descr='Tach isolation')
-place(DD, nid('D'), '1N4148W', FP_SOD123, {'1': 'TACH_LED', '2': 'GND'}, descr='Reverse clamp across the LED (coil kickback; new in rev 2)')
-r_('10k', '+5V', 'TACH_OC', 'Optocoupler pull-up')
-r_('1k', 'TACH_OC', 'TACH_SIG', 'Tach input series')
-place(HDR2[2], 'J8', 'RPM_SEL', 'Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical',
-      {'1': 'GND', '2': 'RPM_SEL_A', '3': 'GND', '4': 'RPM_SEL_B'}, descr='RPM select jumpers (as rev 1, no longer shared with ISP)')
 
 # ----------------------------------------------------------------------------- screens and CAN
 cur[0] = Block('screens', 1, 'SCREENS: J5 left, J1 center, J4 right (ESP32-P4, plugged in face down). One MCP2562 each '
@@ -592,8 +468,8 @@ for side, ref in (('L', 'U5'), ('C', 'U9'), ('R', 'U10')):
     r_('10k', '+3V3', 'CAN_TX_' + side, 'TXD pull-up (recessive while the screen boots)')
 r_('120', 'CANH', 'CANL', 'Bus termination, left end (R35 on rev 1)')
 r_('120', 'CANH', 'CAN_TERM_R', 'Bus termination, right end (R36 on rev 1), through switch SW1-1')
-place(DIPSW, 'SW1', 'TERM / DEMO', FP_DIPSW, {'1': 'CAN_TERM_R', '4': 'CANL', '2': 'DEMO', '3': '+5V'},
-      descr='Back-side slide switch. 1 TERM: right-end 120 R, ON at the factory, OFF when a trunk cable carries the bus on (fit 120 R at the far end). 2 DEMO: ON makes the sensor pack send a fake sweep (bench only)')
+place(DIPSW, 'SW1', 'TERM', FP_DIPSW, {'1': 'CAN_TERM_R', '4': 'CANL', '2': None, '3': None},
+      descr='Back-side slide switch. 1 TERM: right-end 120 R, ON at the factory, OFF when a trunk cable carries the bus on (fit 120 R at the far end). 2: spare (demo mode moved to the sensor card)')
 place(NUP, 'D2', 'NUP2105L', FP_SOT23, {'1': 'CANH', '2': 'CANL', '3': 'GND'}, descr='Bus ESD clamp')
 place(HDR[3], 'J16', 'CAN debug', 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical',
       {'1': 'CANH', '2': 'CANL', '3': 'GND'}, descr='Tap for a USB-CAN adapter')
@@ -612,6 +488,15 @@ r_('10k', 'REV_IN', 'Q3_B', 'Reverse trigger base')
 r_('10k', 'Q3_B', 'GND', 'Reverse trigger base pull-down')
 npn('Q3_B', 'GND', 'REV_TRIGGER', 'Reverse: low = in reverse (center GPIO25)', ref='Q3')
 c_('100n', 'REV_TRIGGER', 'GND', 'Reverse filter')
+# sensor-frame serial fan-out (optional): the sensor card's serial out (5 V) on a jumper wire to J27, one divider per screen
+text(cur[0].x0 + 300, cur[0].y0 + 12, 'Sensor serial (optional, a jumper wire from the sensor card): J27 pin 1 (5 V TX) -> 10k / 20k divider per screen '
+     '(5 V -> 3.3 V) -> pin 15 of J5 / J1 / J4. Sensor data normally arrives on CAN; this is the fallback path.', 1.6)
+place(HDR[2], 'J27', 'Sensor serial in', 'Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical',
+      {'1': 'SENS_TX', '2': 'GND'},
+      descr='Sensor serial in (optional jumper wire from the sensor card J8): 1 TX from the card (5 V logic, 115200 8N1), 2 GND')
+for side in ('L', 'C', 'R'):
+    r_('10k', 'SENS_TX', 'SENS_TX_' + side, 'Divider top, %s screen' % side)
+    r_('20k', 'SENS_TX_' + side, 'GND', 'Divider bottom, %s screen' % side)
 place(HDR[4], 'J6', 'Serial', FP_PH4, {'1': '+3V3', '2': 'SER_TX', '3': 'SER_RX', '4': 'GND'},
       descr='Serial port: the center screen\'s UART2, 3.3 V logic. 1 3V3, 2 TX (out of the dash: to the device\'s RX), '
             '3 RX (into the dash: from the device\'s TX), 4 GND. Same pins as rev 1\'s GPS connector')
@@ -684,13 +569,12 @@ for i in range(6):
     ptc('PTC 0.1A', '+3V3', s + '_3V3', 'Slot %d 3.3 V' % n, FP_PTC_S)
     ptc('PTC 0.2A', '12V_BATT', s + '_BATT', 'Slot %d constant 12 V (key-off functions)' % n, FP_PTC_S)
     r_(SLOT_ID[i], s + '_ID', 'GND', 'Slot %d ID: the card reads it against its own 10k pull-up to 3.3 V' % n)
-text(cur[0].x0 + 300, cur[0].y0 + 6, 'WAKE: a card drives it high (3.3 V, through its own diode) to start the 5 V rail with the key off; '
-     'the 2560 reads it and can take over with PWR_HOLD. LAMP_LVL / REV_LVL: J7 pin 6 and J9 pin 1 scaled to 0-3.3 V.', 1.6)
+text(cur[0].x0 + 300, cur[0].y0 + 6, 'WAKE: a card drives it high (about 3.3 V, through its own diode) to start or hold the 5 V rail with the key off '
+     '(the sensor card holds it to finish after key-off). LAMP_LVL / REV_LVL: J7 pin 6 and J9 pin 1 scaled to 0-3.3 V.', 1.6)
 r_('100k', 'WAKE', 'GND', 'WAKE idle low (cards only ever drive it high)')
 place(BAT54S, nid('D'), 'BAT54S', FP_SOT23, {'1': 'WAKE', '2': None, '3': 'WAKE_K'},
-      descr='Wake diode (pin 1 to pin 3): WAKE high lifts the buck EN, like PWR_HOLD; the second diode is unused')
+      descr='Wake diode (pin 1 to pin 3): WAKE high lifts the buck EN; the second diode is unused')
 r_('47k', 'WAKE_K', 'BUCK_EN', 'Wake resistor (3.3 V in gives EN about 2 V; it starts above 1.2 V)')
-r_('47k', 'WAKE', 'WAKE_SENSE', 'WAKE into the 2560 (series: the 2560 may be unpowered)')
 for src, dst, what in (('ILLUM_IN', 'LAMP_LVL', 'Dash-light level (rheostat voltage) for the cards'),
                        ('REV_IN', 'REV_LVL', 'Reverse level for the cards (high = in reverse)')):
     r_('100k', src, dst, what + ': divider top (14.5 V -> 3.1 V)')
@@ -707,7 +591,7 @@ out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "User" 1820 %d)' % (max(col_y.values()) + 60),
        '  (title_block (title "DigiDash main board") (date "2026-09-30") (rev "2")',
-       '    (comment 1 "ATmega2560 sensor pack on CAN, TVP5150AM1, six card slots, AUX 12 V")',
+       '    (comment 1 "Sensor pack on a slot card (SensorCard), TVP5150AM1, six card slots, AUX 12 V")',
        '    (comment 2 "docs/hardware/digidash_rev2_plan.md"))',
        '  (lib_symbols']
 for t in lib_text.values():

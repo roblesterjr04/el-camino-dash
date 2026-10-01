@@ -18,6 +18,17 @@ assembled by a board house, so:
 > card ideas are under [Expansion cards](#expansion-cards). Sections below that talk about bays are the earlier plan,
 > kept for the reasoning.
 
+> **Update 2026-10-01 (later): the sensor pack is a slot card.** The ATmega2560, its FRAM, the MCP2515 + MCP2562 and
+> the whole sensor front end moved off the main board onto [`SensorCard/`](../../SensorCard), so a change to the
+> senders, the speed sensor or the tach input means a new 80 × 60 mm card, not a new main board. The card keeps the
+> fixed CAN node `0x04` in any slot (not slot 1), takes ignition sense, battery sense and its speed sensor's 12 V from
+> the slot, and holds the 5 V rail after key-off through WAKE (PWR_HOLD and the 2560's WAKE_SENSE on the main board
+> are gone). The serial fallback is now optional: a jumper wire from the card's J8 to the main board's new **J27**,
+> which feeds the same three 10k / 20k dividers. The FRAM (odometer) travels with the card; a replacement card's
+> mileage is set in firmware. The sections below that put the 2560 "in the core" are the earlier plan; the pin
+> functions in the table below carry over (see the card's README for its pin map, which also moves battery sense and
+> the spare analog pins off the JTAG pins).
+
 ## Goals
 
 1. **Bays, not leftover spots.** Every accessory position has the same shape, the same header location inside it and
@@ -339,6 +350,7 @@ come from assembly blank (see [Programming](accessory_ports.md#programming-every
 | --- | --- | --- | --- | --- |
 | **Audio** (`AudioCarrier/`, drawn) | 1 (its 28.5 mm RCA block needs the open end) | ESP32-PICO-MINI-02 | Bluetooth A2DP / HFP, four line outputs, mic / aux input | 5 V, CAN, I2S rail master (clocks, mic, takes RET), drives the audio bus |
 | **AI voice** | any | ESP32-S3 (or similar) | Listens to the mic, talks back through the speakers | 5 V, CAN, I2S rail slave: hears MIC, speaks on RET once granted, MCLK if its codec needs it |
+| **Sensor pack** (`SensorCard/`, drawn) | any but 1 | ATmega2560 + MCP2515 | The gauges' data: senders, speed, tach, ignition, battery, alternator, FRAM odometer. Fixed node `0x04`; CAN `0x100`–`0x104` | 5 V, CAN, switched 12 V (ignition sense, speed sensor feed), constant 12 V (battery sense), WAKE (holds the rail after key-off); serial fallback by jumper wire to J27 |
 | **GPS** ([spec](gps_card.md)) | any | STM32G0B1 (no radio) | Reads a remote GPS puck on a 4-pin cable (same pinout as J6) and sends position, speed, heading, fix and UTC on CAN `0x222`–`0x226` | 5 V, CAN |
 | **LTE gateway** ([spec](lte_card.md)) | any | ESP32-S3 + an A7670 LTE Cat-1 core board on sockets | Internet for the dash: a Wi-Fi access point the center joins on its own (NET gateway, `can_channels.md`). Later: uploads trips / GPS tracks it hears on CAN | 5 V (ESP32, CAN), AUX 12 V (the LTE board's peaks), CAN |
 | **Output / relay** | any | ESP32-C3 | Lights, fans, accessory power | AUX 12 V, CAN, LAMP / REV |

@@ -1,0 +1,608 @@
+{
+ "#FLG01": {
+  "dnp": false,
+  "fp": "",
+  "group": "port",
+  "value": "PWR_FLAG"
+ },
+ "#FLG02": {
+  "dnp": false,
+  "fp": "",
+  "group": "port",
+  "value": "PWR_FLAG"
+ },
+ "#FLG03": {
+  "dnp": false,
+  "fp": "",
+  "group": "port",
+  "value": "PWR_FLAG"
+ },
+ "#FLG04": {
+  "dnp": false,
+  "fp": "",
+  "group": "port",
+  "value": "PWR_FLAG"
+ },
+ "#FLG05": {
+  "dnp": false,
+  "fp": "",
+  "group": "port",
+  "value": "PWR_FLAG"
+ },
+ "C1": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "group": "port",
+  "value": "10u"
+ },
+ "C10": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C11": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C12": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "18p"
+ },
+ "C13": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "18p"
+ },
+ "C14": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C15": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C16": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "18p"
+ },
+ "C17": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "18p"
+ },
+ "C18": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C19": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C2": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "port",
+  "value": "100n"
+ },
+ "C20": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "sensors",
+  "value": "10n"
+ },
+ "C21": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "sensors",
+  "value": "10n"
+ },
+ "C22": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "sensors",
+  "value": "10n"
+ },
+ "C23": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "sensors",
+  "value": "10n"
+ },
+ "C24": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "sensors",
+  "value": "100n"
+ },
+ "C25": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "group": "speed",
+  "value": "100n"
+ },
+ "C26": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "speed",
+  "value": "1n"
+ },
+ "C27": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "tach",
+  "value": "1n"
+ },
+ "C3": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "port",
+  "value": "100n"
+ },
+ "C4": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "port",
+  "value": "100n"
+ },
+ "C5": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C6": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C7": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C8": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C9": {
+  "dnp": false,
+  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "group": "mcu",
+  "value": "10u"
+ },
+ "D1": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_SMD:SOT-23",
+  "group": "port",
+  "value": "BAT54S"
+ },
+ "D2": {
+  "dnp": false,
+  "fp": "Diode_SMD:D_SOD-123",
+  "group": "port",
+  "value": "BAT42W"
+ },
+ "D3": {
+  "dnp": false,
+  "fp": "LED_SMD:LED_0603_1608Metric",
+  "group": "mcu",
+  "value": "green"
+ },
+ "D4": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_SMD:SOT-23",
+  "group": "sensors",
+  "value": "BAT54S"
+ },
+ "D5": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_SMD:SOT-23",
+  "group": "speed",
+  "value": "BAT54S"
+ },
+ "D6": {
+  "dnp": false,
+  "fp": "Diode_SMD:D_SOD-123",
+  "group": "tach",
+  "value": "1N4148W"
+ },
+ "F1": {
+  "dnp": false,
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "sensors",
+  "value": "PTC 0.1A"
+ },
+ "F2": {
+  "dnp": false,
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "sensors",
+  "value": "PTC 0.1A"
+ },
+ "F3": {
+  "dnp": false,
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "speed",
+  "value": "PTC 0.1A"
+ },
+ "FB1": {
+  "dnp": false,
+  "fp": "Inductor_SMD:L_0603_1608Metric",
+  "group": "mcu",
+  "value": "600R"
+ },
+ "J1": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal",
+  "group": "port",
+  "value": "DigiDash slot"
+ },
+ "J10": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical",
+  "group": "mcu",
+  "value": "Spare I/O"
+ },
+ "J2": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_S12B-PH-K_1x12_P2.00mm_Horizontal",
+  "group": "sensors",
+  "value": "Senders"
+ },
+ "J3": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "group": "speed",
+  "value": "Speed"
+ },
+ "J4": {
+  "dnp": false,
+  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal",
+  "group": "tach",
+  "value": "Tach"
+ },
+ "J5": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical",
+  "group": "mcu",
+  "value": "RPM select"
+ },
+ "J6": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x03_P2.54mm_Horizontal",
+  "group": "prog",
+  "value": "AVR-ISP-6"
+ },
+ "J7": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Horizontal",
+  "group": "prog",
+  "value": "FTDI"
+ },
+ "J8": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal",
+  "group": "prog",
+  "value": "Sensor serial out"
+ },
+ "J9": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+  "group": "mcu",
+  "value": "Demo"
+ },
+ "JP1": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
+  "group": "speed",
+  "value": "5V / 12V"
+ },
+ "R1": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "15k"
+ },
+ "R10": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "10k"
+ },
+ "R11": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "10k"
+ },
+ "R12": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "10k"
+ },
+ "R13": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "4.7k"
+ },
+ "R14": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "4.7k"
+ },
+ "R15": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "prog",
+  "value": "100"
+ },
+ "R16": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "prog",
+  "value": "1k"
+ },
+ "R17": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "prog",
+  "value": "10k"
+ },
+ "R18": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "sensors",
+  "value": "220"
+ },
+ "R19": {
+  "dnp": true,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "100k"
+ },
+ "R2": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "10k"
+ },
+ "R20": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "1k"
+ },
+ "R21": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "10k"
+ },
+ "R22": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0805_2012Metric",
+  "group": "sensors",
+  "value": "1k"
+ },
+ "R23": {
+  "dnp": true,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "2.2k"
+ },
+ "R24": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "1k"
+ },
+ "R25": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "10k"
+ },
+ "R26": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "sensors",
+  "value": "220"
+ },
+ "R27": {
+  "dnp": true,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "100k"
+ },
+ "R28": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "100k"
+ },
+ "R29": {
+  "dnp": true,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "100k"
+ },
+ "R3": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "100k"
+ },
+ "R30": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "1k"
+ },
+ "R31": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "1k"
+ },
+ "R32": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "1k"
+ },
+ "R33": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "1k"
+ },
+ "R34": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "22k"
+ },
+ "R35": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "10k"
+ },
+ "R36": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "speed",
+  "value": "10k"
+ },
+ "R37": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "speed",
+  "value": "10k"
+ },
+ "R38": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "tach",
+  "value": "4.7k"
+ },
+ "R39": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "tach",
+  "value": "4.7k"
+ },
+ "R4": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "22k"
+ },
+ "R40": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "tach",
+  "value": "22k"
+ },
+ "R41": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "tach",
+  "value": "1k"
+ },
+ "R5": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "4.7k"
+ },
+ "R6": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "10k"
+ },
+ "R7": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "47k"
+ },
+ "R8": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "10k"
+ },
+ "R9": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "1k"
+ },
+ "U1": {
+  "dnp": false,
+  "fp": "Package_QFP:TQFP-100_14x14mm_P0.5mm",
+  "group": "mcu",
+  "value": "ATmega2560-16AU"
+ },
+ "U2": {
+  "dnp": false,
+  "fp": "Package_SO:SOIC-18W_7.5x11.6mm_P1.27mm",
+  "group": "mcu",
+  "value": "MCP2515-I/SO"
+ },
+ "U3": {
+  "dnp": false,
+  "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+  "group": "mcu",
+  "value": "MCP2562-E/SN"
+ },
+ "U4": {
+  "dnp": false,
+  "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+  "group": "mcu",
+  "value": "MB85RC256V"
+ },
+ "U5": {
+  "dnp": false,
+  "fp": "Package_DIP:SMDIP-4_W7.62mm",
+  "group": "tach",
+  "value": "PC817"
+ },
+ "Y1": {
+  "dnp": false,
+  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+  "group": "mcu",
+  "value": "16MHz"
+ },
+ "Y2": {
+  "dnp": false,
+  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+  "group": "mcu",
+  "value": "16MHz"
+ }
+}

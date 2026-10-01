@@ -7,7 +7,7 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 Rev 1's outline (309.2 x 103.7 mm) and its three screen headers (J5 / J1 / J4, copied from DigiDash/DigiDash.kicad_pcb:
 provisional until the bezel is drawn). Four layers: F signal, In1 solid GND, In2 solid +5 V, B signal. Every SMD part
 is on the back (single-sided assembly); only the screen headers are on the front. Six card slots in a row at the left
-(cards stand on edge) with the AUX 12 V feed along the top edge, the sensor-pack core at the top right, and the screen transceivers,
+(cards stand on edge) with the AUX 12 V feed along the top edge (the sensor pack is a card), and the screen transceivers,
 video decoder, power supply and harness connectors in the lower band. ICs and connectors are placed by hand below; every
 passive then goes to the free spot closest to the pins it connects to. With --route: GND / +5 V fan-out vias, one
 Freerouting run, leftover links joined, GND stitching, zone fill.
@@ -89,17 +89,15 @@ TALL_RE = re.compile(r'CP_Elec|Fuseholder|L_Wuerth_HCI|L_12x12')
 HOLES_MH = {'H1': (4.0, 4.0), 'H2': (305.2, 4.0), 'H3': (4.0, 75.0), 'H4': (305.2, 75.0)}   # provisional
 # connectors on an edge: ref -> (edge, position along it); the body is turned so the plug side faces out
 EDGE = {'J17': ('top', 142.0), 'J22': ('top', 158.0), 'J23': ('top', 174.0), 'J24': ('top', 190.0),
-        'J3': ('right', 24.0), 'J10': ('right', 48.0),
         'J25': ('bottom', 136.0), 'J6': ('bottom', 100.0), 'J9': ('bottom', 176.0), 'J7': ('bottom', 204.0)}
 # ref: (x, y, rotation, side)
 FIXED = {
     # AUX strip along the top edge, above the card envelopes (it feeds pins 25-30 of every slot)
     'J13': (16.0, 8.5, 0, 'B'), 'F1': (32.0, 8.0, 0, 'B'), 'Q6': (58.0, 8.0, 0, 'B'), 'D11': (72.0, 8.0, 0, 'B'),
     'NT1': (24.0, 13.5, 0, 'B'),
-    # sensor-pack core
-    'U1': (215.0, 30.0, 0, 'F'), 'U3': (246.0, 20.0, 0, 'F'), 'U6': (246.0, 40.0, 0, 'F'), 'U7': (196.0, 46.0, 0, 'F'),
-    'J2': (291.0, 12.0, 0, 'B'), 'J12': (266.0, 7.0, 90, 'B'), 'J8': (282.0, 32.0, 0, 'B'), 'J26': (180.0, 60.0, 90, 'B'),
-    'U4': (291.0, 62.0, 0, 'B'),
+    # sensor serial in (a jumper wire from the sensor card's J8): above the slot row, clear of the card envelopes, within
+    # reach of a card's left edge (which is at this end of the row) in any slot
+    'J27': (96.0, 6.0, 90, 'B'),
     # video, next to the center header (J1); x 132 keeps it clear of slot 6's socket pins (J36, x 120.3 / 122.9)
     'U8': (132.0, 64.0, 0, 'F'), 'J11': (152.0, 91.0, 0, 'B'),
     'U11': (150.0, 66.0, 0, 'B'), 'U12': (140.0, 70.0, 0, 'B'),
@@ -110,14 +108,17 @@ FIXED = {
     'J16': (168.0, 88.0, 90, 'B'), 'D2': (166.0, 82.0, 0, 'B'),
 }
 SIDE_DEFAULT = 'B'
-ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'], 'mcu': ['U1', 'U3', 'U6', 'U7'],
-          'sensors': ['J3', 'J10', 'U4', 'U1'], 'screens': ['U5', 'U9', 'U10', 'J1', 'J4', 'J5', 'J9', 'J6'],
+ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'],
+          'screens': ['U5', 'U9', 'U10', 'J1', 'J4', 'J5', 'J9', 'J6', 'J27'],
           'video': ['U8', 'J11'], 'ports': ['J17', 'J22', 'J23', 'J24', 'J25'], 'slots': list(SLOTS) + ['NT2']}
-GROUP_ORDER = ['mcu', 'video', 'power', 'aux', 'screens', 'sensors', 'ports', 'slots', 'misc']
-POWER_NETS = {'+5V', '+3V3', '/+1V8', '/+1V8A', '/AVCC', '/12V_BATT', '/SW12', '/AUX12'}
+GROUP_ORDER = ['video', 'power', 'aux', 'screens', 'ports', 'slots', 'misc']
+POWER_NETS = {'+5V', '+3V3', '/+1V8', '/+1V8A', '/12V_BATT', '/SW12', '/AUX12'}
 PLANES = {'GND': pcbnew.In1_Cu, '+5V': pcbnew.In2_Cu}
-KEEP_SILK = {'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7', 'J8', 'J9', 'J10', 'J11', 'J12', 'J13', 'J16', 'J17',
-             'J22', 'J23', 'J24', 'J25', 'J26', 'SW1', 'U1', 'U8'} | set(SLOTS)
+KEEP_SILK = {'J1', 'J4', 'J5', 'J6', 'J7', 'J9', 'J11', 'J13', 'J16', 'J17',
+             'J22', 'J23', 'J24', 'J25', 'J27', 'SW1', 'U8'} | set(SLOTS)
+# parts that must stay on the back: the two resistors under the video decoder's data-pin row on the front box its pins in
+# (matched by description, so renumbering cannot move them), and the TERM switch
+BACK_ONLY_DESCR = ('Pixel clock series', 'YOUT7 / I2CSEL low')
 HOLE_KEEP = 3.3
 HOLES = []                 # filled with every M3 hole (the board mounting holes)
 
@@ -336,6 +337,7 @@ def main():
                     out.setdefault(n, []).append((r, p.x / 1e6 - OX, p.y / 1e6 - OY))
         return out
 
+    back_only = {'SW1'} | {r for r in comps if comps[r][3].startswith(BACK_ONLY_DESCR)}
     rest = [r for r in fps if r not in placed]
     for r in rest:
         side_of[r] = SIDE_DEFAULT
@@ -359,9 +361,8 @@ def main():
         best = None
         # SMD parts may go on either side (the screens stand well off the front); tall parts stay on the back
         tall = TALL_RE.search(fp.GetFPIDAsString()) is not None
-        # R72 and R76 sit under the video decoder's data-pin row on the front and box its pins in: they go on the back
         either = (not (fp.GetAttributes() & pcbnew.FP_THROUGH_HOLE) and not tall and g not in ('power', 'aux')
-                  and ref not in ('R72', 'R76', 'SW1'))
+                  and ref not in back_only)
         # its home side: that of the placed part it connects to most closely (a filter cap sits with its MCU pin)
         home, hd = None, None
         fx, fy = fp.GetPosition().x / 1e6 - OX, fp.GetPosition().y / 1e6 - OY
@@ -508,7 +509,7 @@ def main():
 
 CLASSES = {      # name: (track width, clearance, [nets])
     'Plane': (0.5, 0.15, ['GND', '+5V']),
-    'Power': (0.4, 0.15, ['+3V3', '/+1V8', '/+1V8A', '/AVCC', '/CAM_12V', '/TRUNK_12V', '/Illumination']),
+    'Power': (0.4, 0.15, ['+3V3', '/+1V8', '/+1V8A', '/CAM_12V', '/TRUNK_12V', '/Illumination']),
     'Power12': (0.8, 0.2, ['/BATT_IN', '/12V_BATT', '/SW12', '/IGN_IN']),
     'Switch': (1.5, 0.2, ['/BUCK_SW']),
     'Aux': (2.0, 0.3, ['/AUX_IN', '/AUX_IN_F', '/AUX12', '/AUX_GND']),
@@ -1354,22 +1355,17 @@ def after_route(ses):
 # multi-row headers. Names come from the schematic's nets. Where the schematic has no better word the net name is kept.
 LABELS = {
     'J1': ('CENTER SCREEN', None, None), 'J4': ('RIGHT SCREEN', None, None), 'J5': ('LEFT SCREEN', None, None),
-    'J2': ('AVR ISP', None, '1 MISO  2 5V  3 SCK  4 MOSI  5 RST  6 GND'),
-    'J3': ('SENSORS', {1: 'FUEL', 2: 'ETEMP', 3: 'ETEMP V', 4: 'ALT L', 5: 'AMB', 6: 'OILP V', 7: 'OILP', 8: 'GND'}, None),
     'J6': ('SERIAL', {1: '3V3', 2: 'TX', 3: 'RX', 4: 'GND'}, None),
     'J7': ('POWER IN', {1: '12V', 2: '12V', 3: 'GND', 4: 'GND', 5: 'IGN', 6: 'LAMP'}, None),
-    'J8': ('RPM SEL', None, 'jumper A / B to GND'),
     'J9': ('CAMERA', {1: 'REV', 2: '12V', 3: '--', 4: 'GND'}, None),
-    'J10': ('SPEED TACH', {1: 'SPD', 2: 'TACH', 3: '5V', 4: 'GND'}, None),
     'J11': ('VIDEO IN', None, None),
-    'J12': ('FTDI 5V', {1: 'GND', 2: 'CTS', 3: '--', 4: 'RXI', 5: 'TXO', 6: 'DTR'}, None),
     'J13': ('AUX 12V IN', {1: '12V', 2: 'GND'}, None),
     'J16': ('CAN TAP', {1: 'H', 2: 'L', 3: 'GND'}, None),
     'J17': ('CABLE 1', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None), 'J22': ('CABLE 2', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None),
     'J23': ('CABLE 3', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None), 'J24': ('CABLE 4', {1: '5V', 2: 'H', 3: 'L', 4: 'G'}, None),
     'J25': ('TRUNK', {1: 'H', 2: 'L', 3: '12V', 4: 'G'}, None),
-    'J26': ('SPARE I/O', None, '1 5V  2 GND  3 A5  4 A6  5 A7  6 A8  7 D44  8 D45  9 D46  10 D47'),
-    'SW1': ('1 TERM  2 DEMO', None, 'ON = on; back side'),
+    'J27': ('SENSOR SERIAL', {1: 'TX IN', 2: 'GND'}, None),
+    'SW1': ('1 TERM  2 --', None, 'ON = on; back side'),
 }
 # slots: the name; pin 1 is the square pad, at the bottom
 LABELS.update({'J%d' % (31 + i): ('SLOT %d' % (i + 1), None, None) for i in range(6)})
