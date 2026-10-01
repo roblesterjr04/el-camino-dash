@@ -80,19 +80,20 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
 
 ## Status
 
-**Placed and fully routed** (2026-10-01, with the six card slots and the I2S rail). DRC (`generate/drc.py`, with the
-schematic parity check): **no errors, nothing unconnected.** What is left is 71 silkscreen warnings (reference text
-at the edge, over pads, one overlap). 2784 track segments and 1435 vias (1025 of them GND stitching). 112 parts on the
-front, 151 on the back; the placer found no tall through-hole part under a card. Fab outputs are in `fab/`
-(`python3 ../tools/fab_export.py DigiDash2`).
+**Placed and fully routed** (2026-10-01, without the sensor pack, slots at 25.4 mm pitch). One Freerouting run (120
+passes) routed every link; the finisher had nothing left to join. DRC (`generate/drc.py`, with the schematic parity
+check): **no errors, nothing unconnected, parity clean.** What is left is 52 silkscreen warnings (reference text at
+the edge, over pads, one overlap). 1979 track segments and 1530 vias (1264 of them GND stitching). 64 parts on the
+front, 116 on the back; the placer found no tall through-hole part under a card. Fab outputs are in `fab/`
+(`python3 ../tools/fab_export.py DigiDash2`). (Run in a container without KiCad's global library table, DRC also lists
+173 "library not in the configuration" notes; they are about the environment, not the board.)
 
 How it got there, in case a re-run differs:
-- **U8 (TVP5150) moved to x 132.** At x 126 (its bay-era spot) it sat on slot 6's socket pins (J36), which shorted
-  seven of its pads. A fixed part's spot is not checked against the other side's through-hole pins, so keep that in
-  mind when moving anything near the slots.
-- One Freerouting run (120 passes) left one link (VID_REFP, U8 pin 29 to C56 on the back). `DIGIDASH_RIPUP=1
-  gen_pcb.py --finish` joined it by ripping up and maze-routing VID_REFP and VID_REFM; the stray VID_INTREQ stub and
-  a duplicate VID_REFM via it left behind were removed by hand.
+- **Sensor pack removed, slots widened.** The first route after the sensor pack left (slots still at 20.32 mm) left
+  five links open around the video decoder. With the pitch at 25.4 mm, U11 (3.3 V LDO), J11 (RCA), J16 and D2 moved
+  east of slot 6, and the next run routed completely.
+- **U8 (TVP5150) is at x 132,** on the front between slot 5's and slot 6's socket pins. A fixed part's spot is not
+  checked against the other side's through-hole pins, so keep that in mind when moving anything near the slots.
 
 ## Provisional (move with the bezel)
 
