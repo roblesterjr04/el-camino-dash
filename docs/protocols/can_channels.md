@@ -77,7 +77,8 @@ The 11-bit ID space, lowest (highest priority) first. Channel number = ID >> 5; 
 | `0x300`–`0x31F` | 24 | **AUDIO_STREAM** | raw |
 | `0x320`–`0x33F` | 25 | **BULK** (control) | transfer |
 | `0x340`–`0x35F` | 26 | **BULK_DATA** | raw |
-| `0x360`–`0x3BF` | 27–29 | reserved | |
+| `0x360`–`0x37F` | 27 | **ONLINE** (internet results from a gateway) | transfer |
+| `0x380`–`0x3BF` | 28–29 | reserved | |
 | `0x3C0`–`0x3DF` | 30 | **NET** | transfer |
 | `0x3E0`–`0x3FF` | 31 | **LOG** | transfer |
 | `0x400`–`0x6FF` | 32–55 | node-private ranges (`0x400 + 0x40·(node − 0x10)`): messages only that accessory's partners understand | private |
@@ -214,7 +215,9 @@ the audio card accepts and enables its link buffer.
 
 ### Network gateway (Wi-Fi from a card)
 
-A card with an internet uplink (an LTE card) runs a Wi-Fi access point, and the center joins it without anyone typing
+Most online work never needs this: the gateway does it and broadcasts the results on [ONLINE](#online-0x360--node).
+For bulk data (screen firmware, map tiles) and a phone in the car, a card with an internet uplink (an LTE card) can
+also run a Wi-Fi access point (off by default, turned on from the menu), and the center joins it without anyone typing
 a password. Bulk data (web requests, map tiles, firmware) then goes over Wi-Fi; CAN only carries the status and the
 handshake.
 
@@ -512,6 +515,49 @@ bytes 3–7 = 5 bytes of the object (chunk n = bytes 5n…5n+4). Up to 10 MB per
 - Kinds: 1 sound clip (object = slot, 16-bit PCM or IMA-ADPCM WAV, ≤ 64 KB), 2 firmware image (the update
   procedure is a later profile; v1 fixes only the transport), 3 file on the center's SD card, `0x80`+ product-specific.
 
+## ONLINE (`0x360 + node`)
+
+Internet results, for everyone. **The dash does as much of its online work as possible over CAN**: the node with the
+internet connection (the LTE gateway, `docs/hardware/lte_card.md`) does the lookups itself and broadcasts only the
+answers, which are a few dozen bytes. The screens never need Wi-Fi for these. Wi-Fi is kept for bulk data (screen
+firmware, map tiles) and for a phone in the car, and the gateway's access point is **off by default**.
+
+The rule: a result measured in bytes or a few kilobytes goes on ONLINE; anything in hundreds of kilobytes goes over Wi-Fi.
+
+| Op | Name | Sent | Payload after the opcode |
+| --- | --- | --- | --- |
+| `0x01` | PLACE | on change, and every 30 s | serial u8, flags u8, speed limit u8, country code (2 bytes, ISO 3166), street length u8, street, locality length u8, locality, region length u8, region |
+| `0x02` | WEATHER | every 15 min, and when the place moves more than 10 km | observed at u32 (UTC s), temperature s16 (0.1 °C), feels like s16 (0.1 °C), WMO weather code u8, humidity u8 (%), wind u16 (0.1 m/s), wind from u16 (degrees), rain chance u8 (% next 6 h), today's high s16, today's low s16 (0.1 °C), sunrise u32, sunset u32 (UTC s) |
+| `0x03` | TIMEZONE | on change, and every 5 min | UTC offset s8 (15-minute steps), flags u8 (bit0 daylight saving now), IANA name length u8, IANA name (e.g. `America/Chicago`) |
+| `0x04` | MESSAGE | when one arrives | id u8, source u8 (1 SMS, 2 online service), received at u32 (UTC s), sender length u8, sender, text length u8, text (≤ 160 bytes) |
+| `0x05` | ONLINE STATUS | 1 Hz | flags u8 (bit0 internet up, bit1 place valid, bit2 weather valid, bit3 time zone valid), seconds since the last place lookup u16, lookups this hour u8, last error u8 (0 none, 1 no fix, 2 no data connection, 3 service error, 4 rate limited) |
+| `0x81` | REFRESH | from anyone | dest u8 (the gateway), what u8 (bit0 place, bit1 weather, bit2 time zone): look it up now and broadcast |
+| `0x82` | MESSAGE READ | from the screen that showed it | dest u8 (the gateway), id u8 |
+
+- Strings are UTF-8, no terminator, each with its length byte in front. Street up to 48 bytes, locality and region up to
+  32 each.
+- **PLACE flags:** bit0 valid, bit1 from cache (no data connection right now), bit2 the speed limit is in mph (else
+  km/h); speed limit 0 = unknown. **serial** goes up with each new place, so a receiver can skip an unchanged repeat.
+- **Weather** codes are the WMO codes Open-Meteo uses (0 clear, 1–3 cloud, 45 / 48 fog, 51–67 rain, 71–77 snow, 80–82
+  showers, 95–99 thunder). Unknown values: `0x7FFF` for s16, `0xFF` for u8.
+- **Where the input comes from:** the gateway hears the GPS card's position (`can_bus.md` `0x222`) like every other
+  node. Nobody asks it for each lookup.
+- **When it looks up the place:** when the car has moved more than 50 m since the last lookup and at least 10 s have
+  passed, and once on boot. Stopped, it does not look up again. That stays well inside OpenStreetMap Nominatim's limit
+  (one request per second) and to about 1–2 MB of data per hour of driving.
+- **Services:** reverse geocoding from OpenStreetMap **Nominatim** (what the center uses over Wi-Fi today; the gateway
+  sends its own User-Agent as Nominatim's policy asks). Weather and the time zone from **Open-Meteo** (no key; one call
+  with `timezone=auto` returns both). The speed limit from OpenStreetMap's `maxspeed` tags through Overpass, optional
+  (0 when not looked up). Each service is a setting on the gateway, so another provider can replace it.
+- **The center** keeps sending the street on `0x221` and the time on `0x220` for the screens that read those today. It
+  takes them from ONLINE when it hears a gateway, and only falls back to its own Wi-Fi lookup when there is none.
+- **Messages:** the A7670 can receive SMS. The gateway forwards each one as MESSAGE (shown like an alert on the menu
+  screen) until a screen sends MESSAGE READ. Sending SMS from the dash is not in v1.
+- **Settings** (lookup interval, units, the APN, which services, access point on / off) are the gateway's UI items in the
+  menu, as for any accessory (see [UI](#ui-0x260--node)).
+- A gateway with no data connection keeps sending ONLINE STATUS and its cached PLACE (flags bit1), so the screens can
+  say why nothing updates.
+
 ## LOG (`0x3E0 + node`)
 
 | Op | Name | Payload after the opcode |
@@ -642,7 +688,7 @@ change to any other firmware: the audio sink and the menu screen already listen 
 | --- | --- |
 | Legacy sensor, cluster, heartbeats, audio transport (today) | ~5 % |
 | Core sensors on SENSOR (center) | ~2 % |
-| SYSTEM, ALERT, INPUT, UI, NET, LOG | < 1 % |
+| SYSTEM, ALERT, INPUT, UI, NET, LOG, ONLINE | < 1 % |
 | Accessory sensors (budget: 20 values at 10 Hz) | ~6 % |
 | BULK and album art together (paced, only while transferring) | ≤ 34 % |
 | AUDIO_STREAM, one at a time (8 kHz / 16 kHz) | 16 % / 31 % |

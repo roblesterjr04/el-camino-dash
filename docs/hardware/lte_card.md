@@ -3,15 +3,17 @@
 **Status: spec only.** No schematic or board yet. When it is drawn, it follows the audio card's generator pattern
 (`AudioCarrier/generate/`).
 
-A slot card that gives the dash internet. An **ESP32-S3** runs a Wi-Fi access point and routes it out through an
-**LTE Cat-1 core board** (a ready-made breakout, plugged in on pin headers). The center screen joins the access point on
-its own, using the NET gateway messages (`docs/protocols/can_channels.md`, *Network gateway*). A phone in the car can
-join it too. CAN carries only the status and the handshake; the data goes over Wi-Fi.
+A slot card that gives the dash internet. An **ESP32-S3** talks to an **LTE Cat-1 core board** (a ready-made
+breakout, plugged in on pin headers) and **does the dash's online work itself**: street name, weather, time zone,
+incoming SMS. It broadcasts only the results on CAN (the ONLINE channel, `docs/protocols/can_channels.md`), so the
+screens never need Wi-Fi for these. A Wi-Fi access point is there too, **off by default**: turned on from the menu for
+a phone in the car or a bulk download (screen firmware), and the center can then join it on its own (NET gateway).
 
 ```
- LTE antenna ── IPEX ── LTE core board ══ UART (PPP) ══ ESP32-S3 ── Wi-Fi AP ── center screen, phone
-                                                          │
-                                                          └── CAN: ANNOUNCE (node type 7), WIFI OFFER, GATEWAY STATUS
+                                                          ┌── CAN: ONLINE (place, weather, time zone, messages, status),
+ LTE antenna ── IPEX ── LTE core board ══ UART (PPP) ══ ESP32-S3    NET (ANNOUNCE, GATEWAY STATUS, WIFI OFFER)
+                                                          │      ◄── CAN: GPS position (0x222) from the GPS card
+                                                          └── Wi-Fi access point (optional) ── phone, bulk downloads
 ```
 
 ## The LTE core board
@@ -103,12 +105,20 @@ ESP-IDF (or Arduino-ESP32 3.x, which wraps the same parts):
    registration, set the APN (a setting, kept in NVS).
 2. **Data:** PPP over the UART (the `esp_modem` component) with **CMUX**, so AT status queries keep working while data
    flows.
-3. **Wi-Fi:** an access point with a random password made on first boot (kept in NVS). lwIP NAT (NAPT) routes the
-   access point's clients out through PPP. DHCP gives clients the card's address as their DNS, and it forwards DNS.
-4. **CAN (node `0x06`, product `0x0006`):** heartbeat `0x706` (node type 7); NET ANNOUNCE with the slot; answer WIFI
-   QUERY with WIFI OFFER; GATEWAY STATUS once a second (signal from AT+CSQ, registration from AT+CEREG, data used from
-   the PPP byte counts); act on GATEWAY CMD and WIFI SHARE.
-5. **Later:** upload GPS tracks (it hears the GPS card's `0x222`–`0x226` like everyone else) and trip summaries.
+3. **Online services, results on CAN (ONLINE channel):** it listens to the GPS card's position on CAN and, when the
+   car has moved 50 m and 10 s have passed, looks up the street (OpenStreetMap Nominatim) and broadcasts PLACE. Weather
+   and the time zone (Open-Meteo) every 15 minutes. Incoming SMS (AT+CMGR) as MESSAGE. ONLINE STATUS once a second.
+   HTTPS keeps one connection open per service, so each lookup costs about 1 KB, not a new TLS handshake.
+4. **CAN (node `0x06`, product `0x0006`):** heartbeat `0x706` (node type 7); NET ANNOUNCE with the slot; GATEWAY
+   STATUS once a second (signal from AT+CSQ, registration from AT+CEREG, data used from the PPP byte counts); act on
+   GATEWAY CMD, REFRESH and MESSAGE READ.
+5. **Wi-Fi (optional, off by default):** an access point with a random password made on first boot (kept in NVS),
+   turned on by GATEWAY CMD or the menu. lwIP NAT (NAPT) routes its clients out through PPP; DHCP gives them the card's
+   address as their DNS, and it forwards DNS. Answers WIFI QUERY with WIFI OFFER while it is on.
+6. **Later:** upload GPS tracks and trip summaries.
+
+**Data use:** with the access point off, about 1–2 MB per hour of driving (mostly street lookups) and almost nothing
+parked.
 
 **Throughput:** Cat-1 offers about 10 Mbit/s down. The UART link to the ESP32 is the real limit (a few Mbit/s at the
 highest baud rates the module accepts). That is plenty for maps, weather, updates and telemetry, not for video.

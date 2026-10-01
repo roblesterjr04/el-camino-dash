@@ -345,8 +345,9 @@ come from assembly blank (see [Programming](accessory_ports.md#programming-every
 
 - **GPS and LTE do not talk to each other directly.** CAN is a broadcast bus: the GPS card sends its position once and
   the center, the LTE card and anything else that wants it all hear it. Neither card needs to know the other exists.
-- **Bulk data is not for CAN.** At about 25 KB/s at best, CAN carries status, control and small messages. Web
-  requests, map tiles and firmware go over Wi-Fi from the LTE card's access point; CAN tells the center where that
-  access point is (and its password), so nothing is typed in.
+- **Online work goes over CAN where it can.** The LTE card does the lookups itself (street name, weather, time zone,
+  SMS) and broadcasts the results on the ONLINE channel: a few dozen bytes each. Only bulk data (map tiles, screen
+  firmware) needs Wi-Fi, from the LTE card's access point, which is off until it is wanted; CAN then tells the center
+  where it is and its password, so nothing is typed in.
 - **J6 (serial)** stays for a bench GPS module or any serial device on the center screen until the GPS card exists.
 
