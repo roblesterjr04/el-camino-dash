@@ -31,6 +31,7 @@ namespace {
 bool (*s_send)(const ElcCanFrame &) = nullptr;
 
 // ---- bridge state (only one bridge is expected; the newest one wins)
+ElcCanBridgeSeen s_bridges;
 ElcCanAudioTextDecoder s_text;
 ElcCanAudioTransport s_tr;
 uint32_t s_tr_ms = 0;
@@ -89,6 +90,9 @@ bool visible(const char *s) {
 void media_can_begin(bool (*send)(const ElcCanFrame &f)) { s_send = send; }
 
 bool media_can_frame(const ElcCanFrame &f) {
+  // Bridge frames only from a range whose heartbeat says audio bridge (node numbers follow the card slot).
+  s_bridges.feed(f, millis());
+  if (s_bridges.reject(f, millis())) return false;
   uint8_t slot = 0;
   ElcCanAudioTransport t;
   if (elc_can_decode_audio_transport(f, &slot, t)) {

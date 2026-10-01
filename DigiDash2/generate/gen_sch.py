@@ -667,18 +667,18 @@ place(NUP, 'D3', 'NUP2105L', FP_SOT23, {'1': 'CANH', '2': 'CANL', '3': 'GND'}, d
 # ----------------------------------------------------------------------------- card slots
 cur[0] = Block('slots', 3, 'SLOTS: six 2x15 sockets J31-J36 (slot 1-6), cards stand on edge (docs/hardware/accessory_ports.md). '
                'Per slot: fused 5 V, switched 12 V, 3.3 V, constant 12 V, an ID resistor. Shared: CAN, WAKE, LAMP / REV levels, '
-               'the analog audio bus, AUX 12 V. LINK0-4 join neighbour pairs only: slots 1-2 (A), 3-4 (B), 5-6 (C).')
+               'the analog audio bus, AUX 12 V, and the I2S rail (BCK, WS, MIC, RET, MCLK: bused to all six slots, the audio card is the clock master).')
 SLOT_ID = ('1k', '3.3k', '6.8k', '12k', '22k', '47k')       # against the card's 10k pull-up to its 3.3 V
 for i in range(6):
-    n, s, lk = i + 1, 'S%d' % (i + 1), 'ABC'[i // 2]
+    n, s = i + 1, 'S%d' % (i + 1)
     place(HDR2[15], 'J%d' % (31 + i), 'Slot %d' % n, FP_SLOT,
           {'1': s + '_5V', '2': s + '_5V', '3': 'GND', '4': 'GND', '5': 'CANH', '6': 'CANL', '7': 'GND', '8': s + '_12V',
            '9': s + '_3V3', '10': s + '_BATT', '11': s + '_ID', '12': 'WAKE', '13': 'LAMP_LVL', '14': 'REV_LVL',
-           '15': 'LINK0_' + lk, '16': 'LINK1_' + lk, '17': 'LINK2_' + lk, '18': 'LINK3_' + lk, '19': 'GND', '20': 'GND',
-           '21': 'AUDIO_L', '22': 'AUDIO_R', '23': 'AUDIO_GND', '24': 'LINK4_' + lk,
+           '15': 'I2S_BCK', '16': 'I2S_WS', '17': 'I2S_MIC', '18': 'I2S_RET', '19': 'GND', '20': 'GND',
+           '21': 'AUDIO_L', '22': 'AUDIO_R', '23': 'AUDIO_GND', '24': 'I2S_MCLK',
            '25': 'AUX12', '26': 'AUX12', '27': 'AUX12', '28': 'AUX_GND', '29': 'AUX_GND', '30': 'AUX_GND'},
           descr='Card slot %d: 2x15 female socket, 2.54 mm, vertical (Sullins PPTC152LFBN-RC). The card carries a right-angle '
-                '2x15 male header on its bottom edge. Links pair with slot %d' % (n, n + 1 if n % 2 else n - 1))
+                '2x15 male header on its bottom edge' % n)
     ptc('PTC 0.5A', '+5V', s + '_5V', 'Slot %d 5 V' % n)
     ptc('PTC 0.5A', 'SW12', s + '_12V', 'Slot %d switched 12 V' % n)
     ptc('PTC 0.1A', '+3V3', s + '_3V3', 'Slot %d 3.3 V' % n, FP_PTC_S)

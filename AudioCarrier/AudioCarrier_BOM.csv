@@ -1,29 +1,32 @@
 Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
+1,C1,22u 0805 ceramic X5R 10 V,22u: Capacitor 22u X5R 10 V,0805,SMD,Top,
+11,C2 C5 C7 C8 C16 C25 C31 C34 C36 C42 C44,10u 0603 ceramic X5R 10 V,10u: Capacitor 10u X5R 10 V,0603,SMD,Bottom/Top,
+1,C3,KEMET T491A226K010AT,22u tant: Tantalum 22 uF 10 V (LDO output: needs some ESR),3216-18 (EIA A case),SMD,Top,Polarised: + to +3V3
+18,C4 C6 C9 C11 C12 C15 C17 C18 C19 C24 C26 C27 C28 C40 C41 C43 C45 C46,100n 0603 ceramic X7R 50 V,100n: Capacitor 100n X7R 50 V,0603,SMD,Bottom/Top,
+5,C10 C33 C37 C38 C39,1u 0603 ceramic X7R 16 V,1u: Capacitor 1u X7R 16 V,0603,SMD,Bottom/Top,
+4,C13 C14 C22 C23,2.2u 0603 ceramic X5R 10 V,2.2u: Capacitor 2.2u X5R 10 V,0603,SMD,Bottom,
+4,C20 C21 C29 C30,2.2n 0603 ceramic C0G/X7R 50 V,2.2n: Capacitor 2.2n C0G/X7R 50 V,0603,SMD,Bottom,
+2,C32 C35,100p 0603 ceramic C0G 50 V,100p: Capacitor 100p C0G 50 V,0603,SMD,Bottom,
+2,FB1 FB2,"600 ohm @ 100 MHz ferrite bead, 0603, >= 500 mA",600R @100MHz: Ferrite bead (analog supply filters),0603,SMD,Top,
+1,J1,"Sullins PRPC015DBAN-M71RC (or any 2 x 15, 2.54 mm right-angle male header)","DigiDash slot: pin header 2 x 15, 2.54 mm, right angle (the slot connector, bottom edge)",THT,THT,Top,Pin 1 against the main board slot socket in the 3D viewer before ordering
+1,J2,Switchcraft PJRAS2X2S01X,"RCA block: RCA jacks, 2 x 2, right angle (front L/R, rear L/R)",THT (custom footprint),THT,Top,Check against the part: board-edge line (plate rear face) and 28.5 mm height
+1,J6,Tinkersphere TS3328,"3.5mm mic / aux in: 3.5 mm audio jack, horizontal (mic tip / aux ring)",THT (custom footprint),THT,Top,Pin functions PROVISIONAL: verify tip/ring/sleeve with a meter before ordering. May need to be customer-supplied
+1,J10,"2.54 mm pin header 1 x 5, vertical","Program: Programming header (GND, TX0, RX0, IO0, EN)",THT,THT,Top,ESP-Prog / USB-serial adapter
+6,R1 R2 R3 R13 R14 R23,10k 0603 1% 1/10 W,10k: Resistor 10k 1%,0603,SMD,Bottom/Top,
+2,R4 R10,1k 0603 1% 1/10 W,1k: Resistor 1k 1%,0603,SMD,Bottom/Top,
+4,R5 R6 R7 R8,470 0603 1% 1/10 W,470: Resistor 470 1%,0603,SMD,Bottom,DAC output filter
+4,R9 R12 R17 R25,100k 0603 1% 1/10 W,100k: Resistor 100k 1%,0603,SMD,Bottom/Top,
+2,R11 R16,2.2k 0603 1% 1/10 W,2.2k: Resistor 2.2k 1%,0603,SMD,Bottom,mic bias / preamp gain
+1,R15,47k 0603 1% 1/10 W,47k: Resistor 47k 1%,0603,SMD,Bottom,preamp feedback
+6,R18 R19 R20 R21 R22 R24,33 0603 1% 1/10 W,33: Resistor 33 1%,0603,SMD,Bottom/Top,link / clock series damping
+2,R26 R27,100 0603 1% 1/10 W,100: Resistor 100 1%,0603,SMD,Top,audio bus drive
+1,R28,10 0603 1% 1/10 W,10: Resistor 10 1%,0603,SMD,Top,audio bus ground lift
+1,SW1,C&K PTS810 SJM 250 SMTR LFS,RESET: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
+1,SW2,C&K PTS810 SJM 250 SMTR LFS,BOOT: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
 1,U1,Espressif ESP32-PICO-MINI-02-N8R2,"ESP32-PICO-MINI-02: ESP32 module, 8 MB flash, 2 MB PSRAM, PCB antenna",LGA (custom footprint),SMD,Top,"Must be -N8R2 (the PSRAM is needed); antenna on the left edge, keep-out as placed"
 1,U2,Microchip MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
 1,U3,Texas Instruments OPA2376AIDGKR,"OPA2376AIDGK: Dual low-noise RRIO op-amp (mic preamp, aux buffer)",VSSOP-8,SMD,Bottom,Any RRIO dual with the standard pinout will do
 1,U4,Texas Instruments PCM1808PWR,"PCM1808PW: Stereo audio ADC, 24-bit (microphone / aux in)",TSSOP-14,SMD,Bottom,
 2,U5 U6,Texas Instruments PCM5102APWR,"PCM5102APW: Stereo audio DAC, 32-bit, 2.1 Vrms ground-centred out",TSSOP-20,SMD,Bottom,"U5 front pair, U6 rear pair"
 1,U7,Advanced Monolithic Systems AMS1117-3.3,AMS1117-3.3: LDO 3.3 V 1 A,SOT-223,SMD,Top,
-1,J1,Sullins PPTC052LFBN-RC,"DigiDash port: 2 x 5 female socket, 2.54 mm, 8.5 mm (DigiDash port, underside)",THT,THT,Bottom (body),"THT socket mounted on the UNDERSIDE: insert from the bottom, solder on the top side (it plugs down into the DigiDash board). Footprint is on the top layer only for the pads."
-1,J10,"2.54 mm pin header 1 x 5, vertical","Program: Programming header (GND, TX0, RX0, IO0, EN)",THT,THT,Top,ESP-Prog / USB-serial adapter
-1,J2,Switchcraft PJRAS2X2S01X,"RCA block: RCA jacks, 2 x 2, right angle (front L/R, rear L/R)",THT (custom footprint),THT,Top,Check against the part: board-edge line (plate rear face) and 28.5 mm height
-1,J6,Tinkersphere TS3328,"3.5mm mic / aux in: 3.5 mm audio jack, horizontal (mic tip / aux ring)",THT (custom footprint),THT,Top,Pin functions PROVISIONAL: verify tip/ring/sleeve with a meter before ordering. May need to be customer-supplied
-1,SW1,C&K PTS810 SJM 250 SMTR LFS,RESET: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
-1,SW2,C&K PTS810 SJM 250 SMTR LFS,BOOT: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
-2,FB1 FB2,"600 ohm @ 100 MHz ferrite bead, 0603, >= 500 mA",600R @100MHz: Ferrite bead (analog supply filters),0603,SMD,Top,
-1,C1,22u 0805 ceramic X5R 10 V,22u: Capacitor 22u X5R 10 V,0805,SMD,Top,
-5,C10 C33 C37 C38 C39,1u 0603 ceramic X7R 16 V,1u: Capacitor 1u X7R 16 V,0603,SMD,Bottom/Top,
-4,C13 C14 C22 C23,2.2u 0603 ceramic X5R 10 V,2.2u: Capacitor 2.2u X5R 10 V,0603,SMD,Bottom,
-11,C2 C5 C7 C8 C16 C25 C31 C34 C36 C42 C44,10u 0603 ceramic X5R 10 V,10u: Capacitor 10u X5R 10 V,0603,SMD,Bottom/Top,
-4,C20 C21 C29 C30,2.2n 0603 ceramic C0G/X7R 50 V,2.2n: Capacitor 2.2n C0G/X7R 50 V,0603,SMD,Bottom,
-1,C3,KEMET T491A226K010AT,22u tant: Tantalum 22 uF 10 V (LDO output: needs some ESR),3216-18 (EIA A case),SMD,Top,Polarised: + to +3V3
-2,C32 C35,100p 0603 ceramic C0G 50 V,100p: Capacitor 100p C0G 50 V,0603,SMD,Bottom,
-17,C4 C6 C9 C11 C12 C15 C17 C18 C19 C24 C26 C27 C28 C40 C41 C43 C45,100n 0603 ceramic X7R 50 V,100n: Capacitor 100n X7R 50 V,0603,SMD,Bottom/Top,
-4,R1 R2 R12 R13,10k 0603 1% 1/10 W,10k: Resistor 10k 1%,0603,SMD,Bottom/Top,
-2,R10 R15,2.2k 0603 1% 1/10 W,2.2k: Resistor 2.2k 1%,0603,SMD,Bottom,mic bias / preamp gain
-1,R14,47k 0603 1% 1/10 W,47k: Resistor 47k 1%,0603,SMD,Bottom,preamp feedback
-1,R17,33 0603 1% 1/10 W,33: Resistor 33 1%,0603,SMD,Bottom,GPIO0 master clock damping
-2,R3 R9,1k 0603 1% 1/10 W,1k: Resistor 1k 1%,0603,SMD,Bottom/Top,
-4,R4 R5 R6 R7,470 0603 1% 1/10 W,470: Resistor 470 1%,0603,SMD,Bottom,DAC output filter
-3,R8 R11 R16,100k 0603 1% 1/10 W,100k: Resistor 100k 1%,0603,SMD,Bottom,
+1,U8,"Nexperia 74LVC125APW,118","74LVC125APW: Quad buffer, 3-state (the slot link outputs)",TSSOP-14,SMD,Top,

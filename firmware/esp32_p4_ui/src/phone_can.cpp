@@ -29,6 +29,7 @@ bool (*s_send)(const ElcCanFrame &) = nullptr;
 uint8_t s_node = 0;
 
 // ---- bridge state (one bridge expected; the newest status wins)
+ElcCanBridgeSeen s_bridges;
 ElcCanPhoneStatus s_st;
 uint32_t s_st_ms = 0;
 bool s_have = false;
@@ -497,6 +498,9 @@ void phone_can_begin(bool (*send)(const ElcCanFrame &f), uint8_t from_node) {
 }
 
 bool phone_can_frame(const ElcCanFrame &f) {
+  // Bridge frames only from a range whose heartbeat says audio bridge (node numbers follow the card slot).
+  s_bridges.feed(f, millis());
+  if (s_bridges.reject(f, millis())) return false;
   if (s_demo != Demo::Off && !s_demo_feeding) {
     return false;  // the demo owns the state until `phone demo off`
   }

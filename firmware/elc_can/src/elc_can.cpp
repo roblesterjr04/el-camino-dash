@@ -40,6 +40,22 @@ uint8_t elc_can_read_slot_id(int id0_pin, int id1_pin) {
 #endif
 }
 
+uint8_t elc_can_read_card_slot(int adc_pin) {
+#if defined(ARDUINO_ARCH_ESP32)
+  if (adc_pin < 0) return 0;
+  pinMode(adc_pin, INPUT);  // the card's own 10k pull-up; no internal pull
+  uint32_t sum = 0;
+  for (int i = 0; i < 8; i++) {
+    sum += analogReadMilliVolts(adc_pin);
+    delay(1);
+  }
+  return elc_can_card_slot_from_mv((uint16_t)(sum / 8));
+#else
+  (void)adc_pin;
+  return 0;
+#endif
+}
+
 #if ELC_CAN_HAVE_TWAI
 
 bool ElcCan::begin(int tx_pin, int rx_pin, uint8_t node, ElcCanNodeType type) {

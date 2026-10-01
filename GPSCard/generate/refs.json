@@ -1,0 +1,152 @@
+{
+ "#FLG01": {
+  "fp": "",
+  "group": "port",
+  "value": "PWR_FLAG"
+ },
+ "#FLG02": {
+  "fp": "",
+  "group": "port",
+  "value": "PWR_FLAG"
+ },
+ "C1": {
+  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "group": "power",
+  "value": "10u"
+ },
+ "C10": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "can",
+  "value": "100n"
+ },
+ "C11": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "gps",
+  "value": "1u"
+ },
+ "C2": {
+  "fp": "Capacitor_SMD:C_0805_2012Metric",
+  "group": "power",
+  "value": "10u"
+ },
+ "C3": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "power",
+  "value": "100n"
+ },
+ "C4": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C5": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "4.7u"
+ },
+ "C6": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "100n"
+ },
+ "C7": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "12p"
+ },
+ "C8": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "mcu",
+  "value": "12p"
+ },
+ "C9": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "can",
+  "value": "100n"
+ },
+ "D1": {
+  "fp": "LED_SMD:LED_0603_1608Metric",
+  "group": "mcu",
+  "value": "GPS"
+ },
+ "F1": {
+  "fp": "Fuse:Fuse_1206_3216Metric",
+  "group": "gps",
+  "value": "0.2A"
+ },
+ "J1": {
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal",
+  "group": "port",
+  "value": "DigiDash slot"
+ },
+ "J2": {
+  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "group": "gps",
+  "value": "GPS puck"
+ },
+ "J3": {
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Horizontal",
+  "group": "prog",
+  "value": "SWD"
+ },
+ "J4": {
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal",
+  "group": "prog",
+  "value": "Debug serial"
+ },
+ "JP1": {
+  "fp": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
+  "group": "gps",
+  "value": "Puck 3V3 / 5V"
+ },
+ "R1": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "port",
+  "value": "10k"
+ },
+ "R2": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "mcu",
+  "value": "1k"
+ },
+ "R3": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "can",
+  "value": "1k"
+ },
+ "R4": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "gps",
+  "value": "100"
+ },
+ "R5": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "gps",
+  "value": "100"
+ },
+ "U1": {
+  "fp": "Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm",
+  "group": "mcu",
+  "value": "STM32G0B1KBU6"
+ },
+ "U2": {
+  "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+  "group": "can",
+  "value": "MCP2562-E/SN"
+ },
+ "U3": {
+  "fp": "Package_TO_SOT_SMD:SOT-23-5",
+  "group": "power",
+  "value": "AP2112K-3.3"
+ },
+ "U4": {
+  "fp": "Package_TO_SOT_SMD:SOT-23-6",
+  "group": "gps",
+  "value": "USBLC6-2SC6"
+ },
+ "Y1": {
+  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+  "group": "mcu",
+  "value": "8MHz"
+ }
+}

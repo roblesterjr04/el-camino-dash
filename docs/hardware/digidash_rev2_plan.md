@@ -1,6 +1,6 @@
 # DigiDash rev 2: re-layout plan
 
-**Status: built in `DigiDash2/` (routed except two links, see its README). Firmware steps not done yet.** Rev 1 is the board in `DigiDash/` today (2 layers, 309 × 104 mm, every
+**Status: built in `DigiDash2/` (fully routed, DRC clean, see its README). Firmware steps not done yet.** Rev 1 is the board in `DigiDash/` today (2 layers, 309 × 104 mm, every
 part through-hole, with plug-in dev boards for the FRAM and the video decoder). Rev 2 is made to be fabbed and
 assembled by a board house, so:
 - It goes SMD for everything that isn't a connector.
@@ -12,7 +12,7 @@ assembled by a board house, so:
 > **Update 2026-10-01: bays → card slots.** The flat carriers proved too small, so the two bays are replaced by **six
 > 2×15 slots** for cards that stand on edge (80 × 60 mm: 80 along the main board, 60 tall), with their connectors on their
 > top edge. The slot adds a 3.3 V and a constant 12 V feed, a slot ID, a WAKE line, the dash-light and reverse levels,
-> five link lines between neighbour-pair slots (1–2, 3–4, 5–6), a shared analog audio bus and AUX 12 V on the slot
+> a five-line I2S rail bused to every slot (the audio card is its clock master), a shared analog audio bus and AUX 12 V on the slot
 > itself (the bay power plugs J14 / J15 are gone). J6 is now a plain **serial port** (the center's UART2) instead of
 > "GPS": GPS moves to a card. The spec is [`accessory_ports.md`](accessory_ports.md#rev-2-digidash2-card-slots); the
 > card ideas are under [Expansion cards](#expansion-cards). Sections below that talk about bays are the earlier plan,
@@ -316,9 +316,9 @@ module gets tight, 4 layers at 309 × 104 mm is the fallback; price it before de
 
 Decided:
 - The board is fabbed and assembled by a board house. The outline is set by the screens and the dash, not by fab.
-- **Six card slots** (2×15, cards on edge, links between neighbour pairs) and four cable ports. This replaced the
+- **Six card slots** (2×15, cards on edge, an I2S rail bused to all of them) and four cable ports. This replaced the
   earlier decision of two double bays (four header positions).
-- CAN stays the only shared data bus. Real-time streams between two cards (I2S audio) use the links; bulk network data
+- CAN stays the only shared data bus. Digital audio between cards uses the I2S rail (the audio card is its clock master); bulk network data
   uses Wi-Fi (see [Expansion cards](#expansion-cards)).
 - The sensor pack is on CAN (MCP2515 + MCP2562, node `0x04`), with the serial fan-out kept as a fallback.
 - The MCP2515 has its own 16 MHz crystal. It does not use the 2560's CLKO.
@@ -337,11 +337,11 @@ come from assembly blank (see [Programming](accessory_ports.md#programming-every
 
 | Card | Slot | MCU | What it does | Uses |
 | --- | --- | --- | --- | --- |
-| **Audio** (`AudioCarrier/`, drawn) | 1 (its 28.5 mm RCA block needs the open end) | ESP32-PICO-MINI-02 | Bluetooth A2DP / HFP, four line outputs, mic / aux input | 5 V, CAN, I2S master on links A (to slot 2), drives the audio bus |
-| **AI voice** | 2 (pairs with the audio card) | ESP32-S3 (or similar) | Listens to the mic, talks back through the speakers | 5 V, CAN, I2S slave on links A: hears LINK 2 (mic), speaks on LINK 3, LINK 4 MCLK if its codec needs it |
-| **AM/FM radio** ([spec](radio_card.md)) | 2 (pairs with the audio card) | STM32G0B1 + Si4735 tuner | Tuner on a car antenna (SMA on the top edge); its digital audio goes to the audio card on LINK 3, which owns the clocks. Menu, presets and RDS text over CAN, node `0x11` | 5 V, CAN, I2S slave on links A (LINK 0 / 1 in, LINK 3 out). **Competes with the AI voice card for slot 2** |
-| **GPS** ([spec](gps_card.md)) | any | STM32G0B1 (no radio) | Reads a remote GPS puck on a 4-pin cable (same pinout as J6) and sends position, speed, heading, fix and UTC on CAN `0x222`–`0x226`, node `0x05` | 5 V, CAN |
-| **LTE gateway** ([spec](lte_card.md)) | any | ESP32-S3 + an A7670 LTE Cat-1 core board on sockets | Internet for the dash: a Wi-Fi access point the center joins on its own (NET gateway, `can_channels.md`), node `0x06`. Later: uploads trips / GPS tracks it hears on CAN | 5 V (ESP32, CAN), AUX 12 V (the LTE board's peaks), CAN |
+| **Audio** (`AudioCarrier/`, drawn) | 1 (its 28.5 mm RCA block needs the open end) | ESP32-PICO-MINI-02 | Bluetooth A2DP / HFP, four line outputs, mic / aux input | 5 V, CAN, I2S rail master (clocks, mic, takes RET), drives the audio bus |
+| **AI voice** | any | ESP32-S3 (or similar) | Listens to the mic, talks back through the speakers | 5 V, CAN, I2S rail slave: hears MIC, speaks on RET once granted, MCLK if its codec needs it |
+| **AM/FM radio** ([spec](radio_card.md)) | any | STM32G0B1 + Si4735 tuner | Tuner on a car antenna (SMA on the top edge). Its digital audio goes to the audio card on RET, as an I2S slave on the audio card's clocks. Menu, presets and RDS text over CAN | 5 V, CAN, I2S rail slave: BCK / WS in, speaks on RET once granted |
+| **GPS** ([spec](gps_card.md)) | any | STM32G0B1 (no radio) | Reads a remote GPS puck on a 4-pin cable (same pinout as J6) and sends position, speed, heading, fix and UTC on CAN `0x222`–`0x226` | 5 V, CAN |
+| **LTE gateway** ([spec](lte_card.md)) | any | ESP32-S3 + an A7670 LTE Cat-1 core board on sockets | Internet for the dash: a Wi-Fi access point the center joins on its own (NET gateway, `can_channels.md`). Later: uploads trips / GPS tracks it hears on CAN | 5 V (ESP32, CAN), AUX 12 V (the LTE board's peaks), CAN |
 | **Output / relay** | any | ESP32-C3 | Lights, fans, accessory power | AUX 12 V, CAN, LAMP / REV |
 
 - **GPS and LTE do not talk to each other directly.** CAN is a broadcast bus: the GPS card sends its position once and

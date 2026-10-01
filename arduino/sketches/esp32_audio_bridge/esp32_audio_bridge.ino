@@ -18,8 +18,9 @@
  *
  * CAN accessory (an audio carrier on a DigiDash accessory port, docs/hardware/accessory_ports.md; or slot 0 on
  * the first board revision): when built with the elc_can library (PlatformIO, firmware/esp32_classic_bt_audio),
- * the bridge joins the CAN bus through the carrier's MCP2562 (TX = GPIO32, RX = GPIO33). Its node number comes from
- * the GPIO13 / GPIO23 straps (grounded = 1): leave both open for node 0x10. It sends a heartbeat and
+ * the bridge joins the CAN bus through the carrier's MCP2562 (TX = GPIO32, RX = GPIO33). Its node number: on the
+ * rev 2 audio card (ELC_CAN_CARD_SLOT_PIN set) from the slot it sits in, 0x14 + slot - 1, read from the slot ID pin;
+ * on a rev 1 carrier from the GPIO13 / GPIO23 straps (grounded = 1; both open = node 0x10). It sends a heartbeat and
  * the now-playing text + transport in its node's ID range, and serves album art on request
  * (docs/protocols/can_bus.md). CAN is the link in the car: the I2C slaves (0x2A metadata, 0x3E
  * theme) are for bench testing only and are started only when AUDIO_BRIDGE_I2C=1 (PlatformIO env
@@ -64,6 +65,14 @@
 #endif
 #ifndef ELC_CAN_SLOT_ID1_PIN
 #define ELC_CAN_SLOT_ID1_PIN 23
+#endif
+// Rev 2 slot card: the slot ID pin (slot pin 11, 10k to 3.3 V on the card) on this ADC pin; -1 = a rev 1 carrier.
+#ifndef ELC_CAN_CARD_SLOT_PIN
+#define ELC_CAN_CARD_SLOT_PIN -1
+#endif
+// Bench only: the node to use when the card reads no slot (no main board). Unset: CAN stays off without a slot.
+#ifndef ELC_CAN_BENCH_NODE
+#define ELC_CAN_BENCH_NODE 0
 #endif
 
 /* Set to 1 (or -D in platformio.ini) to print AVRCP-built line on Serial when it changes / every 3s. */
@@ -691,7 +700,7 @@ static_assert(kPhoneCmdAnswer == (int)ELC_CAN_PHONE_CMD_ANSWER && kPhoneCmdEnd =
 static_assert(kPhoneMaxPaired == (int)ELC_CAN_PHONE_MAX_PAIRED && kPhoneTextMax == (int)ELC_CAN_PHONE_TEXT_MAX, "phone sizes");
 
 static ElcCan s_can;
-static uint8_t s_can_slot = 0;
+static uint8_t s_can_slot = 0;  // range index: node - 0x10 (the "slot" in the audio messages)
 static uint8_t s_can_text_serial = 0;
 static char s_can_text_sent[kMaxTrackLen + 1];
 static uint32_t s_can_text_ms = 0;
@@ -832,11 +841,27 @@ static void can_serve_art() {
 }
 
 static void can_begin() {
-  s_can_slot = elc_can_read_slot_id(ELC_CAN_SLOT_ID0_PIN, ELC_CAN_SLOT_ID1_PIN);
+  uint8_t node = 0;
+  if (ELC_CAN_CARD_SLOT_PIN >= 0) {
+    // Rev 2 audio card: the node follows the slot (docs/hardware/accessory_ports.md, "Node numbers").
+    const uint8_t slot = elc_can_read_card_slot(ELC_CAN_CARD_SLOT_PIN);
+    node = elc_can_node_for_card_slot(slot);
+    if (node) {
+      Serial.printf("CAN: card slot %u -> node 0x%02X\n", (unsigned)slot, (unsigned)node);
+    } else if (ELC_CAN_BENCH_NODE) {
+      node = ELC_CAN_BENCH_NODE;
+      Serial.printf("CAN: no slot (no main board?), bench node 0x%02X\n", (unsigned)node);
+    } else {
+      Serial.println("CAN: no slot read on the slot ID pin (no main board?): staying off the bus");
+      return;
+    }
+  } else {
+    node = (uint8_t)(ELC_CAN_NODE_SLOT0 + elc_can_read_slot_id(ELC_CAN_SLOT_ID0_PIN, ELC_CAN_SLOT_ID1_PIN));
+  }
+  s_can_slot = (uint8_t)(node - ELC_CAN_NODE_SLOT0);
   s_can.onFrame(can_on_frame, nullptr);
-  const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, (uint8_t)(ELC_CAN_NODE_SLOT0 + s_can_slot),
-                              ElcCanNodeType::AudioBridge);
-  Serial.printf("CAN: %s, slot %u (TX=%d RX=%d)\n", ok ? "up" : "off", (unsigned)s_can_slot, ELC_CAN_TX_PIN,
+  const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, node, ElcCanNodeType::AudioBridge);
+  Serial.printf("CAN: %s, node 0x%02X (TX=%d RX=%d)\n", ok ? "up" : "off", (unsigned)node, ELC_CAN_TX_PIN,
                 ELC_CAN_RX_PIN);
 }
 

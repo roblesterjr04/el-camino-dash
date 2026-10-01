@@ -2,8 +2,8 @@
 
 A **slot card** for the DigiDash rev 2 board: **80 × 60 mm**, standing on edge in a 2×15 slot, its right-angle header
 on the bottom edge and its jacks on the top edge (`docs/hardware/accessory_ports.md`, rev 2 section). It goes in
-**slot 1**: the RCA block is 28.5 mm tall, and slot 1 is the one whose parts side faces off the end of the row. Its
-link partner is slot 2 (an AI voice card, for example). The directory keeps its old name. On it:
+**slot 1**: the RCA block is 28.5 mm tall, and slot 1 is the one whose parts side faces off the end of the row. It is
+the clock master of the slot's **I2S rail**, which reaches every other slot (an AI voice card can go in any of them). The directory keeps its old name. On it:
 - an **ESP32-PICO-MINI-02** module (classic ESP32: A2DP + AVRCP + HFP)
 - two **TI PCM5102A** stereo DACs (front pair, rear pair)
 - a **TI PCM1808** ADC with a microphone preamp
@@ -11,11 +11,11 @@ link partner is slot 2 (an AI voice card, for example). The directory keeps its 
   **3.5 mm jack** (Tinkersphere TS3328) for the mic / aux input
 - a **74LVC125** that puts the I2S clocks, the mic data and MCLK on the slot's link lines, for the partner card
 
-CAN node `0x10`, 5 V from the slot only. It fits rev 2 only (the 2×5 rev 1 version is in git history).
+CAN node from its slot (`0x14 + (slot − 1)`: `0x14` in slot 1), 5 V from the slot only. It fits rev 2 only (the 2×5 rev 1 version is in git history).
 
 | Files | |
 | --- | --- |
-| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on both sides. The schematic is the slot card; **the PCB file is still the old 50 × 52 mm carrier** until `gen_pcb.py` is run (see [Status](#status)). KiCad 10 |
+| `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on both sides. Placed and routed (see [Status](#status)). KiCad 10 |
 | `AudioCarrier.pretty` | The ESP32-PICO-MINI-02 footprint (land pattern from the Espressif datasheet) and the RCA block (hole pattern from Switchcraft's PJRAS2X2S__X customer drawing), the 3.5 mm jack (from the drawing on Tinkersphere's TS3328 product page), and plain 3D models of both. Everything else is stock KiCad or `DigiDash_Accessory` |
 | `generate/` | Scripts that produced the files (`gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py`) |
 
@@ -28,9 +28,10 @@ J6 tip, mic (2.2k bias) ─ 1u ─ OPA2376 (gain 22) ─ 1u ─┐
 J6 ring, aux in ─────── 1u ─ OPA2376 (unity)   ─ 1u ─┴► PCM1808 ──► ESP32 I2S0 DIN GPIO35
 ESP32 GPIO0 (CLK_OUT) 12.288 MHz = 256 fS master clock ──► PCM1808 SCKI      GPIO4 = DAC mute (XSMT, pulled low)
 
-Slot links (to the partner card in slot 2), through U8 74LVC125 (enabled by GPIO21 low) and 33 R each:
-  BCK ──► LINK0    WS ──► LINK1    PCM1808 DOUT (mic / aux) ──► LINK2    MCLK ──► LINK4
-  LINK3 (the partner's audio) ── 33 R ──► GPIO34 = I2S1 data in (100k pull-down)
+I2S rail (bused to all six slots), through U8 74LVC125 (enabled by GPIO21 low) and 33 R each. The card's net names
+are LINK0-4; on the main board they are the rail's I2S_* nets:
+  BCK ──► LINK0 = I2S_BCK    WS ──► LINK1 = I2S_WS    PCM1808 DOUT (mic / aux) ──► LINK2 = I2S_MIC    MCLK ──► LINK4 = I2S_MCLK
+  LINK3 = I2S_RET (the granted card's audio) ── 33 R ──► GPIO34 = I2S1 data in (100k pull-down)
 Audio bus: FL_LINE / FR_LINE ── 100 R ──► AUDIO_L / AUDIO_R;  AUDIO_GND ── 10 R ── GND
 Slot ID (pin 11): 10k to 3.3 V here, the slot's resistor to GND on the main board ──► GPIO36 (ADC1)
 ```
@@ -89,11 +90,12 @@ solder tabs are ground.
 
 ## Status
 
-**Schematic: done** (the slot card, 96 parts; regenerated with KiCad 10's libraries). **PCB: not regenerated.** The
-slot change (2026-10-01) was made where KiCad could not run, so `gen_pcb.py` (new outline, slot header, placement) has
-not been run, and `AudioCarrier.kicad_pcb` is still the routed 50 × 52 mm double-bay carrier. Run the commands under
-[Regenerating](#regenerating), then fix what placement or DRC reports (a part that does not fit stops the script with
-"no room for", and prints the occupancy map).
+**Schematic: done** (the slot card, 96 parts). **PCB: placed and routed** (2026-10-01): 80 × 60 mm, 4 layers, 90
+placed parts. DRC with the schematic parity check: **no errors, nothing unconnected**; 30 silkscreen warnings (text at the
+edge, over pads, overlapping). Freerouting left one link (U8 pin 7, GND, boxed in by the link traces); it was joined by
+hand with a short F.Cu track to a GND via, and AUDIO_L on In2 jogs 0.05 mm around that via. A fresh `gen_pcb.py --route`
+run will not reproduce that fix and may leave other links. Fab outputs in `fab/` (`python3 ../tools/fab_export.py
+AudioCarrier`); both BOMs were rebuilt from the schematic.
 
 - **The RCA block's footprint** is drawn from Switchcraft's customer drawing
   (`https://switchcraft.com/assets/1/24/pjras2x2s__x_series_cd.pdf`; it is proprietary, so it is not copied here). One
@@ -107,13 +109,15 @@ not been run, and `AudioCarrier.kicad_pcb` is still the routed 50 × 52 mm doubl
 
 - **Firmware is not written yet.** This board needs: I2S0 master with MCLK on GPIO0 (12.288 MHz at 48 kHz) and a
   data-in pin (GPIO35); I2S1 as a slave on the same BCK / WS routed through the GPIO matrix for the rear DAC, with its
-  data **in** on GPIO34 (the partner card's audio, LINK3); GPIO4 raised to un-mute; and the HFP client's PCM audio
+  data **in** on GPIO34 (the audio of whichever card holds RET, LINK3); GPIO4 raised to un-mute; and the HFP client's PCM audio
   wired to the mic path. A2DP / AVRCP / HFP are all supported by the classic ESP32 stack.
-- **Slot:** read the slot ID on GPIO36 (ADC1) at boot and put it in the NET ANNOUNCE flags. Keep GPIO21 high (link
-  buffer off) until the partner card has offered an I2S link and this card has accepted it (NET LINK,
-  `docs/protocols/can_channels.md`); mix what arrives on GPIO34 into the outputs, ducking the music.
-- **Node straps moved:** the PICO-MINI-02 has no GPIO23, so the second strap (JP2) is on **GPIO22**. GPIO13 (JP1) is
-  unchanged. `docs/hardware/accessory_ports.md` still says GPIO13 / GPIO23 for the DevKit.
+- **Slot:** read the slot ID on GPIO36 (ADC1) at boot and put it in the NET ANNOUNCE flags. Pull GPIO21 low (rail
+  buffer on) once I2S is running, so the rail has clocks and mic data. Hand out RET over NET RAIL
+  (`docs/protocols/can_channels.md`, one holder at a time) and mix what arrives on GPIO34 into the outputs, ducking the
+  music.
+- **Node number:** from the slot ID (GPIO36), `0x14 + (slot − 1)`. The node straps JP1 / JP2 (GPIO13, GPIO22) are left
+  over from the rev 1 carrier: the firmware ignores them when it reads a valid slot, and the next revision of the card
+  can drop them.
 - **GPIO0 is the master clock and the BOOT strap.** It must be high (or free) at reset. The PCM1808 SCKI input is 5 V
   tolerant and just sits on it; the 33 R series resistor damps the clock. Pressing BOOT still enters the loader.
 - The module comes from assembly blank: J10 is the only way to load the first firmware. In slot 1 the parts side

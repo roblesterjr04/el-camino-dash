@@ -74,6 +74,7 @@ void ConsoleUi::setting(uint8_t s, uint8_t v, uint32_t now_ms, const char *what)
 }
 
 void ConsoleUi::phone_cmd(uint8_t cmd, uint8_t arg, const char *what) {
+  if (!_slot_known) return;  // no bridge heard yet: nobody to send it to
   ElcCanPhoneCommandMsg c;
   c.slot = _slot;
   c.command = cmd;
@@ -117,6 +118,10 @@ void ConsoleUi::cluster_changed(const ElcCanClusterState &old, uint32_t now_ms) 
 
 void ConsoleUi::feed(const ElcCanFrame &f, uint32_t now_ms) {
   _now = now_ms;
+  // Audio frames only from a range whose heartbeat says audio bridge: node numbers follow the card slot, so another
+  // card's private messages can sit at the same offsets.
+  _bridges.feed(f, now_ms);
+  if (_bridges.reject(f, now_ms)) return;
   if (f.id == ELC_CAN_ID_HEARTBEAT_BASE + ELC_CAN_NODE_CENTER) {
     _center_ms = now_ms;
     _booted = true;

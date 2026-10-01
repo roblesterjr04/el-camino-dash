@@ -106,7 +106,7 @@ All multi-byte fields are little-endian.
 | `0x218` / `0x219` | interface screen | with `0x217` | menu texts for the console: the focused item or page / its value or state, 5 frames of `[serial << 4 \| chunk]` + 7 bytes each |
 | `0x220` | center | 1 Hz | time: UTC s u32, local offset min s16, flags u8 (bit0 valid, bit1 GPS, bit2 network), place serial u8 |
 | `0x221` | center | on change + every 5 s | place (street) name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes |
-| `0x222`–`0x226` | GPS card (node `0x05`) | 5 Hz / 1 Hz | position, motion, quality, time (sent on the PPS edge), status: layouts in [`gps_card.md`](../hardware/gps_card.md#can-messages) |
+| `0x222`–`0x226` | GPS card (node from its slot) | 5 Hz / 1 Hz | position, motion, quality, time (sent on the PPS edge), status: layouts in [`gps_card.md`](../hardware/gps_card.md#can-messages) |
 | `0x400 + 0x40·slot + msg` | accessory (slot = node − `0x10`) | accessory-specific | see below |
 | `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`; 0 today) |
 
@@ -155,7 +155,7 @@ Bus load is about 5 % (five 8-byte frames every 50 ms plus heartbeats and audio)
 
 ### Audio bridge (node type 1)
 
-| Msg | ID (node `0x10`) | Rate | Payload |
+| Msg | ID (shown for node `0x10`; add `0x40·(node − 0x10)`: a rev 2 audio card in slot 1 is node `0x14`, `0x500`) | Rate | Payload |
 | --- | --- | --- | --- |
 | `0x00` transport | `0x400` | 4 Hz | elapsed s u16, duration s u16, volume 0–15 u8, text serial u8 (0–15), bit0 = phone connected, album art id u8 (0 = none ready) |
 | `0x01` text | `0x401` | on change + every 1 s | 5 frames: `[serial << 4 \| chunk 0–4]` + 7 bytes of "Artist - Title" (32 bytes max, zero padded) |
@@ -240,7 +240,7 @@ user confirms on the menu's Phone page (interface screen, by touch or with the c
 while nothing is paired: from boot, or after the last phone is forgotten. It closes when a phone pairs, on command
 (Stop), or when the time runs out. A phone that is not paired cannot pair outside the window; a paired phone can.
 
-**Phone command (`0x215`).** Any node can send it: the console for calls and media, the interface screen's Phone page for pairing and the paired list. Slot = the bridge's slot (node − `0x10`),
+**Phone command (`0x215`).** Any node can send it: the console for calls and media, the interface screen's Phone page for pairing and the paired list. Slot = the bridge's message-range index (node − `0x10`: 4 for the audio card in card slot 1), learned from its heartbeat and frames; a receiver accepts a range's audio frames only while that node's heartbeat says audio bridge (node type 1),
 from node = the sender. Commands that name a paired index carry the list serial they were read with, and the bridge
 ignores them if the list changed since. The bridge answers every command with a fresh `0x04`.
 

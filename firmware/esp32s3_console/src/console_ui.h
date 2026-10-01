@@ -152,6 +152,7 @@ class ConsoleUi {
   uint32_t _time_ms = 0;
   ElcCanTextDecoder _place{ELC_CAN_ID_PLACE_TEXT};
   // audio bridge
+  ElcCanBridgeSeen _bridges;
   uint8_t _slot = 0;
   bool _slot_known = false;
   uint32_t _bridge_ms = 0;

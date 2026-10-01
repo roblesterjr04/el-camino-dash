@@ -6,7 +6,7 @@ The dash's main board, redrawn per [`docs/hardware/digidash_rev2_plan.md`](../do
   the screens), power, AUX 12 V, sensor inputs and every connector on the back
 - an ATmega2560 sensor pack on the CAN bus, with the UART fan-out kept as a fallback
 - the TVP5150AM1 video decoder and the FRAM on the board
-- six card slots (2×15 sockets; cards stand on edge) with AUX 12 V on the slot, links between neighbour pairs and an
+- six card slots (2×15 sockets; cards stand on edge) with AUX 12 V on the slot, an I2S rail bused to all six and an
   analog audio bus
 - four cable ports and a trunk port
 
@@ -32,7 +32,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | Screens | J5 / J1 / J4 (same pin use as rev 1), U5 / U9 / U10 MCP2562 | 120 Ω at the left end, and at the right end through SW1-1 (switch it off when the trunk port carries the bus on) |
 | Sensor inputs | J3 (same pinout), J10 (same), J8 RPM select | As rev 1 in SMD, plus: a series resistor, clamp and filter on the speed input; a reverse diode across the tach optocoupler's LED; a 1k series resistor and 10 nF filter on each ADC input; a battery-voltage divider on ADC4 |
 | Video | U8 TVP5150AM1 (address 0x5C), 14.31818 MHz crystal, J11 RCA input (37.4 Ω + 37.4 Ω termination, per TI) | Same J1 pins as rev 1's module. RESETB: RC delay, plus the center's GPIO52 (J1 pin 36) |
-| Card slots | J31–J36 (slot 1–6), 2×15 sockets, 20.32 mm apart. Per slot: 0.5 A PTCs on 5 V and switched 12 V, 0.1 A on 3.3 V, 0.2 A on constant 12 V, a slot-ID resistor. Shared: CAN, WAKE (D-OR into the buck's EN), LAMP / REV levels (100k / 27k, clamped), the audio bus (its ground joins GND at NT2), AUX 12 V. LINK0–4 join slots 1–2, 3–4, 5–6 only | See [`accessory_ports.md`](../docs/hardware/accessory_ports.md#rev-2-digidash2-card-slots) |
+| Card slots | J31–J36 (slot 1–6), 2×15 sockets, 20.32 mm apart. Per slot: 0.5 A PTCs on 5 V and switched 12 V, 0.1 A on 3.3 V, 0.2 A on constant 12 V, a slot-ID resistor. Shared: CAN, WAKE (D-OR into the buck's EN), LAMP / REV levels (100k / 27k, clamped), the audio bus (its ground joins GND at NT2), AUX 12 V, and the I2S rail (BCK, WS, MIC, RET, MCLK on pins 15–18 and 24, bused to all six slots; the audio card is its clock master) | See [`accessory_ports.md`](../docs/hardware/accessory_ports.md#rev-2-digidash2-card-slots) |
 | Cable ports, trunk | Cable ports J17, J22, J23, J24. Trunk J25 | As before |
 
 ## Connectors (what each one is, and what the silkscreen says)
@@ -53,7 +53,7 @@ cannot fit beside the pins, a legend line ("1 FUEL  2 ETEMP ...") stands in for 
 | J6 | SERIAL | Serial port: the center screen's UART2 (GPIO3 TX, GPIO2 RX), 3.3 V logic, JST PH 4 pin. Was "GPS"; same pins | 3V3, TX (out of the dash: to the device's RX), RX (into the dash: from the device's TX), GND |
 | J17, J22, J23, J24 | CABLE 1 .. 4 | Cable ports for off-board CAN devices (console, nodes near a sensor) | 5V, H (CANH), L (CANL), G |
 | J25 | TRUNK | Bus extension to the rear of the car, Micro-Fit 3.0, on the bottom edge clear of the cards | H, L, 12V (switched), G. Switch SW1-1 off and terminate at the far end |
-| J31 … J36 | SLOT 1 … 6, with its link pair (A = 1–2, B = 3–4, C = 5–6) | Card slots, 2×15 female socket (square pad = pin 1, at the bottom). Slot 1 is the one for a card with tall parts | see `docs/hardware/accessory_ports.md` |
+| J31 … J36 | SLOT 1 … 6 | Card slots, 2×15 female socket (square pad = pin 1, at the bottom). Slot 1 is the one for a card with tall parts | see `docs/hardware/accessory_ports.md` |
 | J2 | AVR ISP | Program the ATmega2560 with an ISP programmer (USBasp or AVRISP mkII, not USBtiny) | MISO, 5V, SCK, MOSI, RST, GND |
 | **J12** | FTDI 5V | **Serial port of the ATmega2560**, for reading its log output (and for uploading a bootloader-based sketch) with a 5 V FTDI or USB-serial cable. **Optional: you program the board through J2, so leave J12 unfitted until you want logs.** VCC is not connected: the board is powered from J7 | GND, CTS, (none), RXI, TXO, DTR |
 | **J16** | CAN TAP | **A tap on the CAN bus** for a USB-CAN adapter, to watch the traffic while debugging | H (CANH), L (CANL), GND |
@@ -84,23 +84,19 @@ re-adds them to the current board) using free space beside each connector.
 
 ## Status
 
-**The PCB is out of date: the schematic and the generators have the six card slots, `DigiDash2.kicad_pcb` still has
-the bays.** The slot change (2026-10-01) was made where KiCad could not run, so `gen_pcb.py` (placement and labels for
-the slots) has not been run yet. Run the commands under [Regenerating](#regenerating) on a machine with KiCad 10 and
-Freerouting, then fix what it reports. Expect new leftover links, since everything re-routes. What follows describes
-the last routed board (the bays).
+**Placed and fully routed** (2026-10-01, with the six card slots and the I2S rail). DRC (`generate/drc.py`, with the
+schematic parity check): **no errors, nothing unconnected.** What is left is 71 silkscreen warnings (reference text
+at the edge, over pads, one overlap). 2784 track segments and 1435 vias (1025 of them GND stitching). 112 parts on the
+front, 151 on the back; the placer found no tall through-hole part under a card. Fab outputs are in `fab/`
+(`python3 ../tools/fab_export.py DigiDash2`).
 
-**Routed except two links**, which need a few minutes by hand in KiCad's interactive router (press **X** on the pad):
-
-| Net | From | To | Why it is left |
-| --- | --- | --- | --- |
-| V_D6 | U8 pin 12 (front) | J1 pin 32 | Pin 12 of the TVP5150 is boxed in by its neighbours' traces |
-| TACH_SIG | U1 pin 35 (front) | R56 pin 2 (back) | Under the 2560 there is no room left for its via |
-
-DRC (`generate/drc.py`, with the schematic parity check): no errors apart from those two unconnected links. The rest
-is silkscreen warnings (reference text at the edge and over pads) and eight parity notes for the bay headers'
-MP1 / MP2: the M3 holes are tied to GND on the board, and the 2×5 header symbol has no pins for them. About 2070 track
-segments and 1450 vias (1100+ of them GND stitching). 111 parts on the front, 118 on the back.
+How it got there, in case a re-run differs:
+- **U8 (TVP5150) moved to x 132.** At x 126 (its bay-era spot) it sat on slot 6's socket pins (J36), which shorted
+  seven of its pads. A fixed part's spot is not checked against the other side's through-hole pins, so keep that in
+  mind when moving anything near the slots.
+- One Freerouting run (120 passes) left one link (VID_REFP, U8 pin 29 to C56 on the back). `DIGIDASH_RIPUP=1
+  gen_pcb.py --finish` joined it by ripping up and maze-routing VID_REFP and VID_REFM; the stray VID_INTREQ stub and
+  a duplicate VID_REFM via it left behind were removed by hand.
 
 ## Provisional (move with the bezel)
 

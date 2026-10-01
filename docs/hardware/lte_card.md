@@ -1,7 +1,8 @@
 # LTE gateway card
 
-**Status: spec only.** No schematic or board yet. When it is drawn, it follows the audio card's generator pattern
-(`AudioCarrier/generate/`).
+**Status: drawn, not ordered.** Schematic and routed 4-layer board in [`LTECard/`](../../LTECard/README.md), made by
+generator scripts in the audio card's pattern (`LTECard/generate/`). The core board's pin order and row spacing in it are
+still the provisional ones below: measure the board in hand before ordering (see the list in `LTECard/README.md`).
 
 A slot card that gives the dash internet. An **ESP32-S3** talks to an **LTE Cat-1 core board** (a ready-made
 breakout, plugged in on pin headers) and **does the dash's online work itself**: street name, weather, time zone,
@@ -109,7 +110,7 @@ ESP-IDF (or Arduino-ESP32 3.x, which wraps the same parts):
    car has moved 50 m and 10 s have passed, looks up the street (OpenStreetMap Nominatim) and broadcasts PLACE. Weather
    and the time zone (Open-Meteo) every 15 minutes. Incoming SMS (AT+CMGR) as MESSAGE. ONLINE STATUS once a second.
    HTTPS keeps one connection open per service, so each lookup costs about 1 KB, not a new TLS handshake.
-4. **CAN (node `0x06`, product `0x0006`):** heartbeat `0x706` (node type 7); NET ANNOUNCE with the slot; GATEWAY
+4. **CAN (node from the slot, `0x14 + (slot − 1)`; product `0x0006`):** heartbeat `0x700 + node` (node type 7); NET ANNOUNCE with the slot; GATEWAY
    STATUS once a second (signal from AT+CSQ, registration from AT+CEREG, data used from the PPP byte counts); act on
    GATEWAY CMD, REFRESH and MESSAGE READ.
 5. **Wi-Fi (optional, off by default):** an access point with a random password made on first boot (kept in NVS),

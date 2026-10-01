@@ -141,7 +141,50 @@ static void test_slot_ranges() {
   std::printf("slot ranges\n");
   CHECK(elc_can_slot_id(0, 0) == 0x400 && elc_can_slot_id(1, 1) == 0x441 && elc_can_slot_id(2, 0x3F) == 0x4BF);
   CHECK(elc_can_slot_of(0x3FF) == -1 && elc_can_slot_of(0x400) == 0 && elc_can_slot_of(0x47F) == 1);
-  CHECK(elc_can_slot_of(0x4BF) == 2 && elc_can_slot_of(0x4C0) == -1);
+  CHECK(elc_can_slot_of(0x4BF) == 2 && elc_can_slot_of(0x4C0) == -1 && elc_can_slot_of(0x4FF) == -1);  // console
+  CHECK(elc_can_slot_of(0x500) == 4 && elc_can_slot_of(0x67F) == 9 && elc_can_slot_of(0x6FF) == 11);
+  CHECK(elc_can_slot_of(0x700) == -1);
+
+  // rev 2 card slots: node 0x14 + slot - 1, from the slot ID pin's voltage
+  CHECK(elc_can_node_for_card_slot(1) == 0x14 && elc_can_node_for_card_slot(6) == 0x19);
+  CHECK(elc_can_node_for_card_slot(0) == 0 && elc_can_node_for_card_slot(7) == 0);
+  const uint16_t nominal[6] = {300, 819, 1336, 1800, 2269, 2717};
+  for (uint8_t i = 0; i < 6; i++) {
+    CHECK(elc_can_card_slot_from_mv(nominal[i]) == i + 1);
+    CHECK(elc_can_card_slot_from_mv((uint16_t)(nominal[i] - 150)) == i + 1);  // ADC error / resistor tolerance
+    CHECK(elc_can_card_slot_from_mv((uint16_t)(nominal[i] + 150)) == i + 1);
+  }
+  CHECK(elc_can_card_slot_from_mv(0) == 1 && elc_can_card_slot_from_mv(3100) == 0 && elc_can_card_slot_from_mv(3300) == 0);
+}
+
+static void test_bridge_seen() {
+  std::printf("bridge seen\n");
+  ElcCanBridgeSeen b;
+  ElcCanFrame f, hbf;
+  ElcCanAudioTransport t;
+  elc_can_encode_audio_transport(4, t, f);  // a bridge in slot 1: node 0x14, range 4
+  CHECK(f.id == 0x500);
+  CHECK(b.reject(f, 100) && !b.ok(4, 100));
+  ElcCanHeartbeat h;
+  h.node = 0x14;
+  h.type = ElcCanNodeType::AudioBridge;
+  elc_can_encode_heartbeat(h, hbf);
+  CHECK(b.feed(hbf, 1000) && b.ok(4, 1000) && !b.reject(f, 1500));
+  CHECK(!b.ok(4, 1000 + ElcCanBridgeSeen::kMaxAgeMs + 1));  // went quiet
+  h.node = 0x15;                                             // another card, not a bridge: its range stays closed
+  h.type = ElcCanNodeType::Unknown;
+  elc_can_encode_heartbeat(h, hbf);
+  b.feed(hbf, 2000);
+  elc_can_encode_audio_transport(5, t, f);
+  CHECK(b.reject(f, 2000));
+  h.node = ELC_CAN_NODE_CONSOLE;                            // the console's range is never a bridge
+  h.type = ElcCanNodeType::AudioBridge;
+  elc_can_encode_heartbeat(h, hbf);
+  b.feed(hbf, 2000);
+  CHECK(!b.ok(3, 2000));
+  ElcCanFrame other;
+  other.id = 0x213;
+  CHECK(!b.feed(other, 2000) && !b.reject(other, 2000));    // not an accessory range: never rejected
 }
 
 static void test_audio() {
@@ -400,6 +443,7 @@ int main() {
   test_sensor_round_trip();
   test_cluster_and_heartbeat();
   test_slot_ranges();
+  test_bridge_seen();
   test_audio();
   test_album_art();
   test_phone();
