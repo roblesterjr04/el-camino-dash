@@ -33,11 +33,11 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 | 9 / 10 | +3.3 V | constant 12 V |
 | 11 / 12 | slot ID | WAKE |
 | 13 / 14 | LAMP (dash-light level) | REV (reverse) |
-| 15 / 16 | LINK 0 | LINK 1 |
-| 17 / 18 | LINK 2 | LINK 3 |
+| 15 / 16 | I2S BCK | I2S WS |
+| 17 / 18 | I2S MIC | I2S RET |
 | 19 / 20 | GND | GND |
 | 21 / 22 | AUDIO L | AUDIO R |
-| 23 / 24 | AUDIO GND | LINK 4 |
+| 23 / 24 | AUDIO GND | I2S MCLK |
 | 25 / 26 | AUX 12 V | AUX 12 V |
 | 27 / 28 | AUX 12 V | AUX GND |
 | 29 / 30 | AUX GND | AUX GND |
@@ -49,25 +49,44 @@ own connectors out on its top edge, where the case puts them. The cable ports an
 | **Switched 12 V** (8) | 0.5 A PTC per slot, on with the key | "Key on", relay coils, small 12 V loads |
 | **+3.3 V** (9) | 0.1 A PTC per slot, from the board's 1 A LDO | Small cards (an ID chip, a sensor) can skip their own regulator. Not for an ESP32 with its radio on |
 | **Constant 12 V** (10) | 0.2 A PTC per slot, from the battery after the reverse-polarity FET | Key-off jobs (GPS hot start, a clock alarm, logging after shutdown). A card that uses it sleeps below about 1 mA with the key off |
-| **Slot ID** (11) | A resistor to GND per slot: 1k, 3.3k, 6.8k, 12k, 22k, 47k (slot 1 … 6) | 10k pull-up to the card's 3.3 V, read on an ADC: about 0.30, 0.82, 1.34, 1.80, 2.27, 2.72 V. The card knows its slot, its link partner (slot 1 ↔ 2, …) and can derive its CAN node number |
+| **Slot ID** (11) | A resistor to GND per slot: 1k, 3.3k, 6.8k, 12k, 22k, 47k (slot 1 … 6) | 10k pull-up to the card's 3.3 V, read on an ADC: about 0.30, 0.82, 1.34, 1.80, 2.27, 2.72 V. The card knows its slot and can derive its CAN node number |
 | **WAKE** (12) | Shared by all slots, 100k to GND. It lifts the 5 V buck's EN through a diode (like the sensor pack's PWR_HOLD) and goes to the ATmega2560 (pin 88, ADC9 / PCINT17) | To start the dash with the key off, drive it **high (3.3 V) through a diode**; never drive it low. The 2560 wakes, sees why, and holds the power with PWR_HOLD while it needs it |
 | **LAMP** (13) | J7 pin 6 (the dash-light feed, a rheostat voltage) through 100k / 27k, clamped: 0–3.1 V | Dim LEDs or a display with the dash lights (ADC) |
 | **REV** (14) | J9 pin 1 (reverse lamp) through 100k / 27k, clamped: high = in reverse | Parking sensors, a rear camera, a beeper |
-| **LINK 0–4** (15–18, 24) | Bare traces between the two slots of a pair only (A: 1–2, B: 3–4, C: 5–6) | Whatever the two cards agree: I2S, SPI, UART, I2C, sync pulses. See [Link rules](#link-rules) |
+| **I2S rail** (15–18, 24) | Five bare traces bused to all six slots: BCK, WS, MIC, RET, MCLK | Digital audio between cards. The audio card is the only clock master; any card listens; one card at a time talks back on RET. See [I2S rail rules](#i2s-rail-rules) |
 | **AUDIO L / R** (21, 22) | Shared by all slots, bare | Line level. One card drives it (the audio card), any card listens |
 | **AUDIO GND** (23) | Shared; joins GND only at net tie NT2 | The reference for AUDIO L / R. The driving card ties it to its ground through about 10 Ω; listeners use it as their input reference |
 | **AUX 12 V / GND** (25–30) | Three pins each, from the AUX input (10 A board fuse, no per-slot fuse). AUX GND meets GND only at NT1 | High-current loads: amplifiers, output nodes. About 5–6 A per card (2 A per contact), all slots together under the 10 A fuse |
 
-### Link rules
+### I2S rail rules
 
-- The links join the **two slots of a pair** and nothing else, so two pairs can each run their own link at the same
-  time. Put two cards that need to talk directly in the same pair: slots 1–2, 3–4 or 5–6.
-- **High impedance until the partner is known.** A card leaves every link pin undriven (or behind a 3-state buffer)
-  until it has seen its partner on CAN (NET ANNOUNCE from the partner slot's card, which it can tell from the slot ID
-  in the ANNOUNCE) and both agree on the use. That way a card never fights an unknown neighbour.
-- Drivers put about 33 Ω in series at the pin. Inputs have a weak pull (100k) so an empty partner slot reads idle.
-- I2S between two cards uses all five: LINK 0 BCK, LINK 1 WS, LINK 2 data from the clock master, LINK 3 data to it,
-  LINK 4 MCLK (for codecs that need it). The clock master is the card that owns the DACs (the audio card).
+Pins 15–18 and 24 are one I2S bus shared by every slot, for digital audio between cards (a voice assistant, a phone
+or intercom card, a recorder). Anything else between two cards goes over CAN, or, for a one-off direct serial link, a
+jumper wire between the cards' debug-serial headers.
+
+| Pin | Signal | Driven by | Use |
+| --- | --- | --- | --- |
+| 15 | **BCK** | the audio card only | Bit clock, 64 fS |
+| 16 | **WS** | the audio card only | Word select (fS: 44.1 or 48 kHz, the audio card's choice) |
+| 17 | **MIC** | the audio card only | The microphone / aux input (PCM1808 data), for any card to hear |
+| 18 | **RET** | **one card at a time**, granted by the audio card | Audio back to the audio card, which mixes it into the outputs (and ducks the music) |
+| 24 | **MCLK** | the audio card only | 256 fS master clock, for a card with its own codec. Most cards leave it unconnected |
+
+- **One clock master.** Only the audio card drives BCK, WS, MIC and MCLK. Every other card is an I2S slave and only
+  ever reads them. The rail is idle (no clocks) until the audio card enables its link buffer.
+- **RET has one owner.** A card asks the audio card for it over CAN (NET RAIL, `can_channels.md`) and drives RET only
+  after the grant, and stops when it releases it or the grant is withdrawn. A card that loses the audio card's
+  heartbeat releases RET at once. There is no TDM: if two cards ever need to talk at once, the one holding RET mixes
+  the other in.
+- **Off at power-up.** Every driver on the rail sits behind a 3-state buffer whose enable is pulled to "off", so a
+  blank, crashed or unpowered card never drives it. The audio card's 74LVC125 already works this way.
+- Drivers put about 33 Ω in series at the pin. A card's RET input (only the audio card has one) has a 100k pull-down,
+  so an idle rail reads silence.
+- **Signal integrity:** the rail is about 100 mm long (slot 1 to slot 6) with six short stubs. BCK (about 3 MHz) and
+  the data lines are comfortable. MCLK (12.288 MHz) is the fastest edge on it: keep a card's MCLK stub short and leave
+  it unconnected when the card doesn't need it.
+- **The audio card stays in slot 1** (its RCA block needs the open end); a card that talks or listens on the rail can
+  be in any slot.
 
 ### Programming (every card)
 

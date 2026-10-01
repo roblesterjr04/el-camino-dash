@@ -365,7 +365,7 @@ c_('100n', '+3V3', 'GND', 245, 290, d='Module supply, at pin 3')
 text(215, 150, 'I2S0 master: BCK GPIO14, WS GPIO25, DOUT GPIO27 (front DAC), DIN GPIO35 (PCM1808), MCLK GPIO0 (12.288 MHz for the ADC).\n'
      'I2S1 slave on the same BCK / WS pins: DOUT GPIO26 (rear DAC). GPIO4 = DAC mute (XSMT), pulled low. '
      'GPIO32 / 33 CAN, GPIO13 / 22 node straps (the module has no GPIO23). GPIO12 / 2 / 15 / 5 left open (boot straps).\n'
-     'Slot: GPIO36 slot ID (ADC1), GPIO34 I2S1 data in from the partner card (LINK3), GPIO21 low enables the link buffer.', 1.4)
+     'Slot: GPIO36 slot ID (ADC1), GPIO34 I2S1 data in from the I2S rail (LINK3 = RET), GPIO21 low enables the rail buffer.', 1.4)
 
 G('boot')
 text(15, 150, 'BOOT / PROGRAMMING', 1.6)
@@ -475,9 +475,9 @@ text(430, 415, 'GPIO0 outputs the 12.288 MHz clock (256 x 48 kHz) after boot. Th
 
 # --- links and the audio bus
 G('link')
-text(530, 300, 'LINKS (to the card in the partner slot, slot 2): a 74LVC125 drives LINK0 BCK, LINK1 WS, LINK2 the mic / aux data '
-     '(PCM1808 DOUT) and LINK4 MCLK, only while GPIO21 holds its enables low (pulled high: off at reset, off until the partner '
-     'is found on CAN). LINK3 (the partner\'s I2S data) comes in on GPIO34 (I2S1 data in).\n'
+text(530, 300, 'I2S RAIL (bused to every slot; this card is its clock master): a 74LVC125 drives LINK0 BCK, LINK1 WS, LINK2 the '
+     'mic / aux data (PCM1808 DOUT) and LINK4 MCLK, only while GPIO21 holds its enables low (pulled high: off at reset). '
+     'LINK3 (RET: the I2S data of the card granted the rail over CAN) comes in on GPIO34 (I2S1 data in).\n'
      'AUDIO BUS: the front pair drives AUDIO_L / R through 100 R; AUDIO_GND joins this card\'s ground through 10 R.', 1.4)
 for unit, (oe, a, y, src, dst) in enumerate([('1', '2', '3', 'I2S_BCLK', 'LINK0'), ('4', '5', '6', 'I2S_LRC', 'LINK1'),
                                              ('10', '9', '8', 'ADC_DOUT', 'LINK2'), ('13', '12', '11', 'ADC_SCKI', 'LINK4')]):

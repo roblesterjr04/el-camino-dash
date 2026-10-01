@@ -100,8 +100,8 @@ FIXED = {
     'U1': (215.0, 30.0, 0, 'F'), 'U3': (246.0, 20.0, 0, 'F'), 'U6': (246.0, 40.0, 0, 'F'), 'U7': (196.0, 46.0, 0, 'F'),
     'J2': (291.0, 12.0, 0, 'B'), 'J12': (266.0, 7.0, 90, 'B'), 'J8': (282.0, 32.0, 0, 'B'), 'J26': (180.0, 60.0, 90, 'B'),
     'U4': (291.0, 62.0, 0, 'B'),
-    # video, next to the center header (J1)
-    'U8': (126.0, 64.0, 0, 'F'), 'J11': (152.0, 91.0, 0, 'B'),
+    # video, next to the center header (J1); x 132 keeps it clear of slot 6's socket pins (J36, x 120.3 / 122.9)
+    'U8': (132.0, 64.0, 0, 'F'), 'J11': (152.0, 91.0, 0, 'B'),
     'U11': (150.0, 66.0, 0, 'B'), 'U12': (140.0, 70.0, 0, 'B'),
     # power, beside J7
     'U2': (224.0, 78.0, 0, 'B'), 'Q2': (188.0, 84.0, 0, 'B'), 'Q5': (244.0, 66.0, 0, 'B'),
@@ -1371,8 +1371,8 @@ LABELS = {
     'J26': ('SPARE I/O', None, '1 5V  2 GND  3 A5  4 A6  5 A7  6 A8  7 D44  8 D45  9 D46  10 D47'),
     'SW1': ('1 TERM  2 DEMO', None, 'ON = on; back side'),
 }
-# slots: the name and its link pair (A = slots 1-2, B = 3-4, C = 5-6); pin 1 is the square pad, at the bottom
-LABELS.update({'J%d' % (31 + i): ('SLOT %d  LINK %s' % (i + 1, 'ABC'[i // 2]), None, None) for i in range(6)})
+# slots: the name; pin 1 is the square pad, at the bottom
+LABELS.update({'J%d' % (31 + i): ('SLOT %d' % (i + 1), None, None) for i in range(6)})
 
 
 def add_labels(b):

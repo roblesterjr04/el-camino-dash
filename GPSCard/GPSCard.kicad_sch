@@ -5271,7 +5271,7 @@
     (property "Value" "DigiDash slot" (at 46.27 75.32 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal" (at 45 55 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 45 55 0) (effects (font (size 1.27 1.27)) hide))
-    (property "Description" "Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, slot ID. Not used: switched / constant 12 V, 3.3 V, WAKE, LAMP, REV, LINK0-4, the audio bus, AUX 12 V" (at 45 55 0) (effects (font (size 1.27 1.27)) hide))
+    (property "Description" "Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, slot ID. Not used: switched / constant 12 V, 3.3 V, WAKE, LAMP, REV, the I2S rail, the audio bus, AUX 12 V" (at 45 55 0) (effects (font (size 1.27 1.27)) hide))
     (pin "1" (uuid "49f92d09-ebdd-5f40-89b7-1e94fe1b4ac8"))
     (pin "2" (uuid "ed5ed06b-0948-5287-89d7-24bd5487c840"))
     (pin "3" (uuid "11f2e703-eb82-5ddc-9a48-efb77aee4f52"))

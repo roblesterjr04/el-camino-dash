@@ -2,8 +2,8 @@
 
 A **slot card** for the DigiDash rev 2 board: **80 × 60 mm**, standing on edge in a 2×15 slot, its right-angle header
 on the bottom edge and its jacks on the top edge (`docs/hardware/accessory_ports.md`, rev 2 section). It goes in
-**slot 1**: the RCA block is 28.5 mm tall, and slot 1 is the one whose parts side faces off the end of the row. Its
-link partner is slot 2 (an AI voice card, for example). The directory keeps its old name. On it:
+**slot 1**: the RCA block is 28.5 mm tall, and slot 1 is the one whose parts side faces off the end of the row. It is
+the clock master of the slot's **I2S rail**, which reaches every other slot (an AI voice card can go in any of them). The directory keeps its old name. On it:
 - an **ESP32-PICO-MINI-02** module (classic ESP32: A2DP + AVRCP + HFP)
 - two **TI PCM5102A** stereo DACs (front pair, rear pair)
 - a **TI PCM1808** ADC with a microphone preamp
@@ -28,9 +28,10 @@ J6 tip, mic (2.2k bias) ─ 1u ─ OPA2376 (gain 22) ─ 1u ─┐
 J6 ring, aux in ─────── 1u ─ OPA2376 (unity)   ─ 1u ─┴► PCM1808 ──► ESP32 I2S0 DIN GPIO35
 ESP32 GPIO0 (CLK_OUT) 12.288 MHz = 256 fS master clock ──► PCM1808 SCKI      GPIO4 = DAC mute (XSMT, pulled low)
 
-Slot links (to the partner card in slot 2), through U8 74LVC125 (enabled by GPIO21 low) and 33 R each:
-  BCK ──► LINK0    WS ──► LINK1    PCM1808 DOUT (mic / aux) ──► LINK2    MCLK ──► LINK4
-  LINK3 (the partner's audio) ── 33 R ──► GPIO34 = I2S1 data in (100k pull-down)
+I2S rail (bused to all six slots), through U8 74LVC125 (enabled by GPIO21 low) and 33 R each. The card's net names
+are LINK0-4; on the main board they are the rail's I2S_* nets:
+  BCK ──► LINK0 = I2S_BCK    WS ──► LINK1 = I2S_WS    PCM1808 DOUT (mic / aux) ──► LINK2 = I2S_MIC    MCLK ──► LINK4 = I2S_MCLK
+  LINK3 = I2S_RET (the granted card's audio) ── 33 R ──► GPIO34 = I2S1 data in (100k pull-down)
 Audio bus: FL_LINE / FR_LINE ── 100 R ──► AUDIO_L / AUDIO_R;  AUDIO_GND ── 10 R ── GND
 Slot ID (pin 11): 10k to 3.3 V here, the slot's resistor to GND on the main board ──► GPIO36 (ADC1)
 ```
@@ -108,11 +109,12 @@ AudioCarrier`); both BOMs were rebuilt from the schematic.
 
 - **Firmware is not written yet.** This board needs: I2S0 master with MCLK on GPIO0 (12.288 MHz at 48 kHz) and a
   data-in pin (GPIO35); I2S1 as a slave on the same BCK / WS routed through the GPIO matrix for the rear DAC, with its
-  data **in** on GPIO34 (the partner card's audio, LINK3); GPIO4 raised to un-mute; and the HFP client's PCM audio
+  data **in** on GPIO34 (the audio of whichever card holds RET, LINK3); GPIO4 raised to un-mute; and the HFP client's PCM audio
   wired to the mic path. A2DP / AVRCP / HFP are all supported by the classic ESP32 stack.
-- **Slot:** read the slot ID on GPIO36 (ADC1) at boot and put it in the NET ANNOUNCE flags. Keep GPIO21 high (link
-  buffer off) until the partner card has offered an I2S link and this card has accepted it (NET LINK,
-  `docs/protocols/can_channels.md`); mix what arrives on GPIO34 into the outputs, ducking the music.
+- **Slot:** read the slot ID on GPIO36 (ADC1) at boot and put it in the NET ANNOUNCE flags. Pull GPIO21 low (rail
+  buffer on) once I2S is running, so the rail has clocks and mic data. Hand out RET over NET RAIL
+  (`docs/protocols/can_channels.md`, one holder at a time) and mix what arrives on GPIO34 into the outputs, ducking the
+  music.
 - **Node straps moved:** the PICO-MINI-02 has no GPIO23, so the second strap (JP2) is on **GPIO22**. GPIO13 (JP1) is
   unchanged. `docs/hardware/accessory_ports.md` still says GPIO13 / GPIO23 for the DevKit.
 - **GPIO0 is the master clock and the BOOT strap.** It must be high (or free) at reset. The PCM1808 SCKI input is 5 V

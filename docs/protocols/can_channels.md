@@ -172,7 +172,7 @@ Discovery. Every node that speaks the protocol implements this channel.
 | `0x81` | QUERY | dest u8, what u8: bit0 ANNOUNCE, bit1 sensor descriptions, bit2 alert descriptions, bit3 UI item descriptions |
 | `0x82` | IDENTIFY | dest u8, seconds u8: blink an LED / beep so a person can find the board (0 = stop) |
 | `0x83` | RESTART | dest u8, magic u8 `0x5A` (from the center or a service tool only) |
-| `0x84` | LINK | dest u8 (the partner card), slot u8 (sender's), use u8, role u8, state u8, detail u16 (see [Links](#links-between-slot-cards)) |
+| `0x84` | RAIL | dest u8 (the rail master: the audio card, or a card asking it), slot u8 (sender's), state u8, sample rate / 10 u16 (see [The I2S rail](#the-i2s-rail)) |
 | `0x10` | WIFI OFFER | gateway → all, only in answer to WIFI QUERY: credentials generation u8, security u8, channel u8, flags u8, SSID length u8, SSID, password length u8, password (see [Network gateway](#network-gateway-wi-fi-from-a-card)) |
 | `0x11` | GATEWAY STATUS | gateway → all, 1 Hz and on change: uplink u8, signal bars u8, RSSI s8 (dBm), technology u8, Wi-Fi clients u8, data this month u16 (MB), credentials generation u8, flags u8 |
 | `0x8A` | WIFI QUERY | dest u8 (the gateway): send WIFI OFFER |
@@ -194,24 +194,27 @@ Discovery. Every node that speaks the protocol implements this channel.
 - Node types extend the heartbeat's: 0 display, 1 audio bridge, 2 console, 3 sensor node, 4 input device, 5 audio
   sink, 6 output / relay node, 7 network gateway, 8 voice assistant, 0x7F service tool. Products are listed under [Registries](#registries).
 
-### Links between slot cards
+### The I2S rail
 
-On a rev 2 board the two slots of a pair (1–2, 3–4, 5–6) share five link lines (`docs/hardware/accessory_ports.md`).
-A card drives none of them until its partner has agreed, over LINK:
+On a rev 2 board every slot shares one I2S bus (`docs/hardware/accessory_ports.md`, I2S rail rules). The audio card is
+its only clock master and drives BCK, WS, MIC and MCLK whenever it is running. Any card may listen. **RET** (audio
+back to the audio card) has one owner at a time, handed out over RAIL:
 
-1. Each card learns its own slot from its slot ID pin and its partner's from the partner's ANNOUNCE (flags bits 1–3).
-2. The card that wants a link sends LINK with state 0 (offer): use, its role, detail.
-3. The partner answers LINK with state 1 (accept), or 2 (release: no). Only after an accept does either side drive
-   its lines. Either side ends it with state 2. A card that sees its partner's heartbeat stop releases its lines.
+1. A card that wants to talk sends RAIL to the audio card with state 0 (request).
+2. The audio card answers with state 1 (granted) or 2 (denied: someone else holds RET). Only after a grant does the
+   card enable its RET driver. The audio card sends the current rate in every answer; a card that cannot follow it
+   resamples or declines.
+3. The holder sends state 2 (release) when it is done. The audio card can withdraw a grant (state 2 to the holder,
+   for a higher-priority talker); the holder stops driving within 10 ms. A holder that loses the audio card's
+   heartbeat stops at once, and the audio card frees RET when the holder's heartbeat stops.
 
-| Field | Values |
+| state | Meaning |
 | --- | --- |
-| use | 0 none, 1 I2S, 2 UART, 3 SPI, 4 I2C, 5 sync pulses; `0x80`+ product-specific |
-| role | 0 the sender drives the clocks (I2S / SPI master, or the UART's first TX on LINK 0), 1 the sender follows |
-| detail | I2S: sample rate / 10 (4800 = 48 kHz), with LINK 0 BCK, 1 WS, 2 data from the clock master, 3 data to it, 4 MCLK (256 fS) or idle. UART: baud / 100 |
+| 0 | request (card → audio card) |
+| 1 | granted (audio card → card) |
+| 2 | release / denied / withdrawn (either way) |
 
-The audio card (I2S master, slot 1) and a voice card (slot 2) are the first pair: the voice card offers use 1, role 1;
-the audio card accepts and enables its link buffer.
+A voice card is the first user: it listens on MIC all the time (wake word) and asks for RET only while it speaks.
 
 ### Network gateway (Wi-Fi from a card)
 

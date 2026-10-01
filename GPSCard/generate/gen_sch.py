@@ -257,7 +257,7 @@ place(HDR2x15, 'J1', 'DigiDash slot', 'Connector_PinHeader_2.54mm:PinHeader_2x15
        '21': None, '22': None, '23': None, '24': None,
        '25': None, '26': None, '27': None, '28': None, '29': None, '30': None},
       descr='Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, '
-            'slot ID. Not used: switched / constant 12 V, 3.3 V, WAKE, LAMP, REV, LINK0-4, the audio bus, AUX 12 V')
+            'slot ID. Not used: switched / constant 12 V, 3.3 V, WAKE, LAMP, REV, the I2S rail, the audio bus, AUX 12 V')
 text(70, 40, 'Only 5 V is used (the card draws well under 0.1 A plus the puck). Slot ID (pin 11): 10k to 3.3 V here, '
      'the slot\'s own resistor to GND on the main board, read on PA0 (ADC1_IN0).', 1.4)
 r_('10k', '+3V3', 'SLOT_ID', 25, 45, 'Slot ID pull-up (the main board has one resistor to GND per slot)')
