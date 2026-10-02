@@ -15,19 +15,38 @@ demo cycle: idle, pull away, cruise, pass, stop) as sensor frames 0x100-0x104 at
 the time frame 0x220 once a second. The screens use them only while their own sensor UART and GPS are silent. Both
 are off with --gateway (a real bus has the real ones).
 
-It also stands in for the AM/FM radio card (tools/radio_sim.py, docs/hardware/radio_card.md) in slot 2, node 0x15:
-heartbeat, NET ANNOUNCE, its menu page on UI, signal and SNR on SENSOR, LOG lines, and it answers QUERY, SET, VIEW,
-RAIL and (while it is the selected source) the next / previous / play keys. On in every mode, gateway too, since no
-radio card exists yet; --no-radio turns it off, --radio-slot moves it.
+It also stands in for the slot cards that are not on the bench, each speaking the channel protocol as its firmware
+will (docs/protocols/can_channels.md): heartbeat, NET ANNOUNCE / QUERY / IDENTIFY / RESTART, and
+
+    radio   AM/FM radio card, slot 2, node 0x15 (tools/radio_sim.py): its UI page, signal and SNR, RAIL, MEDIA
+    audio   audio card, slot 1, node 0x14 (tools/cards_sim.py, the rest too): AUDIO_CMD STATUS, sounds, volume,
+            media keys, RET arbitration, Source / Volume / Fader / Balance page
+    gps     GPS card, slot 3, node 0x16: speed (following the simulated drive), heading, altitude, satellites
+    lte     LTE gateway, slot 4, node 0x17: GATEWAY STATUS, ONLINE place, weather, time zone, a message
+    voice   AI voice card, slot 5, node 0x18: asks for RET and speaks on ':voice say'
+    trans   transmission-temperature card, slot 6, node 0x19: SENSOR, its own ALERTs, an Offset item
+
+All on in every mode, gateway too, since none of these cards is built yet. The cards hear each other's frames as well
+as the boards'. --no-sim audio,gps turns cards off (--no-radio is --no-sim radio), --radio-slot / --trans-slot move
+those two.
 
 Typing:
     center help          a command to one board (center, left, right, console, bridge, a node like 0x14, or a port)
     all can              to every board
     :frames on|off       frame log;  :filter 0x215 0x404  (no ids = all)
     :sensors on|off      the simulated drive;  :time on|off   the clock
-    :radio               the simulated radio: status | on | off | source on|off | tune 98.3 | seek up|down
+    :sim list            the simulated cards;  :sim on|off CARD  (off: the card goes silent; on: it boots again)
+    :radio               status | on | off | source on|off | tune 98.3 | seek up|down
+    :audio               status | source bt|radio | volume 0-100 | mute | play SOUND [PRIORITY] [REPEAT] | stop |
+                         media play|next|prev
+    :gps                 status | fix on|off
+    :lte                 status | message [text] | refresh | offline | online
+    :voice               status | say [text]
+    :trans               status | temp 120 (deg C: caution at 110, warning at 125) | mode own|center
     :ports               the boards and their links
     :quit                (or Ctrl-C) the boards fall back to plain serial within 3 s
+
+    python3 tools/can_relay.py --test   # the relay's records and the simulated cards together, no hardware
 
 Never toggles DTR/RTS: on the Waveshare P4 boards the CH343's auto-reset circuit reboots the ESP32.
 """
@@ -42,13 +61,17 @@ import sys
 import threading
 import time
 
+from collections import deque
+
+from cards_sim import AudioCard, GpsCard, LteGateway, TransTempCard, VoiceCard
+from chan_sim import CH_NET, SimCard
 from radio_sim import RadioSim
 
 try:
     import serial  # type: ignore
     from serial.tools import list_ports  # type: ignore
-except ImportError:
-    sys.exit("pyserial is required: pip install pyserial")
+except ImportError:  # only --test runs without it
+    serial = list_ports = None  # type: ignore
 
 DEFAULT_BAUD = 115200
 KEEPALIVE_S = 1.0
@@ -397,8 +420,88 @@ class Relay:
         self.filter: set[int] = set()
         self.sensors = not args.no_sensors and not args.gateway
         self.clock = not args.no_time and not args.gateway
-        self.radio = None if args.no_radio else RadioSim(
-            lambda i, d: self.inject(i, d, "radio"), lambda t: out(f"[radio] {t}"), slot=args.radio_slot)
+        self.drive = DemoDrive()
+        self.cards: dict[str, SimCard] = {}
+        self.sim_queue: deque[tuple[str, int, bytes]] = deque()
+        off = set(getattr(args, "no_sim", None) or ()) | ({"radio"} if args.no_radio else set())
+        for name in SIM_CARDS:
+            if name not in off:
+                self.cards[name] = self.make_card(name)
+        nodes: dict[int, str] = {}
+        for name, c in self.cards.items():
+            if c.node in nodes:
+                out(f"[relay] simulated {name} and {nodes[c.node]} both at node 0x{c.node:02x} "
+                    f"(--no-sim one of them, or move it)")
+            nodes[c.node] = name
+
+    # ---- the simulated cards
+
+    def make_card(self, name: str) -> SimCard:
+        send = lambda i, d: self.sim_send(name, i, d)  # noqa: E731
+        log = lambda t: out(f"[{name}] {t}")  # noqa: E731
+        if name == "radio":
+            return RadioSim(send, log, slot=self.args.radio_slot)
+        if name == "audio":
+            card = AudioCard(send, log)
+            card.on_source = self.audio_source
+            return card
+        if name == "gps":
+            return GpsCard(send, log, speed_kmh=self.drive_kmh)
+        if name == "lte":
+            return LteGateway(send, log, speed_kmh=self.drive_kmh)
+        if name == "voice":
+            return VoiceCard(send, log)
+        return TransTempCard(send, log, slot=getattr(self.args, "trans_slot", 6))
+
+    @property
+    def radio(self) -> RadioSim | None:
+        return self.cards.get("radio")  # type: ignore
+
+    def audio_source(self, radio: bool) -> None:
+        """The audio card's Source changed: no CAN message says so, so the relay tells the radio."""
+        if self.radio:
+            self.radio.set_source(radio)
+
+    def drive_kmh(self) -> float:
+        """The simulated drive's speed, for the GPS card and the gateway (the drive's cycle even with :sensors off)."""
+        if self.sensors:
+            return self.drive.mph * 1.609344
+        return DemoDrive.target_mph(math.fmod(time.monotonic() - self.drive.t0, 60.0)) * 1.609344
+
+    def sim_send(self, name: str, can_id: int, data: bytes) -> None:
+        """A frame from a simulated card: to the boards now, to the other simulated cards from the simulate loop."""
+        self.inject(can_id, data, name)
+        self.sim_queue.append((name, can_id, data))
+
+    def deliver_sim(self) -> None:
+        # Not from inside sim_send: the sender holds its own lock there, and the receiver may answer at once.
+        for _ in range(10000):
+            try:
+                name, can_id, data = self.sim_queue.popleft()
+            except IndexError:
+                return
+            for other, card in list(self.cards.items()):
+                if other != name:
+                    card.on_frame(can_id, data)
+
+    def sim_switch(self, on: bool, name: str) -> None:
+        if name not in SIM_CARDS:
+            out(f"[relay] no simulated card '{name}' ({', '.join(SIM_CARDS)})")
+            return
+        if on == (name in self.cards):
+            out(f"[relay] {name} is already {'on' if on else 'off'}")
+            return
+        if on:
+            card = self.make_card(name)
+            with card.lock:
+                card.boot()
+                # Booted after the others: ask every node for its ANNOUNCE, so it finds the audio card and the radio.
+                card.transfer(CH_NET, bytes([0x81, 0x00, 0x01]))
+            self.cards = {n: (card if n == name else self.cards[n]) for n in SIM_CARDS
+                          if n in self.cards or n == name}
+        else:
+            self.cards = {n: c for n, c in self.cards.items() if n != name}
+            out(f"[relay] {name} off: silent from now (no heartbeat)")
 
     def count_bridges(self) -> int:
         return sum(1 for b in self.boards if b.type == TYPE_BRIDGE)
@@ -409,8 +512,8 @@ class Relay:
             if b is not src and b.alive and b.linked:
                 b.write(rec)
                 b.down += 1
-        if self.radio:
-            self.radio.on_frame(can_id, data)
+        for card in list(self.cards.values()):
+            card.on_frame(can_id, data)
         if self.show_frames and (not self.filter or can_id in self.filter):
             out(f"  {src.name:>8} 0x{can_id:03x} {id_name(can_id):<10} {data.hex(' ')}")
 
@@ -453,10 +556,13 @@ class Relay:
                     out(f"[relay] {b.name:>8} {b.port} {'linked' if b.linked else 'not linked'} "
                         f"{'gateway' if b.gateway else 'peer'} baud {b.baud} CAN {'up' if b.can else 'off'} "
                         f"frames up {b.up} down {b.down} bad {b.parser.bad}")
-            elif cmd == "radio":
-                self.radio_command(words[1:])
+            elif cmd == "sim":
+                self.sim_command(words[1:])
+            elif cmd in SIM_CARDS:
+                self.card_command(cmd, words[1:])
             else:
-                out("[relay] :frames on|off, :filter <ids>, :sensors on|off, :time on|off, :radio ..., :ports, :quit")
+                out("[relay] :frames on|off, :filter <ids>, :sensors on|off, :time on|off, :sim list|on|off CARD, "
+                    f":{' ..., :'.join(SIM_CARDS)} ..., :ports, :quit")
             return
         who, _, rest = line.partition(" ")
         targets = self.find(who)
@@ -469,37 +575,38 @@ class Relay:
         for b in targets:
             b.write(rest.encode() + b"\n")
 
-    def radio_command(self, words: list[str]) -> None:
-        r = self.radio
-        if r is None:
-            out("[relay] the simulated radio is off (--no-radio)")
+    def sim_command(self, words: list[str]) -> None:
+        if words[:1] in ([], ["list"]):
+            for name in SIM_CARDS:
+                c = self.cards.get(name)
+                if c:
+                    with c.lock:
+                        out(f"[relay] {name:>6} on   {c.status()}")
+                else:
+                    out(f"[relay] {name:>6} off")
+        elif words[0] in ("on", "off") and len(words) > 1:
+            for name in words[1].split(","):
+                self.sim_switch(words[0] == "on", name)
+        else:
+            out("[relay] :sim list | :sim on CARD | :sim off CARD")
+
+    def card_command(self, name: str, words: list[str]) -> None:
+        card = self.cards.get(name)
+        if card is None:
+            out(f"[relay] the simulated {name} is off (:sim on {name})")
             return
-        cmd = words[0] if words else "status"
-        arg = words[1] if len(words) > 1 else ""
-        with r.lock:
-            if cmd == "status":
-                out(f"[radio] {r.status()}")
-            elif cmd in ("on", "off"):
-                r.set(0, 1 if cmd == "on" else 0)
-                r.send_value(0)
-            elif cmd == "source":
-                r.set_source(arg != "off")
-            elif cmd == "tune" and arg:
-                try:
-                    f = float(arg)
-                except ValueError:
-                    out("[relay] :radio tune 98.3 (MHz) or 1070 (kHz)")
-                    return
-                band = 0 if f < 200 else 1
-                if band != r.band:
-                    r.set(1, band)
-                    r.send_value(1)
-                if r.set(2, round(f * 10) if band == 0 else int(f)):
-                    out("[relay] not a frequency on this band's grid")
-            elif cmd == "seek":
-                r.seek(-1 if arg == "down" else 1)
-            else:
-                out("[relay] :radio status | on | off | source on|off | tune 98.3 | seek up|down")
+        if name == "radio" and words[:1] == ["source"] and "audio" in self.cards:
+            # The source is the audio card's choice: set it there, and it tells the radio.
+            audio = self.cards["audio"]
+            with audio.lock:
+                audio.command(["source", "bt" if words[1:2] == ["off"] else "radio"])
+            return
+        with card.lock:
+            text = card.command(words)
+        if text is None:
+            out(f"[relay] :{name} {card.HELP}")
+        elif text:
+            out(f"[{name}] {text}")
 
     def inject(self, can_id: int, data: bytes, who: str = "relay") -> None:
         """A frame from the relay itself, to every linked board."""
@@ -512,16 +619,18 @@ class Relay:
             out(f"  {who:>8} 0x{can_id:03x} {id_name(can_id):<10} {data.hex(' ')}")
 
     def simulate(self) -> None:
-        drive = DemoDrive()
         next_time = 0.0
-        if self.radio:
-            self.radio.boot()
+        for card in list(self.cards.values()):
+            with card.lock:
+                card.boot()
         while self.running:
             now = time.monotonic()
-            if self.radio:
-                self.radio.tick()
+            self.deliver_sim()
+            for card in list(self.cards.values()):
+                card.tick()
+            self.deliver_sim()
             if self.sensors:
-                for can_id, data in drive.frames():
+                for can_id, data in self.drive.frames():
                     self.inject(can_id, data)
             if self.clock and now >= next_time:
                 next_time = now + 1.0
@@ -552,6 +661,17 @@ class Relay:
             out(f"[relay] opened {p}")
 
 
+SIM_CARDS = ("radio", "audio", "gps", "lte", "voice", "trans")
+
+
+def sim_list(text: str) -> list[str]:
+    names = [n for n in text.split(",") if n]
+    bad = [n for n in names if n not in SIM_CARDS]
+    if bad:
+        raise argparse.ArgumentTypeError(f"no simulated card {', '.join(bad)} (cards: {', '.join(SIM_CARDS)})")
+    return names
+
+
 def find_ports() -> list[str]:
     return sorted(set(
         glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/cu.usbserial*") + glob.glob("/dev/cu.wchusbserial*") +
@@ -568,6 +688,100 @@ def fast_baud_for(port: str, requested: int) -> int:
     return requested
 
 
+# ---- self-test (no hardware): the records, and the simulated cards running together
+
+class _TestBoard:
+    """Stands in for a Board: collects what the relay writes to it."""
+
+    def __init__(self) -> None:
+        self.alive, self.linked, self.down, self.name = True, True, 0, "test"
+        self.parser = Parser()
+        self.frames: list[tuple[int, bytes]] = []
+        self.lock = threading.Lock()
+
+    def write(self, data: bytes) -> None:
+        with self.lock:
+            for kind, p in self.parser.feed(data):
+                if kind == "rec" and p[:1] == b"F":
+                    self.frames.append((p[1] | p[2] << 8, p[4:4 + p[3]]))
+
+    def transfers(self, base: int, src: int, op: int | None = None) -> list[bytes]:
+        from chan_sim import Reassembler
+        rx = Reassembler()
+        with self.lock:
+            frames = list(self.frames)
+        got = []
+        for i, d in frames:
+            if i == base + src:
+                p = rx.feed(i, d, 0.0)
+                rx.done.clear()
+                if p and (op is None or p[0] == op):
+                    got.append(p)
+        return got
+
+
+def _test() -> None:
+    from chan_sim import CH_ALERT, CH_AUDIO_CMD, CH_ONLINE, CH_SENSOR, CH_UI, transfer_frames
+    p = struct.pack("<BHB", ord("F"), 0x215, 3) + b"\x00\x01\x02"
+    assert unwrap(wrap(p)[1:-1]) == p and list(Parser().feed(b"hi" + wrap(p))) == [("text", b"hi"), ("rec", p)]
+
+    args = argparse.Namespace(frames=False, no_sensors=False, no_time=False, gateway=None, no_radio=False,
+                              no_sim=[], radio_slot=2, trans_slot=6, ports=["test"], baud=2000000)
+    relay = Relay(args)
+    assert list(relay.cards) == list(SIM_CARDS)
+    board = _TestBoard()
+    relay.boards.append(board)  # type: ignore
+    th = threading.Thread(target=relay.simulate, daemon=True)
+    th.start()
+
+    def wait(cond, s: float, what: str) -> None:
+        end = time.monotonic() + s
+        while time.monotonic() < end:
+            if cond():
+                return
+            time.sleep(0.05)
+        raise AssertionError(what)
+
+    radio, audio, voice, trans = relay.cards["radio"], relay.cards["audio"], relay.cards["voice"], relay.cards["trans"]
+    wait(lambda: all((0x700 + n, ) in {(i,) for i, _ in board.frames} for n in (0x14, 0x15, 0x16, 0x17, 0x18, 0x19)),
+         2.0, "a heartbeat from every card")
+    wait(lambda: radio.sink_node == 0x14 and voice.sink_node == 0x14, 1.0, "the cards hear each other's ANNOUNCE")
+    assert audio.find(9) == 0x15
+    # the audio card picks the radio as its source: the radio asks for RET and gets it
+    relay.command(":audio source radio")
+    wait(lambda: radio.rail == 2 and audio.holder == 0x15, 1.0, "the radio holds RET")
+    # the voice card speaks: the radio's grant is withdrawn, and it gets RET back after the voice card releases it
+    relay.command(":voice say Turn left")
+    wait(lambda: voice.state == "speaking" and audio.holder == 0x18 and radio.rail == 0, 1.0, "the voice card speaks")
+    wait(lambda: voice.state == "idle" and audio.holder == 0x15 and radio.rail == 2, 6.5, "RET back to the radio")
+    # a SET from the center reaches the audio card; RESULT and VALUE go to the board
+    for f in transfer_frames(struct.pack("<BBBi", 0x81, 0x14, 1, 64), 9):
+        relay.frame(board, CH_UI + 0x01, f)  # type: ignore
+    wait(lambda: any(r == bytes([0x04, 1, 0, 0x01]) for r in board.transfers(CH_UI, 0x14, 0x04)), 1.0, "RESULT")
+    assert audio.volume == 64
+    # next on the console with Source = Radio: the audio card forwards MEDIA, the radio seeks
+    for f in transfer_frames(bytes([0x01, 17, 1, 1]), 1):
+        relay.frame(board, 0x040 + 0x13, f)  # type: ignore
+    wait(lambda: any(r == bytes([0x84, 0x15, 4]) for r in board.transfers(CH_AUDIO_CMD, 0x14, 0x84)), 1.0, "MEDIA")
+    wait(lambda: any(b"seek" in r for r in board.transfers(0x3E0, 0x15)), 2.0, "the radio seeks")
+    # the trans temp card past its warning threshold
+    with trans.lock:
+        trans.temp = 126.0
+        trans.command(["temp", "126"])
+    wait(lambda: any(r[:2] == bytes([0x02, 2]) for r in board.transfers(CH_ALERT, 0x19, 0x02)), 1.5, "ALERT STATE")
+    assert board.transfers(CH_SENSOR, 0x16, 0x01) and board.transfers(CH_ONLINE, 0x17, 0x01)
+    assert board.transfers(CH_NET, 0x17, 0x11)
+    # :sim off: the card goes silent; on: it boots again
+    relay.command(":sim off gps")
+    assert "gps" not in relay.cards
+    relay.command(":sim on gps")
+    assert list(relay.cards)[2] == "gps"
+    relay.command(":sim list")
+    relay.running = False
+    th.join(1.0)
+    print("can_relay: all tests passed")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("ports", nargs="*", help="serial ports (default: every USB serial port)")
@@ -576,10 +790,21 @@ def main() -> None:
     ap.add_argument("--frames", action="store_true", help="log every frame")
     ap.add_argument("--no-sensors", action="store_true", help="don't send the simulated drive")
     ap.add_argument("--no-time", action="store_true", help="don't send this computer's clock")
-    ap.add_argument("--no-radio", action="store_true", help="don't simulate the AM/FM radio card")
+    ap.add_argument("--no-radio", action="store_true", help="don't simulate the AM/FM radio card (= --no-sim radio)")
+    ap.add_argument("--no-sim", type=sim_list, default=[], metavar="CARD[,CARD]",
+                    help=f"simulated cards to leave off: {', '.join(SIM_CARDS)}")
     ap.add_argument("--radio-slot", type=int, default=2, choices=range(2, 7), metavar="2-6",
                     help="slot of the simulated radio card (node 0x14 + slot - 1, default 2)")
+    ap.add_argument("--trans-slot", type=int, default=6, choices=range(1, 7), metavar="1-6",
+                    help="slot of the simulated transmission-temperature card (default 6; the spec's example has "
+                         "it in slot 1, which needs --no-sim audio)")
+    ap.add_argument("--test", action="store_true", help="run the self-test (no hardware) and exit")
     args = ap.parse_args()
+    if args.test:
+        _test()
+        return
+    if serial is None:
+        sys.exit("pyserial is required: pip install pyserial")
 
     ports = args.ports or find_ports()
     if not ports:
@@ -596,7 +821,7 @@ def main() -> None:
     threads.append(threading.Thread(target=relay.keepalives, daemon=True))
     threads.append(threading.Thread(target=relay.simulate, daemon=True))
     sims = [w for w, on in (("a simulated drive", relay.sensors), ("the time", relay.clock),
-                            ("a simulated radio card", relay.radio)) if on]
+                            (f"simulated cards ({', '.join(relay.cards)})", relay.cards)) if on]
     if sims:
         out(f"[relay] sending {', '.join(sims)}")
     for t in threads:
