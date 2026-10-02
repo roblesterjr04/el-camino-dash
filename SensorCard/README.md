@@ -148,16 +148,17 @@ channel never had a supply).
 
 ## Status
 
-**Schematic: done** (96 parts on the board, 4 of them not fitted). **PCB: placed and routed**, DRC
+**Schematic: done** (114 parts, 16 of them solder jumpers; nothing not-fitted). **PCB: placed and routed**, DRC
 (`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected, parity clean.** The only
-warnings are 43 silkscreen-past-the-edge ones (the right-angle headers' and the top-edge connectors' outlines, which
-stand past the edges on purpose, as on the GPS card). 842 track segments, 322 vias (193 GND stitching). ERC: no
-errors. Fab outputs in `fab/` (91 placed parts: the DNP ones are left out).
+warnings are 42 silkscreen-past-the-edge ones (the right-angle headers' and the top-edge connectors' outlines, which
+stand past the edges on purpose, as on the GPS card). 1024 track segments, 316 vias (171 GND stitching). ERC: no
+errors. Fab outputs in `fab/` (98 placed parts: the solder jumpers are copper only). Renders in `doc/`.
 
-How it got there, in case a re-run differs: Freerouting left the FUEL link from J2 pin 1 to its pull-up open in most
-runs (the engine-temperature tracks cross the direct path on the front). The finisher now also tries every pad-to-pad
-pair through one via, and joins it on the back from J2's through-hole pin with a via beside R18. The last route used
-`FR_TRIES=4 FR_PASSES=300,200,120,400`; `--from-ses` repeats the import and finishing steps from the last session.
+How it got there, in case a re-run differs: one Freerouting round (120 passes) routed everything. DRC then found one
+/TACH_SIG segment 0.1292 mm from JP2's pad (rule 0.13 mm); that 1 mm segment was narrowed to 0.18 mm by hand. Since
+then `gen_pcb.py` routes with a 0.01 mm extra clearance (`ROUTE_MARGIN`) so Freerouting's rounding stays clear of
+the rule. The finisher also tries every pad-to-pad pair through one via (it closed a FUEL link an earlier placement
+left open); `--from-ses` repeats the import and finishing steps from the last session.
 
 ## Check before ordering
 

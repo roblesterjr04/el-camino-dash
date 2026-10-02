@@ -526,7 +526,10 @@ def fab_origin(b):
     b.GetDesignSettings().SetAuxOrigin(VECTOR2I(mm(OX), mm(OY + H)))
 
 
-def rules(b):
+ROUTE_MARGIN = 0.01         # extra clearance for Freerouting only: its rounding can land a hair under the DRC rule
+
+
+def rules(b, margin=0.0):
     fab_origin(b)
     """Net classes and constraints, set on the board (SaveBoard writes them to the project file)."""
     ds = b.GetDesignSettings()
@@ -540,7 +543,7 @@ def rules(b):
     pwr = pcbnew.NETCLASS('Power')
     hv = pcbnew.NETCLASS('HV')          # the coil input: kickback of a few hundred volts before the series resistors
     for nc, w, clr in ((d, 0.2, 0.13), (pwr, 0.3, 0.13), (hv, 0.3, 1.0)):
-        nc.SetClearance(mm(clr))
+        nc.SetClearance(mm(clr + margin))
         nc.SetTrackWidth(mm(w))
         nc.SetViaDiameter(mm(0.6))
         nc.SetViaDrill(mm(0.3))
@@ -1055,6 +1058,7 @@ def freeroute(jar):
         for z in list(b.Zones()):
             if not z.GetIsRuleArea() and z.GetLayer() != pcbnew.In1_Cu:
                 b.Remove(z)             # the In1 GND plane stays: Freerouting reaches it with vias
+        rules(b, margin=ROUTE_MARGIN)   # route with a little extra clearance; the saved board keeps the real rules
         pcbnew.ExportSpecctraDSN(b, dsn)
         if os.path.exists(ses):
             os.remove(ses)
