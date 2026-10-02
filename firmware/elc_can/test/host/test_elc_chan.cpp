@@ -200,6 +200,25 @@ static void test_service() {
   for (const ElcCanFrame &f : bus.frames) ch.feed(f, 3000);
   CHECK(seen.transfers == before);
 
+  // A channel node's heartbeat from a node not announced yet: one QUERY to it, not again within 5 s.
+  bus.frames.clear();
+  ElcCanFrame hb;
+  hb.id = 0x714;
+  hb.len = 8;
+  hb.data[7] = 1;
+  ch.feed(hb, 4000);
+  ch.poll(4001);
+  CHECK(bus.frames.size() == 1 && bus.frames[0].id == 0x3C1 && bus.frames[0].data[0] == ELC_NET_QUERY &&
+        bus.frames[0].data[1] == 0x14 && bus.frames[0].data[2] == ELC_NET_Q_ALL);
+  ch.feed(hb, 4500);
+  ch.poll(4501);
+  CHECK(bus.frames.size() == 1);
+  hb.data[7] = 0;  // an old node (not on the channel protocol): never asked
+  hb.id = 0x712;
+  ch.feed(hb, 20000);
+  ch.poll(20001);
+  CHECK(bus.frames.size() == 1);
+
   // Transfer IDs advance per channel.
   bus.frames.clear();
   const uint8_t lp[3] = {0x01, 1, 'x'};

@@ -210,7 +210,9 @@ class ElcChannels {
   bool active() const { return _send != nullptr; }
   uint8_t node() const { return _node; }
 
-  /** Every received frame (ElcCan does this once attached). */
+  /** Every received frame (ElcCan does this once attached). A heartbeat that says "speaks the channel protocol"
+   *  from a node with no ANNOUNCE yet (it booted before this board) gets a QUERY for its ANNOUNCE, at most every
+   *  5 s per node, so a board that restarts learns the bus by itself. */
   void feed(const ElcCanFrame &f, uint32_t now_ms);
   /** Sends the boot ANNOUNCE and descriptions once, and answers queries after (node x 8) ms. Call often. */
   void poll(uint32_t now_ms);
@@ -251,6 +253,8 @@ class ElcChannels {
   uint8_t _tid[32] = {0};  // per channel number
   Node _nodes[32];
   bool _booted = false;
+  uint32_t _asked_ms[32] = {0};  // the last QUERY for a node's ANNOUNCE (heartbeat discovery)
+  uint32_t _ask_mask = 0;        // nodes to ask at the next poll
   uint8_t _pending_what = 0;
   uint32_t _pending_at = 0;
   uint32_t _in = 0, _out = 0, _send_fail = 0;

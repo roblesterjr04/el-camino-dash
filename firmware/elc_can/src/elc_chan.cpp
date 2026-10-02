@@ -305,6 +305,14 @@ void ElcChannels::setFactoryDefaults(bool on) {
 void ElcChannels::setSlot(uint8_t slot) { _me.flags = (uint8_t)((_me.flags & ~0x0E) | ((slot & 7) << 1)); }
 
 void ElcChannels::feed(const ElcCanFrame &f, uint32_t now_ms) {
+  if (f.id >= 0x700 && f.id < 0x720 && f.len >= 8 && (f.data[7] & 1)) {  // a channel node's heartbeat
+    const uint8_t n = (uint8_t)(f.id - 0x700);
+    if (n != _node && n && !_nodes[n].announced && (!_asked_ms[n] || now_ms - _asked_ms[n] >= 5000)) {
+      _asked_ms[n] = now_ms ? now_ms : 1;
+      _ask_mask |= 1u << n;
+    }
+    return;
+  }
   if (!elc_ch_base(f.id) || elc_ch_src(f.id) == _node) return;
   ElcChTransfer t;
   if (!_rx.feed(f, now_ms, t)) return;
@@ -339,6 +347,12 @@ void ElcChannels::poll(uint32_t now_ms) {
     announce();
     if (_on_describe) _on_describe(ELC_NET_Q_ALL & ~ELC_NET_Q_ANNOUNCE, _on_describe_ctx);
     return;
+  }
+  for (uint8_t n = 1; _ask_mask && n < 32; n++) {
+    if (_ask_mask & (1u << n)) {
+      _ask_mask &= ~(1u << n);
+      query(n, ELC_NET_Q_ALL);  // its ANNOUNCE and descriptions
+    }
   }
   if (_pending_what && (int32_t)(now_ms - _pending_at) >= 0) {
     const uint8_t what = _pending_what;
