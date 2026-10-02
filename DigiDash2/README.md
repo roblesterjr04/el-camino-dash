@@ -30,7 +30,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | AUX 12 V | J13 (Mini-Fit Jr, vertical), 10 A mini-blade fuse, Q6 reverse P-FET, TVS | Slot power on pins 25–30 of every slot (no more bay plugs). Its return, AUX_GND, meets GND only at net tie NT1 |
 | Sensor serial in | J27 (1×2 pin header, back side, top edge above slot 4) and one 10k / 20k divider per screen | Optional: a jumper wire from the sensor card's J8 brings its 5 V sensor-frame serial line here, and the dividers take it to 3.3 V on pin 15 of J5 / J1 / J4 (the screens' sensor UART RX). With no wire fitted the screens' RX sits low and the data comes from CAN |
 | Screens | J5 / J1 / J4 (same pin use as rev 1), U5 / U9 / U10 MCP2562 | 120 Ω at the left end, and at the right end through SW1-1 (switch it off when the trunk port carries the bus on) |
-| Video | U8 TVP5150AM1 (address 0x5C), 14.31818 MHz crystal, J11 RCA input (37.4 Ω + 37.4 Ω termination, per TI) | Same J1 pins as rev 1's module. RESETB: RC delay, plus the center's GPIO52 (J1 pin 36) |
+| Video | U8 TVP5150AM1 (address 0x5C), 14.31818 MHz crystal, J11 RCA input (37.4 Ω + 37.4 Ω termination, per TI) | Same J1 pins as rev 1's module. RESETB: 10k / 2.2 µF power-on delay (about 26 ms), plus the center's GPIO52 (J1 pin 36) through 1k; the firmware pulses it at start-up. Reviewed against TI SLES209E on 2026-10-02: see [Video review](#video-review) |
 | Card slots | J31–J36 (slot 1–6), 2×15 sockets, 25.4 mm apart (cards' parts up to 20 mm tall). Per slot: 0.5 A PTCs on 5 V and switched 12 V, 0.1 A on 3.3 V, 0.2 A on constant 12 V, a slot-ID resistor. Shared: CAN, WAKE (D-OR into the buck's EN), LAMP / REV levels (100k / 27k, clamped), the audio bus (its ground joins GND at NT2), AUX 12 V, and the I2S rail (BCK, WS, MIC, RET, MCLK on pins 15–18 and 24, bused to all six slots; the audio card is its clock master) | See [`accessory_ports.md`](../docs/hardware/accessory_ports.md#rev-2-digidash2-card-slots) |
 | Cable ports, trunk | Cable ports J17, J22, J23, J24. Trunk J25 | As before |
 
@@ -67,7 +67,7 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
   and the screen transceivers are on the front. Each passive goes on the side of
   the chip pin it connects to.
 - **Rules:** 0.2 mm tracks and 0.13 mm clearance by default. 0.4 mm for 3.3 / 1.8 V, 0.8 mm for the 12 V nets, 1.5 mm
-  for the buck's switch node, 2.0 mm with 0.3 mm clearance for the AUX 12 V path. Vias 0.6 / 0.3 mm (0.8 / 0.4 on the
+  for the buck's switch node, 2.0 mm with 0.3 mm clearance for the AUX 12 V path, 0.25 mm with 0.2 mm clearance for the video input. Vias 0.6 / 0.3 mm (0.8 / 0.4 on the
   wide nets). These are standard 4-layer rules at JLCPCB / PCBWay.
 - **Placement:**
   - The six slots in a row at the left (sockets centred at y 53, x 20 … 147, 25.4 mm apart), the AUX strip above them along the
@@ -80,18 +80,26 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
 
 ## Status
 
-**Placed and fully routed** (2026-10-01, without the sensor pack, slots at 25.4 mm pitch). One Freerouting run (120
-passes) routed every link; the finisher had nothing left to join. DRC (`generate/drc.py`, with the schematic parity
-check): **no errors, nothing unconnected, parity clean.** What is left is 52 silkscreen warnings (reference text at
-the edge, over pads, one overlap). 1979 track segments and 1530 vias (1264 of them GND stitching). 64 parts on the
-front, 116 on the back; the placer found no tall through-hole part under a card. Fab outputs are in `fab/`
-(`python3 ../tools/fab_export.py DigiDash2`). (Run in a container without KiCad's global library table, DRC also lists
-173 "library not in the configuration" notes; they are about the environment, not the board.)
+**Placed and fully routed** (2026-10-02, after the video review). One Freerouting run (120 passes) plus the finisher;
+DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected, parity clean.** What is left
+is 52 silkscreen warnings (reference text at the edge, over pads, one overlap). 1969 track segments and 1500 vias (1342 of
+them GND). 56 parts on the front, 125 on the back. Fab outputs are in `fab/` (`python3 ../tools/fab_export.py
+DigiDash2`). (Run in a container without KiCad's global library table, DRC also lists 174 "library not in the
+configuration" notes; they are about the environment, not the board.)
+
+**One link was joined by hand after this run:** Slot 5's switched 12 V (`S5_12V`, F25 pad 2 to J35 pin 8). The
+router had boxed F25 in on both outer layers. It now leaves F25 on B.Cu (0.4 mm) to a via at (117.2, 67.0). From there
+a 0.3 mm track on In2 threads between J35's pins 7 and 5 into pin 8. That is about 6 mm of track and about 5 mW at the
+0.5 A fuse limit; the +5 V pour flows round it. A fresh run of `gen_pcb.py --route` will not reproduce this join; if a
+re-run leaves the link open, join it the same way.
 
 How it got there, in case a re-run differs:
 - **Sensor pack removed, slots widened.** The first route after the sensor pack left (slots still at 20.32 mm) left
   five links open around the video decoder. With the pitch at 25.4 mm, U11 (3.3 V LDO), J11 (RCA), J16 and D2 moved
   east of slot 6, and the next run routed completely.
+- **Video review (2026-10-02).** The video support parts are fixed by description (`FIXED_DESCR`), and the input
+  (`VID_ATT`, `VID_AIP1A`) and the pixel clock's first 2 mm are drawn and locked before routing (`PREROUTE`). Left to
+  itself, Freerouting took `VID_ATT` 80–150 mm round J1. The post-route checks now keep each net class's own clearance.
 - **U8 (TVP5150) is at x 132,** on the front between slot 5's and slot 6's socket pins. A fixed part's spot is not
   checked against the other side's through-hole pins, so keep that in mind when moving anything near the slots.
 
@@ -101,10 +109,32 @@ How it got there, in case a re-run differs:
   (and the four M3 mounting holes H1–H4), then re-run placement and routing.
 - The board outline is rev 1's. Once the screen positions are known, the height can change.
 
+## Video review
+
+The TVP5150AM1 circuit was checked line by line against TI SLES209E (2026-10-02):
+
+- **Matches the datasheet:** the pinout; the I2C address strap (YOUT7 10k down: 0xB8 / 7-bit 0x5C); the INTREQ 10k pull-down that TI
+  requires when the pin is disabled; the 14.31818 MHz crystal with 18 pF loads and 100k across it; the 1 µF REFP / REFM / REFP–REFM caps;
+  the 37.4 Ω + 37.4 Ω termination with 0.1 µF coupling (and AIP1B to ground through 0.1 µF); PDN held high; the supplies
+  (3.3 V I/O, 1.8 V core through a ferrite for the analog side) with a 0.1 µF at every supply pin. The center firmware's
+  register writes (composite on AIP1A, auto standard, BT.656 8-bit with embedded syncs, outputs on) and its chip-ID check
+  (0x51 / 0x50 at 0x80 / 0x81) fit the part.
+- **Changed in this review:**
+  - The ESD clamp and the termination now sit at the RCA jack (the clamp had been placed across the board, which made the
+    unterminated input about 178 mm long).
+  - The crystal and its load caps sit on the back, right under XTAL1 / XTAL2. The 22 Ω pixel-clock damper sits under SCLK.
+  - The input nets get their own net class (`Video`, 0.25 mm track, 0.2 mm clearance) and a hand-drawn path. The jack to the termination is 5.8 mm; the terminated signal runs 66 mm to the coupling cap, mostly on B.Cu under J1, with 2 vias. The cap to AIP1A is 2.3 mm and SCLK to its damper is 3 mm.
+  - RESETB: the 100k / 1 µF became 10k / 2.2 µF, with 1k from GPIO52. The old 100k could have been held under the
+    0.7 × IO_DVDD threshold by a weak default pull-down on GPIO52, which would leave the decoder in reset.
+- **Not on the board:** TI's anti-aliasing filter (note F: "highly recommended for best video quality"). It only affects picture quality; the
+  filter can be added in a later revision.
+- **Not checked here:** the center module's header-pin-to-GPIO map (data on GPIO20–22 / 28–32, PCLK 49, VSYNC 50, RESETB
+  52, cluster I2C 47 / 48). It is rev 1's wiring for the plug-in module; check it against Waveshare's
+  ESP32-P4 pinout once more before ordering.
+
 ## Check before ordering
 
-- The TVP5150AM1 circuit against TI SLES209E (figure 6-1) and the TPS54560B values against its datasheet (figure 32).
-  Both were copied from TI's typical applications.
+- The TPS54560B values against its datasheet (figure 32), copied from TI's typical application.
 - The power stage by eye: the input loop (C2–C5, U2, D6) should be tight, and the +5 V plane is fed through the output
   capacitors' vias. The 12 V and AUX paths' widths are set by net class; check the copper around Q2, Q5 and Q6 for
   the heat at full load.
