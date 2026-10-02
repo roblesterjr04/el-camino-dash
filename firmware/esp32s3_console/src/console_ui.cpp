@@ -155,7 +155,7 @@ const char *ConsoleUi::source_name(uint8_t code) const {
     case ELC_SRC_BLUETOOTH: return "Bluetooth";
     case ELC_SRC_RADIO: return "Radio";
     case ELC_SRC_AUX: return "Aux in";
-    default: return "None";
+    default: return "Off";
   }
 }
 
@@ -588,6 +588,7 @@ void ConsoleUi::build_rows() {
       const uint8_t cur = source(now);
       row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_BLUETOOTH, "Bluetooth", cur == ELC_SRC_BLUETOOTH ? "Playing" : "");
       if (radio()) row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_RADIO, "Radio", cur == ELC_SRC_RADIO ? "Playing" : "");
+      row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_REQ_OFF, "Off", audio_off(now) ? "Now" : "");
       break;
     }
     case kMPhone: {
@@ -780,10 +781,10 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
       if (!s) return;
       ElcChWriter w;
       elc_audio_encode(ElcAudioSource{s, r.arg}, w);
-      _src_req = r.arg;
+      _src_req = r.arg == ELC_SRC_REQ_OFF ? ELC_SRC_OFF : r.arg;
       _src_req_ms = now_ms;
-      chan_send(ELC_CH_AUDIO_CMD, w, r.arg == ELC_SRC_RADIO ? "SOURCE radio" : "SOURCE bluetooth");
-      toast("SOURCE", source_name(r.arg), now_ms);
+      chan_send(ELC_CH_AUDIO_CMD, w, r.arg == ELC_SRC_RADIO ? "SOURCE radio" : (r.arg == ELC_SRC_REQ_OFF ? "SOURCE off" : "SOURCE bluetooth"));
+      toast("SOURCE", r.arg == ELC_SRC_REQ_OFF ? "Off" : source_name(r.arg), now_ms);
       close_menu();
       return;
     }
@@ -991,8 +992,11 @@ void ConsoleUi::left_click(uint32_t now_ms) {
     return;
   }
   // the next source, shown at once; STATUS confirms it
-  const uint8_t cur = source(now_ms);
-  const uint8_t next = cur == ELC_SRC_BLUETOOTH && radio() ? ELC_SRC_RADIO : ELC_SRC_BLUETOOTH;
+  // Bluetooth, the radio (when heard), off, Bluetooth: the audio card's order (can_channels.md, Sources)
+  const uint8_t cur = _st_ms && now_ms - _st_ms <= kStatusMs ? _st.source : ELC_SRC_OFF;
+  const uint8_t next = cur == ELC_SRC_BLUETOOTH ? (radio() ? ELC_SRC_RADIO : ELC_SRC_OFF)
+                       : cur == ELC_SRC_RADIO   ? ELC_SRC_OFF
+                                                : ELC_SRC_BLUETOOTH;
   ElcChWriter w;
   elc_audio_encode(ElcAudioSource{s, ELC_SRC_NONE}, w);
   _src_req = next;
@@ -1030,6 +1034,7 @@ void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
     if (preset_khz(_pre_sel, nullptr)) media(ELC_MEDIA_PRESET_RECALL, (uint8_t)(_pre_sel + 1), "MEDIA recall preset");
     return;
   }
+  if (audio_off(now_ms)) return;  // no source: nothing to tune or skip
   const int n = clampi(steps < 0 ? -steps : steps, 1, 5);
   for (int i = 0; i < n; i++) {
     if (radio_is_source(now_ms)) {
@@ -1054,6 +1059,7 @@ void ConsoleUi::right_click(uint32_t now_ms) {
     menu_click(now_ms);
     return;
   }
+  if (audio_off(now_ms)) return;
   if (radio_is_source(now_ms)) {
     if (_pre_open) presets_close("right click");
     else presets_open(now_ms);
@@ -1069,6 +1075,7 @@ void ConsoleUi::right_hold(uint32_t now_ms) {
   _now = now_ms;
   if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
   touched(now_ms);
+  if (audio_off(now_ms)) return;
   if (radio_is_source(now_ms)) {
     media(ELC_MEDIA_SEEK_UP, 0, "MEDIA seek up");
     toast("RADIO", "Seeking", now_ms);
@@ -1106,6 +1113,10 @@ void ConsoleUi::soft_left(uint32_t now_ms) {
     for (int k = 0; k < 6; k++) {
       if (!strcmp(a->id, kIds[k])) _ack[k] = true;
     }
+    return;
+  }
+  if (audio_off(now_ms)) {
+    toast("SOURCE", "Off", now_ms);  // the left knob click turns a source on
     return;
   }
   play_pause(now_ms);

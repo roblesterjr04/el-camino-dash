@@ -118,6 +118,8 @@ class ConsoleUi {
   /** The source the audio card plays (ELC_SRC_*), ELC_SRC_NONE with no audio card. */
   uint8_t source(uint32_t now_ms) const;
   bool radio_is_source(uint32_t now_ms) const { return source(now_ms) == ELC_SRC_RADIO; }
+  /** The audio card says no source plays (off). With no audio card heard this is false: the bridge's Bluetooth runs. */
+  bool audio_off(uint32_t now_ms) const { return sink() && _st_ms && now_ms - _st_ms <= 3000 && _st.source == ELC_SRC_OFF; }
   /** The radio's preset list is up (right knob click with the radio playing), and the slot highlighted (0..11). */
   bool presets_shown() const { return _pre_open; }
   int preset_sel() const { return _pre_sel; }

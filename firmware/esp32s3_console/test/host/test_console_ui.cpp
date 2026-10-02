@@ -333,10 +333,25 @@ static void test_sources_and_radio() {
   ui.describe(d, sizeof(d), T);
   CHECK(std::strstr(d, "94.7 FM  THE WAVE") != nullptr);
 
+  // left knob click from the radio: off; then the transport controls do nothing, and the next click is Bluetooth
+  ui.left_click(T);
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][2] == ELC_SRC_NONE);
+  r.status(ELC_SRC_OFF);
+  CHECK(ui.audio_off(T));
+  r.sent(ELC_CH_AUDIO_CMD);
+  ui.right_turn(1, T);
+  ui.soft_left(T);
+  ui.right_hold(T);
+  CHECK(r.sent(ELC_CH_AUDIO_CMD).empty());
+  r.status(ELC_SRC_RADIO);
+  r.deliver(r.radio_out);
+
   // the Source page picks one directly
   ui.left_hold(T);
   CHECK(row(ui, "Radio") && pick(ui, "Source") && ui.menu_page() == ConsoleUi::kMSource);
   CHECK(row(ui, "Radio") && !std::strcmp(row(ui, "Radio")->value, "Playing"));
+  CHECK(row(ui, "Off") != nullptr);
   CHECK(pick(ui, "Bluetooth"));
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][2] == ELC_SRC_BLUETOOTH && ui.mode() == ConsoleMode::Drive);

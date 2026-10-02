@@ -302,8 +302,16 @@ void ConsoleUi::draw_presets(OledGfx &g, uint32_t t) {
 void ConsoleUi::draw_page(OledGfx &g, int page, uint32_t t) {
   switch (page) {
     case kPageMedia:
-      if (radio_is_source(t)) draw_radio(g, t);
-      else draw_media(g, t);
+      if (audio_off(t)) {
+        g.rrect(4, 4, 48, 48, 4, 3);
+        g.icon("note", 22, 22, 3);
+        g.text("Audio off", 62, 24, font('m'), 12);
+        g.text("Left knob click: next source", 62, 40, font('s'), 6, TextAlign::Left, 180);
+      } else if (radio_is_source(t)) {
+        draw_radio(g, t);
+      } else {
+        draw_media(g, t);
+      }
       break;
     case kPageTrip: draw_trip(g); break;
     case kPageEngine: draw_engine(g, t); break;
@@ -478,7 +486,7 @@ void ConsoleUi::draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown) {
     left = "Hold: Store";
     right = "Close";
   } else {
-    left = radio_is_source(t) ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play/Pause";
+    left = audio_off(t) ? "" : radio_is_source(t) ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play/Pause";
     right = "Info";  // the next drive page
   }
   const bool lit = _touch_ms && t - _touch_ms < kHintMs;

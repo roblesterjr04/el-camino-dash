@@ -115,6 +115,8 @@ static const uint8_t ELC_MEDIA_TOGGLE = 1, ELC_MEDIA_PLAY = 2, ELC_MEDIA_PAUSE =
                      ELC_MEDIA_PRESET_RECALL = 13;  // value = slot 1..12
 // sources (AUDIO_CMD, Sources)
 static const uint8_t ELC_SRC_NONE = 0, ELC_SRC_BLUETOOTH = 1, ELC_SRC_RADIO = 2, ELC_SRC_AUX = 3;
+/** STATUS source 0 = off (no source plays); a SOURCE request for off is 0xFF (0 there means "the next one"). */
+static const uint8_t ELC_SRC_OFF = ELC_SRC_NONE, ELC_SRC_REQ_OFF = 0xFF;
 static const uint8_t ELC_NOW_F_STEREO = 1, ELC_NOW_F_RDS = 2, ELC_NOW_F_MUTED = 4, ELC_NOW_F_SEEKING = 8;
 /** source / source_node read as 0 from a sink that does not send them (they were added at the end). */
 struct ElcAudioStatus { uint8_t volume = 0, flags = 0, active = 0, stream_owner = 0, zones = 0, source = 0, source_node = 0; };

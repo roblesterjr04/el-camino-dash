@@ -445,15 +445,17 @@ audio carrier. Commands may be sent to it by number or to `0x00` (the sink is th
 | `0x84` | MEDIA | any | dest u8, action u8 (see below), value u8 |
 | `0x85` | STREAM_OPEN | any | dest u8, codec u8, rate u8, zones:4 \| priority:4 u8, level % u8 |
 | `0x86` | STREAM_CLOSE | stream owner | dest u8 |
-| `0x87` | SOURCE | any | dest u8 (the sink), source u8 (0 = the next one, else a source code) |
+| `0x87` | SOURCE | any | dest u8 (the sink), source u8 (0 = the next one, `0xFF` = off, else a source code) |
 
 - STATUS at 1 Hz and on change. Flags: bit0 muted, bit1 music playing, bit2 music ducked.
 - **VOLUME is the master volume**: the sink scales its output after mixing, so it covers every source and the
   sounds. Bluetooth's own (AVRCP absolute) volume is held at full by the sink, which puts it back when the phone's
   slider moves; the phone's slider is never the car's volume.
-- **Sources.** The sink owns which source plays. Source codes: 0 none, 1 Bluetooth (the sink's own A2DP, or the audio
-  bridge), 2 radio, 3 aux in. **source node** is the node that provides it (the sink itself for Bluetooth and aux).
-  SOURCE with 0 steps to the next source that is present (a radio counts once its ANNOUNCE is heard, node type 9).
+- **Sources.** The sink owns which source plays. Source codes: 0 none (**off**), 1 Bluetooth (the sink's own A2DP, or
+  the audio bridge), 2 radio, 3 aux in. **source node** is the node that provides it (the sink itself for Bluetooth and
+  aux; 0 when off). SOURCE with 0 steps to the next one in the order Bluetooth, radio (once its ANNOUNCE is heard, node
+  type 9), off, Bluetooth; `0xFF` turns the source off. **Off** plays no source (Bluetooth paused, the radio muted
+  with RET released) while the sink stays up: its sounds and the alerts' chimes still play.
   A source learns it was chosen from STATUS: the radio powers on and asks for RET when STATUS names it, and mutes and
   releases RET when it does not. Bluetooth pauses when the sink leaves it and plays again when it comes back (if it was
   playing): the sink does that for its own A2DP, the console for the audio bridge (`can_bus.md`, phone command 14). The console's left knob click sends SOURCE 0.

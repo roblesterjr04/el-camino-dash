@@ -41,7 +41,7 @@ from chan_sim import (CH_ALERT, CH_AUDIO_CMD, CH_INPUT, CH_NET, CH_ONLINE, CH_SE
                       F_RO, F_SETTING, G_CLICK, G_REPEAT, HEARTBEAT, K_ACTION, K_CHOICE, K_NUMBER, K_READOUT, K_TEXT,
                       KEY_MUTE, KEY_NEXT, KEY_PLAY, KEY_PREV, KEY_VOL_DOWN, KEY_VOL_UP, MEDIA_NEXT, MEDIA_PAUSE,
                       MEDIA_PLAY, MEDIA_PREV, MEDIA_TOGGLE, MEDIA_TUNE_DOWN, MEDIA_TUNE_UP, SRC_BLUETOOTH, SRC_NONE,
-                      SRC_RADIO, AUDIO_SOURCE, NET_GATEWAY_CMD, NET_GATEWAY_STATUS, NODE_TYPE_GATEWAY,
+                      SRC_RADIO, SRC_REQ_OFF, AUDIO_SOURCE, NET_GATEWAY_CMD, NET_GATEWAY_STATUS, NODE_TYPE_GATEWAY,
                       NODE_TYPE_RADIO, NODE_TYPE_SENSOR, NODE_TYPE_SINK, NODE_TYPE_VOICE, PRODUCT_AUDIO_CARD,
                       PRODUCT_GPS, PRODUCT_LTE, PRODUCT_NONE, PRODUCT_VOICE, RAIL_GRANTED, RAIL_RELEASE,
                       RAIL_REQUEST, TOP, UI_OK, UI_RANGE, UI_READONLY, UI_UNKNOWN, Bus, Clock, SimCard, deliver, lp)
@@ -69,7 +69,8 @@ SOUNDS = {1: ("UI click", 0.05), 2: ("soft chime", 1.2), 3: ("caution chime", 1.
           8: ("parking tick, medium", 0.5), 9: ("parking tick, fast", 0.25), 10: ("continuous tone", 1.0)}
 TRACKS = ["Highway Song - The Drifters Band", "Summer Nights - The Cruisers", "Two Lane Road - Mesa Creek",
           "Sea Breeze - Coastline"]
-SOURCES = ("Bluetooth", "Radio")
+SOURCES = ("Bluetooth", "Radio", "Off")
+S_BT, S_RADIO, S_OFF = 0, 1, 2
 A_SOURCE, A_VOLUME, A_FADER, A_BALANCE = range(4)
 SERVICE_NODE = 0x1F  # sounds started from the relay's :audio play count as a service tool's
 HOLDER_LOST_S = 3.0
@@ -120,14 +121,16 @@ class AudioCard(SimCard):
         return any(s.prio >= 2 for s in self.sounds.values()) or bool(voice)
 
     def playing(self) -> bool:
-        if self.source == 0:
+        if self.source == S_OFF:
+            return False
+        if self.source == S_BT:
             return self.bt_playing
         return bool(self.holder) and self.holder == self.radio_node()
 
     def status_tuple(self) -> tuple[int, ...]:
         flags = (1 if self.muted else 0) | (2 if self.playing() else 0) | (4 if self.ducked() else 0)
-        code = SRC_RADIO if self.source == 1 else SRC_BLUETOOTH
-        src_node = self.radio_node() if self.source == 1 else self.node
+        code = (SRC_BLUETOOTH, SRC_RADIO, SRC_NONE)[self.source]
+        src_node = (self.node, self.radio_node(), 0)[self.source]
         return self.volume, flags, min(len(self.sounds), 255), 0, 0x0F, code, src_node
 
     def send_status(self) -> None:
@@ -155,7 +158,7 @@ class AudioCard(SimCard):
 
     def set(self, n: int, v: int) -> int:
         if n == A_SOURCE:
-            if v not in (0, 1):
+            if v not in (S_BT, S_RADIO, S_OFF):
                 return UI_RANGE
             self.set_source(v)
         elif n == A_VOLUME:
@@ -179,16 +182,16 @@ class AudioCard(SimCard):
     def set_source(self, v: int) -> None:
         if v == self.source:
             return
-        if v == 1 and not self.radio_node():
+        if v == S_RADIO and not self.radio_node():
             self.log("source Radio asked for, but no radio card heard: stays Bluetooth")
             return
-        if v == 1:  # leaving Bluetooth: pause it, and play it again when it comes back (if it was playing)
+        if self.source == S_BT:  # leaving Bluetooth: pause it, and play it again when it comes back (if it was playing)
             self.bt_was_playing, self.bt_playing = self.bt_playing, False
-        elif self.bt_was_playing:
+        elif v == S_BT and self.bt_was_playing:
             self.bt_playing = True
         self.source = v
-        self.line(f"source {SOURCES[v]}" + (", Bluetooth paused" if v == 1 and self.bt_was_playing else
-                                             ", Bluetooth plays" if v == 0 and self.bt_playing else ""))
+        self.line(f"source {SOURCES[v]}" + (", Bluetooth paused" if v != S_BT and self.bt_was_playing else
+                                             ", Bluetooth plays" if v == S_BT and self.bt_playing else ""))
         self.send_value(A_SOURCE)
         self.send_status()  # the sources learn from STATUS which one plays
 
@@ -205,7 +208,10 @@ class AudioCard(SimCard):
     # ---- media
 
     def media(self, action: int, value: int = 0) -> None:
-        if self.source == 1:
+        if self.source == S_OFF:
+            self.log(f"media {action} ignored: the source is off")
+            return
+        if self.source == S_RADIO:
             radio = self.radio_node()
             if not radio:
                 self.log("source Radio, but no radio card heard: media key dropped")
@@ -298,10 +304,13 @@ class AudioCard(SimCard):
             elif op == 0x84 and len(p) >= 3:
                 self.media(p[2], p[3] if len(p) > 3 else 0)
             elif op == AUDIO_SOURCE and len(p) >= 3:
-                if p[2] == SRC_NONE:  # the next present source
-                    self.set_source(1 if self.source == 0 and self.radio_node() else 0)
+                if p[2] == SRC_NONE:  # the next: Bluetooth, the radio (when heard), off
+                    nxt = {S_BT: S_RADIO if self.radio_node() else S_OFF, S_RADIO: S_OFF, S_OFF: S_BT}[self.source]
+                    self.set_source(nxt)
+                elif p[2] == SRC_REQ_OFF:
+                    self.set_source(S_OFF)
                 elif p[2] in (SRC_BLUETOOTH, SRC_RADIO):
-                    self.set_source(1 if p[2] == SRC_RADIO else 0)
+                    self.set_source(S_RADIO if p[2] == SRC_RADIO else S_BT)
             elif op == 0x85 and len(p) >= 2:
                 self.transfer(CH_AUDIO_CMD, bytes([0x03, 0, p[2] if len(p) > 2 else 0, p[3] if len(p) > 3 else 0]))
                 self.log(f"STREAM_OPEN from 0x{src:02x} refused (streams are not simulated)")
@@ -354,8 +363,8 @@ class AudioCard(SimCard):
         try:
             if cmd == "status":
                 return self.status()
-            if cmd == "source" and args and args[0] in ("bt", "bluetooth", "radio"):
-                self.set_source(1 if args[0] == "radio" else 0)
+            if cmd == "source" and args and args[0] in ("bt", "bluetooth", "radio", "off"):
+                self.set_source({"radio": S_RADIO, "off": S_OFF}.get(args[0], S_BT))
             elif cmd == "volume" and args:
                 self.set_volume(int(args[0]))
             elif cmd == "mute":
@@ -1082,9 +1091,13 @@ def _test_audio() -> None:
     deliver(a, 0x13, CH_INPUT, bytes([0x01, KEY_PREV, G_CLICK, 5]), 7)
     assert bus.got(CH_AUDIO_CMD, 0x84) == [bytes([0x84, 0x15, MEDIA_PREV, 0])] and a.track == 1
     # SOURCE from the console: 0 steps to the next present source
-    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 7)
-    assert a.source == 0 and bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_BLUETOOTH, 0x14])
-    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 9)
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 7)  # radio -> off
+    assert a.source == S_OFF and bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_NONE, 0])
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 8)  # off -> Bluetooth
+    assert a.source == S_BT and bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_BLUETOOTH, 0x14])
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_REQ_OFF]), 11)  # straight to off
+    assert a.source == S_OFF
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_RADIO]), 9)
     assert a.source == 1
     bus.clear()
     deliver(a, 0x13, CH_AUDIO_CMD, bytes([0x84, 0x14, MEDIA_TUNE_UP, 0]), 10)

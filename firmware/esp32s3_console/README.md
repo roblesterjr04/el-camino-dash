@@ -31,7 +31,7 @@ and a hold (`CONSOLE_HOLD_MS`, 650 ms).
 | Control | Bluetooth | Radio |
 | --- | --- | --- |
 | Left knob turn | volume | volume |
-| Left knob click | next source (AUDIO_CMD SOURCE to the audio card) | same |
+| Left knob click | next source: Bluetooth → Radio → Off → Bluetooth (AUDIO_CMD SOURCE to the audio card) | same |
 | Left knob hold | the menu | the menu |
 | Right knob turn | next / previous track | tune one grid step per detent |
 | Right knob click | voice assistant | the preset list (below) |
@@ -60,7 +60,7 @@ the menu. In an editor either knob changes the value, a click sends it, the left
 
 | Page | What it holds |
 | --- | --- |
-| Source | Bluetooth, Radio (when a radio card is heard) |
+| Source | Bluetooth, Radio (when a radio card is heard), Off (no source: Bluetooth paused, the radio muted; chimes still sound) |
 | Radio | the radio card's own page from the UI channel: on / off, band, frequency, seek, presets, region… |
 | Phone | the connected phone, Pair new phone / Stop pairing, voice assistant, redial, the paired phones (Connect or Disconnect, Forget with a confirmation) |
 | Accessories | every accessory's page from the UI channel (the audio card, GPS, the gateway…) |
