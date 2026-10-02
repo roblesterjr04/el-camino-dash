@@ -118,6 +118,11 @@ class ConsoleUi {
   /** The source the audio card plays (ELC_SRC_*), ELC_SRC_NONE with no audio card. */
   uint8_t source(uint32_t now_ms) const;
   bool radio_is_source(uint32_t now_ms) const { return source(now_ms) == ELC_SRC_RADIO; }
+  /** The radio's preset list is up (right knob click with the radio playing), and the slot highlighted (0..11). */
+  bool presets_shown() const { return _pre_open; }
+  int preset_sel() const { return _pre_sel; }
+  /** Preset i's frequency in kHz from the radio's preset items (radio_card.md, items 15-26); false when empty. */
+  bool preset_khz(int i, uint32_t *khz) const;
   /** The menu page shown and its rows (tests, describe). */
   uint8_t menu_page() const { return _stack[_depth].page; }
   int menu_rows(const ConsoleRow **rows);
@@ -128,6 +133,9 @@ class ConsoleUi {
   static constexpr uint32_t kBootMs = 1700;        // bowtie at power-up: fade in, then a sheen
   static constexpr uint32_t kToastMs = 1800;
   static constexpr uint32_t kVolumeShowMs = 1450;
+  static constexpr uint32_t kPresetsIdleMs = 4000;  // the preset list closes after this long untouched
+  static constexpr int kPresets = 12;
+  static constexpr uint8_t kRadioPresetItem0 = 15;  // the radio's preset frequency items 15..26 (radio_card.md)
   static constexpr uint32_t kHintMs = 2600;        // soft-key labels stay lit this long after a control is touched
 
   // Menu pages.
@@ -192,6 +200,8 @@ class ConsoleUi {
   float trip_mi() const;
   void art_pump(uint32_t now_ms);
   void touched(uint32_t now_ms) { _touch_ms = now_ms ? now_ms : 1; }
+  void presets_open(uint32_t now_ms);
+  void presets_close() { _pre_open = false; }
   uint8_t sink() const;
   uint8_t radio() const;
   bool bridge_heard(uint32_t now_ms) const { return _bridge_ms && now_ms - _bridge_ms < 3000; }
@@ -208,6 +218,7 @@ class ConsoleUi {
   void draw_alert(OledGfx &g, const ConsoleAlert &a, uint32_t t);
   void draw_call(OledGfx &g, uint32_t t);
   void draw_pair(OledGfx &g, uint32_t t);
+  void draw_presets(OledGfx &g, uint32_t t);
   void draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown);
   void draw_volume(OledGfx &g, uint32_t t);
   void draw_toast(OledGfx &g, uint32_t t);
@@ -296,6 +307,9 @@ class ConsoleUi {
   uint32_t _view_req_ms = 0;
   int _bright_live = -1;  // brightness while being edited (the center's echo lags)
   uint32_t _touch_ms = 0;
+  bool _pre_open = false;  // the preset list
+  int _pre_sel = 0;
+  uint32_t _pre_ms = 0;    // its last input
   uint8_t _src_req = 0;   // the source asked for, until STATUS says so
   uint32_t _src_req_ms = 0;
 

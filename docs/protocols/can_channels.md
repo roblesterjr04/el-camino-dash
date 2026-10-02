@@ -455,7 +455,7 @@ audio carrier. Commands may be sent to it by number or to `0x00` (the sink is th
   releases RET when it does not. The console's left knob click sends SOURCE 0.
 - **MEDIA actions:** 1 play/pause, 2 play, 3 pause, 4 next, 5 previous, 6 tune up, 7 tune down (one grid step),
   8 next preset, 9 previous preset, 10 store preset (value = slot 1–12, 0 = the next free one, else the oldest),
-  11 seek up, 12 seek down; value is 0 where an action takes none. The sink acts on them for its own source and
+  11 seek up, 12 seek down, 13 recall preset (value = slot 1–12); value is 0 where an action takes none. The sink acts on them for its own source and
   forwards them, unchanged and addressed to the source node, when another node is the source. A source ignores what
   it cannot do (Bluetooth: 6 / 7 = next / previous, 8–12 nothing; the radio: play/pause = mute).
 - **NOW PLAYING** is sent by the active source on change and every 2 s, for the console and the media screen.

@@ -1,6 +1,6 @@
 // Host render of the console OLED: feeds the console's UI the CAN frames of a bench scenario and writes the
 // 256×64 grey frame as a PGM (levels 0..15 scaled to 0..255). Usage: render <scenario> <theme 0|1|2> <out.pgm>
-// Scenarios: media media-low radio hints trip engine clock menu menu-phone menu-display edit menu-radio source alert
+// Scenarios: media media-low radio hints presets trip engine clock menu menu-phone menu-display edit menu-radio source alert
 // call-in call-active pair volume toast nophone waiting reverse boot
 
 #include <stdio.h>
@@ -73,6 +73,20 @@ static void channels(bool radio_source) {
   for (auto &v : vals) {
     ElcChWriter vw;
     elc_ui_encode(v, vw);
+    s_radio.send(ELC_CH_UI, vw);
+  }
+  const uint32_t kPre[12] = {88500, 94700, 98300, 0, 101100, 1070, 0, 0, 104900, 0, 0, 0};
+  for (int i = 0; i < 12; i++) {
+    ElcUiItem pi;
+    pi.item = (uint8_t)(15 + i);
+    pi.parent = 14;
+    pi.kind = ELC_UI_NUMBER;
+    pi.flags = ELC_UI_F_ADVANCED | ELC_UI_F_SETTING;
+    snprintf(pi.label, 33, "Preset %d", i + 1);
+    ElcChWriter pw, vw;
+    elc_ui_encode(pi, pw);
+    elc_ui_encode(ElcUiValue{(uint8_t)(15 + i), (int32_t)kPre[i]}, vw);
+    s_radio.send(ELC_CH_UI, pw);
     s_radio.send(ELC_CH_UI, vw);
   }
   ElcUiText txt;
@@ -212,7 +226,7 @@ int main(int argc, char **argv) {
   }
   if (!strcmp(sc, "media")) phone_idle(4, 3);
   if (!strcmp(sc, "media-low")) phone_idle(1, 1);
-  const bool radio_src = !strcmp(sc, "radio") || !strcmp(sc, "hints") || !strcmp(sc, "menu-radio") ||
+  const bool radio_src = !strcmp(sc, "radio") || !strcmp(sc, "hints") || !strcmp(sc, "menu-radio") || !strcmp(sc, "presets") ||
                          !strcmp(sc, "menu") || !strcmp(sc, "source");
   if (radio_src || !strcmp(sc, "menu-phone")) channels(radio_src);
   ui.tick(T);
@@ -229,6 +243,7 @@ int main(int argc, char **argv) {
   if (!strcmp(sc, "engine")) { ui.soft_right(T); step(400); ui.soft_right(T); step(400); }
   if (!strcmp(sc, "clock")) { for (int i = 0; i < 3; i++) { ui.soft_right(T); step(400); } }
   if (!strcmp(sc, "hints")) { ui.right_turn(1, T); step(300); }
+  if (!strcmp(sc, "presets")) { ui.right_click(T); ui.right_turn(2, T); step(200); }
   if (!strcmp(sc, "menu")) { ui.left_hold(T); step(100); }
   if (!strcmp(sc, "menu-display")) { ui.left_hold(T); ui.left_turn(3, T); ui.left_click(T); ui.left_turn(1, T); step(100); }
   if (!strcmp(sc, "edit")) {

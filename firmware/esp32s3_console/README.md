@@ -34,16 +34,21 @@ and a hold (`CONSOLE_HOLD_MS`, 650 ms).
 | Left knob click | next source (AUDIO_CMD SOURCE to the audio card) | same |
 | Left knob hold | the menu | the menu |
 | Right knob turn | next / previous track | tune one grid step per detent |
-| Right knob click | voice assistant | next preset |
+| Right knob click | voice assistant | the preset list (below) |
 | Right knob hold | redial | seek up |
 | Left soft click | play / pause | mute / unmute |
-| Left soft hold | — | store the station as a preset (the next free one) |
+| Left soft hold | — | store the station as a preset (the next free one; in the preset list, the slot highlighted) |
 | Right soft click | next OLED page (Media → Trip → Engine → Clock) | same |
 | Right soft hold | next view on the center screen | same |
 
 Bluetooth commands go to the audio bridge (`0x215`, as before) and, when an audio card is heard, to it too (AUDIO_CMD
 MEDIA / VOLUME); radio commands go to the audio card, which forwards them to the radio
 (`docs/protocols/can_channels.md`, AUDIO_CMD). A warning on the drive page is acknowledged with the left soft key.
+
+**The preset list** (right knob click with the radio playing): the twelve presets, four by three, with their
+frequencies; the one playing is outlined. Turning the right knob moves along them and tunes to each stored one as it
+lands (AUDIO_CMD MEDIA 13, recall); holding the left soft key stores the station in the slot highlighted, over what it
+held; the right soft key or the right knob click closes it, and it closes by itself after 4 s untouched.
 
 **In a call** the soft keys are Decline / Answer, End / Mute (Unmute), Ignore / Answer (holds the active call), End /
 Swap; the left knob sets the call volume and its click mutes the microphone. **A phone asking to pair** takes over the

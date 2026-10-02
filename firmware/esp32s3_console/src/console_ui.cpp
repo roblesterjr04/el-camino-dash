@@ -893,6 +893,25 @@ void ConsoleUi::edit_cancel(uint32_t now_ms) {
   build_rows();
 }
 
+// ---- the preset list ----
+
+bool ConsoleUi::preset_khz(int i, uint32_t *khz) const {
+  const uint8_t r = radio();
+  if (!r || i < 0 || i >= kPresets) return false;
+  const AccItem *it = accessory_can_item(r, (uint8_t)(kRadioPresetItem0 + i));
+  if (!it || !it->has_value || it->value <= 0) return false;
+  if (khz) *khz = (uint32_t)it->value;
+  return true;
+}
+
+void ConsoleUi::presets_open(uint32_t now_ms) {
+  _pre_open = true;
+  _pre_ms = now_ms;
+  // start on the preset playing now (NOW PLAYING names it), else the first slot
+  const bool np = _now_ms && now_ms - _now_ms < 5000 && _now_playing.source == ELC_SRC_RADIO;
+  _pre_sel = np && _now_playing.preset >= 1 && _now_playing.preset <= kPresets ? _now_playing.preset - 1 : 0;
+}
+
 // ---- input ----
 
 void ConsoleUi::page_step(int dir, uint32_t now_ms) {
@@ -955,6 +974,7 @@ void ConsoleUi::left_click(uint32_t now_ms) {
     menu_click(now_ms);
     return;
   }
+  presets_close();
   const uint8_t s = sink();
   if (!s) {
     toast("SOURCE", "No audio card", now_ms);
@@ -976,6 +996,7 @@ void ConsoleUi::left_hold(uint32_t now_ms) {
   _now = now_ms;
   if (!alive(now_ms) || call_shown(now_ms) || pair_shown(now_ms)) return;
   touched(now_ms);
+  presets_close();
   if (_mode == ConsoleMode::Drive) open_menu(now_ms);
   else close_menu();
 }
@@ -991,6 +1012,12 @@ void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
   }
   if (_mode == ConsoleMode::Menu) {
     menu_move(steps);
+    return;
+  }
+  if (_pre_open) {  // the preset list: move along it, tuning to each stored one as it lands
+    _pre_ms = now_ms;
+    _pre_sel = ((_pre_sel + steps) % kPresets + kPresets) % kPresets;
+    if (preset_khz(_pre_sel, nullptr)) media(ELC_MEDIA_PRESET_RECALL, (uint8_t)(_pre_sel + 1), "MEDIA recall preset");
     return;
   }
   const int n = clampi(steps < 0 ? -steps : steps, 1, 5);
@@ -1018,7 +1045,8 @@ void ConsoleUi::right_click(uint32_t now_ms) {
     return;
   }
   if (radio_is_source(now_ms)) {
-    media(ELC_MEDIA_PRESET_NEXT, 0, "MEDIA next preset");
+    if (_pre_open) presets_close();
+    else presets_open(now_ms);
   } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
     const bool on = !(_ph.flags & ELC_CAN_PHONE_VOICE);
     phone_cmd(ELC_CAN_PHONE_CMD_VOICE, on ? 1 : 0, "voice");
@@ -1078,10 +1106,17 @@ void ConsoleUi::soft_left_hold(uint32_t now_ms) {
   _now = now_ms;
   if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
   touched(now_ms);
-  if (radio_is_source(now_ms)) {
-    media(ELC_MEDIA_PRESET_STORE, 0, "MEDIA store preset");
-    toast("PRESET", "Stored", now_ms);
+  if (!radio_is_source(now_ms)) return;
+  if (_pre_open) {  // into the slot highlighted, over whatever it held
+    _pre_ms = now_ms;
+    media(ELC_MEDIA_PRESET_STORE, (uint8_t)(_pre_sel + 1), "MEDIA store preset");
+    char v[16];
+    snprintf(v, sizeof(v), "Stored in %d", _pre_sel + 1);
+    toast("PRESET", v, now_ms);
+    return;
   }
+  media(ELC_MEDIA_PRESET_STORE, 0, "MEDIA store preset");  // the next free slot (else the oldest)
+  toast("PRESET", "Stored", now_ms);
 }
 
 /** Right soft key: Answer / Mute / Swap in a call, Pair a phone, leave the menu, the next OLED page at rest. */
@@ -1108,6 +1143,10 @@ void ConsoleUi::soft_right(uint32_t now_ms) {
   if (_mode == ConsoleMode::Edit) edit_done(now_ms);
   if (_mode == ConsoleMode::Menu) {
     close_menu();
+    return;
+  }
+  if (_pre_open) {
+    presets_close();
     return;
   }
   page_step(1, now_ms);
@@ -1181,6 +1220,10 @@ void ConsoleUi::tick(uint32_t now_ms) {
   if (_mode == ConsoleMode::Edit && !alive(now_ms)) {
     _mode = ConsoleMode::Menu;
     _edit_id = 0;
+  }
+  if (_pre_open && (now_ms - _pre_ms > kPresetsIdleMs || !radio_is_source(now_ms) || _mode != ConsoleMode::Drive ||
+                    call_shown(now_ms))) {
+    presets_close();
   }
   if (_mode != ConsoleMode::Drive) {
     build_rows();

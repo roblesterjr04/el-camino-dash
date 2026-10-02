@@ -272,6 +272,33 @@ void ConsoleUi::draw_radio(OledGfx &g, uint32_t t) {
   g.text(l2, tx, 42, font('o'), 8, TextAlign::Left, 186);
 }
 
+/** The radio's twelve presets, four by three: the highlighted one inverted, the one playing outlined, empty ones "--".
+ *  The right knob moves along them (tuning each stored one), the left soft key held stores the station here. */
+void ConsoleUi::draw_presets(OledGfx &g, uint32_t t) {
+  const bool np = _now_ms && t - _now_ms < 5000 && _now_playing.source == ELC_SRC_RADIO;
+  g.text("PRESETS", 4, 8, TINY, 6);
+  if (np) g.text(_now_playing.line1, 250, 8, TINY, 10, TextAlign::Right, 170);
+  const lv_font_t *f = font('s');
+  for (int i = 0; i < kPresets; i++) {
+    const int col = i % 4, row = i / 4;
+    const int x = 2 + col * 62, y = 11 + row * 14, w = 60, h = 13;
+    uint32_t khz = 0;
+    const bool stored = preset_khz(i, &khz);
+    const bool sel = i == _pre_sel;
+    const bool playing = np && _now_playing.preset == i + 1;
+    char v[16];
+    if (!stored) snprintf(v, sizeof(v), "--");
+    else if (khz >= 10000) snprintf(v, sizeof(v), "%lu.%lu", (unsigned long)(khz / 1000), (unsigned long)(khz % 1000 / 100));
+    else snprintf(v, sizeof(v), "%lu AM", (unsigned long)khz);
+    if (sel) g.rbox(x, y, w, h, 3, 13);
+    else if (playing) g.rrect(x, y, w, h, 3, 9);
+    char n[4];
+    snprintf(n, sizeof(n), "%d", i + 1);
+    g.text(n, x + 4, y + 10, TINY, sel ? 0 : 5);
+    g.text(v, x + w - 4, y + 10, f, sel ? 0 : (stored ? (playing ? 15 : 11) : 4), TextAlign::Right);
+  }
+}
+
 void ConsoleUi::draw_page(OledGfx &g, int page, uint32_t t) {
   switch (page) {
     case kPageMedia:
@@ -448,6 +475,9 @@ void ConsoleUi::draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown) {
     right = "Exit";
   } else if (alert_shown) {
     left = "OK";
+  } else if (_pre_open) {
+    left = "Hold: Store";
+    right = "Close";
   } else {
     left = radio_is_source(t) ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play";
     right = kNext[_page % kPageCount];
@@ -547,7 +577,9 @@ void ConsoleUi::render(OledGfx &g, uint32_t t) {
     } else {
       const float e = fminf(1, (t - _page_ms) / 180.0f);
       const float ez = 1 - powf(1 - e, 3);
-      if (_page_ms && e < 1) {
+      if (_pre_open) {
+        draw_presets(g, t);
+      } else if (_page_ms && e < 1) {
         g.offset(0, (int)lroundf(-_page_dir * 64 * ez));
         draw_page(g, _page_from, t);
         g.offset(0, (int)lroundf(_page_dir * 64 * (1 - ez)));
@@ -556,7 +588,7 @@ void ConsoleUi::render(OledGfx &g, uint32_t t) {
       } else {
         draw_page(g, _page, t);
       }
-      for (int i = 0; i < kPageCount; i++) {  // page dots
+      for (int i = 0; i < kPageCount && !_pre_open; i++) {  // page dots
         const bool on = i == _page;
         g.box(252, 17 + i * 8 + (on ? 0 : 1), 3, on ? 6 : 3, on ? 13 : 3);
       }

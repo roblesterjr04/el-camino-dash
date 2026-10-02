@@ -255,7 +255,7 @@ up. Its item numbers are the ones the firmware should use:
 | 10 | Store as preset | choice | asks to confirm; stores the current station in the chosen slot |
 | 11 | Region | choice | US, Europe; setting |
 | 12, 13 | Seek signal min, Seek SNR min | number | advanced, setting |
-| 14 | Preset memory | group | advanced: items 15–26, each preset's frequency in kHz (0 = empty), as settings so the center backs them up |
+| 14 | Preset memory | group | advanced: items 15–26, each preset's frequency in kHz (0 = empty), as settings so the center backs them up. The console's preset list reads these |
 
 SENSOR 0 "Radio signal dBuV" and 1 "Radio SNR dB" use quantity 0 (unitless): the registry has no dBµV or dB.
 

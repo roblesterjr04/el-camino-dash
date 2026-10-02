@@ -266,9 +266,44 @@ static void test_sources_and_radio() {
   ui.right_turn(-1, T);
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_TUNE_DOWN);
-  ui.right_click(T);  // next preset
+  // the preset list: presets 1 and 3 stored (the radio's items 15..26, kHz)
+  for (const ElcUiValue &pv : {ElcUiValue{15, 94700}, ElcUiValue{17, 1070}}) {
+    ElcUiItem it;
+    it.item = pv.item;
+    it.kind = ELC_UI_NUMBER;
+    it.parent = 14;
+    std::snprintf(it.label, sizeof(it.label), "Preset %d", pv.item - 14);
+    ElcChWriter iw, vw;
+    elc_ui_encode(it, iw);
+    elc_ui_encode(pv, vw);
+    r.radio.send(ELC_CH_UI, iw);
+    r.radio.send(ELC_CH_UI, vw);
+  }
+  r.deliver(r.radio_out);
+  uint32_t khz = 0;
+  CHECK(ui.preset_khz(0, &khz) && khz == 94700 && !ui.preset_khz(1, nullptr) && ui.preset_khz(2, &khz) && khz == 1070);
+  ui.right_click(T);  // opens the list on slot 1
+  CHECK(ui.presets_shown() && ui.preset_sel() == 0 && r.sent(ELC_CH_AUDIO_CMD).empty());
+  ui.right_turn(1, T);  // slot 2 is empty: nothing to tune
+  CHECK(ui.preset_sel() == 1 && r.sent(ELC_CH_AUDIO_CMD).empty());
+  ui.soft_left_hold(T);  // store the station in slot 2
   m = r.sent(ELC_CH_AUDIO_CMD);
-  CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_NEXT);
+  CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_STORE && m[0][3] == 2);
+  ui.right_turn(1, T);  // slot 3 holds 1070 AM: recall it
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(ui.preset_sel() == 2 && m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_RECALL && m[0][3] == 3);
+  ui.right_turn(-4, T);  // wraps to slot 11
+  CHECK(ui.preset_sel() == 10);
+  r.sent(ELC_CH_AUDIO_CMD);
+  ui.soft_right(T);  // closes, and the page stays
+  CHECK(!ui.presets_shown() && ui.page() == kPageMedia);
+  ui.right_click(T);
+  T += ConsoleUi::kPresetsIdleMs + 100;
+  center(ui);  // the center and the audio card are still there
+  sensors(ui);
+  r.status(ELC_SRC_RADIO);
+  ui.tick(T);
+  CHECK(!ui.presets_shown());  // closes by itself when left alone
   ui.right_hold(T);  // seek up
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_SEEK_UP);

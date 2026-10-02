@@ -29,7 +29,7 @@ from chan_sim import (CH_AUDIO_CMD, CH_INPUT, CH_NET, CH_SENSOR, CH_SYSTEM, CH_U
                       K_NUMBER, K_READOUT, K_TEXT, K_TOGGLE, KEY_NEXT, KEY_PLAY, KEY_PREV, MEDIA_NEXT, MEDIA_PAUSE,
                       MEDIA_PLAY, MEDIA_PREV, MEDIA_TOGGLE, NODE_TYPE_RADIO, NODE_TYPE_SINK, NONE32,
                       MEDIA_PRESET_NEXT, MEDIA_PRESET_PREV, MEDIA_PRESET_STORE, MEDIA_SEEK_DOWN, MEDIA_SEEK_UP,
-                      MEDIA_TUNE_DOWN, MEDIA_TUNE_UP, SRC_RADIO, AUDIO_NOW,
+                      MEDIA_TUNE_DOWN, MEDIA_TUNE_UP, SRC_RADIO, AUDIO_NOW, MEDIA_PRESET_RECALL,
                       PRODUCT_AUDIO_CARD, PRODUCT_RADIO, TOP, Reassembler, SimCard, crc16, transfer_frames)
 
 FIRMWARE = 0x0001
@@ -506,6 +506,11 @@ class RadioSim(SimCard):
                 pos = stored.index(cur) if cur in stored else 0
                 i = stored[(pos + step) % len(stored)]
             self.recall(i)
+        elif action == MEDIA_PRESET_RECALL:
+            if 1 <= value <= PRESETS and self.presets[value - 1]:
+                self.recall(value - 1)
+            else:
+                self.line(f"preset {value} is empty", 2)
         elif action == MEDIA_PRESET_STORE:
             if 1 <= value <= PRESETS:
                 slot = value - 1

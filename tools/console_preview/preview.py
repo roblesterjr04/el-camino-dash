@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RENDER = os.path.join(HERE, "build", "render")
-ALL = ["media", "radio", "hints", "trip", "engine", "clock", "menu", "menu-radio", "menu-phone", "menu-display",
+ALL = ["media", "radio", "hints", "presets", "trip", "engine", "clock", "menu", "menu-radio", "menu-phone", "menu-display",
        "edit", "source", "pair", "alert", "call-in", "call-active", "volume", "toast", "nophone", "reverse", "waiting", "boot"]
 AMBER = (255, 140, 26)
 K = 3  # pixels per OLED pixel
