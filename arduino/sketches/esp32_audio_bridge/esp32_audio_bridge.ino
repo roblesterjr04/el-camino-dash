@@ -25,6 +25,7 @@
  */
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <cstring>
 
 #include "AudioTools.h"
@@ -173,6 +174,27 @@ static void anchor_position_unlocked(uint16_t pos_s) {
 static I2SStream *audio_output = nullptr;
 static CallGateStream *a2dp_output = nullptr;  // A2DP's way to audio_output, closed while a call owns I2S0
 static BluetoothA2DPSink *a2dp_sink = nullptr;
+
+// ---- master volume ----
+// The bridge is the sink: it scales the PCM by its own master volume (0..15 from the console, phone command 15, kept
+// in NVS), so one volume covers every source. The phone's own (AVRCP absolute) volume is held at full: with absolute
+// volume the phone sends full-scale audio and leaves the attenuation to the sink, so its slider would otherwise be the
+// car's volume. When the phone moves it, the bridge puts it back.
+static constexpr uint8_t kPhoneLockedVolume = 127;
+static constexpr uint8_t kMasterDefault = 8;
+
+class MasterVolume : public A2DPDefaultVolumeControl {
+ public:
+  void set_volume(uint8_t) override {}  // the phone's slider and the library's own calls: not the output level
+  void set_master(uint8_t v_0_15) {
+    A2DPDefaultVolumeControl::set_volume((uint8_t)((v_0_15 * 127 + 7) / 15));
+    set_enabled(true);
+  }
+};
+static MasterVolume s_master;
+static Preferences s_bridge_prefs;
+static volatile bool s_relock_phone = false;  // set from Bluetooth callbacks, acted on in loop()
+static uint32_t s_master_changed_ms = 0;      // saved to NVS 2 s after the last change
 
 /** Cover art data arrives in pieces on the BT task; copy it out before the callback returns. */
 static void on_cover_art_data(const esp_avrc_ct_cb_param_t *p) {
@@ -403,20 +425,13 @@ static void avrc_play_status_cb(esp_avrc_playback_stat_t st) {
 }
 
 static void avrc_volume_cb(int vol_0_127) {
-  int v = vol_0_127;
-  if (v < 0) {
-    v = 0;
-  }
-  if (v > 127) {
-    v = 127;
-  }
-  portENTER_CRITICAL(&s_track_mux);
-  s_vol_0_15 = (uint8_t)((v * 15 + 63) / 127);
-  portEXIT_CRITICAL(&s_track_mux);
+  // The phone's slider moved: it is not the car's volume, so hold it at full again (loop() sends it).
+  if (vol_0_127 != kPhoneLockedVolume) s_relock_phone = true;
 }
 
 /** Phone disconnected: clear now-playing so the center doesn't keep showing a stale track. */
 static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
+  if (state == ESP_A2D_CONNECTION_STATE_CONNECTED) s_relock_phone = true;  // a phone joins: its volume to full
   if (state != ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
     return;
   }
@@ -457,10 +472,11 @@ static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, boo
   if (cmd == kPhoneCmdMediaVolume) {
     if (!a2dp_sink) return false;
     const uint8_t v = arg > 15 ? 15 : arg;
-    a2dp_sink->set_volume((uint8_t)((v * 127 + 7) / 15));  // AVRCP absolute volume: the phone's slider follows
+    s_master.set_master(v);  // the master volume: the output level, whatever the source
     portENTER_CRITICAL(&s_track_mux);
     s_vol_0_15 = v;
     portEXIT_CRITICAL(&s_track_mux);
+    s_master_changed_ms = millis() ? millis() : 1;
     return true;
   }
   return phone_command(cmd, arg, list_serial, check_serial);
@@ -869,6 +885,11 @@ void setup() {
 
   s_art = static_cast<uint8_t *>(art_alloc(kArtMax));  // PSRAM when the board has it
   a2dp_sink = new CoverArtSink(*a2dp_output);
+  s_bridge_prefs.begin("bridge", false);
+  s_vol_0_15 = s_bridge_prefs.getUChar("mvol", kMasterDefault);
+  if (s_vol_0_15 > 15) s_vol_0_15 = kMasterDefault;
+  s_master.set_master(s_vol_0_15);
+  a2dp_sink->set_volume_control(&s_master);
   a2dp_sink->set_avrc_metadata_attribute_mask(
       ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM |
       ESP_AVRC_MD_ATTR_TRACK_NUM | ESP_AVRC_MD_ATTR_NUM_TRACKS | ESP_AVRC_MD_ATTR_GENRE |
@@ -898,7 +919,20 @@ void setup() {
                 (unsigned)ESP.getFreeHeap(), (unsigned)(ESP.getFreePsram() / 1024), kArtSmallSide);
 }
 
+/** Hold the phone's volume at full, and save the master volume once it settles. */
+static void volume_loop() {
+  if (s_relock_phone && a2dp_sink && a2dp_sink->is_connected()) {
+    s_relock_phone = false;
+    a2dp_sink->set_volume(kPhoneLockedVolume);  // tells the phone (AVRCP); the output stays at the master volume
+  }
+  if (s_master_changed_ms && millis() - s_master_changed_ms > 2000u) {
+    s_master_changed_ms = 0;
+    s_bridge_prefs.putUChar("mvol", s_vol_0_15);
+  }
+}
+
 void loop() {
+  volume_loop();
 #if AUDIO_BRIDGE_CAN
   // Drain CAN often (the bus carries ~100 sensor frames/s) and keep album art flowing; the rest runs
   // every 250 ms.

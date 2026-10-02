@@ -448,6 +448,9 @@ audio carrier. Commands may be sent to it by number or to `0x00` (the sink is th
 | `0x87` | SOURCE | any | dest u8 (the sink), source u8 (0 = the next one, else a source code) |
 
 - STATUS at 1 Hz and on change. Flags: bit0 muted, bit1 music playing, bit2 music ducked.
+- **VOLUME is the master volume**: the sink scales its output after mixing, so it covers every source and the
+  sounds. Bluetooth's own (AVRCP absolute) volume is held at full by the sink, which puts it back when the phone's
+  slider moves; the phone's slider is never the car's volume.
 - **Sources.** The sink owns which source plays. Source codes: 0 none, 1 Bluetooth (the sink's own A2DP, or the audio
   bridge), 2 radio, 3 aux in. **source node** is the node that provides it (the sink itself for Bluetooth and aux).
   SOURCE with 0 steps to the next source that is present (a radio counts once its ANNOUNCE is heard, node type 9).
