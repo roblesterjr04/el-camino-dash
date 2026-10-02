@@ -12,11 +12,13 @@ sender, speed or tach wiring means a new card, not a new main board.
   termination): **fixed CAN node `0x04`** in any slot. It does not read the slot ID
 - an **MB85RC256V** FRAM (0x50): the odometer lives on the card. A replacement card starts blank; set its mileage in
   firmware
-- the sensor front end, with the changes worked out for rev 2: a pull-up **and** a pull-down footprint per sender
-  channel, a 5 V / 12 V speed sensor supply, a 10k speed input series resistor, the tach on its own connector with a
+- the sensor front end, with the changes worked out for rev 2: **sender inputs configured by solder jumpers**
+  (pull-up or pull-down, and a bank of bias values per channel), a 5 V / 12 V speed sensor supply, a 10k speed input series resistor, the tach on its own connector with a
   22k optocoupler pull-up, and an ignition divider that stays HIGH through cranking
 - the **sensor serial out** (J8): the 36-byte frames on USART1, for an optional jumper wire to the main board's J27,
   which fans them out to the three screens (the fallback path when CAN is down)
+
+**The full specification, configuration guide and sender tables are in [`DATASHEET.md`](DATASHEET.md).**
 
 **Any slot but slot 1** (slot 1 is kept for the audio card's tall parts). Power comes from the slot's 5 V only; the
 slot's switched 12 V and constant 12 V are used for sensing and the speed sensor's 12 V option.
@@ -24,9 +26,10 @@ slot's switched 12 V and constant 12 V are used for sensing and the speed sensor
 | Files | |
 | --- | --- |
 | `SensorCard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, all parts on the parts side (F). KiCad 10 |
-| `SensorCard_BOM.csv` | Parts list (not-fitted parts listed separately) |
+| `DATASHEET.md` | The card's datasheet: ratings, electrical characteristics, pinouts, jumper configuration, sender selection, firmware interface, mechanical. Images in `doc/` |
+| `SensorCard_BOM.csv` | Parts list |
 | `fab/` | Gerbers, drill, placement and centroid (`python3 ../tools/fab_export.py SensorCard`) |
-| `generate/` | `gen_sch.py`, `gen_pcb.py`, `drc.py`, `sexp.py` (`refs.json` is written by `gen_sch.py`). The schematic generator is the main board's (`DigiDash2/generate/gen_sch.py`) helpers plus not-fitted parts; the PCB generator is the GPS card's, adapted. Every symbol and footprint is stock KiCad 10 |
+| `generate/` | `gen_sch.py`, `gen_pcb.py`, `drc.py`, `sexp.py` (`refs.json` is written by `gen_sch.py`). The schematic generator is the main board's (`DigiDash2/generate/gen_sch.py`) helpers plus not-fitted parts (none at present); the PCB generator is the GPS card's, adapted. Every symbol and footprint is stock KiCad 10 |
 
 ## Connectors
 
@@ -46,6 +49,7 @@ on the **left edge**, reachable with the card in its slot. Pin 1 is the square p
 | J9 | J9 | Demo jumper, 1×2 vertical | fitted = fake sweep (bench only); 1 DEMO, 2 +5V |
 | J10 | J10 | Spare I/O, 2×5 vertical | 1 +5V, 2 GND, 3 ADC10, 4 ADC11, 5 ADC12, 6 ADC13, 7 D44, 8 D45, 9 D46, 10 D47 |
 | JP1 | 5V 12V | Speed sensor supply, solder jumper | 1-2 bridged as delivered = 5 V; cut it and bridge 2-3 = the slot's switched 12 V |
+| JP2–JP16 | SENDER CONFIG | Sender topology and bias values, solder jumpers in a labelled block | see [Sender channels](#sender-channels) and the datasheet |
 
 **Serial fallback wiring (optional):** a 2-wire Dupont jumper from **J8 pin 2 (TX)** and **pin 1 (GND)** to the main
 board's **J27 pin 1 (TX IN)** and **pin 2 (GND)**. J27 is on the main board's back at the top edge, above slot 4,
@@ -53,17 +57,22 @@ within reach of a card's left edge in any slot. Without it the screens take the 
 
 ## Sender channels
 
-Each analog channel has a pull-up footprint (to +5 V) and a pull-down footprint (to GND); fit the one that suits the
-sender. The pull-ups come straight from +5 V, not through the channel's PTC, because the PTC's drop would read as a
-level error; a shorted sender only puts 5 V across the resistor. Every channel then goes through 1k with 10 nF into
-the ADC. As delivered:
+Each analog channel has a **topology jumper** (pull-up to +5 V, or pull-down to GND) feeding a **bank of bias
+resistors**, each behind its own 2-pad solder jumper; bridge one value (two give their parallel value). The jumpers
+sit in the labelled **SENDER CONFIG** block on the parts side (one column per channel: PU / PD at the top, the values
+below, `*` = as delivered), and the back silkscreen repeats the table. The pull-ups come straight from +5 V, not
+through the channel's PTC, because the PTC's drop would read as a level error. Every channel then goes through 1k with
+10 nF into the ADC.
 
-| Channel | Fitted | Not fitted (DNP) | For other senders |
+| Channel | Topology | Bank (jumper) | As delivered |
 | --- | --- | --- | --- |
-| Fuel (ADC0) | 220 Ω pull-up, 1206 (a 1-wire tank sender, return on pin 2) | 100k pull-down | 100 Ω for an original-style 0–30 Ω sender, 470 Ω for 240–33 Ω. A 0–5 V electronic sender: fit the pull-down, remove the pull-up (it needs its own supply) |
-| Engine temp (ADC1) | 1k pull-up, 0805 (a 1-wire sender grounded through the block) | 2.2k pull-down | Pull-up ≈ the sender's resistance near 100 °C. A 2-wire sender between ETEMP V and ETEMP: fit the pull-down at about its 100 °C resistance and remove the pull-up. A 3-wire 0.5–4.5 V transducer: pull-down 100k |
-| Oil pressure (ADC2) | 220 Ω pull-up, 1206 (a 1-wire 10–180 Ω sender) | 100k pull-down | A 3-wire 0.5–4.5 V transducer fed from OILP V: fit the 100k pull-down, remove the pull-up |
-| Ambient (ADC3) | 100k pull-up (a 2-wire 100k NTC to its return pin) | 100k pull-down | A sensor wired to 5 V instead: swap them |
+| Fuel (ADC0) | JP2 | 100 Ω, 2010 (JP6) · 220 Ω, 1206 (JP7) · 470 Ω, 0805 (JP8) | pull-up, 220 Ω |
+| Engine temp (ADC1) | JP3 | 220 Ω, 1206 (JP9) · 1k (JP10) · 10k (JP11) | pull-up, 1k |
+| Oil pressure (ADC2) | JP4 | 220 Ω, 1206 (JP12) · 1k (JP13) · 100k (JP14) | pull-up, 220 Ω |
+| Ambient (ADC3) | JP5 | 10k (JP15) · 100k (JP16) | pull-up, 100k |
+
+Each bank resistor is sized for its value's worst case (a shorted sender puts the full 5 V across it). Which setting
+suits which sender, with the ADC ranges, is in [`DATASHEET.md`](DATASHEET.md#6-configuration).
 
 - **ETEMP V / OILP V** are 5 V through their own 0.1 A PTC, watched by TEMP_MON / PRESS_MON (the fuse monitors). They
   only matter for 2-wire and 3-wire senders.
@@ -133,8 +142,9 @@ channel never had a supply).
 - **Layers and rules:** the GPS card's: F signal, In1 solid GND, In2 signal / GND fill, B signal / GND fill. 0.2 mm
   tracks, 0.3 mm on the supplies, 0.13 mm clearance, 0.6 / 0.3 mm vias, plus the **HV** class (TACH, TACH_R: 1.0 mm
   clearance).
-- **Not-fitted parts** (the spare pull-ups / pull-downs) are on the board and marked DNP; `tools/fab_export.py` leaves
-  them out of the placement files.
+- **Sender config block:** the solder jumpers JP2–JP16 in a fixed grid between the 2560 and the MCP2515 (`CFG` at the
+  top of `gen_pcb.py`), labelled on the silk; the back silkscreen carries the configuration table. Not-fitted (DNP)
+  parts, if any are added, are marked DNP and left out of the placement files by `tools/fab_export.py`.
 
 ## Status
 
@@ -151,8 +161,11 @@ pair through one via, and joins it on the back from J2's through-hole pin with a
 
 ## Check before ordering
 
-- **Every sender's resistor** against the senders actually fitted to the car (the table above). The delivered values
-  are a guess: 220 Ω fuel (0–90 Ω GM), 1k temp, 220 Ω oil (10–180 Ω), 100k ambient NTC.
+- **The delivered jumper settings** against the senders actually fitted to the car (the datasheet's tables). They
+  can be changed on the bench with a blade and a soldering iron; the delivered ones are a guess: 220 Ω fuel (0–90 Ω
+  GM), 1k temp, 220 Ω oil (10–180 Ω), 100k ambient NTC, all pull-up.
+- **Bridged solder jumpers:** the as-delivered ones (JP1, JP2–JP5 1-2, JP7, JP10, JP12, JP16) are bridged by a thin
+  copper trace in the footprint, so the card works with no solder work. Confirm the assembler leaves those traces alone.
 - **The speed sensor's supply and output** (JP1, and that it is a hall / square-wave sensor, not a 2-wire VR pickup).
 - **J4's rating and the tach clearance** against the ignition: points and HEI kick back a few hundred volts on the coil
   negative. The 1206 resistors (two in series) and the 1.0 mm clearance are sized for that; an ignition box's tach

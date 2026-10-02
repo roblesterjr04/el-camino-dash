@@ -101,14 +101,14 @@ FIXED = {
     # chips
     'U1': (32.0, 30.0, 0, 'F'),               # ATmega2560: ADC pins (top side) toward J2, ICP / USART1 / TWI (bottom) toward the slot
     'Y1': (21.0, 41.5, 90, 'F'),              # 2560 crystal beside XTAL1 / XTAL2 (pins 33 / 34, bottom-left corner)
-    'U2': (61.0, 33.0, 0, 'F'),               # MCP2515
-    'Y2': (61.0, 42.5, 0, 'F'),               # its crystal (OSC1 / OSC2, pins 7 / 8)
+    'U2': (66.6, 33.0, 0, 'F'),               # MCP2515 (east of the sender config block)
+    'Y2': (66.6, 42.5, 0, 'F'),               # its crystal (OSC1 / OSC2, pins 7 / 8)
     'U3': (53.0, H - 15.0, 0, 'F'),           # MCP2562 above the slot header's CAN pins (5 / 6)
     'U4': (43.5, H - 15.0, 0, 'F'),           # FRAM
     # jumpers and the spare header (vertical, parts side)
     'J5': (11.0, 50.0, 0, 'F'),               # RPM select (2x2)
     'J9': (18.5, 50.0, 0, 'F'),               # demo (1x2)
-    'J10': (73.5, 30.0, 0, 'F'),              # spare I/O (2x5), below the optocoupler
+    'J10': (74.6, 30.0, 0, 'F'),              # spare I/O (2x5), below the optocoupler
 }
 SIDE = {'port': 'F', 'mcu': 'F', 'prog': 'F', 'sensors': 'F', 'speed': 'F', 'tach': 'F', 'misc': 'F'}
 ANCHOR = {'port': ['J1'], 'mcu': ['U1'], 'prog': ['J6', 'J7', 'J8'], 'sensors': ['J2', 'U1'], 'speed': ['J3', 'JP1'],
@@ -118,6 +118,14 @@ POWER_NETS = {'+5V', '/AVCC', '/SLOT_12V', '/SLOT_BATT', '/ENGINE_TEMP_VIN', '/O
               '/SPEED_VSEL'}       # local labels carry the sheet path
 HV_NETS = ['/TACH', '/TACH_R']     # the coil input up to the two series resistors: wide clearance
 KEEP_SILK = {'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7', 'J8', 'J9', 'J10', 'JP1'}
+# The sender config block: one column per channel between the 2560 and the MCP2515, the topology jumper (pull-up /
+# pull-down) on top and the value jumpers below it, each labelled on the silk with its value (* = bridged as delivered).
+CFG_X0, CFG_Y0, CFG_DX = 42.4, 21.0, 4.7
+CFG = [('FUEL', 'JP2', [('JP6', '100'), ('JP7', '220*'), ('JP8', '470')]),
+       ('TEMP', 'JP3', [('JP9', '220'), ('JP10', '1k*'), ('JP11', '10k')]),
+       ('OIL', 'JP4', [('JP12', '220*'), ('JP13', '1k'), ('JP14', '100k')]),
+       ('AMB', 'JP5', [('JP15', '10k'), ('JP16', '100k*')])]
+CFG_TOPO_DY, CFG_VAL_DY0, CFG_VAL_PITCH = 4.0, 9.0, 3.6
 DESC_ANCHOR = re.compile(r'^(U\d+|Y\d+)\b')   # 'U2 ...', 'Y1 load': a decoupling or load part sits by that chip
 HOLES = []                                # a slot card has no mounting holes: the slot and the case hold it
 HOLE_KEEP = 3.3                          # radius kept free of parts around them
@@ -260,6 +268,26 @@ def main():
     for ref, (x, y, rot, side) in FIXED.items():
         put(ref, x, y, rot, side)
         mark(ref)
+    # the sender config block: jumpers stand vertically, pad 1 at the top (topology: pad 1 = +5 V = pull-up)
+    cfg_refs = []
+
+    def put_vertical(ref, x, y):
+        side_of[ref] = 'F'
+        for rot in (270, 90):
+            put(ref, x, y, rot, 'F')
+            q = {p.GetNumber(): p.GetPosition().y for p in fps[ref].Pads()}
+            if q['1'] < q['2']:
+                break
+        mark(ref)
+        cfg_refs.append(ref)
+
+    for i, (name, topo, vals) in enumerate(CFG):
+        x = CFG_X0 + i * CFG_DX
+        put_vertical(topo, x, CFG_Y0 + CFG_TOPO_DY)
+        for k, (jp, _) in enumerate(vals):
+            put_vertical(jp, x, CFG_Y0 + CFG_VAL_DY0 + CFG_VAL_PITCH * k)
+    occ['F'].rect(CFG_X0 - 2.0, CFG_Y0 - 0.6, CFG_X0 + 3 * CFG_DX + 3.6,
+                  CFG_Y0 + CFG_VAL_DY0 + 2 * CFG_VAL_PITCH + 1.8)   # the block and its labels
     occ['F'].rect(8.4, J8_Y - 6.0, 12.0, J8_Y + 1.0)         # room for the left-edge header pin legends
     occ['F'].rect(8.4, J7_Y - 13.6, 12.0, J7_Y + 1.0)
     occ['F'].rect(8.9, J6_Y - 6.0, 15.4, J6_Y + 1.0)
@@ -269,6 +297,7 @@ def main():
     occ['F'].rect(J4_X - 5.0, 10.8, J4_X + 5.0, 12.0)        # J4's
     occ['F'].rect(0.6, 2.0, 13.5, 8.6)                       # the card's name
     occ['F'].rect(J2_X + 13.6, 2.8, J2_X + 16.0, 5.2)        # J2's reference
+    occ['F'].rect(74.2, 26.4, 77.6, 28.8)                    # J10's reference
     occ['F'].rect(J3_X - 4.4, 12.6, J3_X - 1.6, 14.6)        # JP1's reference
 
     # ------------------------------------------------------------------ passives: closest free spot to their pins
@@ -282,7 +311,7 @@ def main():
                     out.setdefault(n, []).append((r, p.x / 1e6 - OX, p.y / 1e6 - OY))
         return out
 
-    placed = set(FIXED) | {'J1'}
+    placed = set(FIXED) | {'J1'} | set(cfg_refs)
     rest = [r for r in fps if r not in placed]
 
     def prio(r):
@@ -409,10 +438,35 @@ def main():
     silk('G', J4_X + 1.2, 11.0, 0.7)
     silk('5V', J3_X - 2.9, 14.7, 0.7)
     silk('12V', J3_X + 1.2, 14.7, 0.7)
+    # the sender config block's labels
+    silk('SENDER CONFIG', CFG_X0 - 1.6, CFG_Y0 - 0.2, 0.7)
+    for i, (name, topo, vals) in enumerate(CFG):
+        x = CFG_X0 + i * CFG_DX
+        silk(name, x - 1.6, CFG_Y0 + 1.1, 0.7)
+        silk('PU', x + 1.0, CFG_Y0 + CFG_TOPO_DY - 1.6, 0.7)
+        silk('PD', x + 1.0, CFG_Y0 + CFG_TOPO_DY + 1.6, 0.7)
+        for k, (_, lab) in enumerate(vals):
+            silk(lab, x + 1.0, CFG_Y0 + CFG_VAL_DY0 + CFG_VAL_PITCH * k, 0.7)
     silk('SENSOR CARD', 1.0, 3.2, 1.0)
     silk('rev A  node 0x04', 1.0, 4.9, 0.8)
     silk('not in slot 1', 1.0, 6.5, 0.8)
-    silk('SENSOR CARD  rev A', 77.0, 30.0, 1.0, pcbnew.B_SilkS)
+    silk('SENSOR CARD  rev A', 46.0, 15.0, 1.0, pcbnew.B_SilkS)   # mirrored: the text runs to +x from here
+    # the configuration table on the back (it carries no parts): what each front-side jumper does
+    for k, s in enumerate(['SENDER CONFIG (block on the front)',
+                           'One column per channel. Top jumper:',
+                           'PU (pull-up, as delivered) or PD',
+                           'Below: bridge ONE value (ohms)',
+                           '(two bridged = in parallel)',
+                           '* = bridged as delivered',
+                           'FUEL JP2: 100 JP6 220 JP7 470 JP8',
+                           'TEMP JP3: 220 JP9 1k JP10 10k JP11',
+                           'OIL JP4: 220 JP12 1k JP13 100k JP14',
+                           'AMB JP5: 10k JP15 100k JP16',
+                           'SPEED PWR JP1: 1-2 5V*  2-3 12V',
+                           'RPM SEL J5: none 8  A 4  B 6 pulses/rev',
+                           'DEMO J9: fitted = fake sweep (bench)',
+                           'CAN node 0x04. Not slot 1']):
+        silk(s, 46.0, 18.0 + 1.4 * k, 0.75, pcbnew.B_SilkS)
 
     # ------------------------------------------------------------------ outline, zones
     corners = [(0, 0), (W, 0), (W, H), (0, H)]

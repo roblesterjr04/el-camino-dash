@@ -317,6 +317,96 @@
   "group": "speed",
   "value": "5V / 12V"
  },
+ "JP10": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "ETEMP 1k"
+ },
+ "JP11": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "ETEMP 10k"
+ },
+ "JP12": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "OILP 220"
+ },
+ "JP13": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "OILP 1k"
+ },
+ "JP14": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "OILP 100k"
+ },
+ "JP15": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "AMB 10k"
+ },
+ "JP16": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "AMB 100k"
+ },
+ "JP2": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "FUEL PU / PD"
+ },
+ "JP3": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "ETEMP PU / PD"
+ },
+ "JP4": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "OILP PU / PD"
+ },
+ "JP5": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "AMB PU / PD"
+ },
+ "JP6": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "FUEL 100"
+ },
+ "JP7": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "FUEL 220"
+ },
+ "JP8": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "FUEL 470"
+ },
+ "JP9": {
+  "dnp": false,
+  "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+  "group": "sensors",
+  "value": "ETEMP 220"
+ },
  "R1": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -373,15 +463,15 @@
  },
  "R18": {
   "dnp": false,
-  "fp": "Resistor_SMD:R_1206_3216Metric",
-  "group": "sensors",
-  "value": "220"
- },
- "R19": {
-  "dnp": true,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "100k"
+  "value": "1k"
+ },
+ "R19": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "10k"
  },
  "R2": {
   "dnp": false,
@@ -403,51 +493,51 @@
  },
  "R22": {
   "dnp": false,
-  "fp": "Resistor_SMD:R_0805_2012Metric",
+  "fp": "Resistor_SMD:R_2010_5025Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "100"
  },
  "R23": {
-  "dnp": true,
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "2.2k"
- },
- "R24": {
-  "dnp": false,
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "1k"
- },
- "R25": {
-  "dnp": false,
-  "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "sensors",
-  "value": "10k"
- },
- "R26": {
   "dnp": false,
   "fp": "Resistor_SMD:R_1206_3216Metric",
   "group": "sensors",
   "value": "220"
  },
- "R27": {
-  "dnp": true,
-  "fp": "Resistor_SMD:R_0603_1608Metric",
+ "R24": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0805_2012Metric",
   "group": "sensors",
-  "value": "100k"
+  "value": "470"
  },
- "R28": {
+ "R25": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "sensors",
+  "value": "220"
+ },
+ "R26": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "100k"
+  "value": "1k"
  },
- "R29": {
-  "dnp": true,
+ "R27": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "100k"
+  "value": "10k"
+ },
+ "R28": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "sensors",
+  "value": "220"
+ },
+ "R29": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "1k"
  },
  "R3": {
   "dnp": false,
@@ -459,19 +549,19 @@
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "100k"
  },
  "R31": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "10k"
  },
  "R32": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "100k"
  },
  "R33": {
   "dnp": false,
@@ -483,37 +573,37 @@
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "22k"
+  "value": "1k"
  },
  "R35": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "10k"
+  "value": "1k"
  },
  "R36": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "speed",
-  "value": "10k"
+  "group": "sensors",
+  "value": "1k"
  },
  "R37": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "speed",
-  "value": "10k"
+  "group": "sensors",
+  "value": "22k"
  },
  "R38": {
   "dnp": false,
-  "fp": "Resistor_SMD:R_1206_3216Metric",
-  "group": "tach",
-  "value": "4.7k"
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "sensors",
+  "value": "10k"
  },
  "R39": {
   "dnp": false,
-  "fp": "Resistor_SMD:R_1206_3216Metric",
-  "group": "tach",
-  "value": "4.7k"
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "speed",
+  "value": "10k"
  },
  "R4": {
   "dnp": false,
@@ -524,10 +614,28 @@
  "R40": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "speed",
+  "value": "10k"
+ },
+ "R41": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "tach",
+  "value": "4.7k"
+ },
+ "R42": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_1206_3216Metric",
+  "group": "tach",
+  "value": "4.7k"
+ },
+ "R43": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tach",
   "value": "22k"
  },
- "R41": {
+ "R44": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tach",

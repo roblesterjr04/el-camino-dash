@@ -1,5 +1,5 @@
 Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
-1,U1,Microchip ATmega2560-16AU,"Sensor pack MCU. USART0 = FTDI header, USART1 = sensor frames (J8), SPI = MCP2515 + ISP, ICP4 / ICP5 = tach / speed",TQFP-100_14x14mm_P0.5mm,SMD,Top,Arrives blank: flash over J6 (ISP). Set the fuses (16 MHz crystal); JTAG may stay on (no used pin shares it)
+1,U1,Microchip ATmega2560-16AU,"Sensor pack MCU. USART0 = FTDI header, USART1 = sensor frames (J8), SPI = MCP2515 + ISP, ICP4 / ICP5 = tach / speed",TQFP-100_14x14mm_P0.5mm,SMD,Top,Arrives blank: flash over J6 (ISP); fuses in DATASHEET.md
 1,U2,Microchip MCP2515-I/SO,"CAN controller (node 0x04, fixed)",SOIC-18W_7.5x11.6mm_P1.27mm,SMD,Top,
 1,U3,Microchip MCP2562-E/SN,"CAN transceiver, VIO 5 V, STBY low. No termination: a card never terminates the bus",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
 1,U4,Fujitsu MB85RC256VPNF-G-JNERE1,"32 KB I2C FRAM, address 0x50: odometer (A / B slots with CRC-8). Lives on the card: set a new card's mileage in firmware",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
@@ -16,31 +16,43 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,J8,"1x3 right-angle pin header, 2.54 mm","Sensor serial (USART1, 5 V, 115200 8N1): 1 GND, 2 TX (sensor frames out: jumper wire to the main board J27 pin 1), 3 RX (in; unused in the car)",PinHeader_1x03_P2.54mm_Horizontal,THT,Top,
 1,J9,"1x2 pin header, 2.54 mm, vertical (plus a jumper)","Demo jumper: fitted = the sensor pack sends a fake sweep (bench only). 1 DEMO, 2 +5V",PinHeader_1x02_P2.54mm_Vertical,THT,Top,
 1,J10,"2x5 pin header, 2.54 mm, vertical","Spare 2560 pins: ADC10-13 (port K: analog or digital, pin-change interrupts), D44-D47 (PWM). 5 V logic, no protection",PinHeader_2x05_P2.54mm_Vertical,THT,Top,
-1,JP1,"(PCB solder jumper, no part)",Speed sensor supply: 1-2 (bridged as delivered) = 5 V; cut 1-2 and bridge 2-3 = slot switched 12 V,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged 1-2 (5 V) as delivered
+1,JP1,"(PCB solder jumper, no part)",Speed sensor supply: 1-2 (bridged as delivered) = 5 V; cut 1-2 and bridge 2-3 = slot switched 12 V,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP2,"(PCB solder jumper, no part)",FUEL topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP3,"(PCB solder jumper, no part)",ETEMP topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP4,"(PCB solder jumper, no part)",OILP topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP5,"(PCB solder jumper, no part)",AMB topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP6,"(PCB solder jumper, no part)",FUEL 100 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP7,"(PCB solder jumper, no part)",FUEL 220 select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP8,"(PCB solder jumper, no part)",FUEL 470 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP9,"(PCB solder jumper, no part)",ETEMP 220 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP10,"(PCB solder jumper, no part)",ETEMP 1k select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP11,"(PCB solder jumper, no part)",ETEMP 10k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP12,"(PCB solder jumper, no part)",OILP 220 select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP13,"(PCB solder jumper, no part)",OILP 1k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP14,"(PCB solder jumper, no part)",OILP 100k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP15,"(PCB solder jumper, no part)",AMB 10k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP16,"(PCB solder jumper, no part)",AMB 100k select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
 3,D1 D4 D5,Nexperia BAT54S,"Input clamps to GND / 5 V (ignition sense, alternator L, speed)",SOT-23,SMD,Top,
 1,D2,Vishay BAT42W,"Hold diode: this card can only drive WAKE high, never load it (other cards drive it too)",D_SOD-123,SMD,Top,
 1,D3,0603 green LED,"Status (PB7, Arduino D13)",0603,SMD,Top,
 1,D6,1N4148W,Reverse clamp across the LED (coil kickback),D_SOD-123,SMD,Top,
 1,FB1,Murata BLM18KG601SN1D (600 R at 100 MHz),AVCC filter,0603,SMD,Top,
 3,F1 F2 F3,Bourns MF-NSMF010-2 (0.1 A hold),"0.1 A feed fuses: ETEMP V, OILP V, speed sensor power",1206,SMD,Top,
-1,R1,"15k resistor, 0603, 1%",Ignition sense divider top (from the slot switched 12 V),0603,SMD,Top,
-12,R2 R6 R8 R10 R11 R12 R17 R21 R25 R35 R36 R37,"10k resistor, 0603, 1%",10k resistor,0603,SMD,Top,
-2,R3 R28,"100k resistor, 0603, 1%",100k resistor,0603,SMD,Top,
-3,R4 R34 R40,"22k resistor, 0603, 1%",22k resistor,0603,SMD,Top,
-3,R5 R13 R14,"4.7k resistor, 0603, 1%",4.7k resistor,0603,SMD,Top,
-1,R7,"47k resistor, 0603, 1%",WAKE into the 2560 (series: the line may be up while the 2560 is unpowered),0603,SMD,Top,
-9,R9 R16 R20 R24 R30 R31 R32 R33 R41,"1k resistor, 0603, 1%",1k resistor,0603,SMD,Top,
-1,R15,"100 resistor, 0603, 1%",Series R on the serial out (a wire leaves the card),0603,SMD,Top,
-2,R18 R26,"220 resistor, 1206, 1%, 0.25 W",220 resistor,1206,SMD,Top,Sender-dependent: see SensorCard/README.md
-1,R22,"1k resistor, 0805, 1%","Temperature pull-up, 0805: 1-wire sender to the block; about the sender's resistance near 100 C",0805,SMD,Top,Sender-dependent: see SensorCard/README.md
-2,R38 R39,"4.7k resistor, 1206, 1%, 0.25 W",4.7k resistor,1206,SMD,Top,
-2,C1 C9,"10u capacitor, 0805, X5R / X7R, 10 V",10u capacitor,0805,SMD,Top,
+1,R1,"15k resistor, 0603, 1%, 0.1 W",Ignition sense divider top (from the slot switched 12 V),0603,SMD,Top,
+14,R2 R6 R8 R10 R11 R12 R17 R19 R21 R27 R31 R38 R39 R40,"10k resistor, 0603, 1%, 0.1 W",10k resistor,0603,SMD,Top,
+3,R3 R30 R32,"100k resistor, 0603, 1%, 0.1 W",100k resistor,0603,SMD,Top,
+3,R4 R37 R43,"22k resistor, 0603, 1%, 0.1 W",22k resistor,0603,SMD,Top,
+3,R5 R13 R14,"4.7k resistor, 0603, 1%, 0.1 W",4.7k resistor,0603,SMD,Top,
+1,R7,"47k resistor, 0603, 1%, 0.1 W",WAKE into the 2560 (series: the line may be up while the 2560 is unpowered),0603,SMD,Top,
+11,R9 R16 R18 R20 R26 R29 R33 R34 R35 R36 R44,"1k resistor, 0603, 1%, 0.1 W",1k resistor,0603,SMD,Top,
+1,R15,"100 resistor, 0603, 1%, 0.1 W",Series R on the serial out (a wire leaves the card),0603,SMD,Top,
+1,R22,"100 resistor, 2010, 1%, 0.5 W","FUEL bank, 100: 0-30R senders (original GM); 2010 for 0.25 W into a shorted sender",2010,SMD,Top,Sender bias bank: selected by a solder jumper
+3,R23 R25 R28,"220 resistor, 1206, 1%, 0.25 W",220 resistor,1206,SMD,Top,
+1,R24,"470 resistor, 0805, 1%, 0.125 W","FUEL bank, 470: 240-33R senders",0805,SMD,Top,Sender bias bank: selected by a solder jumper
+2,R41 R42,"4.7k resistor, 1206, 1%, 0.25 W",4.7k resistor,1206,SMD,Top,
+2,C1 C9,"10u capacitor, 0805, X7R, 10 V",10u capacitor,0805,SMD,Top,
 14,C2 C3 C4 C5 C6 C7 C8 C10 C11 C14 C15 C18 C19 C24,"100n capacitor, 0603, X7R, 50 V",100n capacitor,0603,SMD,Top,
 4,C12 C13 C16 C17,"18p capacitor, 0603, C0G",18p capacitor,0603,SMD,Top,
 4,C20 C21 C22 C23,"10n capacitor, 0603, X7R",10n capacitor,0603,SMD,Top,
 1,C25,"100n capacitor, 0805, X7R, 50 V","Speed sensor feed, at J3",0805,SMD,Top,
 2,C26 C27,"1n capacitor, 0603, C0G",1n capacitor,0603,SMD,Top,
-1,R19,"100k resistor, 0603, 1%","Fuel pull-down (DNP): fit, and remove the pull-up, for a 0-5 V electronic sender",0603,SMD,Top,NOT FITTED as delivered (DNP): fit for the sender it names
-1,R23,"2.2k resistor, 0603, 1%","Temperature pull-down (DNP): a 2-wire sender from ETEMP V (about its resistance near 100 C), or 100k for a 3-wire transducer; remove the pull-up",0603,SMD,Top,NOT FITTED as delivered (DNP): fit for the sender it names
-1,R27,"100k resistor, 0603, 1%",Oil pressure pull-down (DNP): 100k for a 3-wire 0.5-4.5 V transducer fed from OILP V; remove the pull-up,0603,SMD,Top,NOT FITTED as delivered (DNP): fit for the sender it names
-1,R29,"100k resistor, 0603, 1%",Ambient pull-down (DNP): for a sensor wired to 5 V instead,0603,SMD,Top,NOT FITTED as delivered (DNP): fit for the sender it names

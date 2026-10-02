@@ -270,6 +270,8 @@ CANC = stock('Interface_CAN_LIN', 'MCP2515-xSO')
 XCVR = stock('Interface_CAN_LIN', 'MCP2562-E-SN')
 FRAM = stock('Memory_EEPROM', '24LC16', 'MB85RC256V', 'MB85RC256V')
 SJ3 = stock('Jumper', 'SolderJumper_3_Bridged12', 'SolderJumper_3_Bridged12', '5V / 12V')
+SJ2B = stock('Jumper', 'SolderJumper_2_Bridged')
+SJ2O = stock('Jumper', 'SolderJumper_2_Open')
 HDR = {n: stock('Connector_Generic', 'Conn_01x%02d' % n) for n in (2, 3, 4, 6, 12)}
 HDR2 = {n: stock('Connector_Generic', 'Conn_02x%02d_Odd_Even' % n) for n in (2, 3, 5, 15)}
 for n in ('GND', '+5V'):
@@ -279,6 +281,10 @@ stock('power', 'PWR_FLAG')
 FP_R, FP_C, FP_C10 = 'Resistor_SMD:R_0603_1608Metric', 'Capacitor_SMD:C_0603_1608Metric', 'Capacitor_SMD:C_0805_2012Metric'
 FP_R0805 = 'Resistor_SMD:R_0805_2012Metric'
 FP_R1206 = 'Resistor_SMD:R_1206_3216Metric'
+FP_R2010 = 'Resistor_SMD:R_2010_5025Metric'
+FP_SJ2B = 'Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm'
+FP_SJ2O = 'Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm'
+FP_SJ3 = 'Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm'
 FP_PTC_S = 'Fuse:Fuse_1206_3216Metric'
 FP_SOT23 = 'Package_TO_SOT_SMD:SOT-23'
 FP_SOD123 = 'Diode_SMD:D_SOD-123'
@@ -309,7 +315,7 @@ def clamp(sig, d):
 
 
 # fixed reference numbers first, so the auto-numbered parts do not take them
-for p, n in (('J', 10), ('U', 5), ('Y', 2), ('JP', 1), ('D', 0), ('F', 0), ('R', 0), ('C', 0)):
+for p, n in (('J', 10), ('U', 5), ('Y', 2), ('JP', 16), ('D', 0), ('F', 0), ('R', 0), ('C', 0)):
     cnt[p] = n
 
 # ============================================================================= sheet
@@ -433,36 +439,46 @@ r_('1k', 'SER_IN', 'SENS_RX1', 'Series R on the serial in')
 r_('10k', '+5V', 'SENS_RX1', 'USART1 RX idle high (nothing wired in the car)')
 
 # ----------------------------------------------------------------------------- senders
-cur[0] = Block('sensors', 1, 'SENDERS (J2, JST PH 12 pin, top edge): each channel has a pull-up and a pull-down footprint; fit the one '
-               'that matches the sender (values in each part\'s description, SensorCard/README.md). 1k + 10 nF into the ADC.')
+cur[0] = Block('sensors', 1, 'SENDERS (J2, JST PH 12 pin, top edge). Each channel: a topology jumper (pull-up to +5 V or pull-down to GND) '
+               'feeding a bank of resistors, each behind its own solder jumper. Bridge one value (two give them in parallel). 1k + 10 nF into the ADC.')
 place(HDR[12], 'J2', 'Senders', 'Connector_JST:JST_PH_S12B-PH-K_1x12_P2.00mm_Horizontal',
       {'1': 'FUEL', '2': 'GND', '3': 'ENGINE_TEMP', '4': 'ENGINE_TEMP_VIN', '5': 'GND', '6': 'OIL_PRESSURE',
        '7': 'OIL_PRESSURE_VIN', '8': 'GND', '9': 'AMB_TEMP', '10': 'GND', '11': 'ALT_L_IN', '12': 'GND'},
       descr='Senders: 1 FUEL, 2 FUEL return, 3 ETEMP, 4 ETEMP V (5 V, 0.1 A PTC), 5 ETEMP return, 6 OILP, 7 OILP V (5 V, 0.1 A PTC), '
             '8 OILP return, 9 AMB, 10 AMB return, 11 ALT L (alternator lamp terminal, 12 V level), 12 GND')
-text(cur[0].x0 + 200, cur[0].y0 + 6, 'Fitted as delivered: FUEL 220R pull-up (0-90R GM sender; 100R for 0-30R, 470R for 240-33R), '
-     'ETEMP 1k pull-up (1-wire sender to the block), OILP 220R pull-up (1-wire sender), AMB 100k pull-up (2-wire 100k NTC).\\n'
-     'Pull-ups come straight from +5 V (not through the PTCs: their drop would read as level error). Pull-downs (DNP): a 2-wire sender '
-     'from the V pin, or a 3-wire 0.5-4.5 V transducer (100k).', 1.6)
-# fuel: 1-wire tank sender to the tank / body ground (return wire on pin 2)
-r_('220', '+5V', 'FUEL', 'Fuel sender pull-up, 1206: 100R for a 0-30R sender, 220R for 0-90R, 470R for 240-33R', FP_R1206)
-r_('100k', 'FUEL', 'GND', 'Fuel pull-down (DNP): fit, and remove the pull-up, for a 0-5 V electronic sender', dnp=True)
-# engine temperature
+text(cur[0].x0 + 200, cur[0].y0 + 6, 'As delivered: every channel pull-up (topology jumper 1-2); FUEL 220R, ETEMP 1k, OILP 220R, AMB 100k bridged.\\n'
+     'Pull-up mode: any resistive sender whose other end is ground (the block, the tank, or its return pin). Pull-down mode: a sender fed '
+     'from the channel\'s V pin, or a 3-wire 0.5-4.5 V transducer (OILP 100k as a light load; or no value bridged).\\n'
+     'The pull-ups come straight from +5 V, not through the PTCs (their drop would read as level error). Sender selection: SensorCard/DATASHEET.md.', 1.6)
+# engine temperature and oil pressure: their sender feeds (2-wire / 3-wire senders) and fuse monitors
 ptc('PTC 0.1A', '+5V', 'ENGINE_TEMP_VIN', 'Temperature sender feed (2-wire / 3-wire senders)')
 r_('1k', 'ENGINE_TEMP_VIN', 'TEMP_MON', 'Temperature feed monitor')
 r_('10k', 'TEMP_MON', 'GND', 'Monitor pull-down')
-r_('1k', '+5V', 'ENGINE_TEMP', 'Temperature pull-up, 0805: 1-wire sender to the block; about the sender\'s resistance near 100 C', FP_R0805)
-r_('2.2k', 'ENGINE_TEMP', 'GND', 'Temperature pull-down (DNP): a 2-wire sender from ETEMP V (about its resistance near 100 C), '
-   'or 100k for a 3-wire transducer; remove the pull-up', dnp=True)
-# oil pressure
 ptc('PTC 0.1A', '+5V', 'OIL_PRESSURE_VIN', 'Oil pressure sender feed (2-wire / 3-wire senders)')
 r_('1k', 'OIL_PRESSURE_VIN', 'PRESS_MON', 'Oil feed monitor')
 r_('10k', 'PRESS_MON', 'GND', 'Monitor pull-down')
-r_('220', '+5V', 'OIL_PRESSURE', 'Oil pressure pull-up, 1206: 1-wire sender to the block (220R suits a 10-180R sender)', FP_R1206)
-r_('100k', 'OIL_PRESSURE', 'GND', 'Oil pressure pull-down (DNP): 100k for a 3-wire 0.5-4.5 V transducer fed from OILP V; remove the pull-up', dnp=True)
-# ambient
-r_('100k', '+5V', 'AMB_TEMP', 'Ambient pull-up: 2-wire 100k NTC between AMB and its return')
-r_('100k', 'AMB_TEMP', 'GND', 'Ambient pull-down (DNP): for a sensor wired to 5 V instead', dnp=True)
+# the banks: (channel net, short name, topology jumper, [(value, footprint, jumper ref, bridged as delivered, note)])
+BANKS = [
+    ('FUEL', 'FUEL', 'JP2', [('100', FP_R2010, 'JP6', False, '0-30R senders (original GM); 2010 for 0.25 W into a shorted sender'),
+                              ('220', FP_R1206, 'JP7', True, '0-90R senders (GM 1965 on), 10-180R'),
+                              ('470', FP_R0805, 'JP8', False, '240-33R senders')]),
+    ('ENGINE_TEMP', 'ETEMP', 'JP3', [('220', FP_R1206, 'JP9', False, 'gauge senders that read tens of ohms hot'),
+                                    ('1k', FP_R, 'JP10', True, 'senders of a few hundred ohms near 100 C (2-wire EFI CTS)'),
+                                    ('10k', FP_R, 'JP11', False, '10k-class NTC thermistors')]),
+    ('OIL_PRESSURE', 'OILP', 'JP4', [('220', FP_R1206, 'JP12', True, '10-180R and 240-33R senders'),
+                                     ('1k', FP_R, 'JP13', False, 'higher-resistance senders'),
+                                     ('100k', FP_R, 'JP14', False, 'pull-down mode: light load / open-wire detect for a 0.5-4.5 V transducer')]),
+    ('AMB_TEMP', 'AMB', 'JP5', [('10k', FP_R, 'JP15', False, '10k NTC'),
+                                ('100k', FP_R, 'JP16', True, '100k NTC')]),
+]
+for net, name, topo, bank in BANKS:
+    place(SJ3, topo, '%s PU / PD' % name, FP_SJ3, {'1': '+5V', '2': net + '_BANK', '3': 'GND'},
+          descr='%s topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND' % name)
+    for v, fp, jp, bridged, note in bank:
+        place(SJ2B if bridged else SJ2O, jp, '%s %s' % (name, v), FP_SJ2B if bridged else FP_SJ2O,
+              {'1': net + '_BANK', '2': '%s_%s' % (net, v.upper())},
+              descr='%s %s select: %s as delivered' % (name, v, 'bridged' if bridged else 'open'))
+        r_(v, '%s_%s' % (net, v.upper()), net, '%s bank, %s: %s' % (name, v, note), fp)
 for net in ('FUEL', 'ENGINE_TEMP', 'OIL_PRESSURE', 'AMB_TEMP'):
     r_('1k', net, net + '_ADC', 'ADC series (protection)')
     c_('10n', net + '_ADC', 'GND', 'ADC filter')
