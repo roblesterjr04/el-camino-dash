@@ -17,6 +17,7 @@
 
 #include "elc_can_codec.h"
 #include "elc_can_ids.h"
+#include "elc_chan.h"
 #include "elc_usb_link.h"
 
 #ifndef ELC_CAN_FW_VERSION
@@ -46,6 +47,11 @@ class ElcCan {
 
   /** Installs and starts the driver. Returns false (and stays inert) when pins are -1 or the driver fails. */
   bool begin(int tx_pin, int rx_pin, uint8_t node, ElcCanNodeType type);
+
+  /** The channel protocol (elc_chan.h): every received frame goes through it, its poll() runs from poll(), it sends
+   *  through send(), and the heartbeat's flags bit0 says this node speaks it. Call after begin(). */
+  void attachChannels(ElcChannels *ch, const ElcNetAnnounce &me);
+  ElcChannels *channels() const { return _chan; }
 
   /** Every frame received is passed to this handler from poll() (loop context, not an ISR). */
   void onFrame(FrameHandler h, void *ctx) {
@@ -86,6 +92,7 @@ class ElcCan {
   bool _recovering = false;
   ElcCanStats _stats;
   ElcCanNodeInfo _nodes[ELC_CAN_MAX_NODES];
+  ElcChannels *_chan = nullptr;
 };
 
 /** Rev 1 carrier: strap value (0..2) from the two SLOT_ID straps, a grounded pin reads as 1. -1 pin = not strapped.

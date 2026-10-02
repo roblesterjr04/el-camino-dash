@@ -158,6 +158,7 @@ void ElcCan::poll() {
   }
 
   if (running()) heartbeat(now);
+  if (_chan && running()) _chan->poll(now);
 }
 
 #else  // no TWAI on this target (host build or unsupported chip): the USB link only
@@ -178,6 +179,7 @@ void ElcCan::poll() {
   int ubudget = 512;
   while (ubudget-- > 0 && elc_usb_take_frame(uf)) deliver(uf, now);
   if (running()) heartbeat(now);
+  if (_chan && running()) _chan->poll(now);
 #endif
 }
 
@@ -194,7 +196,15 @@ bool ElcCan::send(const ElcCanFrame &f) {
   return usb || bus;
 }
 
+static bool chan_send(const ElcCanFrame &f, void *ctx) { return ((ElcCan *)ctx)->send(f); }
+
+void ElcCan::attachChannels(ElcChannels *ch, const ElcNetAnnounce &me) {
+  _chan = ch;
+  if (ch) ch->begin(_node, me, chan_send, this);
+}
+
 void ElcCan::deliver(const ElcCanFrame &f, uint32_t now) {
+  if (_chan) _chan->feed(f, now);
   ElcCanHeartbeat hb;
   if (elc_can_decode_heartbeat(f, hb) && hb.node < ELC_CAN_MAX_NODES) {
     ElcCanNodeInfo &n = _nodes[hb.node];
@@ -217,6 +227,7 @@ void ElcCan::heartbeat(uint32_t now) {
   hb.type = _type;
   hb.fw_version = ELC_CAN_FW_VERSION;
   hb.uptime_s = now / 1000u;
+  hb.flags = _chan ? 0x01 : 0x00;  // bit0: speaks the channel protocol
   ElcCanFrame f;
   elc_can_encode_heartbeat(hb, f);
   send(f);
