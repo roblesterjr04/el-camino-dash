@@ -20,6 +20,7 @@
 #include "center_camera.h"
 #include "center_ble.h"
 #include "center_can.h"
+#include "center_chan.h"
 #include "center_menu.h"
 #include "center_gps.h"
 #include "center_sd_settings.h"
@@ -117,6 +118,7 @@ void center_setup() {
 
   cluster_i2c_master_begin();
   center_can_begin();
+  center_chan_begin();  // core sensors and SYSTEM on the channel protocol
   center_ui_sync_cluster_bus();
   elc_loop_watchdog_begin();
 }
@@ -127,6 +129,7 @@ static void poll_sensor_link() {
     if (!s_link.fromBus()) center_can_send_sensor(s_link.last());  // the slots get sensor data from the bus
   }
   center_can_poll();
+  center_chan_loop(millis());
   char uart_line[128];
   while (s_link.takeTextLine(uart_line, sizeof(uart_line))) {
     center_ui_on_sensor_uart_line(uart_line);

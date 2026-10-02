@@ -11,7 +11,8 @@
  * requests to the center, state from 0x210 / 0x213).
  *
  * Home is a vertical wheel: the selected item sits in the middle, neighbours curve away along the rim.
- * Drag or tap to move, tap the middle item to open it. Pages: Brightness, Theme, Screens, Service, Phone.
+ * Drag or tap to move, tap the middle item to open it. Pages: Brightness, Theme, Screens, Service, Phone,
+ * Accessories (every accessory's own page from the UI channel: accessory_can.h).
  * The menu is rebuilt in the current theme's colours and fonts each time it opens.
  *
  * The Phone page (pairing, the paired list, voice assistant, redial) reads the audio bridge's phone state from
@@ -28,8 +29,9 @@ enum class UiMenuPage : uint8_t {
   Screens,
   Service,
   Phone,
+  Accessories,
 };
-static const uint8_t kUiMenuPages = 7;
+static const uint8_t kUiMenuPages = 8;
 /** Rows on the Service page (UiMenuHost::service_row). */
 static const int kUiServiceRows = 7;
 

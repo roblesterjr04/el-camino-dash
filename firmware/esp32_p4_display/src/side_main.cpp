@@ -13,6 +13,7 @@
 #include <elc_watchdog.h>
 #include <gauge_console.h>
 #include <gauge_link.h>
+#include <chan_screen.h>
 #include <media_can.h>
 #include <menu_can.h>
 #include <p4_screen.h>
@@ -209,7 +210,8 @@ void side_setup(uint8_t role) {
   s_console.on_line = [](const char *line) {
     char reply[1024];
     if (phone_can_command(line, reply, sizeof(reply)) ||  // phone, phone demo …
-        menu_can_command(line, reply, sizeof(reply))) {   // menu, menu rotate|press|back|open …
+        menu_can_command(line, reply, sizeof(reply)) ||   // menu, menu rotate|press|back|open …
+        chan_screen_command(line, reply, sizeof(reply))) {  // chan, chan query
       Serial.println(reply);
       return true;
     }
@@ -242,6 +244,7 @@ void side_setup(uint8_t role) {
   Serial.printf("CAN: %s (TX=%d RX=%d, node 0x%02X)\n",
                 s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, display_role_can_node(role), ElcCanNodeType::Display) ? "up" : "off",
                 ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, (unsigned)display_role_can_node(role));
+  chan_screen_begin(s_can, role);  // the channel protocol: announce, accessory pages, SYSTEM
   if (s_right) {
     Serial.printf("right: theme=%d classic_%d (3 s hold when not the media screen)\n", (int)s_theme, s_classic2 ? 2 : 1);
   }
@@ -253,6 +256,7 @@ void side_loop() {
   elc_illumination_gpio_poll();
   persist_theme_if_changed();
   s_can.poll();
+  chan_screen_poll(millis());
   s_link.poll();
   drain_uart_text();
   s_console.poll(s_link);

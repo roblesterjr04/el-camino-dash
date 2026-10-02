@@ -4,6 +4,7 @@
 #include <esp_heap_caps.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
+#include <chan_screen.h>
 #include <menu_can.h>
 #include <phone_can.h>
 #include <ui_menu.h>
@@ -57,7 +58,8 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
   {
     char reply[1024];
     if (phone_can_command(line.c_str(), reply, sizeof(reply)) ||  // phone, phone demo …
-        menu_can_command(line.c_str(), reply, sizeof(reply))) {   // menu, menu rotate|press|back|open … (not "menu on")
+        menu_can_command(line.c_str(), reply, sizeof(reply)) ||   // menu, menu rotate|press|back|open … (not "menu on")
+        chan_screen_command(line.c_str(), reply, sizeof(reply))) {  // chan, chan query
       Serial.println(reply);
       return;
     }

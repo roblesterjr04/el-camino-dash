@@ -349,7 +349,7 @@ screen, theme or input device is in use.
 | `0x03` | TEXT | accessory | item u8, text (≤ 64 bytes) |
 | `0x04` | RESULT | accessory | item u8, result u8, asker node u8 |
 | `0x81` | SET | menu screen | dest u8, item u8, value s32 |
-| `0x82` | VIEW | menu screen | dest u8, item u8 being shown (a group, or `0xFF` = closed) |
+| `0x82` | VIEW | menu screen | dest u8, item u8 being shown (a group; `0xFE` = the accessory's top page, `0xFF` = closed) |
 
 Kinds:
 

@@ -133,6 +133,9 @@ static const uint8_t ELC_UI_GROUP = 0, ELC_UI_READOUT = 1, ELC_UI_TOGGLE = 2, EL
 static const uint8_t ELC_UI_F_RO = 1, ELC_UI_F_CONFIRM = 2, ELC_UI_F_ADVANCED = 4, ELC_UI_F_LIVE = 8,
                      ELC_UI_F_SETTING = 16;
 static const uint8_t ELC_UI_TOP = 0xFF;
+/** VIEW's item when the accessory's top page shows (0xFF there means the page closed). */
+static const uint8_t ELC_UI_VIEW_TOP = 0xFE;
+static const uint8_t ELC_UI_VIEW_CLOSED = 0xFF;
 static const uint8_t ELC_UI_OK = 0, ELC_UI_RANGE = 1, ELC_UI_READONLY = 2, ELC_UI_BUSY = 3, ELC_UI_UNKNOWN = 4;
 struct ElcUiItem {
   uint8_t item = 0, parent = ELC_UI_TOP, kind = 0, flags = 0;

@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <accessory_can.h>
+#include <chan_screen.h>
 #include <elc_fonts.h>
 #include <p4_screen.h>
 #include <phone_can.h>
@@ -60,6 +62,7 @@ const Item kItems[] = {
     {IC_FUEL, "Efficiency", Act::View, kUiViewEcon},
     {IC_MUSIC, "Media", Act::View, kUiViewMedia},
     {IC_PHONE, "Phone", Act::Page, (uint8_t)UiMenuPage::Phone},
+    {IC_PLUS, "Accessories", Act::Page, (uint8_t)UiMenuPage::Accessories},
     {IC_BRIGHT, "Brightness", Act::Page, (uint8_t)UiMenuPage::Brightness},
     {IC_PALETTE, "Theme", Act::Page, (uint8_t)UiMenuPage::Theme},
     {IC_SETTINGS, "Screens", Act::Page, (uint8_t)UiMenuPage::Screens},
@@ -106,8 +109,9 @@ int s_screens_sig = -1;
 // hold ring on the gauge screen
 lv_obj_t *s_hold_arc = nullptr, *s_hold_lbl = nullptr;
 
-// Phone page state, defined with the page below
+// Phone and Accessories page state, defined with the pages below
 const char *ph_home_sub();
+const char *ac_home_sub();
 
 // ---------------------------------------------------------------- small builders
 /** Plain rectangle. Not clickable unless marked (LVGL objects are clickable by default). */
@@ -244,6 +248,7 @@ const char *item_sub(int i) {
       return buf;
     }
     case UiMenuPage::Phone: return ph_home_sub();
+    case UiMenuPage::Accessories: return ac_home_sub();
     default: return "Diagnostics";
   }
 }
@@ -1125,6 +1130,535 @@ void ph_describe(char *m, size_t nm, char *sb, size_t ns) {
   ph_summary(sb, ns);
 }
 
+// ---------------------------------------------------------------- Accessories
+// Every accessory's own page, from the UI channel (accessory_can.h; docs/protocols/can_channels.md, UI): a list of
+// accessories, then an accessory's items (groups open sub-pages), and editors for numbers and choices. Toggles and
+// actions act at once (after a confirmation when the item asks for one). The body is rebuilt from tick when its
+// structure changes; values update in place. The knob moves the focus and presses; in the number editor it turns the
+// value. What the screen shows is kept coming with VIEW (accessory_can_view).
+enum AcAct : uint8_t { kAcNode, kAcItem, kAcOpt, kAcMinus, kAcPlus, kAcApply, kAcCancel, kAcYes, kAcNo, kAcAdvanced, kAcNone };
+enum class AcView : uint8_t { Nodes, Items, Choice, Number, Confirm };
+
+constexpr int kAcMaxRows = 48;
+struct AcRow {
+  uint8_t act, arg;
+  lv_obj_t *obj, *val;
+  char label[40];
+};
+AcRow s_ac_rows[kAcMaxRows];
+int s_ac_n = 0, s_ac_focus = 0;
+uint8_t s_ac_focus_act = 0xFF, s_ac_focus_arg = 0;
+lv_obj_t *s_ac_st1 = nullptr, *s_ac_st2 = nullptr, *s_ac_body = nullptr, *s_ac_big = nullptr;
+uint8_t s_ac_node = 0, s_ac_group = ELC_UI_TOP, s_ac_edit = 0xFF;
+int32_t s_ac_value = 0;           // the number being edited, or the value waiting for a confirmation
+AcView s_ac_back_view = AcView::Items;  // where a confirmation returns to
+bool s_ac_adv = false, s_ac_dirty = false;
+AcView s_ac_view = AcView::Nodes;
+uint32_t s_ac_sig = 0, s_ac_poll_ms = 0;
+
+const AccItem *ac_item(uint8_t item) { return s_ac_node ? accessory_can_item(s_ac_node, item) : nullptr; }
+
+/** The note on an item's row: its value, a pending SET, or the refusal of the last one. */
+void ac_note(const AccItem &it, char *out, size_t n, lv_color_t *color) {
+  *color = T.dim;
+  const uint32_t now = millis();
+  if (it.pending) {
+    snprintf(out, n, "\xE2\x80\xA6");  // …
+    return;
+  }
+  if (it.result_ms && it.result != 0 && now - it.result_ms < 4000) {
+    static const char *const kWhy[5] = {"", "Out of range", "Read-only", "Busy", "Unknown"};
+    snprintf(out, n, "%s", it.result == 0xFF ? "No answer" : (it.result < 5 ? kWhy[it.result] : "Refused"));
+    *color = T.bad;
+    return;
+  }
+  accessory_can_value_text(it, out, n);
+  if (it.d.kind == ELC_UI_TOGGLE && it.has_value && it.value) *color = T.accent;
+}
+
+uint32_t ac_signature() {
+  uint32_t h = fnv(2166136261u, &s_ac_view, sizeof(s_ac_view));
+  const uint8_t k[5] = {s_ac_node, s_ac_group, s_ac_edit, (uint8_t)s_ac_adv, (uint8_t)(s_ac_value & 0xFF)};
+  h = fnv(h, k, sizeof(k));
+  if (s_ac_view == AcView::Nodes) {
+    uint8_t nodes[kAccMaxNodes];
+    const int n = accessory_can_nodes(nodes, kAccMaxNodes);
+    h = fnv(h, nodes, (size_t)n);
+    for (int i = 0; i < n; i++) h = fnv_str(h, accessory_can_name(nodes[i]));
+    return h;
+  }
+  // the items' descriptions (not their values, which update in place)
+  const AccItem *items[kAcMaxRows];
+  const int n = accessory_can_items(s_ac_node, s_ac_group, s_ac_adv, items, kAcMaxRows);
+  for (int i = 0; i < n; i++) {
+    h = fnv(h, &items[i]->d.item, 1);
+    h = fnv_str(h, items[i]->d.label);
+    h = fnv_str(h, items[i]->d.options);
+  }
+  if (s_ac_view == AcView::Choice || s_ac_view == AcView::Number) {
+    const AccItem *it = ac_item(s_ac_edit);
+    if (it) h = fnv(h, &it->d, sizeof(it->d.kind));
+  }
+  return h;
+}
+
+void ac_style_focus(int i, bool on) {
+  if (i < 0 || i >= s_ac_n || !s_ac_rows[i].obj) return;
+  lv_obj_set_style_border_color(s_ac_rows[i].obj, on ? T.accent : T.line, 0);
+  lv_obj_set_style_border_width(s_ac_rows[i].obj, on ? 3 : 2, 0);
+}
+
+void ac_set_focus(int i, bool scroll) {
+  if (s_ac_n == 0) return;
+  if (i < 0) i = 0;
+  if (i >= s_ac_n) i = s_ac_n - 1;
+  if (i != s_ac_focus) ac_style_focus(s_ac_focus, false);
+  s_ac_focus = i;
+  ac_style_focus(i, true);
+  s_ac_focus_act = s_ac_rows[i].act;
+  s_ac_focus_arg = s_ac_rows[i].arg;
+  if (scroll) lv_obj_scroll_to_view(s_ac_rows[i].obj, LV_ANIM_ON);
+}
+
+/** Send a SET, or ask first when the item wants a confirmation. */
+void ac_send(const AccItem &it, int32_t value, AcView from) {
+  if (it.d.flags & ELC_UI_F_CONFIRM) {
+    s_ac_edit = it.d.item;
+    s_ac_value = value;
+    s_ac_back_view = from;
+    s_ac_view = AcView::Confirm;
+    s_ac_focus_act = kAcNo;
+    return;
+  }
+  accessory_can_set(s_ac_node, it.d.item, value);
+  s_ac_view = AcView::Items;
+  s_ac_focus_act = kAcItem;
+  s_ac_focus_arg = it.d.item;
+}
+
+int32_t ac_clamp(const AccItem &it, int32_t v) {
+  if (it.d.max > it.d.min) {
+    if (v < it.d.min) v = it.d.min;
+    if (v > it.d.max) v = it.d.max;
+  }
+  return v;
+}
+
+void ac_step(int steps) {
+  const AccItem *it = ac_item(s_ac_edit);
+  if (!it) return;
+  const int32_t step = it->d.step > 0 ? it->d.step : 1;
+  s_ac_value = ac_clamp(*it, s_ac_value + steps * step);
+  if (s_ac_big) {
+    char v[24], b[40];
+    elc_ui_format(s_ac_value, it->d.exponent, v, sizeof(v));
+    snprintf(b, sizeof(b), it->d.unit[0] ? "%s %s" : "%s", v, it->d.unit);
+    lv_label_set_text(s_ac_big, b);
+  }
+}
+
+void ac_activate(int i) {
+  if (i < 0 || i >= s_ac_n) return;
+  const AcRow row = s_ac_rows[i];
+  switch (row.act) {
+    case kAcNode:
+      s_ac_node = row.arg;
+      s_ac_group = ELC_UI_TOP;
+      s_ac_adv = false;
+      s_ac_view = AcView::Items;
+      s_ac_focus_act = 0xFF;
+      break;
+    case kAcAdvanced:
+      s_ac_adv = !s_ac_adv;
+      break;
+    case kAcItem: {
+      const AccItem *it = ac_item(row.arg);
+      if (!it || (it->d.flags & ELC_UI_F_RO)) break;
+      switch (it->d.kind) {
+        case ELC_UI_GROUP:
+          s_ac_group = it->d.item;
+          s_ac_focus_act = 0xFF;
+          break;
+        case ELC_UI_TOGGLE: ac_send(*it, it->has_value && it->value ? 0 : 1, AcView::Items); break;
+        case ELC_UI_ACTION: ac_send(*it, 1, AcView::Items); break;
+        case ELC_UI_CHOICE:
+          s_ac_edit = it->d.item;
+          s_ac_view = AcView::Choice;
+          s_ac_focus_act = kAcOpt;
+          s_ac_focus_arg = (uint8_t)(it->has_value ? it->value : 0);
+          break;
+        case ELC_UI_NUMBER:
+          s_ac_edit = it->d.item;
+          s_ac_value = ac_clamp(*it, it->has_value ? it->value : it->d.min);
+          s_ac_view = AcView::Number;
+          s_ac_focus_act = kAcApply;
+          break;
+        default: break;  // readouts
+      }
+      break;
+    }
+    case kAcOpt: {
+      const AccItem *it = ac_item(s_ac_edit);
+      if (it) ac_send(*it, row.arg, AcView::Choice);
+      break;
+    }
+    case kAcMinus: ac_step(-1); return;
+    case kAcPlus: ac_step(1); return;
+    case kAcApply: {
+      const AccItem *it = ac_item(s_ac_edit);
+      if (it) ac_send(*it, s_ac_value, AcView::Number);
+      break;
+    }
+    case kAcCancel:
+      s_ac_view = AcView::Items;
+      s_ac_focus_act = kAcItem;
+      s_ac_focus_arg = s_ac_edit;
+      break;
+    case kAcYes: {
+      accessory_can_set(s_ac_node, s_ac_edit, s_ac_value);
+      s_ac_view = AcView::Items;
+      s_ac_focus_act = kAcItem;
+      s_ac_focus_arg = s_ac_edit;
+      break;
+    }
+    case kAcNo:
+      s_ac_view = s_ac_back_view == AcView::Confirm ? AcView::Items : s_ac_back_view;
+      s_ac_focus_act = s_ac_view == AcView::Items ? kAcItem : 0xFF;
+      s_ac_focus_arg = s_ac_edit;
+      break;
+    default: return;
+  }
+  s_ac_dirty = true;  // tick rebuilds (this may run inside the clicked object's handler)
+}
+
+void ac_clicked(lv_event_t *e) {
+  const int i = (int)(intptr_t)lv_event_get_user_data(e);
+  if (i < 0 || i >= s_ac_n) return;
+  ac_set_focus(i, false);
+  ac_activate(i);
+}
+
+lv_obj_t *ac_add(lv_obj_t *o, lv_obj_t *val, uint8_t act, uint8_t arg, const char *text) {
+  if (s_ac_n >= kAcMaxRows) return o;
+  AcRow &r = s_ac_rows[s_ac_n];
+  r.act = act;
+  r.arg = arg;
+  r.obj = o;
+  r.val = val;
+  snprintf(r.label, sizeof(r.label), "%s", text);
+  lv_obj_add_event_cb(o, ac_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)s_ac_n);
+  s_ac_n++;
+  return o;
+}
+
+/** A list row: text on the left, a note (the value) on the right. */
+void ac_row(int y, const char *text, const char *note, lv_color_t note_color, uint8_t act, uint8_t arg, bool dim = false) {
+  lv_obj_t *row = box(s_ac_body, 0, y, kPhW, kPhRowH);
+  lv_obj_set_style_radius(row, 18, 0);
+  fill(row, T.surface);
+  outline(row, T.line, 2);
+  lv_obj_set_style_bg_color(row, T.line, LV_STATE_PRESSED);
+  lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_t *l = label(row, text, T.sub, dim ? T.dim : T.text);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(l, note && note[0] ? 220 : kPhW - 44);
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, 22, 0);
+  lv_obj_t *nl = nullptr;
+  if (note) {
+    nl = label(row, note, T.sub, note_color);
+    lv_label_set_long_mode(nl, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(nl, kPhW - 44 - 230);
+    lv_obj_set_style_text_align(nl, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_align(nl, LV_ALIGN_RIGHT_MID, -20, 0);
+  }
+  ac_add(row, nl, act, arg, text);
+}
+
+lv_obj_t *ac_text(const char *text, const lv_font_t *font, lv_color_t color, int y, bool wrap = false) {
+  lv_obj_t *l = label(s_ac_body, text, font, color);
+  lv_obj_set_width(l, kPhW);
+  lv_label_set_long_mode(l, wrap ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
+  lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(l, 0, y);
+  return l;
+}
+
+lv_obj_t *ac_button(int x, int y, int w, const char *text, lv_color_t color, uint8_t act, uint8_t arg = 0) {
+  lv_obj_t *b = pill(s_ac_body, x, y, w, 62, text, nullptr);
+  lv_obj_set_style_text_color(lv_obj_get_child(b, 0), color, 0);
+  return ac_add(b, nullptr, act, arg, text);
+}
+
+void ac_status() {
+  if (!s_ac_st1) return;
+  char l1[64], l2[80];
+  if (s_ac_view == AcView::Nodes) {
+    uint8_t nodes[kAccMaxNodes];
+    const int n = accessory_can_nodes(nodes, kAccMaxNodes);
+    snprintf(l1, sizeof(l1), "Accessories");
+    if (n) {
+      snprintf(l2, sizeof(l2), "%d on the bus", n);
+    } else {
+      snprintf(l2, sizeof(l2), "None has sent its page yet");
+    }
+  } else {
+    snprintf(l1, sizeof(l1), "%s", accessory_can_name(s_ac_node));
+    const AccItem *g = s_ac_group != ELC_UI_TOP ? ac_item(s_ac_group) : nullptr;
+    const ElcChannels *ch = chan_screen();
+    const bool alive = ch && ch->nodeInfo(s_ac_node).announced;
+    if (g) {
+      snprintf(l2, sizeof(l2), "%s", g->d.label);
+    } else {
+      snprintf(l2, sizeof(l2), "Node 0x%02X%s", (unsigned)s_ac_node, alive ? "" : " \xC2\xB7 not announced");
+    }
+  }
+  if (strcmp(lv_label_get_text(s_ac_st1), l1) != 0) lv_label_set_text(s_ac_st1, l1);
+  if (strcmp(lv_label_get_text(s_ac_st2), l2) != 0) lv_label_set_text(s_ac_st2, l2);
+}
+
+/** Values in place: each item row's note. */
+void ac_refresh_values() {
+  if (s_ac_view != AcView::Items) return;
+  for (int i = 0; i < s_ac_n; i++) {
+    const AcRow &r = s_ac_rows[i];
+    if (r.act != kAcItem || !r.val) continue;
+    const AccItem *it = ac_item(r.arg);
+    if (!it) continue;
+    char note[72];
+    lv_color_t c;
+    ac_note(*it, note, sizeof(note), &c);
+    if (strcmp(lv_label_get_text(r.val), note) != 0) lv_label_set_text(r.val, note);
+    lv_obj_set_style_text_color(r.val, c, 0);
+  }
+}
+
+void ac_build_body() {
+  if (!s_ac_body) return;
+  lv_obj_clean(s_ac_body);
+  lv_obj_scroll_to_y(s_ac_body, 0, LV_ANIM_OFF);
+  s_ac_n = 0;
+  s_ac_focus = 0;
+  s_ac_big = nullptr;
+  const AccItem *edit = ac_item(s_ac_edit);
+  if ((s_ac_view == AcView::Choice || s_ac_view == AcView::Number || s_ac_view == AcView::Confirm) && !edit) {
+    s_ac_view = AcView::Items;  // the item went away
+  }
+  char buf[96];
+  int y = 0, def = 0;
+  switch (s_ac_view) {
+    case AcView::Nodes: {
+      uint8_t nodes[kAccMaxNodes];
+      const int n = accessory_can_nodes(nodes, kAccMaxNodes);
+      if (!n) {
+        ac_text("Accessory cards put their settings\nand readouts here once they are\non the bus.", T.sub, T.faint, 60, true);
+      }
+      for (int i = 0; i < n; i++) {
+        ac_row(y, accessory_can_name(nodes[i]), ">", T.dim, kAcNode, nodes[i]);
+        y += kPhRowH + kPhGap;
+      }
+      break;
+    }
+    case AcView::Items: {
+      const AccItem *items[kAcMaxRows];
+      const int n = accessory_can_items(s_ac_node, s_ac_group, s_ac_adv, items, kAcMaxRows - 1);
+      if (!n) ac_text("Nothing on this page yet.", T.sub, T.faint, 60);
+      for (int i = 0; i < n; i++) {
+        char note[72];
+        lv_color_t c;
+        ac_note(*items[i], note, sizeof(note), &c);
+        const bool ro = (items[i]->d.flags & ELC_UI_F_RO) || items[i]->d.kind == ELC_UI_READOUT ||
+                        items[i]->d.kind == ELC_UI_TEXTOUT;
+        ac_row(y, items[i]->d.label, note, c, kAcItem, items[i]->d.item, ro);
+        y += kPhRowH + kPhGap;
+      }
+      // advanced items: a switch at the end of the accessory's top page, when it has any
+      const AccItem *all[kAcMaxRows];
+      const int na = s_ac_group == ELC_UI_TOP ? accessory_can_items(s_ac_node, s_ac_group, true, all, kAcMaxRows) : 0;
+      if (na > n || s_ac_adv) {
+        ac_row(y, "Show advanced", s_ac_adv ? "On" : "Off", s_ac_adv ? T.accent : T.dim, kAcAdvanced, 0);
+        y += kPhRowH + kPhGap;
+      }
+      box(s_ac_body, 0, y, 1, 8);
+      break;
+    }
+    case AcView::Choice: {
+      ac_text(edit->d.label, T.body, T.text, 0);
+      y = 56;
+      const int n = edit->d.option_count();
+      for (int k = 0; k < n && k < 255; k++) {
+        char opt[48];
+        if (!edit->d.option(k, opt, sizeof(opt))) break;
+        const bool cur = edit->has_value && edit->value == k;
+        ac_row(y, opt, cur ? "Current" : nullptr, T.accent, kAcOpt, (uint8_t)k);
+        y += kPhRowH + kPhGap;
+      }
+      box(s_ac_body, 0, y, 1, 8);
+      break;
+    }
+    case AcView::Number: {
+      ac_text(edit->d.label, T.body, T.text, 0);
+      s_ac_big = ac_text("", T.label, T.accent, 70);
+      ac_step(0);
+      char lo[24], hi[24];
+      elc_ui_format(edit->d.min, edit->d.exponent, lo, sizeof(lo));
+      elc_ui_format(edit->d.max, edit->d.exponent, hi, sizeof(hi));
+      snprintf(buf, sizeof(buf), "%s to %s %s", lo, hi, edit->d.unit);
+      ac_text(buf, T.sub, T.faint, 140);
+      ac_button(0, 190, 222, "-", T.text, kAcMinus);
+      ac_button(238, 190, 222, "+", T.text, kAcPlus);
+      ac_button(0, 268, 222, "Cancel", T.dim, kAcCancel);
+      ac_button(238, 268, 222, "Set", T.ok, kAcApply);
+      def = 3;
+      break;
+    }
+    case AcView::Confirm: {
+      char v[48] = "";
+      if (edit->d.kind == ELC_UI_CHOICE) {
+        edit->d.option((int)s_ac_value, v, sizeof(v));
+      } else if (edit->d.kind == ELC_UI_NUMBER) {
+        elc_ui_format(s_ac_value, edit->d.exponent, v, sizeof(v));
+      }
+      if (v[0]) {
+        snprintf(buf, sizeof(buf), "%s: %s?", edit->d.label, v);
+      } else {
+        snprintf(buf, sizeof(buf), "%s?", edit->d.label);
+      }
+      ac_text(buf, T.body, T.text, 30, true);
+      ac_button(0, 200, 222, "Cancel", T.text, kAcNo);
+      ac_button(238, 200, 222, "OK", T.ok, kAcYes);
+      def = 0;
+      break;
+    }
+  }
+  const bool list = s_ac_view == AcView::Nodes || s_ac_view == AcView::Items || s_ac_view == AcView::Choice;
+  if (list) {
+    lv_obj_add_flag(s_ac_body, LV_OBJ_FLAG_SCROLLABLE);
+  } else {
+    lv_obj_clear_flag(s_ac_body, LV_OBJ_FLAG_SCROLLABLE);
+  }
+  for (int i = 0; i < s_ac_n; i++) ac_style_focus(i, false);
+  int f = -1;
+  for (int i = 0; i < s_ac_n && f < 0; i++) {
+    if (s_ac_rows[i].act == s_ac_focus_act && s_ac_rows[i].arg == s_ac_focus_arg) f = i;
+  }
+  if (s_ac_n) {
+    s_ac_focus = f >= 0 ? f : (def < s_ac_n ? def : 0);
+    ac_set_focus(s_ac_focus, f >= 0);
+  }
+  s_ac_sig = ac_signature();
+  s_ac_dirty = false;
+  ac_status();
+}
+
+void build_accessories(lv_obj_t *page) {
+  page_title(page, "Accessories");
+  s_ac_view = AcView::Nodes;
+  s_ac_node = 0;
+  s_ac_group = ELC_UI_TOP;
+  s_ac_edit = 0xFF;
+  s_ac_focus_act = 0xFF;
+  lv_obj_t *card = box(page, 170, 176, 460, 96);
+  lv_obj_set_style_radius(card, 22, 0);
+  fill(card, T.surface);
+  outline(card, T.line, 2);
+  s_ac_st1 = label(card, "", T.body, T.text);
+  lv_label_set_long_mode(s_ac_st1, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(s_ac_st1, 420);
+  lv_obj_align(s_ac_st1, LV_ALIGN_TOP_LEFT, 20, 14);
+  s_ac_st2 = label(card, "", T.sub, T.dim);
+  lv_label_set_long_mode(s_ac_st2, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(s_ac_st2, 420);
+  lv_obj_align(s_ac_st2, LV_ALIGN_TOP_LEFT, 20, 56);
+  s_ac_body = box(page, 170, 288, kPhW, 376);
+  lv_obj_set_scroll_dir(s_ac_body, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(s_ac_body, LV_SCROLLBAR_MODE_OFF);
+  add_back(page);
+  ac_build_body();
+}
+
+void ac_tick() {
+  // keep the shown accessory's live items coming
+  accessory_can_view(s_ac_view == AcView::Nodes ? 0 : s_ac_node, s_ac_group);
+  const uint32_t now = millis();
+  if (s_ac_dirty) {
+    ac_build_body();
+  } else if (now - s_ac_poll_ms >= 200u) {
+    s_ac_poll_ms = now;
+    if (ac_signature() != s_ac_sig) {
+      ac_build_body();
+    } else {
+      ac_refresh_values();
+      ac_status();
+    }
+  }
+}
+
+/** Back one step inside the page; false when already at the list of accessories. */
+bool ac_back() {
+  switch (s_ac_view) {
+    case AcView::Confirm:
+      s_ac_view = s_ac_back_view == AcView::Confirm ? AcView::Items : s_ac_back_view;
+      break;
+    case AcView::Choice:
+    case AcView::Number:
+      s_ac_view = AcView::Items;
+      s_ac_focus_act = kAcItem;
+      s_ac_focus_arg = s_ac_edit;
+      break;
+    case AcView::Items:
+      if (s_ac_group != ELC_UI_TOP) {
+        const AccItem *g = ac_item(s_ac_group);
+        s_ac_focus_act = kAcItem;
+        s_ac_focus_arg = s_ac_group;
+        s_ac_group = g ? g->d.parent : ELC_UI_TOP;
+      } else {
+        s_ac_view = AcView::Nodes;
+        s_ac_focus_act = kAcNode;
+        s_ac_focus_arg = s_ac_node;
+        s_ac_node = 0;
+      }
+      break;
+    case AcView::Nodes: return false;
+  }
+  s_ac_dirty = true;
+  return true;
+}
+
+/** The Accessories page for the console: the focused row, and its value (or the editor's value). */
+void ac_describe(char *m, size_t nm, char *sb, size_t ns) {
+  const bool focus = s_ac_n > 0 && s_ac_focus < s_ac_n;
+  const AccItem *edit = ac_item(s_ac_edit);
+  if (s_ac_view == AcView::Number && edit) {
+    char v[24];
+    elc_ui_format(s_ac_value, edit->d.exponent, v, sizeof(v));
+    snprintf(m, nm, "%s %s %s", edit->d.label, v, edit->d.unit);
+    snprintf(sb, ns, "Turn to change \xC2\xB7 Set");
+    return;
+  }
+  snprintf(m, nm, "%s", focus ? s_ac_rows[s_ac_focus].label : "Accessories");
+  if (focus && s_ac_rows[s_ac_focus].act == kAcItem) {
+    const AccItem *it = ac_item(s_ac_rows[s_ac_focus].arg);
+    lv_color_t c;
+    if (it) ac_note(*it, sb, ns, &c);
+    return;
+  }
+  if (s_ac_view == AcView::Nodes) {
+    snprintf(sb, ns, "%s", focus ? "Open its page" : "No accessory pages");
+  } else {
+    snprintf(sb, ns, "%s", accessory_can_name(s_ac_node));
+  }
+}
+
+const char *ac_home_sub() {
+  static char buf[48];
+  uint8_t nodes[kAccMaxNodes];
+  const int n = accessory_can_nodes(nodes, kAccMaxNodes);
+  if (!n) return "None on the bus";
+  if (n == 1) return accessory_can_name(nodes[0]);
+  snprintf(buf, sizeof(buf), "%d on the bus", n);
+  return buf;
+}
+
 // ---------------------------------------------------------------- lifecycle
 void clear_page_refs() {
   s_bright_arc = s_bright_val = s_follow_sw = nullptr;
@@ -1134,6 +1668,8 @@ void clear_page_refs() {
   s_demo_btn_lbl = nullptr;
   s_ph_st1 = s_ph_st2 = s_ph_body = s_ph_left = nullptr;
   s_ph_n = 0;
+  s_ac_st1 = s_ac_st2 = s_ac_body = s_ac_big = nullptr;
+  s_ac_n = 0;
 }
 
 void tick(lv_timer_t *) {
@@ -1161,7 +1697,10 @@ void tick(lv_timer_t *) {
     if (screens_sig() != s_screens_sig) screens_restyle();
   } else if (s_page_id == UiMenuPage::Phone) {
     ph_tick();
+  } else if (s_page_id == UiMenuPage::Accessories) {
+    ac_tick();
   }
+  if (s_page_id != UiMenuPage::Accessories) accessory_can_view(0, ELC_UI_TOP);
 }
 
 }  // namespace
@@ -1248,6 +1787,7 @@ void ui_menu_open(UiMenuPage page) {
     case UiMenuPage::Screens: build_screens(s_page); break;
     case UiMenuPage::Service: build_service(s_page); break;
     case UiMenuPage::Phone: build_phone(s_page); break;
+    case UiMenuPage::Accessories: build_accessories(s_page); break;
   }
   fade_in(was_open ? s_page : s_root, was_open ? 200 : 220);
 }
@@ -1263,6 +1803,7 @@ void ui_menu_close() {
   s_root = nullptr;
   s_page = nullptr;
   clear_page_refs();
+  accessory_can_view(0, ELC_UI_TOP);  // no accessory page shows now
   p4_screen_set_tear_free(true);
   s_dragging = false;
 }
@@ -1285,6 +1826,12 @@ void ui_menu_rotate(int steps) {
     bright_apply(true);
   } else if (s_page_id == UiMenuPage::Phone) {
     ph_set_focus(s_ph_focus + steps, true);
+  } else if (s_page_id == UiMenuPage::Accessories) {
+    if (s_ac_view == AcView::Number) {
+      ac_step(steps);
+    } else {
+      ac_set_focus(s_ac_focus + steps, true);
+    }
   }
 }
 
@@ -1295,6 +1842,15 @@ void ui_menu_press() {
     activate(s_target);
   } else if (s_page_id == UiMenuPage::Phone) {
     if (s_ph_n && !s_ph_dirty) ph_activate(s_ph_focus);  // not twice before the page shows the outcome
+  } else if (s_page_id == UiMenuPage::Accessories) {
+    if (s_ac_view == AcView::Number && !s_ac_dirty) {
+      s_ac_focus_act = kAcApply;  // press sets the number, whatever has the focus
+      for (int i = 0; i < s_ac_n; i++) {
+        if (s_ac_rows[i].act == kAcApply) ac_activate(i);
+      }
+    } else if (s_ac_n && !s_ac_dirty) {
+      ac_activate(s_ac_focus);
+    }
   } else {
     ui_menu_open(UiMenuPage::Home);
   }
@@ -1313,6 +1869,8 @@ void ui_menu_back() {
     s_ph_focus_arg = s_ph_sel;
     s_ph_sel = 0xFF;
     s_ph_dirty = true;
+  } else if (s_page_id == UiMenuPage::Accessories && ac_back()) {
+    // a step back inside the page
   } else if (s_page_id != UiMenuPage::Home) {
     // Home with the wheel on the page just left.
     for (int i = 0; i < kNumItems; i++) {
@@ -1370,6 +1928,7 @@ void ui_menu_describe(char *m, size_t nm, char *sb, size_t ns) {
       break;
     }
     case UiMenuPage::Phone: ph_describe(m, nm, sb, ns); break;
+    case UiMenuPage::Accessories: ac_describe(m, nm, sb, ns); break;
     case UiMenuPage::Reserved1: break;
   }
   utf8_cut(m, 32);

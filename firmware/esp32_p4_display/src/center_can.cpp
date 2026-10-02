@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include <elc_can.h>
+#include <chan_screen.h>
 #include <media_can.h>
 #include <menu_can.h>
 #include <phone_can.h>
@@ -66,9 +67,13 @@ void center_can_begin() {
   phone_can_begin(send_frame, ELC_CAN_NODE_CENTER);  // the menu's Phone page sends phone commands
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_CENTER, ElcCanNodeType::Display);
   Serial.printf("CAN: %s (TX=%d RX=%d)\n", ok ? "up" : "off", ELC_CAN_TX_PIN, ELC_CAN_RX_PIN);
+  chan_screen_begin(s_can, ELC_CAN_SCREEN_CENTER);  // the channel protocol: announce, accessory pages, LOG
 }
 
-void center_can_poll() { s_can.poll(); }
+void center_can_poll() {
+  s_can.poll();
+  chan_screen_poll(millis());
+}
 
 void center_can_send_sensor(const SensorPacketValues &v) {
   if (!s_can.running()) {

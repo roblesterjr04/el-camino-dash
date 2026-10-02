@@ -215,6 +215,7 @@ enum ElcCanMenuPage : uint8_t {
   ELC_CAN_PAGE_SCREENS = 4,
   ELC_CAN_PAGE_SERVICE = 5,
   ELC_CAN_PAGE_PHONE = 6,
+  ELC_CAN_PAGE_ACCESSORIES = 7,  // accessory pages from the UI channel (can_channels.md)
 };
 struct ElcCanMenuInput {
   uint8_t event = 0;
