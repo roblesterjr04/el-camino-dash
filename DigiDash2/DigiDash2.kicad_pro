@@ -443,19 +443,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/C2_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S2_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S1_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S6_BATT"
+        "pattern": "/S5_5V"
       },
       {
         "netclass": "Power",
@@ -463,23 +451,15 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S5_5V"
+        "pattern": "/S2_3V3"
       },
       {
         "netclass": "Power",
-        "pattern": "/S3_3V3"
+        "pattern": "/S6_BATT"
       },
       {
         "netclass": "Power",
-        "pattern": "/S4_BATT"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S6_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S6_5V"
+        "pattern": "/C2_5V"
       },
       {
         "netclass": "Power",
@@ -487,7 +467,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S2_3V3"
+        "pattern": "/S1_3V3"
       },
       {
         "netclass": "Power",
@@ -495,19 +475,31 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S1_3V3"
+        "pattern": "/S3_3V3"
       },
       {
         "netclass": "Power",
-        "pattern": "/S5_BATT"
+        "pattern": "/C4_5V"
       },
       {
         "netclass": "Power",
-        "pattern": "/C1_5V"
+        "pattern": "/S6_5V"
       },
       {
         "netclass": "Power",
         "pattern": "/C3_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S4_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S1_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S4_5V"
       },
       {
         "netclass": "Power",
@@ -519,15 +511,23 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S4_5V"
+        "pattern": "/S2_5V"
       },
       {
         "netclass": "Power",
-        "pattern": "/C4_5V"
+        "pattern": "/S6_3V3"
       },
       {
         "netclass": "Power",
-        "pattern": "/S4_3V3"
+        "pattern": "/S4_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C1_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_BATT"
       },
       {
         "netclass": "Power12",
@@ -551,11 +551,11 @@
       },
       {
         "netclass": "Power12",
-        "pattern": "/S3_12V"
+        "pattern": "/S5_12V"
       },
       {
         "netclass": "Power12",
-        "pattern": "/S4_12V"
+        "pattern": "/S3_12V"
       },
       {
         "netclass": "Power12",
@@ -563,11 +563,11 @@
       },
       {
         "netclass": "Power12",
-        "pattern": "/S5_12V"
+        "pattern": "/S6_12V"
       },
       {
         "netclass": "Power12",
-        "pattern": "/S6_12V"
+        "pattern": "/S4_12V"
       },
       {
         "netclass": "Switch",
@@ -576,6 +576,10 @@
       {
         "netclass": "Video",
         "pattern": "/VIDEO_IN"
+      },
+      {
+        "netclass": "Video",
+        "pattern": "/VID_AAF"
       },
       {
         "netclass": "Video",
@@ -614,13 +618,7 @@
     "bus_aliases": {},
     "legacy_lib_dir": "",
     "legacy_lib_list": [],
-    "top_level_sheets": [
-      {
-        "filename": "DigiDash2.kicad_sch",
-        "name": "DigiDash2",
-        "uuid": "00000000-0000-0000-0000-000000000000"
-      }
-    ]
+    "top_level_sheets": []
   },
   "sheets": [],
   "text_variables": {},

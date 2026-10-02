@@ -198,13 +198,13 @@ def nid(prefix):
 used_refs = set()
 
 
-def place(lib_id, ref, value, footprint, nets, descr=None, unit=1, first=True, at=None):
-    """nets: {pin number: net | None (no-connect)}; every pin of the unit must be listed."""
+def place(lib_id, ref, value, footprint, nets, descr=None, unit=1, first=True, at=None, dnp=False):
+    """nets: {pin number: net | None (no-connect)}; every pin of the unit must be listed. dnp: not fitted."""
     blk = cur[0]
     if first:
         assert ref not in used_refs, ref
         used_refs.add(ref)
-        refs_info[ref] = {'group': blk.name, 'fp': footprint, 'value': value}
+        refs_info[ref] = {'group': blk.name, 'fp': footprint, 'value': value, 'dnp': dnp}
     x, y = at if at else blk.slot(lib_id, unit)
     pins = {k: v for k, v in lib_pins[lib_id].items() if v[5] in (0, unit)}
     props = lib_props[lib_id]
@@ -214,8 +214,8 @@ def place(lib_id, ref, value, footprint, nets, descr=None, unit=1, first=True, a
         return f(x + px), f(y - py)
 
     rp, vp = pos('Reference', (0, 3)), pos('Value', (0, -3))
-    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom yes) (on_board yes) (dnp no) (uuid "%s")' % (
-        lib_id, f(x), f(y), unit, uid('s' + ref + str(unit))),
+    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom yes) (on_board yes) (dnp %s) (uuid "%s")' % (
+        lib_id, f(x), f(y), unit, 'yes' if dnp else 'no', uid('s' + ref + str(unit))),
         '    (property "Reference" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)))' % (ref, rp[0], rp[1]),
         '    (property "Value" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)))' % (value, vp[0], vp[1]),
         '    (property "Footprint" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) hide))' % (footprint, f(x), f(y)),
@@ -318,14 +318,14 @@ FP_SLOT = 'DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical'   # numbered to mate wit
 FP_DIPSW = 'Button_Switch_SMD:SW_DIP_SPSTx02_Slide_KingTek_DSHP02TS_W7.62mm_P1.27mm'
 
 
-def r_(v, a, b, d=None, fp=FP_R):
-    return place(R, nid('R'), v, fp, {'1': a, '2': b}, descr=d)
+def r_(v, a, b, d=None, fp=FP_R, dnp=False, ref=None):
+    return place(R, ref or nid('R'), v, fp, {'1': a, '2': b}, descr=d, dnp=dnp)
 
 
-def c_(v, a, b, d=None, fp=None):
+def c_(v, a, b, d=None, fp=None, dnp=False, ref=None):
     if fp is None:
         fp = FP_C1210 if v in ('2.2u 100V', '47u 10V') else FP_C10 if v in ('10u', '4.7u') else FP_C
-    return place(C, nid('C'), v, fp, {'1': a, '2': b}, descr=d)
+    return place(C, ref or nid('C'), v, fp, {'1': a, '2': b}, descr=d, dnp=dnp)
 
 
 def ptc(v, a, b, d=None, fp=FP_PTC):
@@ -507,7 +507,16 @@ cur[0] = Block('video', 3, 'VIDEO: composite (J11) -> TVP5150AM1 -> 8-bit BT.656
 place(COAX, 'J11', 'Video in', 'DigiDash2:RCA_RCJ-02x_FaceMount', {'1': 'VIDEO_IN', '2': 'GND'},
       descr='Composite video from the backup camera (RCA, Same Sky RCJ-02x)')
 place(DZ, nid('D'), 'PESD5V0S1BL', 'Diode_SMD:D_SOD-323', {'1': 'VIDEO_IN', '2': 'GND'}, descr='Video input ESD')
-r_('37.4', 'VIDEO_IN', 'VID_ATT', '75 R termination and 1/2 attenuation (R1)')
+# anti-aliasing filter (TI note F: "highly recommended for best video quality"), not fitted as delivered: a 3rd-order
+# Butterworth C-L-C at 75 R (the camera's source and the 37.4 + 37.4 termination), cutoff 9 MHz: about 0.1 dB down at
+# 5 MHz, about 24 dB at 22.5 MHz (what folds back into the picture at the 27 MHz sample rate). C = 1 / (2 pi f 75) =
+# 236 pF -> 220p; L = 2 x 75 / (2 pi f) = 2.65 uH -> 2.7 uH. As delivered the series spot holds a 0 R and the two
+# caps are empty. Explicit refs, so the parts after them keep their numbers
+c_('220p', 'VIDEO_IN', 'GND', 'Anti-alias filter C1 (fit with C2 and a 2.7 uH in place of the 0 R)', dnp=True, ref='C42')
+r_('0', 'VIDEO_IN', 'VID_AAF', 'Anti-alias filter L: 0 R as delivered, 2.7 uH 0805 inductor to fit the filter',
+   fp='Resistor_SMD:R_0805_2012Metric', ref='R53')
+c_('220p', 'VID_AAF', 'GND', 'Anti-alias filter C2 (fit with C1 and a 2.7 uH in place of the 0 R)', dnp=True, ref='C43')
+r_('37.4', 'VID_AAF', 'VID_ATT', '75 R termination and 1/2 attenuation (R1)')
 r_('37.4', 'VID_ATT', 'GND', '75 R termination and 1/2 attenuation (R2)')
 c_('100n', 'VID_ATT', 'VID_AIP1A', 'Input coupling (C4)')
 c_('100n', 'VID_AIP1B', 'GND', 'Unused input to ground (C5)')

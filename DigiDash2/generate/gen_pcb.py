@@ -117,6 +117,10 @@ FIXED = {
 FIXED_DESCR = {
     'Video input ESD': (162.0, 86.4, 90, 'F'),
     '75 R termination and 1/2 attenuation (R1)': (159.8, 86.4, 90, 'F'),
+    # the anti-alias filter's footprints (C1 not fitted, the 0 R / 2.7 uH, C2 not fitted) between the clamp and R1
+    'Anti-alias filter C1 (fit with C2 and a 2.7 uH in place of the 0 R)': (164.3, 86.4, 90, 'F'),
+    'Anti-alias filter L: 0 R as delivered, 2.7 uH 0805 inductor to fit the filter': (164.3, 82.9, 90, 'F'),
+    'Anti-alias filter C2 (fit with C1 and a 2.7 uH in place of the 0 R)': (161.6, 82.9, 90, 'F'),
     '75 R termination and 1/2 attenuation (R2)': (157.8, 86.4, 90, 'F'),
     'Input coupling (C4)': (125.9, 61.85, 0, 'F'),
     '14.31818 MHz, +/-50 ppm, fundamental': (126.9, 64.5, 90, 'B'),
@@ -124,6 +128,9 @@ FIXED_DESCR = {
     'Y3 load': (126.9, 67.6, 0, 'B'),
     'Across the crystal (TI note E)': (129.4, 64.5, 90, 'B'),
     'Pixel clock series (edge damping)': (130.25, 69.6, 270, 'B'),
+    # the RESETB pull-up on the back beside the crystal: left to the placer it lands on the front right under the data
+    # pins (YOUT0-7, pins 11-18) and boxes in their escape
+    'RESETB pull-up': (127.4, 69.6, 0, 'B'),
 }
 # the video input and the pixel clock's first 2 mm, drawn by hand and locked before Freerouting runs (left to itself it detours round J1, 80-150 mm with
 # up to 8 vias): VID_ATT from the termination (R32) down to B.Cu, along under J1's pin rows (y 80.1, clear of F29),
@@ -138,6 +145,9 @@ PREROUTE = [
     # SCLK (pin 9) straight down through a via into the 22 R's pad on the back
     ('/VID_SCLK', 'F', 0.2, [(130.25, 67.16), (130.25, 68.2)]),
     ('/VID_SCLK', 'B', 0.2, [(130.25, 68.2), (130.25, 68.775)]),
+    # YOUT4 / YOUT5 (pins 14 / 13) out of the pin row as a pair, so neither boxes the other in
+    ('/V_D4', 'F', 0.2, [(132.75, 67.16), (132.75, 68.18), (136.0, 68.18)]),
+    ('/V_D5', 'F', 0.2, [(132.25, 67.16), (132.25, 68.2), (132.69, 68.64), (136.0, 68.64)]),
 ]
 SIDE_DEFAULT = 'B'
 ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'],
@@ -237,6 +247,8 @@ def main():
         fp.GetField(pcbnew.FIELD_T_DATASHEET).SetText(sheet)
         fp.GetField(pcbnew.FIELD_T_DESCRIPTION).SetText(descr)
         fp.SetAttributes(fp.GetAttributes() & ~pcbnew.FP_EXCLUDE_FROM_BOM)
+        if groups.get(ref, {}).get('dnp'):
+            fp.SetDNP(True)             # not fitted as delivered (the schematic's DNP flag)
         b.Add(fp)
         for pad in fp.Pads():
             n = nets.get((ref, pad.GetNumber()))
@@ -548,7 +560,7 @@ CLASSES = {      # name: (track width, clearance, [nets])
     'Power': (0.4, 0.15, ['+3V3', '/+1V8', '/+1V8A', '/CAM_12V', '/TRUNK_12V', '/Illumination']),
     'Power12': (0.8, 0.2, ['/BATT_IN', '/12V_BATT', '/SW12', '/IGN_IN']),
     'Switch': (1.5, 0.2, ['/BUCK_SW']),
-    'Video': (0.25, 0.2, ['/VIDEO_IN', '/VID_ATT']),
+    'Video': (0.25, 0.2, ['/VIDEO_IN', '/VID_AAF', '/VID_ATT']),
     'Aux': (2.0, 0.3, ['/AUX_IN', '/AUX_IN_F', '/AUX12', '/AUX_GND']),
 }
 

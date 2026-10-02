@@ -30,7 +30,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | AUX 12 V | J13 (Mini-Fit Jr, vertical), 10 A mini-blade fuse, Q6 reverse P-FET, TVS | Slot power on pins 25–30 of every slot (no more bay plugs). Its return, AUX_GND, meets GND only at net tie NT1 |
 | Sensor serial in | J27 (1×2 pin header, back side, top edge above slot 4) and one 10k / 20k divider per screen | Optional: a jumper wire from the sensor card's J8 brings its 5 V sensor-frame serial line here, and the dividers take it to 3.3 V on pin 15 of J5 / J1 / J4 (the screens' sensor UART RX). With no wire fitted the screens' RX sits low and the data comes from CAN |
 | Screens | J5 / J1 / J4 (same pin use as rev 1), U5 / U9 / U10 MCP2562 | 120 Ω at the left end, and at the right end through SW1-1 (switch it off when the trunk port carries the bus on) |
-| Video | U8 TVP5150AM1 (address 0x5C), 14.31818 MHz crystal, J11 RCA input (37.4 Ω + 37.4 Ω termination, per TI) | Same J1 pins as rev 1's module. RESETB: 10k / 2.2 µF power-on delay (about 26 ms), plus the center's GPIO52 (J1 pin 36) through 1k; the firmware pulses it at start-up. Reviewed against TI SLES209E on 2026-10-02: see [Video review](#video-review) |
+| Video | U8 TVP5150AM1 (address 0x5C), 14.31818 MHz crystal, J11 RCA input (37.4 Ω + 37.4 Ω termination, per TI), anti-alias filter footprints (not fitted) | Same J1 pins as rev 1's module. RESETB: 10k / 2.2 µF power-on delay (about 26 ms), plus the center's GPIO52 (J1 pin 36) through 1k; the firmware pulses it at start-up. Reviewed against TI SLES209E on 2026-10-02: see [Video review](#video-review) |
 | Card slots | J31–J36 (slot 1–6), 2×15 sockets, 25.4 mm apart (cards' parts up to 20 mm tall). Per slot: 0.5 A PTCs on 5 V and switched 12 V, 0.1 A on 3.3 V, 0.2 A on constant 12 V, a slot-ID resistor. Shared: CAN, WAKE (D-OR into the buck's EN), LAMP / REV levels (100k / 27k, clamped), the audio bus (its ground joins GND at NT2), AUX 12 V, and the I2S rail (BCK, WS, MIC, RET, MCLK on pins 15–18 and 24, bused to all six slots; the audio card is its clock master) | See [`accessory_ports.md`](../docs/hardware/accessory_ports.md#rev-2-digidash2-card-slots) |
 | Cable ports, trunk | Cable ports J17, J22, J23, J24. Trunk J25 | As before |
 
@@ -80,18 +80,13 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
 
 ## Status
 
-**Placed and fully routed** (2026-10-02, after the video review). One Freerouting run (120 passes) plus the finisher;
-DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected, parity clean.** What is left
-is 52 silkscreen warnings (reference text at the edge, over pads, one overlap). 1969 track segments and 1500 vias (1342 of
-them GND). 56 parts on the front, 125 on the back. Fab outputs are in `fab/` (`python3 ../tools/fab_export.py
-DigiDash2`). (Run in a container without KiCad's global library table, DRC also lists 174 "library not in the
-configuration" notes; they are about the environment, not the board.)
-
-**One link was joined by hand after this run:** Slot 5's switched 12 V (`S5_12V`, F25 pad 2 to J35 pin 8). The
-router had boxed F25 in on both outer layers. It now leaves F25 on B.Cu (0.4 mm) to a via at (117.2, 67.0). From there
-a 0.3 mm track on In2 threads between J35's pins 7 and 5 into pin 8. That is about 6 mm of track and about 5 mW at the
-0.5 A fuse limit; the +5 V pour flows round it. A fresh run of `gen_pcb.py --route` will not reproduce this join; if a
-re-run leaves the link open, join it the same way.
+**Placed and fully routed** (2026-10-02, with the anti-alias filter footprints). One Freerouting run (120 passes) plus
+the finisher, with no hand joins. DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing
+unconnected, parity clean.** What is left is 52 silkscreen warnings (reference text at the edge, over pads, one
+overlap). 1951 track segments and 1546 vias (1392 of them GND). 69 parts on the front, 115 on the back. Fab outputs are
+in `fab/` (`python3 ../tools/fab_export.py DigiDash2`); the not-fitted parts (C42, C43) are left out of the placement
+files. (Run in a container without KiCad's global library table, DRC also lists 177 "library not in the configuration"
+notes; they are about the environment, not the board.)
 
 How it got there, in case a re-run differs:
 - **Sensor pack removed, slots widened.** The first route after the sensor pack left (slots still at 20.32 mm) left
@@ -100,6 +95,8 @@ How it got there, in case a re-run differs:
 - **Video review (2026-10-02).** The video support parts are fixed by description (`FIXED_DESCR`), and the input
   (`VID_ATT`, `VID_AIP1A`) and the pixel clock's first 2 mm are drawn and locked before routing (`PREROUTE`). Left to
   itself, Freerouting took `VID_ATT` 80–150 mm round J1. The post-route checks now keep each net class's own clearance.
+  YOUT4 / YOUT5 also leave the pin row as a pre-drawn pair, and the RESETB pull-up (R39) is fixed on the back. In one
+  run the two data lines boxed each other in, with R39 on the front right under the pins.
 - **U8 (TVP5150) is at x 132,** on the front between slot 5's and slot 6's socket pins. A fixed part's spot is not
   checked against the other side's through-hole pins, so keep that in mind when moving anything near the slots.
 
@@ -126,8 +123,12 @@ The TVP5150AM1 circuit was checked line by line against TI SLES209E (2026-10-02)
   - The input nets get their own net class (`Video`, 0.25 mm track, 0.2 mm clearance) and a hand-drawn path. The jack to the termination is 5.8 mm; the terminated signal runs 66 mm to the coupling cap, mostly on B.Cu under J1, with 2 vias. The cap to AIP1A is 2.3 mm and SCLK to its damper is 3 mm.
   - RESETB: the 100k / 1 µF became 10k / 2.2 µF, with 1k from GPIO52. The old 100k could have been held under the
     0.7 × IO_DVDD threshold by a weak default pull-down on GPIO52, which would leave the decoder in reset.
-- **Not on the board:** TI's anti-aliasing filter (note F: "highly recommended for best video quality"). It only affects picture quality; the
-  filter can be added in a later revision.
+- **Anti-aliasing filter: footprints only (DNP).** TI's note F calls it "highly recommended for best video quality". The
+  filter sits between the ESD clamp and the termination: C42 (220 pF, VIDEO_IN to GND), R53, and C43 (220 pF, VID_AAF to GND).
+  It is a 3rd-order Butterworth C-L-C at 75 Ω with a 9 MHz cutoff: about 0.1 dB down at 5 MHz and about 24 dB down at
+  22.5 MHz, which would otherwise fold back into the picture at the 27 MHz sample rate. **As delivered:** R53 is a 0 Ω
+  (0805) and C42 / C43 are empty, so the circuit is TI's figure 6-1 without the filter. **To fit it:** replace R53 with a
+  2.7 µH 0805 inductor (self-resonance well above 50 MHz) and fit C42 and C43 with 220 pF C0G 0603.
 - **Not checked here:** the center module's header-pin-to-GPIO map (data on GPIO20–22 / 28–32, PCLK 49, VSYNC 50, RESETB
   52, cluster I2C 47 / 48). It is rev 1's wiring for the plug-in module; check it against Waveshare's
   ESP32-P4 pinout once more before ordering.
