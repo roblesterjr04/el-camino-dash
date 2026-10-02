@@ -304,7 +304,7 @@ void ConsoleUi::transfer(const ElcChTransfer &t, uint32_t now_ms) {
     // play it when it comes back, as the audio card does for its own Bluetooth.
     if (had && st.source != _st.source) {
       if (_st.source == ELC_SRC_BLUETOOTH) {
-        _bt_was_playing = _tr_ms && now_ms - _tr_ms < 3000 && _elapsed_moved_ms && now_ms - _elapsed_moved_ms < 2500;
+        _bt_was_playing = _tr_ms && now_ms - _tr_ms < 3000 && _tr.playing;  // the phone's own play status
         phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 4, "pause (source left Bluetooth)");
       } else if (st.source == ELC_SRC_BLUETOOTH && _bt_was_playing) {
         phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 3, "play (back to Bluetooth)");

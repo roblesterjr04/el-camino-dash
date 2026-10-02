@@ -159,7 +159,7 @@ Bus load is about 5 % (five 8-byte frames every 50 ms plus heartbeats and audio)
 
 | Msg | ID (shown for node `0x10`; add `0x40·(node − 0x10)`: a rev 2 audio card in slot 1 is node `0x14`, `0x500`) | Rate | Payload |
 | --- | --- | --- | --- |
-| `0x00` transport | `0x400` | 4 Hz | elapsed s u16, duration s u16, volume 0–15 u8, text serial u8 (0–15), bit0 = phone connected, album art id u8 (0 = none ready) |
+| `0x00` transport | `0x400` | 4 Hz | elapsed s u16, duration s u16, volume 0–15 u8, text serial u8 (0–15), flags u8 (bit0 phone connected, bit1 playing: the phone's AVRCP play status), album art id u8 (0 = none ready) |
 | `0x01` text | `0x401` | on change + every 1 s | 5 frames: `[serial << 4 \| chunk 0–4]` + 7 bytes of "Artist - Title" (32 bytes max, zero padded) |
 | `0x02` art info | `0x402` | answers `0x211` | art id u8, size bytes u32 (0 = no such variant), variant u8 (6 bytes) |
 | `0x03` art data | `0x403` | after art info | art id u8, variant << 14 \| chunk u16, up to 5 bytes of image (chunk n = bytes 5n…5n+4) |

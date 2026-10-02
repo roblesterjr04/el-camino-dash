@@ -167,6 +167,7 @@ struct ElcCanAudioTransport {
   uint8_t volume = 0;       // 0..15
   uint8_t text_serial = 0;  // 0..15, bumps when the text changes
   bool connected = false;   // phone connected
+  bool playing = false;     // the phone says it plays (AVRCP play status; flags bit1, 0 from older bridges)
   uint8_t art_id = 0;       // album art ready to fetch (0 = none yet); byte 7, absent from older bridges
 };
 void elc_can_encode_audio_transport(uint8_t slot, const ElcCanAudioTransport &t, ElcCanFrame &out);

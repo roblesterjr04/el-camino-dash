@@ -659,6 +659,9 @@ static void can_publish() {
   t.volume = s_vol_0_15;
   portEXIT_CRITICAL(&s_track_mux);
   t.connected = a2dp_sink && a2dp_sink->is_connected();
+  portENTER_CRITICAL(&s_track_mux);
+  t.playing = t.connected && s_playing;
+  portEXIT_CRITICAL(&s_track_mux);
   t.art_id = can_art_announced();
 
   const uint32_t now = millis();

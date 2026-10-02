@@ -217,7 +217,7 @@ void elc_can_encode_audio_transport(uint8_t slot, const ElcCanAudioTransport &t,
   put16(out.data + 2, t.duration_s);
   out.data[4] = t.volume;
   out.data[5] = (uint8_t)(t.text_serial & 0x0F);
-  out.data[6] = t.connected ? 1 : 0;
+  out.data[6] = (uint8_t)((t.connected ? 1 : 0) | (t.playing ? 2 : 0));
   out.data[7] = t.art_id;
 }
 
@@ -230,6 +230,7 @@ bool elc_can_decode_audio_transport(const ElcCanFrame &f, uint8_t *slot, ElcCanA
   out.volume = f.data[4];
   out.text_serial = (uint8_t)(f.data[5] & 0x0F);
   out.connected = (f.data[6] & 1) != 0;
+  out.playing = (f.data[6] & 2) != 0;
   out.art_id = f.len >= 8 ? f.data[7] : 0;
   return true;
 }

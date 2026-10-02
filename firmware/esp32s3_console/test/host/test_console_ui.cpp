@@ -352,10 +352,11 @@ static void test_sources_and_radio() {
   CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_VOLUME && m[0][2] == 0 && m[0][3] == 67);
 }
 
-static void transport(ConsoleUi &ui, uint16_t elapsed) {
+static void transport(ConsoleUi &ui, uint16_t elapsed, bool playing = true) {
   bridge(ui);
   ElcCanAudioTransport t;
   t.connected = true;
+  t.playing = playing;
   t.elapsed_s = elapsed;
   t.duration_s = 200;
   ElcCanFrame f;
@@ -386,7 +387,7 @@ static void test_bluetooth_follows_source() {
   T += 5000;
   center(ui);
   r.status(ELC_SRC_BLUETOOTH);  // the audio card's 1 Hz STATUS
-  transport(ui, 11);
+  transport(ui, 11, false);
   drain(ui);
   r.status(ELC_SRC_RADIO);
   CHECK(next_phone(ui).arg == 4);
