@@ -110,6 +110,21 @@ FIXED = {
     'U5': (64.0, 84.0, 0, 'F'), 'U9': (104.0, 74.0, 0, 'F'), 'U10': (244.0, 84.0, 0, 'F'),
     'J16': (176.0, 76.0, 90, 'B'), 'D2': (172.0, 82.0, 0, 'B'),
 }
+# video support parts, fixed by their exact description (so renumbering cannot move them): the ESD clamp and the 75 R
+# termination at the RCA jack (only the low-impedance, terminated signal runs across to the decoder), the coupling
+# cap at AIP1A, the crystal and its load caps on the back right under XTAL1 / XTAL2 (pins 5 / 6), and the pixel-clock
+# damping resistor right under SCLK (pin 9)
+FIXED_DESCR = {
+    'Video input ESD': (162.0, 86.4, 90, 'F'),
+    '75 R termination and 1/2 attenuation (R1)': (159.8, 86.4, 90, 'F'),
+    '75 R termination and 1/2 attenuation (R2)': (157.8, 86.4, 90, 'F'),
+    'Input coupling (C4)': (125.9, 61.85, 0, 'F'),
+    '14.31818 MHz, +/-50 ppm, fundamental': (126.9, 64.5, 90, 'B'),
+    'Y3 load (2 CL - Cstray)': (126.9, 61.4, 0, 'B'),
+    'Y3 load': (126.9, 67.6, 0, 'B'),
+    'Across the crystal (TI note E)': (129.4, 64.5, 90, 'B'),
+    'Pixel clock series (edge damping)': (130.25, 69.6, 90, 'B'),
+}
 SIDE_DEFAULT = 'B'
 ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'],
           'screens': ['U5', 'U9', 'U10', 'J1', 'J4', 'J5', 'J9', 'J6', 'J27'],
@@ -195,6 +210,10 @@ def main():
             netobj[name] = n
         return netobj[name]
 
+    for ref in comps:
+        if comps[ref][3] in FIXED_DESCR:
+            FIXED[ref] = FIXED_DESCR[comps[ref][3]]
+    assert sum(c[3] in FIXED_DESCR for c in comps.values()) == len(FIXED_DESCR), 'a FIXED_DESCR entry matches no part'
     fps, side_of = {}, {}
     for ref in sorted(r for r in comps if not r.startswith('#')):
         value, fpid, sheet, descr = comps[ref]
@@ -515,6 +534,7 @@ CLASSES = {      # name: (track width, clearance, [nets])
     'Power': (0.4, 0.15, ['+3V3', '/+1V8', '/+1V8A', '/CAM_12V', '/TRUNK_12V', '/Illumination']),
     'Power12': (0.8, 0.2, ['/BATT_IN', '/12V_BATT', '/SW12', '/IGN_IN']),
     'Switch': (1.5, 0.2, ['/BUCK_SW']),
+    'Video': (0.25, 0.25, ['/VIDEO_IN', '/VID_ATT', '/VID_AIP1A']),
     'Aux': (2.0, 0.3, ['/AUX_IN', '/AUX_IN_F', '/AUX12', '/AUX_GND']),
 }
 

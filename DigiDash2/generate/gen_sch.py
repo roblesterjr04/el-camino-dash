@@ -512,7 +512,7 @@ r_('37.4', 'VID_ATT', 'GND', '75 R termination and 1/2 attenuation (R2)')
 c_('100n', 'VID_ATT', 'VID_AIP1A', 'Input coupling (C4)')
 c_('100n', 'VID_AIP1B', 'GND', 'Unused input to ground (C5)')
 place(TVP, 'U8', 'TVP5150AM1IPBS', 'Package_QFP:TQFP-32_5x5mm_P0.5mm', {
-    '1': 'VID_AIP1A', '2': 'VID_AIP1B', '5': 'VID_XTAL1', '6': 'VID_XTAL2', '8': 'V_P17', '28': 'VID_PDN',
+    '1': 'VID_AIP1A', '2': 'VID_AIP1B', '5': 'VID_XTAL1', '6': 'VID_XTAL2', '8': 'VID_RESETB', '28': 'VID_PDN',
     '29': 'VID_REFP', '30': 'VID_REFM', '4': '+1V8A', '32': '+1V8A', '20': '+1V8', '10': '+3V3',
     '3': 'GND', '7': 'GND', '31': 'GND', '19': 'GND',
     '18': 'V_D0', '17': 'V_D1', '16': 'V_D2', '15': 'V_D3', '14': 'V_D4', '13': 'V_D5', '12': 'V_D6', '11': 'V_D7',
@@ -530,8 +530,12 @@ c_('1u', 'VID_REFP', 'VID_REFM', 'REFP-REFM (C3)')
 r_('10k', '+3V3', 'VID_PDN', 'PDN high: always on')
 r_('10k', 'VID_INTREQ', 'GND', 'INTREQ pull-down (required when disabled)')
 r_('10k', 'V_D7', 'GND', 'YOUT7 / I2CSEL low: address 0xB8 (7-bit 0x5C)')
-r_('100k', '+3V3', 'V_P17', 'RESETB pull-up; the center can pull it low on GPIO52 (J1 pin 36)')
-c_('1u', 'V_P17', 'GND', 'RESETB delay (> 20 ms after the supplies)')
+# RESETB: power-on RC (10k x 2.2u: 2.31 V, the 0.7 IO_DVDD high threshold, at about 26 ms; TI wants >= 20 ms after the
+# supplies). The stiff 10k keeps it high even if GPIO52 idles with a weak pull-down; the 1k lets the center pull it low
+# (0.3 V) for a reset without dumping the 2.2u straight into the GPIO
+r_('10k', '+3V3', 'VID_RESETB', 'RESETB pull-up')
+c_('2.2u', 'VID_RESETB', 'GND', 'RESETB delay (> 20 ms after the supplies)')
+r_('1k', 'V_P17', 'VID_RESETB', 'RESETB from the center (GPIO52, J1 pin 36)')
 for net in ('+1V8A', '+1V8A', '+1V8', '+3V3'):
     c_('100n', net, 'GND', 'U8 decoupling')
 c_('10u', '+1V8', 'GND', 'U8 digital bulk')

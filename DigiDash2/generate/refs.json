@@ -192,7 +192,7 @@
  "C34": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "video",
-  "value": "1u"
+  "value": "2.2u"
  },
  "C35": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
@@ -817,7 +817,7 @@
  "R39": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "video",
-  "value": "100k"
+  "value": "10k"
  },
  "R4": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -826,53 +826,53 @@
  },
  "R40": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
-  "group": "slots",
+  "group": "video",
   "value": "1k"
  },
  "R41": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "3.3k"
+  "value": "1k"
  },
  "R42": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "6.8k"
+  "value": "3.3k"
  },
  "R43": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "12k"
+  "value": "6.8k"
  },
  "R44": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "22k"
+  "value": "12k"
  },
  "R45": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "47k"
+  "value": "22k"
  },
  "R46": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "100k"
+  "value": "47k"
  },
  "R47": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "47k"
+  "value": "100k"
  },
  "R48": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "100k"
+  "value": "47k"
  },
  "R49": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "27k"
+  "value": "100k"
  },
  "R5": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -882,9 +882,14 @@
  "R50": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
-  "value": "100k"
+  "value": "27k"
  },
  "R51": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "slots",
+  "value": "100k"
+ },
+ "R52": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "slots",
   "value": "27k"

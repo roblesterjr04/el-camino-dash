@@ -188,7 +188,7 @@ kept off the touch bus, where the GT911 can also sit at 0x5D). Module VCC is the
 | 11 | D5 | 31 | | 12 | D4 | 30 |
 | 13 | D3 | 29 | | 14 | D2 | 22 |
 | 15 | D1 | 21 | | 16 | D0 | 20 |
-| 17 | — (unlabeled) | 52 | | 18 | FID | 46 |
+| 17 | RESETB (unlabeled; the firmware pulses it low at start-up) | 52 | | 18 | FID | 46 |
 | 19 | INT | — | | 20 | IO | — |
 
 **Reverse trigger:** reverse-lamp 12 V (J9 pin 1) → R8/Q3 → **GPIO25** on the center (active low, internal pull-up).

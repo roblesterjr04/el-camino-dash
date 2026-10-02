@@ -26,6 +26,7 @@ constexpr gpio_num_t kData[8] = {GPIO_NUM_20, GPIO_NUM_21, GPIO_NUM_22, GPIO_NUM
 constexpr gpio_num_t kPclk = GPIO_NUM_49;
 constexpr gpio_num_t kVsync = GPIO_NUM_50;
 constexpr gpio_num_t kHsync = GPIO_NUM_51;
+constexpr int kTvpReset = 52;     // TVP5150 RESETB (active low, J1 pin 36 / module pin 17)
 constexpr int kReverseGpio = 25;  // active low (Q3 pulls it down while the reverse lamps are lit)
 constexpr uint8_t kTvpAddr[2] = {0x5C, 0x5D};
 
@@ -78,6 +79,16 @@ uint16_t s_col_y[kOutW], s_col_uv[kOutW];
 // ---------------------------------------------------------------- TVP5150
 bool tvp_read(uint8_t reg, uint8_t *v) { return s_addr && cluster_i2c_master_read_reg(s_addr, reg, v); }
 bool tvp_write(uint8_t reg, uint8_t v) { return s_addr && cluster_i2c_master_write_reg(s_addr, reg, v); }
+
+// RESETB: the board's own RC (10k / 2.2 uF) resets the decoder at power-up; a clean reset from here as well, then the
+// pin is let go so the pull-up holds it high (low 10 ms through the board's 1k, then about 26 ms to rise past VIH)
+void tvp_reset() {
+  pinMode(kTvpReset, OUTPUT);
+  digitalWrite(kTvpReset, LOW);
+  delay(10);
+  pinMode(kTvpReset, INPUT);
+  delay(50);
+}
 
 bool tvp_probe() {
   for (uint8_t a : kTvpAddr) {
@@ -373,6 +384,7 @@ void set_msg(const char *m) {
 
 void center_camera_begin() {
   pinMode(kReverseGpio, INPUT_PULLUP);
+  tvp_reset();
   if (tvp_probe()) {
     tvp_init();
     capture_create();
