@@ -352,6 +352,48 @@ static void test_sources_and_radio() {
   CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_VOLUME && m[0][2] == 0 && m[0][3] == 67);
 }
 
+static void transport(ConsoleUi &ui, uint16_t elapsed) {
+  bridge(ui);
+  ElcCanAudioTransport t;
+  t.connected = true;
+  t.elapsed_s = elapsed;
+  t.duration_s = 200;
+  ElcCanFrame f;
+  elc_can_encode_audio_transport(0, t, f);
+  ui.feed(f, T);
+}
+
+static void test_bluetooth_follows_source() {
+  std::printf("Bluetooth on the bridge pauses when the source leaves it and plays when it comes back\n");
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  boot(ui);
+  r.add_sink();
+  r.add_radio();
+  r.status(ELC_SRC_BLUETOOTH);
+  transport(ui, 10);  // playing: the elapsed time moves
+  T += 1000;
+  transport(ui, 11);
+  center(ui);
+  drain(ui);
+  r.status(ELC_SRC_RADIO);
+  ElcCanPhoneCommandMsg c = next_phone(ui);
+  CHECK(c.command == ELC_CAN_PHONE_CMD_MEDIA && c.arg == 4);
+  r.status(ELC_SRC_BLUETOOTH);
+  c = next_phone(ui);
+  CHECK(c.command == ELC_CAN_PHONE_CMD_MEDIA && c.arg == 3);
+  // paused before leaving: it stays paused on return
+  T += 5000;
+  center(ui);
+  r.status(ELC_SRC_BLUETOOTH);  // the audio card's 1 Hz STATUS
+  transport(ui, 11);
+  drain(ui);
+  r.status(ELC_SRC_RADIO);
+  CHECK(next_phone(ui).arg == 4);
+  r.status(ELC_SRC_BLUETOOTH);
+  CHECK(next_phone(ui).command == 0);
+}
+
 static void test_bluetooth_controls() {
   std::printf("Bluetooth: tracks, play / pause, voice assistant, redial\n");
   Rig r;
@@ -545,6 +587,7 @@ int main() {
   test_drive_pages_and_menu();
   test_sources_and_radio();
   test_bluetooth_controls();
+  test_bluetooth_follows_source();
   test_phone_menu_and_pairing();
   test_accessory_pages();
   test_alerts();

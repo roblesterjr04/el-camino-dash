@@ -259,7 +259,7 @@ ignores them if the list changed since. The bridge answers every command with a 
 | 11 | redial the last number | — |
 | 12 | call waiting | 0 decline the waiting call, 1 end the active call and answer, 2 hold the active call and answer (or swap) |
 | 13 | call audio | 1 in the car, 0 on the phone |
-| 14 | media | 0 play / pause, 1 next track, 2 previous track |
+| 14 | media | 0 play / pause (from the phone's play status), 1 next track, 2 previous track, 3 play, 4 pause. The console sends 4 when the source leaves Bluetooth and 3 when it comes back |
 | 15 | media volume | 0–15 |
 
 **Displays.** The media screen (`0x210`) shows a call card over its face while a call exists or a pairing code

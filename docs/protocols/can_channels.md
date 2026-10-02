@@ -452,7 +452,8 @@ audio carrier. Commands may be sent to it by number or to `0x00` (the sink is th
   bridge), 2 radio, 3 aux in. **source node** is the node that provides it (the sink itself for Bluetooth and aux).
   SOURCE with 0 steps to the next source that is present (a radio counts once its ANNOUNCE is heard, node type 9).
   A source learns it was chosen from STATUS: the radio powers on and asks for RET when STATUS names it, and mutes and
-  releases RET when it does not. The console's left knob click sends SOURCE 0.
+  releases RET when it does not. Bluetooth pauses when the sink leaves it and plays again when it comes back (if it was
+  playing): the sink does that for its own A2DP, the console for the audio bridge (`can_bus.md`, phone command 14). The console's left knob click sends SOURCE 0.
 - **MEDIA actions:** 1 play/pause, 2 play, 3 pause, 4 next, 5 previous, 6 tune up, 7 tune down (one grid step),
   8 next preset, 9 previous preset, 10 store preset (value = slot 1–12, 0 = the next free one, else the oldest),
   11 seek up, 12 seek down, 13 recall preset (value = slot 1–12); value is 0 where an action takes none. The sink acts on them for its own source and

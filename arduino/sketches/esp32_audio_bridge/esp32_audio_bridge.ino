@@ -435,10 +435,23 @@ static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
 static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, bool check_serial) {
   if (cmd == kPhoneCmdMedia) {
     if (!a2dp_sink || !a2dp_sink->is_connected()) return false;
-    if (arg == 1) a2dp_sink->next();
-    else if (arg == 2) a2dp_sink->previous();
-    else if (a2dp_sink->get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED) a2dp_sink->pause();
-    else a2dp_sink->play();
+    if (arg == 1) {
+      a2dp_sink->next();
+    } else if (arg == 2) {
+      a2dp_sink->previous();
+    } else if (arg == 3) {
+      a2dp_sink->play();
+    } else if (arg == 4) {
+      a2dp_sink->pause();
+    } else {
+      // Toggle from the phone's own AVRCP play status: many phones keep the A2DP stream started while paused, so
+      // the stream state alone always said "playing" and the toggle never played again.
+      portENTER_CRITICAL(&s_track_mux);
+      const bool playing = s_playing;
+      portEXIT_CRITICAL(&s_track_mux);
+      if (playing) a2dp_sink->pause();
+      else a2dp_sink->play();
+    }
     return true;
   }
   if (cmd == kPhoneCmdMediaVolume) {

@@ -102,6 +102,7 @@ class AudioCard(SimCard):
         self.volume, self.muted = 30, False
         self.source, self.fader, self.balance = 0, 0, 0
         self.bt_playing, self.track = False, 0
+        self.bt_was_playing = False
         self.sounds: dict[tuple[int, int], Sound] = {}
         self.holder, self.holder_since = 0, 0.0
         self.enc: dict[int, int] = {}        # node: last encoder 1 position
@@ -181,8 +182,13 @@ class AudioCard(SimCard):
         if v == 1 and not self.radio_node():
             self.log("source Radio asked for, but no radio card heard: stays Bluetooth")
             return
+        if v == 1:  # leaving Bluetooth: pause it, and play it again when it comes back (if it was playing)
+            self.bt_was_playing, self.bt_playing = self.bt_playing, False
+        elif self.bt_was_playing:
+            self.bt_playing = True
         self.source = v
-        self.line(f"source {SOURCES[v]}")
+        self.line(f"source {SOURCES[v]}" + (", Bluetooth paused" if v == 1 and self.bt_was_playing else
+                                             ", Bluetooth plays" if v == 0 and self.bt_playing else ""))
         self.send_value(A_SOURCE)
         self.send_status()  # the sources learn from STATUS which one plays
 

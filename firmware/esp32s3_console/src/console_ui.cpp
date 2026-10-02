@@ -300,6 +300,16 @@ void ConsoleUi::transfer(const ElcChTransfer &t, uint32_t now_ms) {
     if (had && st.source != _st.source && !(_src_req_ms && now_ms - _src_req_ms < kOwnEchoMs && st.source == _src_req)) {
       toast("SOURCE", source_name(st.source), now_ms);  // changed by someone else
     }
+    // Bluetooth on the audio bridge (old frames) knows nothing of sources: pause it when the source leaves Bluetooth,
+    // play it when it comes back, as the audio card does for its own Bluetooth.
+    if (had && st.source != _st.source) {
+      if (_st.source == ELC_SRC_BLUETOOTH) {
+        _bt_was_playing = _tr_ms && now_ms - _tr_ms < 3000 && _elapsed_moved_ms && now_ms - _elapsed_moved_ms < 2500;
+        phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 4, "pause (source left Bluetooth)");
+      } else if (st.source == ELC_SRC_BLUETOOTH && _bt_was_playing) {
+        phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 3, "play (back to Bluetooth)");
+      }
+    }
     _st = st;
     _st_ms = now_ms;
     if (!_vol_set || now_ms - _vol_set_ms > kVolHoldMs) _vol = (uint8_t)clampi((st.volume * 15 + 50) / 100, 0, 15);

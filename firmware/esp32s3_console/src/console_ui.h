@@ -315,6 +315,7 @@ class ConsoleUi {
   uint32_t _pre_ms = 0;    // its last input
   const char *_pre_why = "";  // why it closed last (the serial console's state)
   uint8_t _src_req = 0;   // the source asked for, until STATUS says so
+  bool _bt_was_playing = true;  // the bridge played when the source left Bluetooth (resume it on return)
   uint32_t _src_req_ms = 0;
 
   // persistent

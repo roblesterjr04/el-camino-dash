@@ -342,7 +342,7 @@ enum ElcCanPhoneCommand : uint8_t {
   ELC_CAN_PHONE_CMD_REDIAL = 11,        // call the last number again
   ELC_CAN_PHONE_CMD_CALL_WAITING = 12,  // arg 0 decline the waiting call, 1 end active + answer, 2 hold active + answer / swap
   ELC_CAN_PHONE_CMD_AUDIO_ROUTE = 13,   // arg 1 call audio in the car, 0 on the phone
-  ELC_CAN_PHONE_CMD_MEDIA = 14,         // arg 0 play / pause, 1 next, 2 previous
+  ELC_CAN_PHONE_CMD_MEDIA = 14,         // arg 0 play / pause, 1 next, 2 previous, 3 play, 4 pause
   ELC_CAN_PHONE_CMD_MEDIA_VOLUME = 15,  // arg 0..15
 };
 struct ElcCanPhoneCommandMsg {
