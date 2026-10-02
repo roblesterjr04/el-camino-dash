@@ -15,11 +15,17 @@ demo cycle: idle, pull away, cruise, pass, stop) as sensor frames 0x100-0x104 at
 the time frame 0x220 once a second. The screens use them only while their own sensor UART and GPS are silent. Both
 are off with --gateway (a real bus has the real ones).
 
+It also stands in for the AM/FM radio card (tools/radio_sim.py, docs/hardware/radio_card.md) in slot 2, node 0x15:
+heartbeat, NET ANNOUNCE, its menu page on UI, signal and SNR on SENSOR, LOG lines, and it answers QUERY, SET, VIEW,
+RAIL and (while it is the selected source) the next / previous / play keys. On in every mode, gateway too, since no
+radio card exists yet; --no-radio turns it off, --radio-slot moves it.
+
 Typing:
     center help          a command to one board (center, left, right, console, bridge, a node like 0x14, or a port)
     all can              to every board
     :frames on|off       frame log;  :filter 0x215 0x404  (no ids = all)
     :sensors on|off      the simulated drive;  :time on|off   the clock
+    :radio               the simulated radio: status | on | off | source on|off | tune 98.3 | seek up|down
     :ports               the boards and their links
     :quit                (or Ctrl-C) the boards fall back to plain serial within 3 s
 
@@ -36,6 +42,8 @@ import sys
 import threading
 import time
 
+from radio_sim import RadioSim
+
 try:
     import serial  # type: ignore
     from serial.tools import list_ports  # type: ignore
@@ -48,6 +56,8 @@ TIMEOUT_S = 3.0
 VERSION = 1
 NODE_NAMES = {0x01: "center", 0x02: "left", 0x03: "right", 0x13: "console"}
 TYPE_BRIDGE = 1
+CHANNEL_NAMES = {0x020: "alert", 0x040: "input", 0x060: "system", 0x120: "sensor", 0x240: "audio-cmd", 0x260: "ui",
+                 0x320: "bulk", 0x360: "online", 0x3C0: "net", 0x3E0: "log"}
 ID_NAMES = {
     0x100: "speed", 0x101: "analog", 0x102: "status", 0x103: "odo", 0x104: "econ", 0x210: "cluster",
     0x211: "art-req", 0x212: "setting", 0x213: "center-st", 0x215: "phone-cmd", 0x216: "menu-in",
@@ -55,6 +65,12 @@ ID_NAMES = {
 }
 
 print_lock = threading.Lock()
+
+
+def id_name(can_id: int) -> str:
+    if 0x700 <= can_id < 0x780:
+        return "heartbeat"
+    return ID_NAMES.get(can_id) or CHANNEL_NAMES.get(can_id & ~0x1F, "")
 
 
 def out(line: str) -> None:
@@ -312,14 +328,38 @@ class Board:
             out(f"[relay] {self.port}: {self.name} linked ({'gateway' if mode else 'peer'}, "
                 f"{self.baud if baud else 'native USB'}, CAN {'up' if can else 'off'}, fw {fw})")
 
+    def reopen(self) -> bool:
+        """The port vanished (a reset re-enumerates USB): open it again once it is back, at the default rate."""
+        try:
+            self.ser.close()
+        except (serial.SerialException, OSError):
+            pass
+        try:
+            ser = serial.Serial(self.port, DEFAULT_BAUD, timeout=0.05)
+        except (serial.SerialException, OSError):
+            return False
+        with self.wlock:
+            self.ser = ser
+            self.parser = Parser()
+            self.baud = DEFAULT_BAUD
+            self.last_status = 0.0
+            self.line = bytearray()
+            self.alive = True
+        out(f"[relay] {self.port}: back, linking again")
+        return True
+
     def run(self) -> None:
-        while self.alive and self.relay.running:
+        while self.relay.running:
+            if not self.alive:
+                if not self.reopen():
+                    time.sleep(0.5)
+                continue
             try:
                 data = self.ser.read(4096)
             except (serial.SerialException, OSError):
-                out(f"[relay] {self.port}: gone")
+                out(f"[relay] {self.port}: gone (waiting for it to come back)")
                 self.alive = False
-                break
+                continue
             if not data:
                 continue
             for kind, val in self.parser.feed(data):
@@ -357,6 +397,8 @@ class Relay:
         self.filter: set[int] = set()
         self.sensors = not args.no_sensors and not args.gateway
         self.clock = not args.no_time and not args.gateway
+        self.radio = None if args.no_radio else RadioSim(
+            lambda i, d: self.inject(i, d, "radio"), lambda t: out(f"[radio] {t}"), slot=args.radio_slot)
 
     def count_bridges(self) -> int:
         return sum(1 for b in self.boards if b.type == TYPE_BRIDGE)
@@ -367,11 +409,10 @@ class Relay:
             if b is not src and b.alive and b.linked:
                 b.write(rec)
                 b.down += 1
+        if self.radio:
+            self.radio.on_frame(can_id, data)
         if self.show_frames and (not self.filter or can_id in self.filter):
-            name = ID_NAMES.get(can_id, "")
-            if 0x700 <= can_id < 0x780:
-                name = "heartbeat"
-            out(f"  {src.name:>8} 0x{can_id:03x} {name:<10} {data.hex(' ')}")
+            out(f"  {src.name:>8} 0x{can_id:03x} {id_name(can_id):<10} {data.hex(' ')}")
 
     def find(self, who: str) -> list[Board]:
         if who == "all":
@@ -412,8 +453,10 @@ class Relay:
                     out(f"[relay] {b.name:>8} {b.port} {'linked' if b.linked else 'not linked'} "
                         f"{'gateway' if b.gateway else 'peer'} baud {b.baud} CAN {'up' if b.can else 'off'} "
                         f"frames up {b.up} down {b.down} bad {b.parser.bad}")
+            elif cmd == "radio":
+                self.radio_command(words[1:])
             else:
-                out("[relay] :frames on|off, :filter <ids>, :sensors on|off, :time on|off, :ports, :quit")
+                out("[relay] :frames on|off, :filter <ids>, :sensors on|off, :time on|off, :radio ..., :ports, :quit")
             return
         who, _, rest = line.partition(" ")
         targets = self.find(who)
@@ -426,7 +469,39 @@ class Relay:
         for b in targets:
             b.write(rest.encode() + b"\n")
 
-    def inject(self, can_id: int, data: bytes) -> None:
+    def radio_command(self, words: list[str]) -> None:
+        r = self.radio
+        if r is None:
+            out("[relay] the simulated radio is off (--no-radio)")
+            return
+        cmd = words[0] if words else "status"
+        arg = words[1] if len(words) > 1 else ""
+        with r.lock:
+            if cmd == "status":
+                out(f"[radio] {r.status()}")
+            elif cmd in ("on", "off"):
+                r.set(0, 1 if cmd == "on" else 0)
+                r.send_value(0)
+            elif cmd == "source":
+                r.set_source(arg != "off")
+            elif cmd == "tune" and arg:
+                try:
+                    f = float(arg)
+                except ValueError:
+                    out("[relay] :radio tune 98.3 (MHz) or 1070 (kHz)")
+                    return
+                band = 0 if f < 200 else 1
+                if band != r.band:
+                    r.set(1, band)
+                    r.send_value(1)
+                if r.set(2, round(f * 10) if band == 0 else int(f)):
+                    out("[relay] not a frequency on this band's grid")
+            elif cmd == "seek":
+                r.seek(-1 if arg == "down" else 1)
+            else:
+                out("[relay] :radio status | on | off | source on|off | tune 98.3 | seek up|down")
+
+    def inject(self, can_id: int, data: bytes, who: str = "relay") -> None:
         """A frame from the relay itself, to every linked board."""
         rec = frame_record(can_id, data)
         for b in self.boards:
@@ -434,13 +509,17 @@ class Relay:
                 b.write(rec)
                 b.down += 1
         if self.show_frames and (not self.filter or can_id in self.filter):
-            out(f"  {'relay':>8} 0x{can_id:03x} {ID_NAMES.get(can_id, ''):<10} {data.hex(' ')}")
+            out(f"  {who:>8} 0x{can_id:03x} {id_name(can_id):<10} {data.hex(' ')}")
 
     def simulate(self) -> None:
         drive = DemoDrive()
         next_time = 0.0
+        if self.radio:
+            self.radio.boot()
         while self.running:
             now = time.monotonic()
+            if self.radio:
+                self.radio.tick()
             if self.sensors:
                 for can_id, data in drive.frames():
                     self.inject(can_id, data)
@@ -451,10 +530,32 @@ class Relay:
 
     def keepalives(self) -> None:
         while self.running:
-            for b in self.boards:
+            for b in list(self.boards):
                 if b.alive:
                     b.keepalive()
+            if not self.args.ports:
+                self.add_new_ports()
             time.sleep(KEEPALIVE_S)
+
+    def add_new_ports(self) -> None:
+        """A board plugged in after the start (or one whose port came back under a new name)."""
+        known = {b.port for b in self.boards}
+        for p in find_ports():
+            if p in known:
+                continue
+            try:
+                b = Board(self, p, fast_baud_for(p, self.args.baud), False)
+            except (serial.SerialException, OSError):
+                continue
+            self.boards.append(b)
+            threading.Thread(target=b.run, daemon=True).start()
+            out(f"[relay] opened {p}")
+
+
+def find_ports() -> list[str]:
+    return sorted(set(
+        glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/cu.usbserial*") + glob.glob("/dev/cu.wchusbserial*") +
+        glob.glob("/dev/cu.SLAB_USBtoUART*") + glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*")))
 
 
 def fast_baud_for(port: str, requested: int) -> int:
@@ -475,11 +576,12 @@ def main() -> None:
     ap.add_argument("--frames", action="store_true", help="log every frame")
     ap.add_argument("--no-sensors", action="store_true", help="don't send the simulated drive")
     ap.add_argument("--no-time", action="store_true", help="don't send this computer's clock")
+    ap.add_argument("--no-radio", action="store_true", help="don't simulate the AM/FM radio card")
+    ap.add_argument("--radio-slot", type=int, default=2, choices=range(2, 7), metavar="2-6",
+                    help="slot of the simulated radio card (node 0x14 + slot - 1, default 2)")
     args = ap.parse_args()
 
-    ports = args.ports or sorted(set(
-        glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/cu.usbserial*") + glob.glob("/dev/cu.wchusbserial*") +
-        glob.glob("/dev/cu.SLAB_USBtoUART*") + glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*")))
+    ports = args.ports or find_ports()
     if not ports:
         sys.exit("No USB serial port found")
     relay = Relay(args)
@@ -493,8 +595,10 @@ def main() -> None:
     threads = [threading.Thread(target=b.run, daemon=True) for b in relay.boards]
     threads.append(threading.Thread(target=relay.keepalives, daemon=True))
     threads.append(threading.Thread(target=relay.simulate, daemon=True))
-    if relay.sensors or relay.clock:
-        out(f"[relay] sending {' and '.join(w for w, on in (('a simulated drive', relay.sensors), ('the time', relay.clock)) if on)}")
+    sims = [w for w, on in (("a simulated drive", relay.sensors), ("the time", relay.clock),
+                            ("a simulated radio card", relay.radio)) if on]
+    if sims:
+        out(f"[relay] sending {', '.join(sims)}")
     for t in threads:
         t.start()
 

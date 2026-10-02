@@ -17,6 +17,15 @@ python3 tools/can_relay.py --gateway center   # on the truck: the center bridges
 Type `center help`, `console state`, `all can` … to reach a board's shell (`:ports` lists the boards). Code:
 `firmware/elc_can/include/elc_usb_link.h`, `src/elc_usb_link.cpp`; host tests in `elc_can/test/host`.
 
+The relay also stands in for boards that are not on the bench: a simulated drive (sensor frames `0x100`–`0x104`), the
+computer's clock (`0x220`), and the **AM/FM radio card** (`tools/radio_sim.py`, in slot 2 = node `0x15` unless
+`--radio-slot` says otherwise; `--no-radio` turns it off). The radio speaks the channel protocol as the card's
+firmware will ([`radio_card.md`](../hardware/radio_card.md), CAN): heartbeat, NET ANNOUNCE / QUERY / RAIL, its menu
+page on UI, signal and SNR on SENSOR, LOG lines. Its stations are made up. `:radio status`, `:radio tune 98.3`,
+`:radio seek up`, `:radio source on` (pretend the audio card selected it: the keys then seek and mute, and it asks the
+audio card for RET), `:radio on|off`. Unlike the drive and the clock it also runs with `--gateway`, since no radio card
+exists yet. `python3 tools/radio_sim.py --test` checks its framing and logic with no hardware.
+
 ## Wire format
 
 Records sit between the console text. A record is `0x00`, the COBS encoding of (payload + CRC-16/CCITT-FALSE of the

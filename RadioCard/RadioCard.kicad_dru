@@ -1,0 +1,5 @@
+(version 1)
+# The SMA (J2) is an edge-launch jack: its signal and ground pads run to the board edge by design.
+(rule "SMA edge launch"
+  (condition "A.Parent.Reference == 'J2'")
+  (constraint edge_clearance (min 0mm)))

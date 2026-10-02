@@ -1,12 +1,13 @@
 # AM/FM radio card
 
-**Status: first-draft schematic in [`RadioCard/`](../../RadioCard/README.md); no board yet.** It follows the audio card's generator pattern
-(`AudioCarrier/generate/`, `GPSCard/`, `LTECard/`), and the GPS card's MCU and programming header.
+**Status: schematic and board done in [`RadioCard/`](../../RadioCard/README.md)** (80 × 60 mm, 4 layers, placed and
+routed). It follows the audio card's generator pattern (`AudioCarrier/generate/`, `GPSCard/`, `LTECard/`), and the GPS
+card's MCU and programming header. Until the card is built, `tools/can_relay.py` stands in for it on the bench
+(`tools/radio_sim.py`, see [Simulated card](#simulated-card)).
 
-**Checked against the Si4730/31/34/35-D60 data sheet (Rev 1.1)**: pins, supplies, digital audio interface, reference
-clock and package are as in this document. **Still unchecked** (needs AN332 and AN383, which are not in the repo): the
-command and property details, the I2C address table, the list of supported RCLK frequencies, and the whip antenna network.
-See [Check before drawing](#check-before-drawing).
+**Checked against** the Si4730/31/34/35-D60 data sheet (rev 1.2), AN332 *Si47xx Programming Guide* (Skyworks 207003A),
+AN383 *Si47xx Antenna, Schematic, Layout and Design Guidelines* (207075A) and ST DS13560 rev 4. What they settled is in
+[Settled by the documents](#settled-by-the-documents); what is still open is in [Open](#open).
 
 A slot card for the DigiDash rev 2 board (`accessory_ports.md`, rev 2 section): an **AM/FM tuner** whose digital
 audio goes to the audio card over the slots' **I2S rail**, controlled by an **STM32G0B1** that also speaks
@@ -44,27 +45,29 @@ Tall parts: none. The card is 80 × 60 mm like every card, parts up to 15 mm, an
 | MCU | **STM32G0B1KBU6** (as the GPS card) | FDCAN built in, 5 V tolerant I/O, I2C, plenty of flash for presets. Same SWD header and debug serial as the GPS card, so one programmer and one toolchain |
 | CAN transceiver | MCP2562 (VDD 5 V, VIO 3.3 V, STBY low) | As every node. **No termination** |
 | 3.3 V | AP2112K-3.3 from the slot's 5 V | MCU, transceiver VIO, and both tuner supplies: VA (2.7–5.5 V) and VD (1.62–3.6 V) both run at 3.3 V. The tuner draws about 10 mA on each in FM. VA gets its own ferrite and 22 nF (C1) close to the pin, VD 100 nF (C4) |
-| Tuner reference clock | **A 32.768 kHz CMOS oscillator (±50 ppm or better, 1.8–3.3 V) into RCLK** | **The tuner's own crystal oscillator cannot be used**: it takes the GPO3 pin (pin 17), which is DCLK in digital-audio mode. So the clock comes from outside. ±100 ppm is the limit, ±50 ppm is needed for 50 kHz FM steps and for SW. See [Check before drawing](#check-before-drawing) |
-| Antenna connector | **SMA, right angle, edge mount, on the top edge** (the case panel) | A 1964 car has a fixed whip with a Motorola plug: use a Motorola-to-SMA pigtail. A power antenna's motor lead is not on this card |
-| Antenna network | **FM:** antenna → 1 nF (C2) → FMI (pin 2). **AM:** the data sheet's circuit is a ferrite loopstick (180–450 µH, L1) with 0.47 µF (C3) from AMI (pin 4), the other end on RFGND (pin 3); an air loop (10–20 µH) goes through a 1:5 transformer. **A car whip on AM is not in the data sheet**: AN383 has the network. Stray capacitance on the AM input must stay under 10 pF | The FM pin is 4 kΩ / 5 pF. Never route either input near the CAN pair, the oscillator or the MCU. ESD: these pins are under 2 kV HBM, so add a low-capacitance clamp on the SMA's centre |
+| Tuner reference clock | **None on the card: the tuner takes its reference from DCLK** (the rail's BCK, 3.072 MHz at 48 kHz): `REFCLK_PRESCALE` = `0x1060` (bit 12 RCLKSEL = DCLK, prescale 96), `REFCLK_FREQ` = 32000 (AN332, properties `0x0201` / `0x0202`, p. 37–38) | The tuner's own crystal oscillator cannot be used (it shares GPO3, which is DCLK in digital-audio mode). Taking the reference from the audio card's bit clock means the tuner runs on the audio card's sample clock: **no drift between the two**, and no oscillator to buy. The BCK comes from the audio card's crystal, well inside the ±100 ppm limit. Fallback, not fitted: a 0 Ω (R13) from the rail's MCLK (12.288 MHz, prescale 375 = 32768 Hz) to RCLK, with RCLKSEL = RCLK; MCLK's 8th harmonic is 98.3 MHz. RCLK has a 100k pull-down when unused |
+| Antenna connector | **Amphenol RF 132289, SMA jack, edge mount for a 1.6 mm board, on the top edge** (the case panel) | A 1964 car has a fixed whip with a Motorola plug: use a Motorola-to-SMA pigtail. A power antenna's motor lead is not on this card |
+| Antenna network | **FM** (AN383 §7, fig. 23): the antenna node has **L1 56 nH** (Murata LQW18AN56NJ00D, Q ≥ 15 at 100 MHz) to ground, then **1 nF C0G** to FMI. **AM** (data sheet, AN383 §8): a ferrite loopstick (180–450 µH) on **J5** between the AM node and ground, **0.47 µF** to AMI. **A car whip on AM is in neither document** (AN383 §10's SW-whip network is the nearest): JP2 (open) is where it would join. AM stray capacitance under 10 pF | L1 matches a ~22 pF whip; a car whip on a metre of cable is more, so **tune L1 on the bench** (or leave it off). Never route either input near the CAN pair or the MCU. FMI / AMI absolute maximum 0.4 Vpk |
+| Antenna ESD | **TI TPD1E0B04DPYR** (0.13 pF, X1SON 1.0 × 0.6 mm) on the SMA centre | AN383 asks for a clamp of ≤ 1 pF wherever the antenna is exposed (it names the CM1213-01ST) |
 | RET buffer | **74LVC1G125** on DOUT → RET, enabled by an MCU pin, pulled to "off" | Rail rule: every driver sits behind a 3-state buffer that is off at power-up. BCK / WS are inputs only and need no buffer |
 | RET series R | 33 Ω on RET | As the rail rules ask |
 | Programming (required: the STM32 is blank) | **J3 SWD, 1 × 5, 2.54 mm, right angle, left edge**: 3V3, SWDIO, SWCLK, NRST, GND | Exactly the GPS card's J3 (`gps_card.md`). Reachable with the card in its slot |
 | Debug serial | **J4, 1 × 3, right angle**, beside J3: GND, TX, RX (USART1, 3.3 V) | Log output and the ROM bootloader fallback |
-| Bench audio | 1 × 3 header, unfitted: LOUT, ROUT, GND (pins 14, 13) | The tuner's analog outputs, to hear it on a bench with no audio card (analog and digital out run together in OPMODE 0xB5). Not connected to the slot |
+| Bench audio | **None** | The draft had an analog header, but AN332 (p. 15) offers analog + digital out together (OPMODE `0xB5`) on the Si4735 only for AM; FM is digital only (`0xB0`). LOUT / ROUT are left open |
 | Indicators | One LED: off = tuner off, blinking = seeking, steady = tuned. One more: stereo / RDS | |
 
-**Slot pins used:** 1 / 2 (+5 V), GND, 5 / 6 (CAN), 11 (slot ID), 15 / 16 (I2S BCK / WS, inputs), 18 (I2S RET, output).
+**Slot pins used:** 1 / 2 (+5 V), GND, 5 / 6 (CAN), 11 (slot ID), 15 / 16 (I2S BCK / WS, inputs), 18 (I2S RET, output),
+24 (MCLK, only through the unfitted R13).
 Everything else is left unconnected, and the audio bus (21–23) is never driven.
 
 ## MCU pins (to fix in the schematic)
 
 | Function | Notes |
 | --- | --- |
-| CAN | FDCAN1 TX / RX to the MCP2562 |
-| Tuner I2C | I2C1 SCL / SDA, 4.7k pull-ups to 3.3 V. The tuner's SEN pin (6) sets its address in 2-wire mode (0x11 low / 0x63 high from AN332, to confirm): strapped on the card |
+| CAN | FDCAN1 on PA12 / PA11 (pins 23 / 22), **AF3** (DS13560 table 15), to the MCP2562 |
+| Tuner I2C | I2C1 on PB6 / PB7 (pins 30 / 31, AF6), 4.7k pull-ups to 3.3 V. The tuner's SEN pin sets its 7-bit address: **0x11** low (JP1 as delivered), 0x63 high (AN332 §6.1). At most 8 bytes per write, 16 per read |
 | Tuner RSTb | GPIO output (low = reset). **Bus mode is latched at the rising edge**: GPO1 must be high and GPO2 low (their internal pull-up / pull-down do it: leave both unconnected or high-Z), and SCLK high at that edge, SDIO not falling within 300 ns before it. RSTb low at least 100 µs |
-| Tuner GPO2 / INT (pin 18) | GPIO input: seek / tune complete (STC) and RDS interrupts. The data sheet asks for a quiet I2C bus during a seek or tune (crystal jitter, false stops), so the MCU waits for the interrupt and does not poll |
+| Tuner GPO2 / INT (pin 18) | GPIO input: seek / tune complete (STC) and RDS interrupts. The data sheet asks for a quiet I2C bus during a seek or tune (reference jitter, false stops), so the MCU waits for the interrupt and does not poll |
 | RET buffer enable | GPIO output, low (off) at reset, with a pull-down so the buffer is off until the firmware says so |
 | Slot ID | An ADC input with 10k to 3.3 V (as every card) |
 | LEDs | 2 GPIO |
@@ -125,13 +128,16 @@ console's View or a long-press of play / pause cycling it. Not specified here.
 
 - **80 × 60 mm**, 4 layers, any slot. Slot header at the bottom edge as on the audio card
   (`AudioCarrier/generate/gen_pcb.py` has the orientation check).
-- **Top edge** (the case panel): the SMA jack. The RF part (antenna, matching, tuner) sits close under it, on the
-  **parts side**, with a **solid ground under it (In1)** and no digital traces across it. Keep the tuner's antenna
-  inputs away from the noisy side: the MCU, CAN transceiver and the slot header go at the bottom.
+- **Top edge** (the case panel): the SMA jack J2 (x 45) and the AM loopstick header J5 (x 33, right angle). The RF
+  part (ESD clamp, L1, the coupling caps, the tuner) sits close under them on the **parts side**, with the **solid In1
+  ground plane under it** and a keep-out on In2 and B (no tracks; ground stitching vias only) from x 28 to 62, y 0 to
+  21. The tuner is turned so FMI / AMI face the SMA. The MCU, CAN transceiver, RET buffer and the slot header are at
+  the bottom.
 - **Left edge:** J3 (SWD) and J4 (debug serial), right angle.
-- **Back side:** only low SMD parts (≤ 2.5 mm including solder tails).
-- **Crystal** next to the tuner's RCLK pin with ground around it. The 32.768 kHz is weak: keep it short.
-- **Shield:** leave room for an optional tin shield can over the tuner and its front end.
+- **Back side:** empty: every part is on the parts side.
+- **No crystal or oscillator for the tuner** (its reference is DCLK). The STM32's 8 MHz crystal is beside the MCU, far
+  from the tuner.
+- **Shield:** none on rev A; the keep-out leaves room to add a tin shield can over the tuner later.
 
 ## Why this tuner
 
@@ -153,13 +159,13 @@ SSOP-24 (GU), pins used. 3.3 V on VA and VD. (QFN-20 pin numbers differ; the dat
 
 | Pin | Name | Goes to |
 | --- | --- | --- |
-| 1 | DOUT | RET buffer through 600 Ω (R1) |
+| 1 | DOUT | RET buffer through 604 Ω (R1; data sheet 600 Ω, AN383 604 Ω) |
 | 2 | DFS | I2S WS (slot pin 16), through 2 kΩ (R2) |
 | 3 | GPO3 / DCLK | I2S BCK (slot pin 15), through 2 kΩ (R3) |
 | 4 | GPO2 / INT | MCU |
 | 5 | GPO1 | left open: must be high or open at reset |
 | 6, 7 | NC | leave floating |
-| 8 | FMI | FM antenna through 1 nF |
+| 8 | FMI | FM antenna through 1 nF (56 nH to ground at the antenna node) |
 | 9 | RFGND | ground |
 | 10, 11 | NC | tie to GND (SSOP only) |
 | 12 | AMI | AM antenna through 0.47 µF |
@@ -168,50 +174,55 @@ SSOP-24 (GU), pins used. 3.3 V on VA and VD. (QFN-20 pin numbers differ; the dat
 | 16 | SEN | strap (address) |
 | 17 | SCLK | MCU I2C SCL |
 | 18 | SDIO | MCU I2C SDA |
-| 19 | RCLK | 32.768 kHz oscillator |
+| 19 | RCLK | 100k to GND; R13 (not fitted) from the rail MCLK |
 | 20 | VD | 3.3 V, 100 nF |
 | 21 | VA | 3.3 V through a ferrite |
-| 22 | DBYP | 22 nF to VA (C1) |
-| 23, 24 | ROUT, LOUT | bench header (OPMODE 0xB5) |
+| 22 | DBYP | 22 nF to VA (C1, as in the data sheet's SSOP schematic, p. 18) |
+| 23, 24 | ROUT, LOUT | open (FM digital out only) |
 
-The 600 Ω / 2 kΩ / 2 kΩ series resistors and a 2–5 pF noise capacitor (C9) are the data sheet's optional digital-audio
+The 604 Ω / 2 kΩ / 2 kΩ series resistors and a 2.2 pF C0G noise capacitor (C9) are the data sheet's optional digital-audio
 network, there to keep the digital edges out of the RF. They go on the card. DCLK min cycle 26 ns (the rail's 3.07 MHz
 BCK is 325 ns), DFS set-up and hold 5 ns, DOUT valid within 50 ns of DCLK falling: no problem at the rail's 64 fS.
 I2S, left-justified and DSP formats, 8 to 24 bits, 32 / 44.1 / 48 kHz. **I2S mode, default MSB on the second DCLK edge
 after the DFS edge: matches the rail.** DFS low = left.
 
-## Check before drawing
+## Settled by the documents
 
-Settled by the data sheet: the digital audio interface is a **slave** (DCLK and DFS are inputs), so the audio card is the
-only clock master as the rail rules want; every variant has digital audio out; the pins in the table above.
+- **Digital audio is a slave interface** (DCLK, DFS inputs), so the audio card stays the only clock master. I2S,
+  16-bit, rising edge: `DIGITAL_OUTPUT_FORMAT` = `0x0000`. `DIGITAL_OUTPUT_SAMPLE_RATE` is the DFS rate (48000);
+  DCLK must be at least 1 MHz (3.072 MHz here). **DCLK and DFS must be running before the sample rate is set**, or
+  the chip stops answering until reset; **set the rate to 0 before the clocks stop** (AN332 p. 36). `FM_TUNE_FREQ` comes
+  after POWER_UP and before the sample rate.
+- **Reference clock from DCLK** (RCLKSEL), see [Parts](#parts). REFCLK must be valid while tuning and for AFC, so
+  the radio tunes only while the rail has clocks.
+- **POWER_UP**: `01 C0 B0` for FM (CTS and GPO2 interrupts, XOSCEN = 0, OPMODE `0xB0` digital), `01 C1 B0` for AM
+  (AN332 p. 14–15, 72–73). XOSCEN must be 0: there is no crystal.
+- **I2C**: 2-wire mode by GPO1 high and GPO2 low at the RST rising edge, with SCLK high; address 0x11 (SEN low).
+- **MCU pins** (DS13560 rev 4): the KBU6 is the "GP" UFQFPN-32 pinout; FDCAN1 is AF3 on PA11 / PA12, I2C1 AF6 on PB6 / PB7,
+  USART1 AF1 on PA9 / PA10, no bonded pins.
+- **RCLK** must not be driven while VD is off (absolute maximum VD + 0.3 V): R13's source, the rail MCLK, only runs
+  while the slot's 5 V is up, and the card's 3.3 V follows it within the regulator's start-up.
 
-1. **The reference clock** (found by the data sheet): the tuner's crystal oscillator and the digital audio output
-   both use GPO3 (pin 17), so a crystal is out and **RCLK needs an oscillator**. Which RCLK frequencies are accepted is
-   AN332 Table 6 (31.130 kHz–40 MHz with a prescaler, but "some frequencies are not supported"). If the audio card's
-   12.288 MHz MCLK (rail pin 24) is accepted, the tuner would run on the audio card's sample clock and sample-rate drift
-   would not exist; but MCLK's harmonics fall in the FM band (the 8th is 98.3 MHz). If it is not accepted, a 32.768 kHz
-   oscillator is used and the sample clocks are asynchronous (point 2).
-2. **Sample-rate lock.** DFS comes from the audio card, but the tuner makes its audio from its own reference clock. How the
-   chip behaves when the two differ (it may slip a sample every so often, or follow DFS) is not in this data sheet: AN332's
-   DIGITAL_OUTPUT_SAMPLE_RATE property says. Listen to it on the bench with a station; a click every few seconds means
-   the clocks must be tied together.
-3. **AN332:** POWER_UP (the OPMODE byte, CTS and the 110 ms power-up), DIGITAL_OUTPUT_FORMAT (I2S, 16 bit, DFS / DCLK
-   edges) and DIGITAL_OUTPUT_SAMPLE_RATE, RX_VOLUME, FM_RDS_* properties, the seek and tune thresholds, the I2C address
-   by SEN, and whether DCLK must be running when digital output is turned on.
-4. **AN383 for the whip.** A car whip is a 4–5 pF-ish source at FM and hundreds of pF at AM; the AM input wants a high
-   impedance and under 10 pF stray, so the network for a whip needs the application note. If the car's antenna is amplified, it needs a bias feed
-   this card does not have.
-5. **The SMA right-angle edge-mount footprint** (part chosen, drawing in hand), against the case panel hole and the 2.5 mm
-   back-side limit.
-6. **RET enable** must follow NET RAIL exactly (never drive RET without a grant). With the rail idle (no clocks) the
-   tuner's digital output must not be enabled (no DCLK).
-7. **ESD:** some tuner pins are rated under 2 kV HBM; treat it as ESD-sensitive at assembly and keep the clamp on the antenna pin.
+## Open
+
+1. **AM from the car whip.** Neither the data sheet nor AN383 has a network for a car whip on AMI. The card ships with
+   AM from a loopstick on J5; JP2 joins the SMA to the AM node once a network is worked out (AN383 §10's SW-whip
+   circuit is the starting point). If the car's antenna is amplified, it needs a bias feed this card does not have.
+2. **L1 on the car's whip.** 56 nH matches AN383's ~22 pF whip. Check FM reception on the bench with the real whip and
+   cable, with and without L1.
+3. **Land patterns to check against the parts in hand:** the SMA (Amphenol 132289) on the top edge, and D2's 0402
+   pattern against TI's DPY drawing.
+4. **The BCK as a reference while the audio card changes rate.** At 44.1 kHz the BCK is 2.8224 MHz: prescale 86 gives
+   32 818 Hz (in range). The radio must re-set `REFCLK_PRESCALE` / `REFCLK_FREQ` (only possible in powerup) or ask for
+   48 kHz in its RAIL request, as it does.
 
 ## Firmware (STM32G0B1, Arduino STM32 core or Cube)
 
-1. Boot: read the slot ID, bring the tuner out of reset (RSTb, SEN strapped, SCLK high, GPO1 / GPO2 at their default levels at the rising edge), `POWER_UP` FM with digital output (OPMODE 0xB0, or 0xB5 with the bench outputs),
-   set the I2S format (I2S, 16-bit) and sample rate 48 kHz, restore band / frequency / presets / region from flash,
-   mute until the link exists.
+1. Boot: read the slot ID, restore band / frequency / presets / region from flash. Wait for the rail's clocks (the audio
+   card's heartbeat and announce). Then bring the tuner out of reset (RSTb low ≥ 100 µs, SCLK high, GPO1 / GPO2 at
+   their default levels at the rising edge), `POWER_UP` `01 C0 B0`, `REFCLK_PRESCALE` `0x1060`, `REFCLK_FREQ` 32000,
+   `DIGITAL_OUTPUT_FORMAT` 0, `FM_TUNE_FREQ`, then `DIGITAL_OUTPUT_SAMPLE_RATE` 48000. Muted until the link exists.
+   Before the audio card stops (its heartbeat goes, SYSTEM POWER), set the sample rate to 0.
 2. CAN: heartbeat `0x700 + node` (1 Hz), NET ANNOUNCE (with the slot), UI ITEMs at boot and on QUERY, SENSOR DEFINE.
 3. RAIL: when the audio card has announced and the radio is the source, send RAIL state 0; on state 1, enable the
    RET buffer and unmute. On state 2 (withdrawn), or the audio card's heartbeat stopping, mute and disable the buffer
@@ -223,6 +234,30 @@ only clock master as the rail rules want; every variant has digital audio out; t
 Host-testable parts (CAN codecs, RDS group assembly, preset storage) go in `firmware/elc_can` and a new
 `firmware/radio_card` directory with `test/host/` like the others. `firmware/elc_can` has no NET, UI or SENSOR codecs
 yet (`can_channels.md` is spec only), so this card's firmware waits on step 1 of the channel protocol's order of work.
+
+## Simulated card
+
+`tools/can_relay.py` runs `tools/radio_sim.py`, which sends what this firmware will send, from slot 2 (node `0x15`)
+unless told otherwise: the heartbeat, ANNOUNCE (product `0x0009`, node type 9), the UI page below, SENSOR 0 / 1, LOG
+lines, and RAIL requests once an audio card (node type 5, product `0x0004`) has announced and the radio is the
+selected source. It answers QUERY, SET, VIEW, RAIL, IDENTIFY, RESTART, the keys and SYSTEM POWER. The stations are made
+up. Its item numbers are the ones the firmware should use:
+
+| Item | Label | Kind | Notes |
+| --- | --- | --- | --- |
+| 0 | Radio on | toggle | setting |
+| 1 | Band | choice | FM, AM; setting |
+| 2 | Frequency | number | FM: × 0.1 MHz, 875–1080; AM: kHz, 520–1710 step 10 (Europe 522–1710 step 9). Its ITEM is resent on a band change |
+| 3, 4 | Seek up, Seek down | action | |
+| 5, 6 | Station, Radio text | text readout | RDS PS and radiotext |
+| 7, 8 | Stereo, Signal | readout | live |
+| 9 | Preset | choice | recall: the options list the 12 presets ("1  101.1 FM", "2  --") |
+| 10 | Store as preset | choice | asks to confirm; stores the current station in the chosen slot |
+| 11 | Region | choice | US, Europe; setting |
+| 12, 13 | Seek signal min, Seek SNR min | number | advanced, setting |
+| 14 | Preset memory | group | advanced: items 15–26, each preset's frequency in kHz (0 = empty), as settings so the center backs them up |
+
+SENSOR 0 "Radio signal dBuV" and 1 "Radio SNR dB" use quantity 0 (unitless): the registry has no dBµV or dB.
 
 ## Registry changes
 

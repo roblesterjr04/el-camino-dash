@@ -155,12 +155,12 @@ def power(net, x, y, outward=None):
           PROJECT, SHEET, ref))
 
 
-def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True, unit=1, first=True):
+def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True, unit=1, first=True, dnp=False):
     """nets: {pin number: net name | None (unconnected -> no-connect flag)}; every pin must be listed."""
     if first:
         assert ref not in refs_seen, ref
         refs_seen.add(ref)
-        refs_info[ref] = {'group': cur_group[0], 'fp': footprint, 'value': value}
+        refs_info[ref] = {'group': cur_group[0], 'fp': footprint, 'value': value, 'dnp': dnp}
     pins = {k: v for k, v in lib_pins[lib_id].items() if v[5] in (0, unit)}
     props = lib_props[lib_id]
 
@@ -169,8 +169,8 @@ def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True
         return f(x + px), f(y - py)
 
     rp, vp = pos('Reference', (0, 3)), pos('Value', (0, -3))
-    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom yes) (on_board yes) (dnp no) (uuid "%s")' % (
-        lib_id, f(x), f(y), unit, uid('s' + ref + str(unit))),
+    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom yes) (on_board yes) (dnp %s) (uuid "%s")' % (
+        lib_id, f(x), f(y), unit, 'yes' if dnp else 'no', uid('s' + ref + str(unit))),
         '    (property "Reference" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)))' % (ref, rp[0], rp[1]),
         '    (property "Value" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)%s))' % (
             value, vp[0], vp[1], '' if show_value else ' hide'),
@@ -212,6 +212,7 @@ C = stock('Device', 'C')
 LED = stock('Device', 'LED')
 FB = stock('Device', 'FerriteBead_Small')
 TVS = stock('Device', 'D_TVS')
+IND = stock('Device', 'L')
 XTAL = stock('Device', 'Crystal_GND24')
 HDR2x15 = stock('Connector_Generic', 'Conn_02x15_Odd_Even')
 HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
@@ -231,7 +232,6 @@ for _pn in ('10', '11'):
     assert _k == 1, _pn
 register(TUNER, _t)
 BUF = stock('74xGxx', '74LVC1G125')
-OSC = stock_as('Oscillator', 'XO32', 'RadioCard:XO32', '32.768kHz')
 for n in ('GND', '+5V', '+3V3', 'PWR_FLAG'):
     stock('power', n)
 
@@ -248,9 +248,9 @@ def nid(prefix):
     return '%s%d' % (prefix, cnt[prefix])
 
 
-def r_(v, a, b, x, y, d=None):
+def r_(v, a, b, x, y, d=None, dnp=False):
     ref = nid('R')
-    place(R, ref, v, FP_R, x, y, {'1': a, '2': b}, descr=d)
+    place(R, ref, v, FP_R, x, y, {'1': a, '2': b}, descr=d, dnp=dnp)
     return ref
 
 
@@ -263,7 +263,7 @@ def c_(v, a, b, x, y, d=None):
 text(15, 12, 'AM/FM RADIO CARD  -  Si4735-D60 tuner + STM32G0B1KBU6 + MCP2562: I2S audio to the audio card on the slot I2S rail, CAN for control', 3)
 text(15, 20, 'Card for a DigiDash slot, 80 x 60 mm, standing on edge (docs/hardware/accessory_ports.md), any slot. '
      'CAN node 0x14 + (slot - 1), product 0x0009 (docs/hardware/radio_card.md). 5 V from the slot only; 3.3 V on board.\n'
-     'SCHEMATIC STATUS: first draft. Items marked PROVISIONAL need AN332 / AN383 (the AM / whip network, the I2C address, which RCLK frequencies the tuner accepts).', 1.6)
+     'Checked against the Si4730/31/34/35-D60 data sheet rev 1.2, AN332 (207003A) and AN383 (207075A). Open: an AM network for a car whip (not in AN383; JP2).', 1.6)
 
 # --- slot
 G('port')
@@ -271,10 +271,10 @@ place(HDR2x15, 'J1', 'DigiDash slot', 'Connector_PinHeader_2.54mm:PinHeader_2x15
       {'1': '+5V', '2': '+5V', '3': 'GND', '4': 'GND', '5': 'CANH', '6': 'CANL', '7': 'GND', '8': None,
        '9': None, '10': None, '11': 'SLOT_ID', '12': None, '13': None, '14': None,
        '15': 'I2S_BCK', '16': 'I2S_WS', '17': None, '18': 'I2S_RET', '19': 'GND', '20': 'GND',
-       '21': None, '22': None, '23': None, '24': None,
+       '21': None, '22': None, '23': None, '24': 'I2S_MCLK',
        '25': None, '26': None, '27': None, '28': None, '29': None, '30': None},
       descr='Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, '
-            'slot ID, I2S rail BCK (15), WS (16) as inputs and RET (18) as a granted output. Not used: MIC (17), MCLK (24), 12 V, 3.3 V, WAKE, LAMP, REV, audio bus, AUX')
+            'slot ID, I2S rail BCK (15), WS (16) as inputs and RET (18) as a granted output, MCLK (24) only through the unfitted R to RCLK. Not used: MIC (17), 12 V, 3.3 V, WAKE, LAMP, REV, audio bus, AUX')
 text(70, 40, 'Slot ID (pin 11): 10k to 3.3 V here, the slot\'s own resistor to GND on the main board, read on PA0 (ADC1_IN0). '
      'The rail is driven by the audio card only; this card only listens to BCK / WS and drives RET after a NET RAIL grant.', 1.4)
 r_('10k', '+3V3', 'SLOT_ID', 25, 45, 'Slot ID pull-up (the main board has one resistor to GND per slot)')
@@ -294,11 +294,12 @@ c_('100n', '+3V3', 'GND', 105, 125)
 place(FB, 'FB1', 'BLM18 120R', 'Inductor_SMD:L_0603_1608Metric', 125, 120, {'1': '+3V3', '2': '+3V3A'},
       descr='Ferrite bead, 0603, about 120 R at 100 MHz, 0.5 A: keeps digital noise off the tuner analog supply')
 c_('10u', '+3V3A', 'GND', 145, 125, d='Tuner analog supply bulk')
+place('power:PWR_FLAG', '#FLG03', 'PWR_FLAG', '', 160, 115, {'1': '+3V3A'}, show_value=False)
 
 # --- MCU
 G('mcu')
-text(170, 30, 'MCU: STM32G0B1KBU6 (UFQFPN-32). Pin use (DS13560 alternate-function tables; CHECK before layout):\n'
-     'PA11 (22) FDCAN1_RX AF9, PA12 (23) FDCAN1_TX AF9 (SYSCFG remap off).  PB6 (30) I2C1_SCL AF6, PB7 (31) I2C1_SDA AF6: the tuner.\n'
+text(170, 30, 'MCU: STM32G0B1KBU6 (UFQFPN-32, the GP pinout). Pin use (DS13560 rev 4, tables 12-16):\n'
+     'PA11 (22) FDCAN1_RX AF3, PA12 (23) FDCAN1_TX AF3 (SYSCFG remap off).  PB6 (30) I2C1_SCL AF6, PB7 (31) I2C1_SDA AF6: the tuner.\n'
      'PB0 (15) tuner RST (output; pulled low, so the tuner stays in reset until the firmware starts).  PB1 (16) tuner INT (GPO2, input).\n'
      'PB2 (17) RET buffer enable, ACTIVE LOW (74LVC1G125 OE; 10k pull-up keeps it off at reset and while the MCU is blank).\n'
      'PA9 (19) USART1_TX AF1, PA10 (21) USART1_RX AF1: debug (J4, also the ROM bootloader).  PA0 (7) ADC1_IN0: slot ID.  PA5 (12) LED tuned, PA6 (13) LED stereo / RDS.\n'
@@ -349,47 +350,47 @@ c_('100n', '+3V3', 'GND', 130, 235, d='MCP2562 VIO')
 G('tuner')
 text(15, 275, 'TUNER: Si4735-D60-GU (SSOP-24; same silicon as the -GM QFN, whose land pattern is not a stock KiCad footprint). '
      'Si4735 = AM / FM / SW / LW + RDS. NOT the Si4730 (no RDS).', 1.4)
-place(TUNER, 'U5', 'Si4735-D60-GU', 'Package_SO:SSOP-24_3.9x8.7mm_P0.635mm', 330, 60,
+place(TUNER, 'U4', 'Si4735-D60-GU', 'Package_SO:SSOP-24_3.9x8.7mm_P0.635mm', 330, 60,
       {'1': 'TUN_DOUT', '2': 'TUN_DFS', '3': 'TUN_DCLK', '4': 'TUN_INT', '5': None, '6': None, '7': None,
        '8': 'FMI', '9': 'GND', '10': 'GND', '11': 'GND', '12': 'AMI', '13': 'GND', '14': 'GND',
        '15': 'TUN_RST', '16': 'TUN_SEN', '17': 'TUN_SCL', '18': 'TUN_SDA', '19': 'RCLK', '20': '+3V3',
-       '21': '+3V3A', '22': 'DBYP', '23': 'ROUT', '24': 'LOUT'},
-      descr='Silicon Labs Si4735-D60-GU. Digital audio out is a SLAVE interface: DFS (pin 2) and DCLK (GPO3, pin 3) are inputs. '
-            'Pins 10 / 11 unused: tie to GND (datasheet). 6 / 7 NC. GPO1 (5) left open: it must be high or open at reset (2-wire bus mode, internal pull-up)')
-c_('22n', 'DBYP', '+3V3A', 365, 100, d='C1 in the datasheet: DBYP to VA, close to the pins (data sheet figure, SSOP schematic)')
+       '21': '+3V3A', '22': 'DBYP', '23': None, '24': None},
+      descr='Skyworks (Silicon Labs) Si4735-D60-GU. Digital audio out is a SLAVE interface: DFS (pin 2) and DCLK (GPO3, pin 3) are inputs. '
+            'Pins 10 / 11 unused: tie to GND (datasheet). 6 / 7 NC. GPO1 (5) left open: it must be high or open at reset (2-wire bus mode, internal pull-up). '
+            'LOUT / ROUT unused: POWER_UP OPMODE 0xB0 (digital only; 0xB5 analog + digital is not offered on the Si4735 in FM, AN332 p.15)')
+c_('22n', 'DBYP', '+3V3A', 365, 100, d='C1 (datasheet SSOP schematic p.18): DBYP to VA, X7R, close to VA')
 c_('100n', '+3V3', 'GND', 380, 100, d='C4 in the datasheet: VD bypass, close to pin 20')
-text(300, 105, 'Digital audio network (datasheet optional parts): R1 600 on DOUT, R2 / R3 2k on DFS / DCLK (host side), C9 2-5 pF on the DFS line. '
+text(300, 105, 'Digital audio network (datasheet optional parts, AN383 tables 6-7): R1 604 on DOUT, R2 / R3 2k on DFS / DCLK, C9 2.2 pF C0G on the DFS line. '
      'I2S mode, slave: DCLK = rail BCK (64 fS), DFS = rail WS. Left channel when DFS is low.', 1.4)
-r_('600', 'TUN_DOUT', 'TUN_DOUT_B', 300, 130, 'R1 (datasheet): at the DOUT pin, towards the RET buffer')
+r_('604', 'TUN_DOUT', 'TUN_DOUT_B', 300, 130, 'R1 (datasheet 600 R, AN383 table 6: 604 R E96): at the DOUT pin, towards the RET buffer')
 r_('2k', 'TUN_DFS', 'I2S_WS', 300, 145, 'R2 (datasheet): at the DFS pin, WS from the rail')
 r_('2k', 'TUN_DCLK', 'I2S_BCK', 300, 160, 'R3 (datasheet): at the DCLK pin, BCK from the rail')
-c_('3p', 'I2S_WS', 'GND', 340, 145, d='C9 (datasheet): 2-5 pF noise capacitor on the DFS line')
+c_('2.2p', 'I2S_WS', 'GND', 340, 145, d='C9 (datasheet, AN383 p.5): 2.2 pF C0G noise capacitor on the DFS line')
 r_('100k', 'I2S_BCK', 'GND', 355, 145, 'Idle pull-down: the rail has no clocks until the audio card turns them on')
 r_('100k', 'I2S_WS', 'GND', 370, 145, 'Idle pull-down: the rail has no clocks until the audio card turns them on')
 
 text(300, 180, 'CONTROL (2-wire I2C): SCLK high at the rising edge of RST selects 2-wire; GPO1 high / GPO2 low at that edge (internal pull-up / pull-down). '
-     'SEN sets the address (JP1: 1-2 bridged = SEN low). RST has 100k to GND so the tuner waits for the firmware.', 1.4)
+     'SEN sets the address (JP1: 1-2 bridged = SEN low = 0x11; 2-3 = 0x63, AN332 6.1). RST has 100k to GND so the tuner waits for the firmware.', 1.4)
 r_('4.7k', '+3V3', 'TUN_SCL', 300, 205, 'I2C pull-up')
 r_('4.7k', '+3V3', 'TUN_SDA', 315, 205, 'I2C pull-up')
 r_('100k', 'TUN_RST', 'GND', 330, 205, 'Holds the tuner in reset until the MCU drives RST')
 place(SJ3, 'JP1', 'Tuner address', 'Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm', 355, 205,
       {'1': 'GND', '2': 'TUN_SEN', '3': '+3V3'},
-      descr='SEN strap: 1-2 bridged (as delivered) = SEN low (address 0x11 per AN332: confirm); cut and bridge 2-3 = SEN high (0x63)')
+      descr='SEN strap: 1-2 bridged (as delivered) = SEN low, 7-bit address 0x11; cut and bridge 2-3 = SEN high, 0x63 (AN332 section 6.1)')
 
 # --- reference clock
 G('clock')
-text(15, 295, 'REFERENCE CLOCK (PROVISIONAL): the tuner\'s own crystal oscillator uses GPO3, which is DCLK here, so RCLK comes from a 32.768 kHz CMOS oscillator, '
-     '+-50 ppm or better (FM seek at 50 kHz and SW need +-50 ppm). AN332 table 6 decides whether another frequency (the rail MCLK, 12.288 MHz) is accepted.', 1.4)
-place(OSC, 'U4', '32.768kHz', 'Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm', 60, 320,
-      {'1': '+3V3', '2': 'GND', '3': 'RCLK', '4': '+3V3'},
-      descr='32.768 kHz oscillator, 1.8-3.3 V, +-50 ppm or better. PART NOT CHOSEN: the footprint is a 3.2 x 2.5 mm placeholder; change it to match the part')
-c_('100n', '+3V3', 'GND', 100, 325, d='Oscillator supply')
+text(15, 295, 'REFERENCE CLOCK: the tuner takes it from DCLK (the rail BCK, 3.072 MHz at 48 kHz): REFCLK_PRESCALE = 0x1060 (bit 12 RCLKSEL = DCLK, prescale 96), '
+     'REFCLK_FREQ = 32000 (AN332 properties 0x0201 / 0x0202, p.37-38). So the tuner runs on the audio card\'s sample clock: no drift between them, and no oscillator. '
+     'Its own crystal cannot be used (GPO3 is DCLK). Fallback, unfitted: R to RCLK from the rail MCLK (12.288 MHz, prescale 375 = 32768 Hz), whose 8th harmonic is 98.3 MHz.', 1.4)
+r_('0', 'I2S_MCLK', 'RCLK', 60, 320, 'UNFITTED. Fallback reference: the rail MCLK into RCLK (REFCLK_PRESCALE 375, RCLKSEL = RCLK)', dnp=True)
+r_('100k', 'RCLK', 'GND', 90, 320, 'Holds the unused RCLK input low (RCLKSEL = DCLK)')
 
 # --- RET buffer
 G('rail')
 text(130, 295, 'RAIL (RET, pin 18): audio to the audio card. 74LVC1G125, OFF at power-up (OE pulled high; the MCU pulls it low only after a NET RAIL grant, '
      'and releases it within 10 ms of a withdrawal), 33 R in series at the pin.', 1.4)
-place(BUF, 'U6', '74LVC1G125', 'Package_TO_SOT_SMD:SOT-353_SC-70-5', 160, 320,
+place(BUF, 'U5', '74LVC1G125', 'Package_TO_SOT_SMD:SOT-353_SC-70-5', 160, 320,
       {'1': 'RET_OE', '2': 'TUN_DOUT_B', '3': 'GND', '4': 'RET_Y', '5': '+3V3'},
       descr='3-state buffer: pin 1 = OE (active low), 2 = A, 4 = Y. Every driver on the rail sits behind one that is off at reset')
 r_('10k', '+3V3', 'RET_OE', 130, 340, 'Keeps the buffer OFF at reset, while the MCU is blank, and until the MCU drives PB2 low')
@@ -398,36 +399,32 @@ c_('100n', '+3V3', 'GND', 175, 340, d='Buffer supply')
 
 # --- antenna
 G('antenna')
-text(235, 275, 'ANTENNA (PROVISIONAL, needs AN383): J2 SMA edge-mount on the top edge. FM: antenna -> 1 nF -> FMI. AM: the datasheet circuit is a ferrite loopstick '
-     '(180-450 uH) between the 0.47 uF / AMI node and RFGND: fit it on J5 (an air loop goes through a 1:5 transformer, not drawn). '
-     'JP2 (open) would feed the whip to AMI as well: the network for a car whip on AM is in AN383, not in the datasheet, so no values are drawn for it. '
+text(235, 275, 'ANTENNA: J2 SMA edge mount on the top edge. FM (AN383 section 7, fig. 23): the whip node has L1 56 nH to RFGND (matches a ~22 pF whip; '
+     'tune on the bench for the car whip and its cable, or leave it off), then C2 1 nF C0G to FMI. ESD: D2 under 1 pF on the SMA centre (AN383 asks for <= 1 pF; '
+     'FMI / AMI absolute max 0.4 Vpk). AM: the datasheet circuit, a ferrite loopstick (180-450 uH) on J5 between the AM node and ground, 0.47 uF to AMI. '
+     'JP2 (open) would feed the SMA to AM too: AN383 has no network for a car whip on AM (its section 10 SW whip network is the starting point). '
      'Keep AM stray capacitance under 10 pF.', 1.4)
 place(COAX, 'J2', 'Antenna (SMA)', 'Connector_Coaxial:SMA_Amphenol_132289_EdgeMount', 250, 310, {'1': 'FM_ANT', '2': 'GND'},
-      descr='SMA, edge mount, on the top edge. For the car whip, a Motorola-to-SMA pigtail. PART NOT CHOSEN: Amphenol 132289 footprint used as a stock placeholder')
-place(TVS, 'D2', 'ESD < 0.5 pF', 'Diode_SMD:D_SOD-523', 290, 330, {'1': 'FM_ANT', '2': 'GND'},
-      descr='Low-capacitance ESD clamp on the antenna (the tuner pins are rated under 2 kV HBM). PART NOT CHOSEN')
-c_('1n', 'FM_ANT', 'FMI', 320, 310, d='C2 (datasheet): FM coupling')
+      descr='Amphenol RF 132289 SMA jack, edge mount, 1.6 mm board, on the top edge. For the car whip, a Motorola-to-SMA pigtail')
+place(TVS, 'D2', 'TPD1E0B04', 'Diode_SMD:D_0402_1005Metric', 290, 330, {'1': 'FM_ANT', '2': 'GND'},
+      descr='TI TPD1E0B04DPYR: 1-channel bidirectional ESD, 0.13 pF, X1SON 1.0 x 0.6 mm (0402 land pattern; check against the TI drawing). AN383 asks for <= 1 pF')
+place(IND, 'L1', '56nH', 'Inductor_SMD:L_0603_1608Metric', 305, 345, {'1': 'FM_ANT', '2': 'GND'},
+      descr='Murata LQW18AN56NJ00D, 56 nH wire-wound 0603, Q >= 15 at 100 MHz (AN383 fig. 23, table 16). FM antenna match to RFGND; bench-tune for the car whip')
+c_('1n', 'FM_ANT', 'FMI', 320, 310, d='C2 (datasheet): FM coupling, C0G')
 c_('470n', 'AM_ANT', 'AMI', 350, 310, d='C3 (datasheet): AM coupling')
 place(HDR1x2, 'J5', 'AM loopstick', FP_PINS % '1x02', 380, 320, {'1': 'AM_ANT', '2': 'GND'},
-      descr='AM ferrite loopstick (180-450 uH) between the AM node and ground, per the datasheet. Right angle on the left edge or a wire pair to a loopstick off the card')
+      descr='AM ferrite loopstick (180-450 uH) between the AM node and ground (datasheet, AN383 section 8). Right angle on the top edge; a wire pair to a loopstick off the card')
 place(SJ2, 'JP2', 'AM from whip', 'Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm', 290, 355,
       {'1': 'FM_ANT', '2': 'AM_ANT'},
-      descr='PROVISIONAL: open = AM only from the loopstick. Bridged = the SMA also feeds AM (a car whip), with the network from AN383')
-
-# --- bench audio
-G('bench')
-text(235, 375, 'BENCH AUDIO (unfitted): the tuner\'s analog outputs (POWER_UP OPMODE 0xB5 = analog and digital together), to hear it with no audio card. '
-     'Not connected to the slot.', 1.4)
-place(HDR1x3, 'J6', 'Bench audio', FP_PINS % '1x03', 250, 395, {'1': 'LOUT', '2': 'ROUT', '3': 'GND'},
-      descr='1 LOUT, 2 ROUT, 3 GND. Leave unfitted')
+      descr='Open (as delivered) = AM only from the loopstick. Bridged = the SMA also feeds AM, with a network for a car whip that AN383 does not give (its SW whip network, section 10, is the start)')
 
 # ----------------------------------------------------------------------------- write
 out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "A2")',
-       '  (title_block (title "DigiDash AM/FM radio card") (date "2026-10-01") (rev "A")',
+       '  (title_block (title "DigiDash AM/FM radio card") (date "2026-10-02") (rev "A")',
        '    (comment 1 "Si4735-D60 + STM32G0B1KBU6 + MCP2562: I2S to the audio card (slot I2S rail), CAN control")',
-       '    (comment 2 "Card for a DigiDash slot (2x15, on edge), any slot. First draft"))',
+       '    (comment 2 "Card for a DigiDash slot (2x15, on edge), any slot"))',
        '  (lib_symbols']
 for t in lib_text.values():
     out.append('\n'.join('    ' + ln for ln in t.split('\n')))

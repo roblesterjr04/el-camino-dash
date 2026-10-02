@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run KiCad's DRC (with the schematic parity check) on GPSCard.kicad_pcb and print a summary.
+"""Run KiCad's DRC (with the schematic parity check) on RadioCard.kicad_pcb and print a summary.
 
 Uses kicad-cli (KiCad 8+). Expected result: no errors, 0 unconnected, silkscreen warnings only (J1's courtyard
 reaches past the bottom edge on purpose: its pins stand in the slot).
@@ -12,8 +12,8 @@ import subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 KICAD = '/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli'
 CLI = os.environ.get('KICAD_CLI', KICAD if os.path.exists(KICAD) else 'kicad-cli')
-PCB = os.path.join(HERE, '..', 'GPSCard.kicad_pcb')
-RPT = os.path.join(os.environ.get('TMPDIR', '/tmp'), 'gpscard_drc.rpt')
+PCB = os.path.join(HERE, '..', 'RadioCard.kicad_pcb')
+RPT = os.path.join(os.environ.get('TMPDIR', '/tmp'), 'radiocard_drc.rpt')
 
 subprocess.call([CLI, 'pcb', 'drc', '--severity-all', '--schematic-parity', '-o', RPT, PCB],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

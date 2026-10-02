@@ -1,265 +1,324 @@
 {
  "#FLG01": {
+  "dnp": false,
   "fp": "",
   "group": "port",
   "value": "PWR_FLAG"
  },
  "#FLG02": {
+  "dnp": false,
   "fp": "",
   "group": "port",
   "value": "PWR_FLAG"
  },
+ "#FLG03": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
  "C1": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0805_2012Metric",
   "group": "power",
   "value": "10u"
  },
  "C10": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "can",
   "value": "100n"
  },
  "C11": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "can",
   "value": "100n"
  },
  "C12": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "tuner",
   "value": "22n"
  },
  "C13": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "tuner",
   "value": "100n"
  },
  "C14": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "tuner",
-  "value": "3p"
+  "value": "2.2p"
  },
  "C15": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "clock",
-  "value": "100n"
- },
- "C16": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "rail",
   "value": "100n"
  },
- "C17": {
+ "C16": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "antenna",
   "value": "1n"
  },
- "C18": {
+ "C17": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "antenna",
   "value": "470n"
  },
  "C2": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0805_2012Metric",
   "group": "power",
   "value": "10u"
  },
  "C3": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "power",
   "value": "100n"
  },
  "C4": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0805_2012Metric",
   "group": "power",
   "value": "10u"
  },
  "C5": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
   "value": "100n"
  },
  "C6": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
   "value": "4.7u"
  },
  "C7": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
   "value": "100n"
  },
  "C8": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
   "value": "12p"
  },
  "C9": {
+  "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
   "value": "12p"
  },
  "D1": {
+  "dnp": false,
   "fp": "LED_SMD:LED_0603_1608Metric",
   "group": "mcu",
   "value": "TUNED"
  },
  "D2": {
-  "fp": "Diode_SMD:D_SOD-523",
+  "dnp": false,
+  "fp": "Diode_SMD:D_0402_1005Metric",
   "group": "antenna",
-  "value": "ESD < 0.5 pF"
+  "value": "TPD1E0B04"
  },
  "D3": {
+  "dnp": false,
   "fp": "LED_SMD:LED_0603_1608Metric",
   "group": "mcu",
   "value": "STEREO/RDS"
  },
  "FB1": {
+  "dnp": false,
   "fp": "Inductor_SMD:L_0603_1608Metric",
   "group": "power",
   "value": "BLM18 120R"
  },
  "J1": {
+  "dnp": false,
   "fp": "Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal",
   "group": "port",
   "value": "DigiDash slot"
  },
  "J2": {
+  "dnp": false,
   "fp": "Connector_Coaxial:SMA_Amphenol_132289_EdgeMount",
   "group": "antenna",
   "value": "Antenna (SMA)"
  },
  "J3": {
+  "dnp": false,
   "fp": "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Horizontal",
   "group": "prog",
   "value": "SWD"
  },
  "J4": {
+  "dnp": false,
   "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal",
   "group": "prog",
   "value": "Debug serial"
  },
  "J5": {
+  "dnp": false,
   "fp": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal",
   "group": "antenna",
   "value": "AM loopstick"
  },
- "J6": {
-  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal",
-  "group": "bench",
-  "value": "Bench audio"
- },
  "JP1": {
+  "dnp": false,
   "fp": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
   "group": "tuner",
   "value": "Tuner address"
  },
  "JP2": {
+  "dnp": false,
   "fp": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
   "group": "antenna",
   "value": "AM from whip"
  },
+ "L1": {
+  "dnp": false,
+  "fp": "Inductor_SMD:L_0603_1608Metric",
+  "group": "antenna",
+  "value": "56nH"
+ },
  "R1": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "port",
   "value": "10k"
  },
  "R10": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
   "value": "4.7k"
  },
  "R11": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
   "value": "4.7k"
  },
  "R12": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
   "value": "100k"
  },
  "R13": {
+  "dnp": true,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "clock",
+  "value": "0"
+ },
+ "R14": {
+  "dnp": false,
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "clock",
+  "value": "100k"
+ },
+ "R15": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "rail",
   "value": "10k"
  },
- "R14": {
+ "R16": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "rail",
   "value": "33"
  },
  "R2": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mcu",
   "value": "1k"
  },
  "R3": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "mcu",
   "value": "1k"
  },
  "R4": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "can",
   "value": "1k"
  },
  "R5": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
-  "value": "600"
+  "value": "604"
  },
  "R6": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
   "value": "2k"
  },
  "R7": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
   "value": "2k"
  },
  "R8": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
   "value": "100k"
  },
  "R9": {
+  "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "tuner",
   "value": "100k"
  },
  "U1": {
+  "dnp": false,
   "fp": "Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm",
   "group": "mcu",
   "value": "STM32G0B1KBU6"
  },
  "U2": {
+  "dnp": false,
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
   "group": "can",
   "value": "MCP2562-E/SN"
  },
  "U3": {
+  "dnp": false,
   "fp": "Package_TO_SOT_SMD:SOT-23-5",
   "group": "power",
   "value": "AP2112K-3.3"
  },
  "U4": {
-  "fp": "Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm",
-  "group": "clock",
-  "value": "32.768kHz"
- },
- "U5": {
+  "dnp": false,
   "fp": "Package_SO:SSOP-24_3.9x8.7mm_P0.635mm",
   "group": "tuner",
   "value": "Si4735-D60-GU"
  },
- "U6": {
+ "U5": {
+  "dnp": false,
   "fp": "Package_TO_SOT_SMD:SOT-353_SC-70-5",
   "group": "rail",
   "value": "74LVC1G125"
  },
  "Y1": {
+  "dnp": false,
   "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
   "group": "mcu",
   "value": "8MHz"

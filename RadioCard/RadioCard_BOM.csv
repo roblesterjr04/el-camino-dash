@@ -1,52 +1,34 @@
-Ref,Value,Footprint,Group
-C1,10u,Capacitor_SMD:C_0805_2012Metric,power
-C2,10u,Capacitor_SMD:C_0805_2012Metric,power
-C3,100n,Capacitor_SMD:C_0603_1608Metric,power
-C4,10u,Capacitor_SMD:C_0805_2012Metric,power
-C5,100n,Capacitor_SMD:C_0603_1608Metric,mcu
-C6,4.7u,Capacitor_SMD:C_0603_1608Metric,mcu
-C7,100n,Capacitor_SMD:C_0603_1608Metric,mcu
-C8,12p,Capacitor_SMD:C_0603_1608Metric,mcu
-C9,12p,Capacitor_SMD:C_0603_1608Metric,mcu
-C10,100n,Capacitor_SMD:C_0603_1608Metric,can
-C11,100n,Capacitor_SMD:C_0603_1608Metric,can
-C12,22n,Capacitor_SMD:C_0603_1608Metric,tuner
-C13,100n,Capacitor_SMD:C_0603_1608Metric,tuner
-C14,3p,Capacitor_SMD:C_0603_1608Metric,tuner
-C15,100n,Capacitor_SMD:C_0603_1608Metric,clock
-C16,100n,Capacitor_SMD:C_0603_1608Metric,rail
-C17,1n,Capacitor_SMD:C_0603_1608Metric,antenna
-C18,470n,Capacitor_SMD:C_0603_1608Metric,antenna
-D1,TUNED,LED_SMD:LED_0603_1608Metric,mcu
-D2,ESD < 0.5 pF,Diode_SMD:D_SOD-523,antenna
-D3,STEREO/RDS,LED_SMD:LED_0603_1608Metric,mcu
-FB1,BLM18 120R,Inductor_SMD:L_0603_1608Metric,power
-J1,DigiDash slot,Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal,port
-J2,Antenna (SMA),Connector_Coaxial:SMA_Amphenol_132289_EdgeMount,antenna
-J3,SWD,Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Horizontal,prog
-J4,Debug serial,Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal,prog
-J5,AM loopstick,Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal,antenna
-J6,Bench audio,Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal,bench
-JP1,Tuner address,Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,tuner
-JP2,AM from whip,Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,antenna
-R1,10k,Resistor_SMD:R_0603_1608Metric,port
-R2,1k,Resistor_SMD:R_0603_1608Metric,mcu
-R3,1k,Resistor_SMD:R_0603_1608Metric,mcu
-R4,1k,Resistor_SMD:R_0603_1608Metric,can
-R5,600,Resistor_SMD:R_0603_1608Metric,tuner
-R6,2k,Resistor_SMD:R_0603_1608Metric,tuner
-R7,2k,Resistor_SMD:R_0603_1608Metric,tuner
-R8,100k,Resistor_SMD:R_0603_1608Metric,tuner
-R9,100k,Resistor_SMD:R_0603_1608Metric,tuner
-R10,4.7k,Resistor_SMD:R_0603_1608Metric,tuner
-R11,4.7k,Resistor_SMD:R_0603_1608Metric,tuner
-R12,100k,Resistor_SMD:R_0603_1608Metric,tuner
-R13,10k,Resistor_SMD:R_0603_1608Metric,rail
-R14,33,Resistor_SMD:R_0603_1608Metric,rail
-U1,STM32G0B1KBU6,Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm,mcu
-U2,MCP2562-E/SN,Package_SO:SOIC-8_3.9x4.9mm_P1.27mm,can
-U3,AP2112K-3.3,Package_TO_SOT_SMD:SOT-23-5,power
-U4,32.768kHz,Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm,clock
-U5,Si4735-D60-GU,Package_SO:SSOP-24_3.9x8.7mm_P0.635mm,tuner
-U6,74LVC1G125,Package_TO_SOT_SMD:SOT-353_SC-70-5,rail
-Y1,8MHz,Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm,mcu
+Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
+1,U1,STMicroelectronics STM32G0B1KBU6,"STM32G0B1KBU6: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN",UFQFPN-32 5 x 5 mm (exposed pad),SMD,Top,"Arrives blank: flash over J3 (SWD). Exposed pad = VSS"
+1,U2,Microchip MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,STBY tied low; no termination on the card
+1,U3,Diodes AP2112K-3.3TRG1,"AP2112K-3.3: LDO 3.3 V 600 mA, EN tied to VIN",SOT-23-5,SMD,Top,
+1,U4,Skyworks (Silicon Labs) Si4735-D60-GU,"Si4735-D60: AM / FM / SW / LW receiver with RDS, I2C, digital audio out (slave)",SSOP-24 (3.9 mm body),SMD,Top,"ESD-sensitive (some pins < 2 kV HBM). Reference clock from DCLK (no oscillator)"
+1,U5,Texas Instruments SN74LVC1G125DCKR,"74LVC1G125: single 3-state buffer (RET driver, off at reset)",SC-70-5 (SOT-353),SMD,Top,
+1,Y1,"8 MHz crystal, 3.2 x 2.5 mm, CL 10 pF, +-20 ppm (e.g. Abracon ABM8-8.000MHZ-10-D1G-T or equal)",8MHz: HSE crystal,3225 4-pad,SMD,Top,C8 / C9 assume CL 10 pF: change them with the crystal (2 x (CL - ~4 pF))
+1,D2,Texas Instruments TPD1E0B04DPYR,"TPD1E0B04: 1-channel bidirectional ESD clamp, 0.13 pF (antenna)",X1SON-2 1.0 x 0.6 mm,SMD,Top,AN383 asks for <= 1 pF on the antenna pin. Check the 0402 land pattern against TI's DPY drawing
+2,D1 D3,"LED 0603, green (e.g. Lite-On LTST-C191KGKT)",TUNED / STEREO-RDS: status LEDs,0603,SMD,Top,
+1,L1,Murata LQW18AN56NJ00D,"56nH: wire-wound inductor, Q >= 15 at 100 MHz (FM antenna match, AN383 fig. 23)",0603,SMD,Top,Bench-tune for the car whip and its cable; leave off if reception is better without
+1,FB1,Murata BLM18AG121SN1D,"BLM18 120R: ferrite bead 120 R at 100 MHz, 0.8 A (tuner VA)",0603,SMD,Top,
+1,JP1,Solder jumper (PCB),"Tuner address: 3-pad solder jumper, 1-2 bridged by a copper trace as delivered (SEN low, I2C 0x11)",PCB,PCB,Top,"For 0x63: cut the 1-2 trace, bridge 2-3"
+1,JP2,Solder jumper (PCB),"AM from whip: 2-pad solder jumper, open as delivered (AM from the loopstick only)",PCB,PCB,Top,Bridge only with a car-whip AM network (not in AN383)
+1,J1,"2.54 mm pin header 2 x 15, right angle (e.g. Sullins PBC15DBAN or equal, 6 mm mating pins)",DigiDash slot: right-angle 2 x 15 male header on the bottom edge,THT,THT,Top,Body on the bottom edge; pins stand 6 mm past it into the main board's slot socket
+1,J2,Amphenol RF 132289,"SMA jack, edge mount, for 1.6 mm board (antenna)",Edge mount,SMD,Top,Top edge; Motorola-to-SMA pigtail to the car whip
+1,J3,"2.54 mm pin header 1 x 5, right angle","SWD: 3V3 (sense), SWDIO, SWCLK, NRST, GND",THT,THT,Top,Left edge; ST-Link
+1,J4,"2.54 mm pin header 1 x 3, right angle","Debug serial: GND, TX, RX (USART1, 3.3 V)",THT,THT,Top,Left edge; USB-serial adapter
+1,J5,"2.54 mm pin header 1 x 2, right angle","AM loopstick: 1 AM node, 2 GND",THT,THT,Top,"Top edge; ferrite loopstick 180-450 uH on a wire pair"
+3,C1 C2 C4,10u 0805 ceramic X5R 10 V,10u: Capacitor 10u X5R 10 V,0805,SMD,Top,
+1,C6,4.7u 0603 ceramic X5R 10 V,4.7u: Capacitor 4.7u X5R 10 V,0603,SMD,Top,
+7,C3 C5 C7 C10 C11 C13 C15,100n 0603 ceramic X7R 50 V,100n: Capacitor 100n X7R 50 V,0603,SMD,Top,
+1,C12,22n 0603 ceramic X7R 50 V,22n: Capacitor 22n X7R (tuner DBYP to VA),0603,SMD,Top,Close to U4 pin 21
+1,C17,470n 0603 ceramic X7R 16 V,470n: Capacitor 470n X7R (AM coupling),0603,SMD,Top,
+1,C16,1n 0603 ceramic C0G 50 V,1n: Capacitor 1n C0G (FM coupling),0603,SMD,Top,
+2,C8 C9,12p 0603 ceramic C0G 50 V,12p: Capacitor 12p C0G 50 V,0603,SMD,Top,Crystal load caps (see Y1)
+1,C14,2.2p 0603 ceramic C0G 50 V,2.2p: Capacitor 2.2p C0G (DFS noise cap),0603,SMD,Top,
+2,R1 R15,10k 0603 1% 1/10 W,10k: Resistor 10k 1% (slot ID pull-up; RET buffer off),0603,SMD,Top,
+3,R2 R3 R4,1k 0603 1% 1/10 W,1k: Resistor 1k 1% (LEDs; CAN RXD series),0603,SMD,Top,
+1,R5,604 0603 1% 1/10 W,604: Resistor 604 1% (DOUT series),0603,SMD,Top,
+2,R6 R7,2k 0603 1% 1/10 W,2k: Resistor 2k 1% (DFS / DCLK series),0603,SMD,Top,
+4,R8 R9 R12 R14,100k 0603 1% 1/10 W,100k: Resistor 100k 1% (rail idle pull-downs; tuner reset; RCLK),0603,SMD,Top,
+2,R10 R11,4.7k 0603 1% 1/10 W,4.7k: Resistor 4.7k 1% (I2C pull-ups),0603,SMD,Top,
+1,R16,33 0603 1% 1/10 W,33: Resistor 33 1% (RET series),0603,SMD,Top,
+0,R13,0 R 0603 (not fitted),0: MCLK to RCLK link (fallback reference clock),0603,SMD,Top,DNP
