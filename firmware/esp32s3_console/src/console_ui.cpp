@@ -915,6 +915,7 @@ void ConsoleUi::left_turn(int steps, uint32_t now_ms) {
     menu_move(steps);
     return;
   }
+  if (!_vol_ms || now_ms - _vol_ms >= kVolumeShowMs) _vol_shown_ms = now_ms;  // the bar was hidden: it slides in
   _vol_ms = now_ms;
   if (call_shown(now_ms)) {
     const int v = clampi(_ph.call_volume + steps, 0, 15);

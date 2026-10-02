@@ -128,7 +128,7 @@ class ConsoleUi {
   static constexpr uint32_t kBootMs = 1700;        // bowtie at power-up: fade in, then a sheen
   static constexpr uint32_t kToastMs = 1800;
   static constexpr uint32_t kVolumeShowMs = 1450;
-  static constexpr uint32_t kHintMs = 2600;        // soft-key labels after the last touch of a control
+  static constexpr uint32_t kHintMs = 2600;        // soft-key labels stay lit this long after a control is touched
 
   // Menu pages.
   enum MenuPage : uint8_t { kMHome, kMSource, kMPhone, kMPhoneOne, kMDisplay, kMTrip, kMService, kMAccessories,
@@ -208,7 +208,7 @@ class ConsoleUi {
   void draw_alert(OledGfx &g, const ConsoleAlert &a, uint32_t t);
   void draw_call(OledGfx &g, uint32_t t);
   void draw_pair(OledGfx &g, uint32_t t);
-  void draw_hints(OledGfx &g, uint32_t t);
+  void draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown);
   void draw_volume(OledGfx &g, uint32_t t);
   void draw_toast(OledGfx &g, uint32_t t);
   const lv_font_t *font(char role) const;  // h huge, b big, m mid, o body, s small
@@ -288,7 +288,8 @@ class ConsoleUi {
   uint32_t _toast_ms = 0;
   uint32_t _own_change_ms = 0;  // a setting the console itself asked for: no toast for its echo
   uint8_t _vol = 0;             // 0..15 (the bar)
-  uint32_t _vol_ms = 0;
+  uint32_t _vol_ms = 0;        // the last volume change
+  uint32_t _vol_shown_ms = 0;  // when the bar appeared (it slides in once, not per detent)
   bool _vol_set = false;
   uint32_t _vol_set_ms = 0;
   uint8_t _view_req = 0;

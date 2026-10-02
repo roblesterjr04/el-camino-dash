@@ -81,15 +81,15 @@ void ConsoleUi::draw_media(OledGfx &g, uint32_t t) {
   const bool media = bridge && _tr.connected;
   const int tx = 62;
   if (media && _art_id && _art_id == _tr.art_id) {
-    g.gray48(4, 8, _art);
-    g.rrect(4, 8, 48, 48, 4, 5);
+    g.gray48(4, 4, _art);
+    g.rrect(4, 4, 48, 48, 4, 5);
   } else {
-    g.rrect(4, 8, 48, 48, 4, 4);
-    g.icon("note", 22, 26, media ? 9 : 4);
+    g.rrect(4, 4, 48, 48, 4, 4);
+    g.icon("note", 22, 22, media ? 9 : 4);
   }
   if (!media) {
-    g.text("No phone", tx, 28, font('m'), 14);
-    g.text("Hold the left knob: Menu \xC2\xB7 Phone", tx, 46, font('s'), 7, TextAlign::Left, 180);
+    g.text("No phone", tx, 24, font('m'), 14);
+    g.text("Hold the left knob: Menu \xC2\xB7 Phone", tx, 40, font('s'), 7, TextAlign::Left, 180);
     return;
   }
   // "Artist - Title" from the bridge
@@ -104,25 +104,25 @@ void ConsoleUi::draw_media(OledGfx &g, uint32_t t) {
   }
   const lv_font_t *mid = font('m');
   const int tw = OledGfx::text_width(title, mid), room = 172;
-  g.clip(tx, 0, room, 32);
+  g.clip(tx, 0, room, 28);
   if (tw > room) {  // marquee
     const int span = tw + 30;
     const int x = tx - (int)((t / 40) % (uint32_t)span);
-    g.text(title, x, 25, mid, 15);
-    g.text(title, x + span, 25, mid, 15);
+    g.text(title, x, 22, mid, 15);
+    g.text(title, x + span, 22, mid, 15);
   } else {
-    g.text(title, tx, 25, mid, 15);
+    g.text(title, tx, 22, mid, 15);
   }
   g.no_clip();
-  g.text(artist, tx, 39, font('o'), 8, TextAlign::Left, 176);
+  g.text(artist, tx, 35, font('o'), 8, TextAlign::Left, 176);
   const float frac = _tr.duration_s ? (float)_tr.elapsed_s / _tr.duration_s : 0.0f;
-  g.bar(tx, 46, 176, 3, frac, 12, 2);
+  g.bar(tx, 41, 176, 3, frac, 12, 2);
   char a[16], b[16];
   mmss(a, sizeof(a), _tr.elapsed_s);
   b[0] = '-';
   mmss(b + 1, sizeof(b) - 1, (int)_tr.duration_s - (int)_tr.elapsed_s);
-  g.text(a, tx, 60, TINY, 7);
-  g.text(b, tx + 176, 60, TINY, 7, TextAlign::Right);
+  g.text(a, tx, 51, TINY, 7);
+  g.text(b, tx + 176, 51, TINY, 7, TextAlign::Right);
   draw_phone_status(g, t);
 }
 
@@ -170,9 +170,9 @@ void ConsoleUi::draw_trip(OledGfx &g) {
   for (int i = 0; i < 3; i++) {
     const int x = 6 + i * 80;
     g.text(c[i][0], x, 10, TINY, 7);
-    g.text(c[i][1], x - 1, 44, font('b'), 15, TextAlign::Left, 76);
-    g.text(c[i][2], x, 58, TINY, 6, TextAlign::Left, 76);
-    if (i) g.box(x - 6, 4, 1, 56, 2);
+    g.text(c[i][1], x - 1, 40, font('b'), 15, TextAlign::Left, 76);
+    g.text(c[i][2], x, 51, TINY, 6, TextAlign::Left, 76);
+    if (i) g.box(x - 6, 4, 1, 48, 2);
   }
 }
 
@@ -192,7 +192,7 @@ void ConsoleUi::draw_engine(OledGfx &g, uint32_t t) {
   const bool warn[4] = {f && _s.rpm > 400 && _s.oil < 8, f && _s.coolant > 230, f && _s.fuel < 12, f && _s.charging == 0};
   const bool bl = blink(t, 400);
   for (int i = 0; i < 4; i++) {
-    const int x = 4 + (i % 2) * 124, y = i < 2 ? 2 : 34;
+    const int x = 4 + (i % 2) * 124, y = i < 2 ? 1 : 27;
     g.text(label[i], x, y + 9, TINY, warn[i] ? 15 : 7);
     if (warn[i] && bl) g.icon("warn", x + (int)strlen(label[i]) * 6 + 4, y, 15);
     g.text(v[i], x + 114, y + 18, font('m'), warn[i] ? 15 : 13, TextAlign::Right);
@@ -223,24 +223,24 @@ void ConsoleUi::draw_clock(OledGfx &g, uint32_t t) {
   }
   char ts[8];
   snprintf(ts, sizeof(ts), "%d:%02d", (hour + 11) % 12 + 1, minute);
-  const int w = g.text(ts, 6, 50, font('h'), 15);
-  g.text(hour < 12 ? "AM" : "PM", 10 + w, 50, TINY, 8);
+  const int w = g.text(ts, 6, 48, font('h'), 15);
+  g.text(hour < 12 ? "AM" : "PM", 10 + w, 48, TINY, 8);
   const int x = 150;
   g.text(date, x, 20, font('o'), 12, TextAlign::Left, 96);
   const bool gps = valid && (_time.flags & ELC_CAN_TIME_GPS);
   g.text(valid ? "GPS time" : "Boot clock", x, 37, font('o'), 8, TextAlign::Left, 96);  // the center sets it from GPS only
-  g.text(gps ? "GPS FIX" : (valid ? "NO FIX" : "BOOT CLOCK"), x, 55, TINY, 6);
-  if (gps) g.icon("gps", x + 46, 46, 6);
+  g.text(gps ? "GPS FIX" : (valid ? "NO FIX" : "BOOT CLOCK"), x, 51, TINY, 6);
+  if (gps) g.icon("gps", x + 46, 42, 6);
 }
 
 /** The media page while the radio is the source: frequency and station, radio text, preset, stereo, signal. */
 void ConsoleUi::draw_radio(OledGfx &g, uint32_t t) {
   const bool have = _now_ms && t - _now_ms < 5000 && _now_playing.source == ELC_SRC_RADIO;
   const ElcAudioNow &np = _now_playing;
-  g.rrect(4, 8, 48, 48, 4, 5);
+  g.rrect(4, 4, 48, 48, 4, 5);
   const bool am = have && strstr(np.line1, " AM") != nullptr;
-  g.text(am ? "AM" : "FM", 28, 30, font('m'), have ? 12 : 5, TextAlign::Center);
-  g.text("RADIO", 28, 48, TINY, 6, TextAlign::Center);
+  g.text(am ? "AM" : "FM", 28, 26, font('m'), have ? 12 : 5, TextAlign::Center);
+  g.text("RADIO", 28, 44, TINY, 6, TextAlign::Center);
   const int tx = 62;
   char top[24] = "RADIO";
   if (have && np.preset) snprintf(top, sizeof(top), "PRESET %u", (unsigned)np.preset);
@@ -258,19 +258,18 @@ void ConsoleUi::draw_radio(OledGfx &g, uint32_t t) {
   const char *l1 = have ? np.line1 : "Radio";
   const lv_font_t *mid = font('m');
   const int tw = OledGfx::text_width(l1, mid), room = 186;
-  g.clip(tx, 10, room, 22);
+  g.clip(tx, 10, room, 20);
   if (tw > room) {  // marquee
     const int span = tw + 30;
     const int x = tx - (int)((t / 40) % (uint32_t)span);
-    g.text(l1, x, 29, mid, 15);
-    g.text(l1, x + span, 29, mid, 15);
+    g.text(l1, x, 27, mid, 15);
+    g.text(l1, x + span, 27, mid, 15);
   } else {
-    g.text(l1, tx, 29, mid, (have && (np.flags & ELC_NOW_F_SEEKING)) && blink(t, 300) ? 8 : 15);
+    g.text(l1, tx, 27, mid, (have && (np.flags & ELC_NOW_F_SEEKING)) && blink(t, 300) ? 8 : 15);
   }
   g.no_clip();
   const char *l2 = have && np.line2[0] ? np.line2 : (have ? "" : "Waiting for the radio card");
-  g.text(l2, tx, 45, font('o'), 8, TextAlign::Left, 186);
-  g.text("TURN TUNE \xC2\xB7 PUSH PRESET \xC2\xB7 HOLD SEEK", tx, 60, TINY, 5, TextAlign::Left, 186);
+  g.text(l2, tx, 42, font('o'), 8, TextAlign::Left, 186);
 }
 
 void ConsoleUi::draw_page(OledGfx &g, int page, uint32_t t) {
@@ -292,7 +291,7 @@ void ConsoleUi::draw_menu(OledGfx &g, uint32_t t) {
                                          "ACCESSORIES", "", "", "CONFIRM"};
   build_rows();
   Level &L = _stack[_depth];
-  const int rowH = 17, y0 = 12;
+  const int rowH = 15, y0 = 10;
   if (L.sel < L.top) L.top = L.sel;
   if (L.sel > L.top + 2) L.top = L.sel - 2;
   const bool edit = _mode == ConsoleMode::Edit;
@@ -308,7 +307,7 @@ void ConsoleUi::draw_menu(OledGfx &g, uint32_t t) {
   } else {
     snprintf(title, sizeof(title), "%s", kTitle[L.page % 11]);
   }
-  g.text(edit ? "TURN \xC2\xB7 PUSH OK \xC2\xB7 LEFT KEY UNDO" : title, 4, 8, TINY, edit ? 10 : 6,
+  g.text(edit ? "TURN TO CHANGE \xC2\xB7 PUSH OK" : title, 4, 8, TINY, edit ? 10 : 6,
          TextAlign::Left, 210);
   char n[8];
   snprintf(n, sizeof(n), "%d/%d", _nrows ? L.sel + 1 : 0, _nrows);
@@ -325,26 +324,26 @@ void ConsoleUi::draw_menu(OledGfx &g, uint32_t t) {
     if (sel && !editing) g.rbox(1, y, 246, rowH - 1, 3, info ? 6 : 13);
     if (editing) g.rrect(1, y, 246, rowH - 1, 3, 15);
     const uint8_t fg = sel && !editing ? 0 : (row.dim ? 5 : (info ? 8 : 11));
-    g.text(row.label, 7, y + 12, body, fg, TextAlign::Left, 130);
+    g.text(row.label, 7, y + 11, body, fg, TextAlign::Left, 130);
     int vx = 238;
     if (row.kind == ConsoleRow::Sub) {
-      g.icon("ext", 232, y + 2, sel && !editing ? 0 : 7);
+      g.icon("ext", 232, y + 1, sel && !editing ? 0 : 7);
       vx = 228;
     }
     if (editing) {
       const bool bl = blink(t, 350);
       const int vw = OledGfx::text_width(row.value, body);
-      g.text("\xE2\x80\xB9", 238 - vw - 10, y + 12, body, bl ? 15 : 6);
-      g.text("\xE2\x80\xBA", 240, y + 12, body, bl ? 15 : 6);
-      g.text(row.value, 236, y + 12, body, 15, TextAlign::Right);
+      g.text("\xE2\x80\xB9", 238 - vw - 10, y + 11, body, bl ? 15 : 6);
+      g.text("\xE2\x80\xBA", 240, y + 11, body, bl ? 15 : 6);
+      g.text(row.value, 236, y + 11, body, 15, TextAlign::Right);
     } else {
-      g.text(row.value, vx, y + 12, body, sel ? 0 : (row.dim ? 4 : 8), TextAlign::Right, 110);
+      g.text(row.value, vx, y + 11, body, sel ? 0 : (row.dim ? 4 : 8), TextAlign::Right, 110);
     }
   }
   if (_nrows > 3) {  // scrollbar
-    g.box(251, 12, 2, 50, 2);
-    const float th = fmaxf(8, 50.0f * 3 / _nrows);
-    const float ty = 12 + (50 - th) * ((float)L.top / (_nrows - 3));
+    g.box(251, 10, 2, 45, 2);
+    const float th = fmaxf(8, 45.0f * 3 / _nrows);
+    const float ty = 10 + (45 - th) * ((float)L.top / (_nrows - 3));
     g.box(251, (int)lroundf(ty), 2, (int)lroundf(th), 9);
   }
 }
@@ -359,15 +358,15 @@ void ConsoleUi::draw_alert(OledGfx &g, const ConsoleAlert &a, uint32_t t) {
   g.box(10 + (int)(5.4f * 2.4f), 16 + (int)(8.8f * 2.4f), 3, 3, 0);
   g.text(a.title, 50, 30, font('m'), 15, TextAlign::Left, 200);
   g.text(a.line, 50, 45, font('s'), 10, TextAlign::Left, 200);
-  g.text("LEFT KEY TO ACKNOWLEDGE", 50, 58, TINY, 5, TextAlign::Left, 200);
+
 }
 
 /** A soft-key label over one of the keys under the OLED: an inverted pill centred on the key. */
 static void soft_key(OledGfx &g, const char *label, int cx) {
   if (!label || !label[0]) return;
   const int w = OledGfx::text_width(label, &con_tiny) + 12;
-  g.rbox(cx - w / 2, 49, w, 13, 3, 13);
-  g.text(label, cx, 59, &con_tiny, 0, TextAlign::Center);
+  g.rbox(cx - w / 2, 55, w, 9, 3, 13);
+  g.text(label, cx, 62, &con_tiny, 0, TextAlign::Center);
 }
 
 void ConsoleUi::draw_call(OledGfx &g, uint32_t t) {
@@ -427,23 +426,49 @@ void ConsoleUi::draw_pair(OledGfx &g, uint32_t t) {
   soft_key(g, "Pair", CONSOLE_KEY_RIGHT_X);
 }
 
-/** At rest, after a control was touched: what the soft keys do now, over the keys. */
-void ConsoleUi::draw_hints(OledGfx &g, uint32_t t) {
-  if (!_touch_ms || t - _touch_ms > kHintMs || _mode != ConsoleMode::Drive) return;
-  const bool radio_src = radio_is_source(t);
-  const char *left = radio_src ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play/Pause";
+/** A soft-key label at rest: dim text in a thin outline over the key. */
+static void soft_label(OledGfx &g, const char *label, int cx) {
+  if (!label || !label[0]) return;
+  const int w = OledGfx::text_width(label, &con_tiny) + 12;
+  g.rbox(cx - w / 2, 55, w, 9, 2, 0);  // clear what the page drew there
+  g.rrect(cx - w / 2, 55, w, 9, 2, 3);
+  g.text(label, cx, 62, &con_tiny, 7, TextAlign::Center);
+}
+
+/** What the soft keys do now, always on the bottom strip over the keys: dim at rest, lit for a moment after a
+ *  control is touched. Calls and the pairing code draw their own (lit) keys. */
+void ConsoleUi::draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown) {
+  const char *left = "", *right = "";
   static const char *const kNext[kPageCount] = {"Trip", "Engine", "Clock", "Media"};
-  g.box(0, 47, 248, 17, 0);  // over the page's bottom line
-  soft_key(g, left, CONSOLE_KEY_LEFT_X);
-  soft_key(g, kNext[_page % kPageCount], CONSOLE_KEY_RIGHT_X);
+  if (_mode == ConsoleMode::Edit) {
+    left = "Undo";
+    right = "Done";
+  } else if (_mode == ConsoleMode::Menu) {
+    left = _depth == 0 ? "Exit" : "Back";
+    right = "Exit";
+  } else if (alert_shown) {
+    left = "OK";
+  } else {
+    left = radio_is_source(t) ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play";
+    right = kNext[_page % kPageCount];
+  }
+  const bool lit = _touch_ms && t - _touch_ms < kHintMs;
+  if (lit) {
+    soft_key(g, left, CONSOLE_KEY_LEFT_X);
+    soft_key(g, right, CONSOLE_KEY_RIGHT_X);
+  } else {
+    soft_label(g, left, CONSOLE_KEY_LEFT_X);
+    soft_label(g, right, CONSOLE_KEY_RIGHT_X);
+  }
 }
 
 void ConsoleUi::draw_volume(OledGfx &g, uint32_t t) {
   if (!_vol_ms) return;
-  const uint32_t age = t - _vol_ms;
+  const uint32_t age = t - _vol_ms;  // since the last change: it slides away 1.2 s after it
   const float a = fmaxf(0, fminf(1, 1 - ((float)age - 1200) / 250));
   if (a <= 0 || age > kVolumeShowMs) return;
-  const int y = (int)lroundf(64 - 26 * fminf(1, age / 120.0f) * a);
+  const float in = fminf(1, (t - _vol_shown_ms) / 120.0f);  // since it appeared: it slides in once
+  const int y = (int)lroundf(64 - 26 * in * a);
   const bool call = call_shown(t);
   const int v = call ? _ph.call_volume : _vol;
   g.box(0, y - 1, 256, 28, 0);
@@ -510,13 +535,15 @@ void ConsoleUi::render(OledGfx &g, uint32_t t) {
     const bool f = _sensor_ms && t - _sensor_ms < 1000;
     if (f) snprintf(mph, sizeof(mph), "%d MPH", (int)(_s.mph + 0.5f));
     else snprintf(mph, sizeof(mph), "-- MPH");
-    g.text(mph, 50, 58, TINY, 6);
+    g.text(mph, 50, 53, TINY, 6);
   } else {
     const ConsoleAlert *al = alert(t);
     if (al && _mode == ConsoleMode::Drive) {
       draw_alert(g, *al, t);
+      draw_softkeys(g, t, true);
     } else if (_mode == ConsoleMode::Menu || _mode == ConsoleMode::Edit) {
       draw_menu(g, t);
+      draw_softkeys(g, t, false);
     } else {
       const float e = fminf(1, (t - _page_ms) / 180.0f);
       const float ez = 1 - powf(1 - e, 3);
@@ -533,8 +560,8 @@ void ConsoleUi::render(OledGfx &g, uint32_t t) {
         const bool on = i == _page;
         g.box(252, 17 + i * 8 + (on ? 0 : 1), 3, on ? 6 : 3, on ? 13 : 3);
       }
-      if (_n_alerts && blink(t, 500)) g.icon("warn", 238, 50, 15);
-      draw_hints(g, t);
+      if (_n_alerts && blink(t, 500)) g.icon("warn", 238, 38, 15);
+      draw_softkeys(g, t, false);
     }
   }
   draw_toast(g, t);
