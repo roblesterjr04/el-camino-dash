@@ -3,9 +3,9 @@
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 
-// Loop-task watchdog: if loop() stops returning (hung I2C transfer, blocking network call, render
-// deadlock) the board reboots instead of showing a frozen gauge. Nothing in loop() may block longer
-// than this — long work (HTTP, Wi-Fi joins) belongs in its own task.
+// Loop-task watchdog: if loop() stops returning (hung I2C transfer, render deadlock) the board reboots
+// instead of showing a frozen gauge. Nothing in loop() may block longer than this — long work belongs
+// in its own task.
 #ifndef ELC_LOOP_WDT_TIMEOUT_MS
 #define ELC_LOOP_WDT_TIMEOUT_MS 8000u
 #endif

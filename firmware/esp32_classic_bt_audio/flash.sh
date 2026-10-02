@@ -3,7 +3,7 @@
 #
 # Examples:
 #   ./flash.sh --upload-port /dev/cu.usbserial-0001                          # esp32wrover (DevKitC-VE, PSRAM)
-#   ENV=esp32wrover_bench ./flash.sh --upload-port /dev/cu.usbserial-0001    # bench: also the I2C slaves for the center
+#   ENV=audiocarrier ./flash.sh --upload-port /dev/cu.usbserial-0001         # the audio card (AudioCarrier/)
 #   ENV=esp32dev ./flash.sh ...                                               # the older WROOM DevKitC-32 (no PSRAM)
 set -euo pipefail
 cd "$(dirname "$0")"

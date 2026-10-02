@@ -298,8 +298,9 @@ center sees what is on the bus.
 | `0x1A`–`0x1B` | `0x680`–`0x6FF` | other cable-port devices (set in their own configuration) |
 
 - **Reading the slot.** A card that reads no valid slot (the pin floats near 3.3 V: on the bench, or a rev 1 carrier)
-  does not guess: it stays off the bus and logs the reason on its debug serial, unless a build flag or its debug
-  console gives it a node for the bench.
+  does not guess: it stays off the bus and logs the reason on its debug serial, unless its debug console gives it a
+  node for the bench. The audio card is the exception: with no slot it takes slot 1's node (`0x14`) at runtime, so
+  the shipped image runs on the bench with no main board.
 - **Fixed message IDs are not node numbers.** A card may still send fixed, documented message IDs (the GPS card's
   `0x222`–`0x226`); those identify the data, not the sender, so a bus has one card of that kind.
 - The screens (`0x01`–`0x03`, from their position strap) and the sensor pack (`0x04`) are part of the dash itself.

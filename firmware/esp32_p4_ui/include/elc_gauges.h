@@ -48,12 +48,12 @@ struct GaugeData {
   float dte_mi = 0;
   float tank_gal = 20;
 
-  /** Wall time from GPS / NTP; when false the clock shows time since boot. */
+  /** Wall time from GPS; when false the clock shows time since boot. */
   bool time_valid = false;
   int hour = 0, minute = 0;
   float second = 0;
   const char *date_text = nullptr;   // e.g. "Mon, Sep 28"
-  const char *place_text = nullptr;  // street name or time source
+  const char *place_text = nullptr;  // line under the clock: the time source ("Boot clock") or empty
 
   bool media_connected = false;
   const char *media_title = nullptr;

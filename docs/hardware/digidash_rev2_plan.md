@@ -88,7 +88,7 @@ live**: on a bay behind the dash, or out in the car on a cable.
 | **Bluetooth audio** (DACs, mic preamp, RCA + TRS jacks) | audio | **bay, double** | 50 × 52 | Nothing to wire out but line-level cables to the amp; the jacks want to be on the board |
 | **Output / relay node** (MOSFET or relay drivers for lights, fans, accessory power) | output | bay, single or double | 26–52 | Switches loads from the dash's own ignition-switched 12 V; its harness leaves from the back of the dash |
 | **GPS / IMU / RTC** (GPS on CAN instead of the center's UART, a tilt or g sensor, a clock that keeps time with the key off) | sensor | bay, single | 50 × 26 | Small, with only an antenna lead, and it has nowhere better to be |
-| **Data logger / Wi-Fi or BLE bridge** | sensor | bay, single | 50 × 26 | Small. The center already has SD and Wi-Fi, so this is optional |
+| **Data logger / BLE bridge** | sensor | bay, single | 50 × 26 | Small. The center already has SD, so this is optional |
 | **Extra gauges** (trans temp in the doc's example, wideband O2, boost, EGT) | sensor | **cable port** | any | Short sender wires beat a long analog run to the dash. The node sits near the sensor and sends numbers on CAN |
 | **Console** (knobs + OLED, ESP32-S3) | input | cable port | off-board | Exists: J17 today |
 | **Steering-wheel / remote buttons, IR** | input | cable port | off-board | Lives where the hands are |
@@ -330,7 +330,7 @@ Decided:
 - The board is fabbed and assembled by a board house. The outline is set by the screens and the dash, not by fab.
 - **Six card slots** (2×15, cards on edge, an I2S rail bused to all of them) and four cable ports. This replaced the
   earlier decision of two double bays (four header positions).
-- CAN stays the only shared data bus. Digital audio between cards uses the I2S rail (the audio card is its clock master); bulk network data
+- CAN stays the only shared data bus. Digital audio between cards uses the I2S rail (the audio card is its clock master). The cluster never
   uses Wi-Fi (see [Expansion cards](#expansion-cards)).
 - The sensor pack is on CAN (MCP2515 + MCP2562, node `0x04`), with the serial fan-out kept as a fallback.
 - The MCP2515 has its own 16 MHz crystal. It does not use the 2560's CLKO.
@@ -354,14 +354,12 @@ come from assembly blank (see [Programming](accessory_ports.md#programming-every
 | **Sensor pack** (`SensorCard/`, drawn) | any but 1 | ATmega2560 + MCP2515 | The gauges' data: senders, speed, tach, ignition, battery, alternator, FRAM odometer. Fixed node `0x04`; CAN `0x100`–`0x104` | 5 V, CAN, switched 12 V (ignition sense, speed sensor feed), constant 12 V (battery sense), WAKE (holds the rail after key-off); serial fallback by jumper wire to J27 |
 | **AM/FM radio** ([spec](radio_card.md)) | any | STM32G0B1 + Si4735-D60 tuner (QFN-20) | Tuner on a car antenna (SMA on the top edge). Its digital audio goes to the audio card on RET, as an I2S slave on the audio card's clocks. Menu, presets and RDS text over CAN | 5 V, CAN, I2S rail slave: BCK / WS in, speaks on RET once granted |
 | **GPS** ([spec](gps_card.md)) | any | STM32G0B1 (no radio) | Reads a remote GPS puck on a 4-pin cable (same pinout as J6) and sends position, speed, heading, fix and UTC on CAN `0x222`–`0x226` | 5 V, CAN |
-| **LTE gateway** ([spec](lte_card.md)) | any | ESP32-S3 + an A7670 LTE Cat-1 core board on sockets | Internet for the dash: a Wi-Fi access point the center joins on its own (NET gateway, `can_channels.md`). Later: uploads trips / GPS tracks it hears on CAN | 5 V (ESP32, CAN), AUX 12 V (the LTE board's peaks), CAN |
+| **LTE gateway** ([spec](lte_card.md)) | any | ESP32-S3 + an A7670 LTE Cat-1 core board on sockets | Internet for the dash: does the online lookups itself and sends the results on CAN (NET gateway, ONLINE, `can_channels.md`). Later: uploads trips / GPS tracks it hears on CAN | 5 V (ESP32, CAN), AUX 12 V (the LTE board's peaks), CAN |
 | **Output / relay** | any | ESP32-C3 | Lights, fans, accessory power | AUX 12 V, CAN, LAMP / REV |
 
 - **GPS and LTE do not talk to each other directly.** CAN is a broadcast bus: the GPS card sends its position once and
   the center, the LTE card and anything else that wants it all hear it. Neither card needs to know the other exists.
 - **Online work goes over CAN where it can.** The LTE card does the lookups itself (street name, weather, time zone,
-  SMS) and broadcasts the results on the ONLINE channel: a few dozen bytes each. Only bulk data (map tiles, screen
-  firmware) needs Wi-Fi, from the LTE card's access point, which is off until it is wanted; CAN then tells the center
-  where it is and its password, so nothing is typed in.
+  SMS) and broadcasts the results on the ONLINE channel: a few dozen bytes each. The cluster never uses Wi-Fi.
 - **J6 (serial)** stays for a bench GPS module or any serial device on the center screen until the GPS card exists.
 

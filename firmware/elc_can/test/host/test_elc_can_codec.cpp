@@ -4,6 +4,8 @@
 #include <elc_can_codec.h>
 
 #include <cstdio>
+#include <string>
+#include <vector>
 #include <cstring>
 
 static int g_failures = 0;
@@ -105,19 +107,18 @@ static void test_cluster_and_heartbeat() {
   CHECK(rr.setting == ELC_CAN_SET_MEDIA_SCREEN && rr.value == ELC_CAN_SCREEN_LEFT && rr.from_node == ELC_CAN_NODE_TSPS);
 
   ElcCanCenterStatus cs;
-  cs.flags = ELC_CAN_STATUS_WIFI | ELC_CAN_STATUS_GPS_FIX;
-  cs.rssi = -61;
-  cs.text_serial = 17;
+  cs.flags = ELC_CAN_STATUS_GPS_FIX | ELC_CAN_STATUS_AUDIO;
   elc_can_encode_center_status(cs, f);
+  CHECK(f.id == ELC_CAN_ID_CENTER_STATUS && f.len == 3 && f.data[1] == 0 && f.data[2] == 0);  // reserved bytes
   ElcCanCenterStatus cr;
-  CHECK(elc_can_decode_center_status(f, cr) && cr.flags == cs.flags && cr.rssi == -61 && cr.text_serial == 1);
+  CHECK(elc_can_decode_center_status(f, cr) && cr.flags == cs.flags);
 
   ElcCanFrame tf[ELC_CAN_TEXT_CHUNKS];
-  elc_can_encode_text(ELC_CAN_ID_CENTER_TEXT, 4, "Garage", tf);
-  ElcCanTextDecoder td(ELC_CAN_ID_CENTER_TEXT);
+  elc_can_encode_text(ELC_CAN_ID_MENU_TEXT_MAIN, 4, "Theme Modern", tf);
+  ElcCanTextDecoder td(ELC_CAN_ID_MENU_TEXT_MAIN);
   bool done = false;
   for (size_t i = 0; i < ELC_CAN_TEXT_CHUNKS; i++) done = td.feed(tf[i]);
-  CHECK(done && std::strcmp(td.text(), "Garage") == 0 && td.serial() == 4);
+  CHECK(done && std::strcmp(td.text(), "Theme Modern") == 0 && td.serial() == 4);
   ElcCanTextDecoder other(0x401);
   CHECK(!other.feed(tf[0]));
 
@@ -432,13 +433,95 @@ static void test_console_menu_and_time() {
   t.utc = 1790712987u;
   t.offset_min = -300;
   t.flags = ELC_CAN_TIME_VALID | ELC_CAN_TIME_GPS;
-  t.place_serial = 3;
   elc_can_encode_time(t, f);
-  CHECK(f.id == ELC_CAN_ID_TIME && elc_can_decode_time(f, u) && u.utc == t.utc && u.offset_min == -300 && u.flags == t.flags &&
-        u.place_serial == 3);
+  CHECK(f.id == ELC_CAN_ID_TIME && f.data[7] == 0);  // reserved byte
+  CHECK(elc_can_decode_time(f, u) && u.utc == t.utc && u.offset_min == -300 && u.flags == t.flags);
+}
+
+/** Feeds a byte string; collects the text and the records' payloads. */
+static int usb_feed(ElcUsbParser &p, const uint8_t *b, size_t n, std::string *text, uint8_t rec[][32], size_t *rec_n) {
+  int records = 0;
+  for (size_t i = 0; i < n; i++) {
+    uint8_t t;
+    const ElcUsbParser::Event e = p.feed(b[i], &t);
+    if (e == ElcUsbParser::Text && text) text->push_back((char)t);
+    if (e == ElcUsbParser::Record) {
+      if (rec) {
+        std::memcpy(rec[records], p.payload(), p.payload_len());
+        rec_n[records] = p.payload_len();
+      }
+      records++;
+    }
+  }
+  return records;
+}
+
+static void test_usb_link() {
+  CHECK(elc_usb_crc16((const uint8_t *)"123456789", 9) == 0x29B1);  // CCITT-FALSE check value
+  // a frame with zeros in it, between console text
+  ElcCanFrame f, g;
+  f.id = 0x215;
+  f.len = 5;
+  const uint8_t d[5] = {0, 7, 0, 0, 0xFF};
+  std::memcpy(f.data, d, 5);
+  uint8_t w[ELC_USB_MAX_WIRE];
+  const size_t n = elc_usb_encode_frame(f, w, sizeof(w));
+  CHECK(n > 0 && w[0] == 0 && w[n - 1] == 0);
+  for (size_t i = 1; i + 1 < n; i++) CHECK(w[i] != 0);
+  std::vector<uint8_t> s;
+  for (const char *c = "help\n"; *c; c++) s.push_back((uint8_t)*c);
+  s.insert(s.end(), w, w + n);
+  for (const char *c = "ok\n"; *c; c++) s.push_back((uint8_t)*c);
+  ElcUsbParser p;
+  std::string text;
+  uint8_t rec[4][32];
+  size_t rec_n[4];
+  CHECK(usb_feed(p, s.data(), s.size(), &text, rec, rec_n) == 1);
+  CHECK(text == "help\nok\n");
+  CHECK(elc_usb_decode_frame(rec[0], rec_n[0], g) && g.id == 0x215 && g.len == 5 && std::memcmp(g.data, d, 5) == 0);
+  // a full 8-byte frame
+  f.len = 8;
+  for (int i = 0; i < 8; i++) f.data[i] = (uint8_t)(i * 37);
+  const size_t n8 = elc_usb_encode_frame(f, w, sizeof(w));
+  CHECK(n8 > 0 && usb_feed(p, w, n8, nullptr, rec, rec_n) == 1 && elc_usb_decode_frame(rec[0], rec_n[0], g) &&
+        g.len == 8 && std::memcmp(g.data, f.data, 8) == 0);
+
+  // keepalive and status
+  ElcUsbKeepalive k, k2;
+  k.mode = ElcUsbMode::Gateway;
+  k.baud = 2000000;
+  size_t m = elc_usb_encode_keepalive(k, w, sizeof(w));
+  CHECK(usb_feed(p, w, m, nullptr, rec, rec_n) == 1 && elc_usb_decode_keepalive(rec[0], rec_n[0], k2) &&
+        k2.mode == ElcUsbMode::Gateway && k2.baud == 2000000);
+  CHECK(!elc_usb_decode_frame(rec[0], rec_n[0], g));
+  ElcUsbStatus st, st2;
+  st.node = ELC_CAN_NODE_CONSOLE;
+  st.type = ElcCanNodeType::Console;
+  st.baud = 0;
+  st.can = true;
+  st.fw = 3;
+  m = elc_usb_encode_status(st, w, sizeof(w));
+  CHECK(usb_feed(p, w, m, nullptr, rec, rec_n) == 1 && elc_usb_decode_status(rec[0], rec_n[0], st2) &&
+        st2.node == ELC_CAN_NODE_CONSOLE && st2.type == ElcCanNodeType::Console && st2.can && st2.fw == 3);
+
+  // a corrupted record is dropped, and the stream picks up at the next one
+  m = elc_usb_encode_frame(f, w, sizeof(w));
+  std::vector<uint8_t> bad(w, w + m);
+  bad[3] ^= 0x40;
+  bad.insert(bad.end(), w, w + m);
+  const uint32_t bad_before = p.bad();
+  CHECK(usb_feed(p, bad.data(), bad.size(), nullptr, rec, rec_n) == 1 && p.bad() == bad_before + 1);
+  // a record cut off mid-way (a reset, a baud change): the next one still decodes
+  std::vector<uint8_t> cut(w, w + m / 2);
+  cut.insert(cut.end(), w, w + m);
+  CHECK(usb_feed(p, cut.data(), cut.size(), nullptr, rec, rec_n) == 1);
+  // a long run of 0x00 between records is harmless
+  const uint8_t zeros[5] = {0, 0, 0, 0, 0};
+  CHECK(usb_feed(p, zeros, 5, nullptr, nullptr, nullptr) == 0 && usb_feed(p, w, m, nullptr, rec, rec_n) == 1);
 }
 
 int main() {
+  test_usb_link();
   test_console_menu_and_time();
   test_sensor_round_trip();
   test_cluster_and_heartbeat();

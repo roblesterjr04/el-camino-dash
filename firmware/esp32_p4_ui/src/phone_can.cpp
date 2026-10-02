@@ -259,6 +259,32 @@ void card_destroy() {
   s_showing = false;
 }
 
+/** A tap on a key does what the console's soft key does now (console_ui.cpp back() / view()). */
+void key_clicked(lv_event_t *e) {
+  const int i = (int)(intptr_t)lv_event_get_user_data(e);
+  if (s_st.flags & ELC_CAN_PHONE_CONFIRM) {
+    phone_can_send(ELC_CAN_PHONE_CMD_CONFIRM, i == 1 ? 1 : 0);
+    return;
+  }
+  const bool muted = (s_st.flags & ELC_CAN_PHONE_MIC_MUTED) != 0;
+  switch (s_st.call) {
+    case ELC_CAN_CALL_INCOMING: phone_can_send(i == 0 ? ELC_CAN_PHONE_CMD_END : ELC_CAN_PHONE_CMD_ANSWER, 0); break;
+    case ELC_CAN_CALL_WAITING: phone_can_send(ELC_CAN_PHONE_CMD_CALL_WAITING, i == 0 ? 0 : 2); break;  // ignore / answer
+    case ELC_CAN_CALL_ACTIVE:
+      if (i == 0) phone_can_send(ELC_CAN_PHONE_CMD_END, 0);
+      else phone_can_send(ELC_CAN_PHONE_CMD_MIC_MUTE, muted ? 0 : 1);
+      break;
+    case ELC_CAN_CALL_HELD:
+      if (i == 0) phone_can_send(ELC_CAN_PHONE_CMD_END, 0);
+      else phone_can_send(ELC_CAN_PHONE_CMD_CALL_WAITING, 2);  // swap
+      break;
+    case ELC_CAN_CALL_IDLE: break;
+    default:  // dialing / alerting: only End
+      if (i == 0) phone_can_send(ELC_CAN_PHONE_CMD_END, 0);
+      break;
+  }
+}
+
 void card_build(int theme) {
   T = ui_theme((uint8_t)theme);
   lv_obj_t *parent = p4_screen_ui_parent();
@@ -268,7 +294,8 @@ void card_build(int theme) {
 
   C.theme = theme;
   // Opaque backdrop over the whole panel, like the menu's: LVGL then skips the face underneath entirely.
-  // Clickable with no handler, so touches stop here and never reach a menu that may be open below.
+  // Clickable with no handler, so touches stop here and never reach a menu that may be open below (the two keys
+  // are the card's only buttons).
   C.root = lv_obj_create(parent);
   lv_obj_remove_style_all(C.root);
   lv_obj_set_size(C.root, w, h);
@@ -323,8 +350,10 @@ void card_build(int theme) {
     lv_obj_set_style_bg_opa(k.pill, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(k.pill, 2, 0);
     lv_obj_set_style_border_opa(k.pill, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(k.pill, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(k.pill, LV_OBJ_FLAG_CLICKABLE);  // the same as the console's key below it
     lv_obj_clear_flag(k.pill, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(k.pill, T.dim, LV_STATE_PRESSED);
+    lv_obj_add_event_cb(k.pill, key_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)i);
     k.lbl = lv_label_create(k.pill);
     lv_obj_remove_style_all(k.lbl);
     lv_obj_set_style_text_font(k.lbl, T.body, 0);
@@ -593,6 +622,13 @@ bool phone_can_send(uint8_t command, uint8_t arg) {
       case ELC_CAN_PHONE_CMD_CONFIRM: s_demo = Demo::Idle; break;
       case ELC_CAN_PHONE_CMD_CONNECT: s_demo_conn = arg; break;
       case ELC_CAN_PHONE_CMD_DISCONNECT: s_demo_conn = ELC_CAN_PHONE_NONE; break;
+      case ELC_CAN_PHONE_CMD_ANSWER: s_demo = Demo::Active; break;
+      case ELC_CAN_PHONE_CMD_END: s_demo = Demo::Idle; break;
+      case ELC_CAN_PHONE_CMD_MIC_MUTE: s_demo_muted = arg != 0; break;
+      case ELC_CAN_PHONE_CMD_CALL_WAITING:
+        if (arg == 0 && s_demo == Demo::Waiting) s_demo = Demo::Active;   // ignore the new call
+        else if (arg == 2) s_demo = s_demo == Demo::Held ? Demo::Active : Demo::Held;  // answer / swap
+        break;
       default: break;
     }
     s_demo_sent_ms = millis() - 1000u;  // fresh demo status on the next poll

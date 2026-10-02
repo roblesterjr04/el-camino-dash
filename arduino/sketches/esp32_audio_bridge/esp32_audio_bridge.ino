@@ -7,14 +7,9 @@
  * - HFP hands-free: calls through the same DACs, microphone from the carrier's ADC (call_audio.*); pairing with
  *   numeric comparison and the paired-phone list (phone.*). The console drives it over CAN (0x215); the serial
  *   console has the same commands for the bench (`help`).
- * - I2C slave @ 0x2A for the center ESP32-P4: it reads a 48-byte snapshot (register 0x0F) with the
- *   "now playing" line + elapsed/duration/volume. Registers 0x01 / 0x05 remain for older hosts.
  *
  * HARDWARE: Bluetooth Classic (A2DP) exists on the original ESP32 only — not ESP32-S3 / C3 / S2.
  * Use a module such as ESP32-WROOM-32 and set FQBN to esp32:esp32:esp32 when building.
- *
- * ESP32-P4 center (Waveshare): connect this chip's I2C to the **same bus** as the round
- * display — **SDA → P4 GPIO 7**, **SCL → P4 GPIO 8** (this chip: SDA=GPIO21, SCL=GPIO22).
  *
  * CAN accessory (an audio carrier on a DigiDash accessory port, docs/hardware/accessory_ports.md; or slot 0 on
  * the first board revision): when built with the elc_can library (PlatformIO, firmware/esp32_classic_bt_audio),
@@ -22,23 +17,20 @@
  * rev 2 audio card (ELC_CAN_CARD_SLOT_PIN set) from the slot it sits in, 0x14 + slot - 1, read from the slot ID pin;
  * on a rev 1 carrier from the GPIO13 / GPIO23 straps (grounded = 1; both open = node 0x10). It sends a heartbeat and
  * the now-playing text + transport in its node's ID range, and serves album art on request
- * (docs/protocols/can_bus.md). CAN is the link in the car: the I2C slaves (0x2A metadata, 0x3E
- * theme) are for bench testing only and are started only when AUDIO_BRIDGE_I2C=1 (PlatformIO env
- * esp32dev_bench, or the plain arduino-cli build, which has no CAN).
+ * (docs/protocols/can_bus.md). CAN is the only link to the displays, in the car and on the bench (the bench
+ * reaches the bus through the USB CAN link, docs/protocols/usb_link.md). A rev 2 card that reads no slot (no main
+ * board) takes slot 1's node, 0x14.
  *
- * Threading: AVRCP callbacks (BT task) update state and rebuild a prebuilt reply buffer under a
- * spinlock; the I2C onRequest handler only copies that buffer, so it answers quickly.
+ * Threading: AVRCP callbacks (BT task) update the now-playing state under a spinlock; the loop copies it out.
  */
 
 #include <Arduino.h>
-#include <Wire.h>
 #include <cstring>
 
 #include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
 #include "art_variants.h"
 #include "call_audio.h"
-#include "cluster_theme_i2c.h"
 #include "esp_avrc_api.h"
 #include "esp_bt.h"
 #include "phone.h"
@@ -70,11 +62,6 @@
 #ifndef ELC_CAN_CARD_SLOT_PIN
 #define ELC_CAN_CARD_SLOT_PIN -1
 #endif
-// Bench only: the node to use when the card reads no slot (no main board). Unset: CAN stays off without a slot.
-#ifndef ELC_CAN_BENCH_NODE
-#define ELC_CAN_BENCH_NODE 0
-#endif
-
 /* Set to 1 (or -D in platformio.ini) to print AVRCP-built line on Serial when it changes / every 3s. */
 #ifndef AUDIO_BRIDGE_SERIAL_METADATA
 #define AUDIO_BRIDGE_SERIAL_METADATA 0
@@ -84,37 +71,7 @@
 #define BT_DEVICE_NAME "ElCamino-Media"
 #endif
 
-// I2C slaves (metadata 0x2A + theme 0x3E): bench only. Default on when CAN is not built in.
-#ifndef AUDIO_BRIDGE_I2C
-#define AUDIO_BRIDGE_I2C (!AUDIO_BRIDGE_CAN)
-#endif
-
-#ifndef I2C_SLAVE_ADDR
-#define I2C_SLAVE_ADDR 0x2A
-#endif
-
-#ifndef I2C_SDA_PIN
-#define I2C_SDA_PIN SDA
-#endif
-
-#ifndef I2C_SCL_PIN
-#define I2C_SCL_PIN SCL
-#endif
-
-// Second I2C peripheral: cluster theme slave (center P4 master on GPIO 47/48 in vehicle).
-// Metadata bridge uses `Wire` @ 0x2A; theme mirror uses `Wire1` @ 0x3E — different pins.
-#ifndef CLUSTER_THEME_I2C_ENABLE
-#define CLUSTER_THEME_I2C_ENABLE AUDIO_BRIDGE_I2C
-#endif
-#ifndef CLUSTER_THEME_SDA
-#define CLUSTER_THEME_SDA 18
-#endif
-#ifndef CLUSTER_THEME_SCL
-#define CLUSTER_THEME_SCL 19
-#endif
-
-// I2S to the external DAC/amp (override per your PCB).
-// Avoid GPIO 21/22 (I2C to the center) and strapping pins (0, 2, 5, 12, 15).
+// I2S to the external DAC/amp (override per your PCB). Avoid the strapping pins (0, 2, 5, 12, 15).
 #ifndef I2S_PIN_BCK
 #define I2S_PIN_BCK 14
 #endif
@@ -123,10 +80,6 @@
 #endif
 #ifndef I2S_PIN_DATA
 #define I2S_PIN_DATA 27
-#endif
-#if I2S_PIN_DATA == 22 || I2S_PIN_WS == 22 || I2S_PIN_BCK == 22 || I2S_PIN_DATA == 21 || I2S_PIN_WS == 21 || \
-    I2S_PIN_BCK == 21
-#error "I2S pins collide with the I2C link to the center display (GPIO 21/22)"
 #endif
 // Call audio (HFP): microphone ADC data in and its master clock (the audio carrier: PCM1808 on GPIO35, MCLK on GPIO0),
 // and the DACs' soft-mute line (carrier: GPIO4, high = play). -1 = not fitted (a DevKit with a DAC only: calls play,
@@ -148,25 +101,9 @@
 #error "I2S pins collide with the CAN transceiver pins of the DigiDash slot"
 #endif
 
-static constexpr uint8_t kRegMetadata = 0x01;
-static constexpr uint8_t kRegTransport = 0x05;
-/** P4 center: one atomic read for title + transport (avoids s_i2c_cmd / onRequest races). Pi keeps using 0x01/0x05. */
-static constexpr uint8_t kRegSnapshot = 0x0F;
 static constexpr size_t kMaxTrackLen = 32;
-/** Snapshot layout: [mlen][meta:32][0xA5][5][e0][e1][d0][d1][vol][0xC7][art_id][len0][len1][art_state][pad:3]
- *  = 48 bytes. The metadata reply (0x01) is bytes 0..32 and the transport reply (0x05) is bytes 34..39
- *  of the same buffer; bytes 40..44 describe the album art (hosts that predate it ignore them). */
-static constexpr size_t kSnapshotLen = 48;
-static constexpr size_t kSnapTransportOff = 34;
-static constexpr size_t kTransportLen = 6;
-static constexpr size_t kSnapArtOff = 40;
 
-/* Album art (AVRCP 1.6 cover art, the phone's 200×200 JPEG thumbnail). The host reads it in chunks:
- * write [0x10][idx_lo][idx_hi], then read [0xC7][art_id][idx_lo][idx_hi][n][n data bytes] (kArtChunk
- * max). art_id is 0 while no complete image is available; the host checks the header of each chunk. */
-static constexpr uint8_t kRegArtChunk = 0x10;
-static constexpr uint8_t kArtMagic = 0xC7;
-static constexpr size_t kArtChunk = 120;
+/* Album art (AVRCP 1.6 cover art, the phone's 200×200 JPEG thumbnail), served to the displays over CAN. */
 #if defined(BOARD_HAS_PSRAM)
 static constexpr size_t kArtMax = 36 * 1024;
 #else
@@ -187,13 +124,10 @@ static uint32_t s_ca_connect_ms = 0;
 static uint32_t s_art_req_ms = 0;
 static char s_art_want[8];                // handle from the latest metadata ("" = none)
 static char s_art_have[8];                // handle requested / shown
-static volatile uint16_t s_art_chunk_req = 0;
 static constexpr uint8_t kMetadataTl = 7;  // AVRCP transaction label for our own metadata request
 
 static char s_track[kMaxTrackLen + 1];
 static volatile size_t s_track_len;
-static volatile uint8_t s_i2c_cmd = kRegMetadata;
-static uint8_t s_snapshot[kSnapshotLen];
 
 static uint16_t s_elapsed_s;
 static uint16_t s_duration_s;
@@ -232,16 +166,6 @@ static void anchor_position_unlocked(uint16_t pos_s) {
   s_pos_anchor_ms = millis();
   s_elapsed_s = pos_s;
 }
-
-#if CLUSTER_THEME_I2C_ENABLE
-/* The center broadcasts the cluster theme to 0x3E; nothing on this board uses it yet, so it is
- * only acknowledged (keeps the center's broadcast from logging NACKs). */
-static void on_cluster_theme_receive(int) {
-  while (Wire1.available()) {
-    (void)Wire1.read();
-  }
-}
-#endif
 
 /* The I2S stream and the sink are created in setup(), not as globals: their constructors allocate
  * through audio-tools' global allocator, which lives in another file and may not be constructed yet
@@ -403,28 +327,6 @@ static void rebuild_track_line() {
   s_track_len = strnlen(s_track, kMaxTrackLen);
 }
 
-/** Rebuild the I2C reply buffer from current state. Caller holds s_track_mux. */
-static void rebuild_snapshot_unlocked() {
-  apply_elapsed_estimate_unlocked();
-  const uint8_t mlen = static_cast<uint8_t>((s_track_len < kMaxTrackLen) ? s_track_len : kMaxTrackLen);
-  memset(s_snapshot, 0, sizeof(s_snapshot));
-  s_snapshot[0] = mlen;
-  memcpy(s_snapshot + 1, s_track, mlen);
-  s_snapshot[33] = 0xA5;
-  s_snapshot[kSnapTransportOff + 0] = 5;
-  s_snapshot[kSnapTransportOff + 1] = static_cast<uint8_t>(s_elapsed_s & 0xffu);
-  s_snapshot[kSnapTransportOff + 2] = static_cast<uint8_t>((s_elapsed_s >> 8) & 0xffu);
-  s_snapshot[kSnapTransportOff + 3] = static_cast<uint8_t>(s_duration_s & 0xffu);
-  s_snapshot[kSnapTransportOff + 4] = static_cast<uint8_t>((s_duration_s >> 8) & 0xffu);
-  s_snapshot[kSnapTransportOff + 5] = s_vol_0_15;
-  const bool ready = s_art_state == kArtReady;
-  s_snapshot[kSnapArtOff + 0] = kArtMagic;
-  s_snapshot[kSnapArtOff + 1] = ready ? s_art_id : 0;
-  s_snapshot[kSnapArtOff + 2] = static_cast<uint8_t>(ready ? (s_art_rx & 0xffu) : 0);
-  s_snapshot[kSnapArtOff + 3] = static_cast<uint8_t>(ready ? ((s_art_rx >> 8) & 0xffu) : 0);
-  s_snapshot[kSnapArtOff + 4] = s_art_state;
-}
-
 #if AUDIO_BRIDGE_SERIAL_METADATA
 static void serial_log_metadata_line() {
   static uint32_t s_last_meta_serial_ms;
@@ -463,7 +365,7 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
       s_art_want[sizeof(s_art_want) - 1] = '\0';
       break;
     case ESP_AVRC_MD_ATTR_PLAYING_TIME: {
-      /* Decimal milliseconds string from phone; drives duration for P4 transport read (reg 0x05). */
+      /* Decimal milliseconds string from the phone: the track duration in the CAN transport frame. */
       const unsigned long ms = strtoul(reinterpret_cast<const char *>(text), nullptr, 10);
       const unsigned long sec = ms / 1000UL;
       s_duration_s = (sec > 65535UL) ? 65535 : (uint16_t)sec;
@@ -481,7 +383,6 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
       s_art_want[0] = '\0';  // new track: its cover art handle (if any) follows in this response
     }
   }
-  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -490,7 +391,6 @@ static void avrc_play_pos_cb(uint32_t play_pos_ms) {
   s_last_play_pos_wall_ms = millis();
   const uint32_t sec = play_pos_ms / 1000u;
   anchor_position_unlocked((sec > 65535u) ? 65535 : (uint16_t)sec);
-  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -499,7 +399,6 @@ static void avrc_play_status_cb(esp_avrc_playback_stat_t st) {
   apply_elapsed_estimate_unlocked();  // settle elapsed before the state flips
   s_playing = (st == ESP_AVRC_PLAYBACK_PLAYING);
   anchor_position_unlocked(s_elapsed_s);
-  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -513,7 +412,6 @@ static void avrc_volume_cb(int vol_0_127) {
   }
   portENTER_CRITICAL(&s_track_mux);
   s_vol_0_15 = (uint8_t)((v * 15 + 63) / 127);
-  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -530,134 +428,8 @@ static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
   s_playing = false;
   s_duration_s = 0;
   anchor_position_unlocked(0);
-  rebuild_snapshot_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
 }
-
-static void on_receive_impl(int numBytes) {
-  if (numBytes < 1) {
-    return;
-  }
-
-  const uint8_t reg = Wire.read();
-  s_i2c_cmd = reg;
-
-  if (numBytes == 1) {
-    return;
-  }
-
-  if (reg == kRegSnapshot) {
-    while (Wire.available()) {
-      (void)Wire.read();
-    }
-    return;
-  }
-
-  if (reg == kRegArtChunk) {
-    const int lo = Wire.read();
-    const int hi = Wire.available() ? Wire.read() : 0;
-    s_art_chunk_req = static_cast<uint16_t>((lo & 0xff) | ((hi & 0xff) << 8));
-    while (Wire.available()) {
-      (void)Wire.read();
-    }
-    return;
-  }
-
-  const uint8_t count = Wire.read();
-  if (reg == kRegTransport) {
-    if (count >= 5) {
-      uint8_t e0 = 0, e1 = 0, d0 = 0, d1 = 0, vv = 0;
-      if (Wire.available()) {
-        e0 = static_cast<uint8_t>(Wire.read());
-      }
-      if (Wire.available()) {
-        e1 = static_cast<uint8_t>(Wire.read());
-      }
-      if (Wire.available()) {
-        d0 = static_cast<uint8_t>(Wire.read());
-      }
-      if (Wire.available()) {
-        d1 = static_cast<uint8_t>(Wire.read());
-      }
-      if (Wire.available()) {
-        vv = static_cast<uint8_t>(Wire.read());
-      }
-      while (Wire.available()) {
-        (void)Wire.read();
-      }
-      portENTER_CRITICAL(&s_track_mux);
-      anchor_position_unlocked((uint16_t)((uint16_t)e0 | ((uint16_t)e1 << 8)));
-      s_duration_s = (uint16_t)((uint16_t)d0 | ((uint16_t)d1 << 8));
-      s_vol_0_15 = vv > 15 ? 15 : vv;
-      rebuild_snapshot_unlocked();
-      portEXIT_CRITICAL(&s_track_mux);
-    } else {
-      while (Wire.available()) {
-        (void)Wire.read();
-      }
-    }
-    return;
-  }
-
-  if (reg != kRegMetadata) {
-    while (Wire.available()) {
-      (void)Wire.read();
-    }
-    return;
-  }
-
-  /* Multi-byte writes to the metadata register are not part of the P4 protocol (the center only
-   * writes the 1-byte register select before a read). This handler used to clear AVRCP
-   * artist/title and replace s_track from host bytes — any spurious 2+ byte transaction (noise,
-   * tooling, or a bad second byte) wiped AVRCP state so onRequest() always sent len=0. */
-  while (Wire.available()) {
-    (void)Wire.read();
-  }
-}
-
-static void preload_reply(uint8_t reg);
-
-void onReceive(int numBytes) {
-  on_receive_impl(numBytes);
-  preload_reply(s_i2c_cmd);
-}
-
-/** Build the reply for register `reg` and load it into the slave TX FIFO right away. On the classic
- *  ESP32 the Arduino slave only calls onRequest() *after* a read has finished, so whatever it writes
- *  goes out on the next read (every reply one behind). Preloading from onReceive(), when the register
- *  select arrives, makes each read return its own reply; the host waits ~1 ms before reading. */
-static void preload_reply(uint8_t reg) {
-  uint8_t out[kSnapshotLen];
-  portENTER_CRITICAL(&s_track_mux);
-  memcpy(out, s_snapshot, sizeof(out));
-  portEXIT_CRITICAL(&s_track_mux);
-  if (reg == kRegSnapshot) {
-    Wire.slaveWrite(out, kSnapshotLen);
-  } else if (reg == kRegMetadata) {
-    Wire.slaveWrite(out, 1 + kMaxTrackLen);  // [len][32 bytes, zero padded] — hosts clock 33 bytes
-  } else if (reg == kRegTransport) {
-    Wire.slaveWrite(out + kSnapTransportOff, kTransportLen);
-  } else if (reg == kRegArtChunk) {
-    uint8_t buf[5 + kArtChunk];
-    const uint16_t idx = s_art_chunk_req;
-    const bool ready = s_art_state == kArtReady && s_art;
-    const size_t off = (size_t)idx * kArtChunk;
-    const size_t n = (ready && off < s_art_rx) ? ((s_art_rx - off) < kArtChunk ? (s_art_rx - off) : kArtChunk) : 0;
-    buf[0] = kArtMagic;
-    buf[1] = ready ? s_art_id : 0;
-    buf[2] = static_cast<uint8_t>(idx & 0xffu);
-    buf[3] = static_cast<uint8_t>(idx >> 8);
-    buf[4] = static_cast<uint8_t>(n);
-    memset(buf + 5, 0, kArtChunk);
-    if (n) {
-      memcpy(buf + 5, s_art + off, n);
-    }
-    Wire.slaveWrite(buf, sizeof(buf));
-  }
-}
-
-/** Replies are preloaded in onReceive(); see preload_reply(). */
-void onRequest() {}
 
 /** A phone command from CAN or the serial console. Media transport and volume are the sink's; the rest is phone.cpp. */
 static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, bool check_serial) {
@@ -675,7 +447,6 @@ static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, boo
     a2dp_sink->set_volume((uint8_t)((v * 127 + 7) / 15));  // AVRCP absolute volume: the phone's slider follows
     portENTER_CRITICAL(&s_track_mux);
     s_vol_0_15 = v;
-    rebuild_snapshot_unlocked();
     portEXIT_CRITICAL(&s_track_mux);
     return true;
   }
@@ -848,12 +619,10 @@ static void can_begin() {
     node = elc_can_node_for_card_slot(slot);
     if (node) {
       Serial.printf("CAN: card slot %u -> node 0x%02X\n", (unsigned)slot, (unsigned)node);
-    } else if (ELC_CAN_BENCH_NODE) {
-      node = ELC_CAN_BENCH_NODE;
-      Serial.printf("CAN: no slot (no main board?), bench node 0x%02X\n", (unsigned)node);
     } else {
-      Serial.println("CAN: no slot read on the slot ID pin (no main board?): staying off the bus");
-      return;
+      // No main board pulls the slot ID pin down (the bench): take slot 1's node rather than staying off the bus.
+      node = ELC_CAN_NODE_CARD_SLOT1;
+      Serial.printf("CAN: no slot read (no main board?), taking slot 1's node 0x%02X\n", (unsigned)node);
     }
   } else {
     node = (uint8_t)(ELC_CAN_NODE_SLOT0 + elc_can_read_slot_id(ELC_CAN_SLOT_ID0_PIN, ELC_CAN_SLOT_ID1_PIN));
@@ -983,8 +752,8 @@ static void can_publish_phone() {
 static void serial_poll() {
   static char line[64];
   static size_t n = 0;
-  while (Serial.available()) {
-    const char c = (char)Serial.read();
+  while (elc_usb_available()) {  // the USB link keeps CAN records out of the text
+    const char c = (char)elc_usb_read();
     if (c == '\r') continue;
     if (c != '\n') {
       if (n < sizeof(line) - 1) line[n++] = c;
@@ -1040,7 +809,7 @@ static void serial_poll() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  elc_usb_begin();  // Serial at 115200, with the USB CAN link (docs/protocols/usb_link.md)
   delay(200);
   Serial.println(F("esp32_audio_bridge: A2DP sink + AVRCP + hands-free (HFP) + CAN"));
   Serial.printf("Audio: I2S -> external DAC (BCK=%d WS=%d DOUT=%d), mic ADC DIN=%d MCLK=%d\n", I2S_PIN_BCK, I2S_PIN_WS,
@@ -1057,7 +826,6 @@ void setup() {
   s_last_play_pos_wall_ms = 0;
   s_playing = false;
   anchor_position_unlocked(0);
-  rebuild_snapshot_unlocked();
 
   {
     audio_output = new I2SStream();
@@ -1081,18 +849,6 @@ void setup() {
 #if DAC_UNMUTE_PIN >= 0
   pinMode(DAC_UNMUTE_PIN, OUTPUT);  // the carrier's DACs stay soft-muted until the I2S clocks run
   digitalWrite(DAC_UNMUTE_PIN, HIGH);
-#endif
-
-#if AUDIO_BRIDGE_I2C
-  /* I2C slave before A2DP/BT: host may poll 0x2A as soon as wires are live; avoid missing early reads. */
-  Wire.begin(static_cast<uint8_t>(I2C_SLAVE_ADDR), I2C_SDA_PIN, I2C_SCL_PIN, 100000U);
-  Wire.onReceive(onReceive);
-  Wire.onRequest(onRequest);
-#endif
-
-#if CLUSTER_THEME_I2C_ENABLE
-  Wire1.begin(static_cast<uint8_t>(CLUSTER_THEME_I2C_ADDR), CLUSTER_THEME_SDA, CLUSTER_THEME_SCL, 100000U);
-  Wire1.onReceive(on_cluster_theme_receive);
 #endif
 
   s_art = static_cast<uint8_t *>(art_alloc(kArtMax));  // PSRAM when the board has it
@@ -1124,20 +880,6 @@ void setup() {
   Serial.println(BT_DEVICE_NAME);
   Serial.printf("cover art buffer %s, heap %u bytes free, PSRAM %u KB free (%dpx art copy)\n", s_art ? "ok" : "FAILED",
                 (unsigned)ESP.getFreeHeap(), (unsigned)(ESP.getFreePsram() / 1024), kArtSmallSide);
-#if AUDIO_BRIDGE_I2C
-  Serial.print(F("I2C metadata 0x"));
-  Serial.println(I2C_SLAVE_ADDR, HEX);
-#else
-  Serial.println(F("I2C off (bench only): now-playing and album art go over CAN"));
-#endif
-#if CLUSTER_THEME_I2C_ENABLE
-  Serial.print(F("I2C cluster theme 0x"));
-  Serial.print(CLUSTER_THEME_I2C_ADDR, HEX);
-  Serial.print(F(" SDA="));
-  Serial.print(CLUSTER_THEME_SDA);
-  Serial.print(F(" SCL="));
-  Serial.println(CLUSTER_THEME_SCL);
-#endif
 }
 
 void loop() {
@@ -1163,14 +905,14 @@ void loop() {
   // The AVRCP play-status notification only fires on a change, so after a reboot mid-song it never
   // comes. The A2DP stream itself is the reliable signal: audio flowing = playing.
   const bool streaming = a2dp_sink && a2dp_sink->get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED;
-  // Keep the elapsed estimate in the reply buffer moving between AVRCP events.
+  // Keep the elapsed estimate moving between AVRCP events.
   portENTER_CRITICAL(&s_track_mux);
   if (streaming != s_playing) {
     apply_elapsed_estimate_unlocked();
     s_playing = streaming;
     anchor_position_unlocked(s_elapsed_s);
   }
-  rebuild_snapshot_unlocked();
+  apply_elapsed_estimate_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
   cover_art_poll();
 #if AUDIO_BRIDGE_CAN

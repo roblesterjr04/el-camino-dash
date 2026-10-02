@@ -173,11 +173,11 @@ Discovery. Every node that speaks the protocol implements this channel.
 | `0x82` | IDENTIFY | dest u8, seconds u8: blink an LED / beep so a person can find the board (0 = stop) |
 | `0x83` | RESTART | dest u8, magic u8 `0x5A` (from the center or a service tool only) |
 | `0x84` | RAIL | dest u8 (the rail master: the audio card, or a card asking it), slot u8 (sender's), state u8, sample rate / 10 u16 (see [The I2S rail](#the-i2s-rail)) |
-| `0x10` | WIFI OFFER | gateway → all, only in answer to WIFI QUERY: credentials generation u8, security u8, channel u8, flags u8, SSID length u8, SSID, password length u8, password (see [Network gateway](#network-gateway-wi-fi-from-a-card)) |
-| `0x11` | GATEWAY STATUS | gateway → all, 1 Hz and on change: uplink u8, signal bars u8, RSSI s8 (dBm), technology u8, Wi-Fi clients u8, data this month u16 (MB), credentials generation u8, flags u8 |
-| `0x8A` | WIFI QUERY | dest u8 (the gateway): send WIFI OFFER |
+| `0x10` | — | reserved (was WIFI OFFER) |
+| `0x11` | GATEWAY STATUS | gateway → all, 1 Hz and on change: uplink u8, signal bars u8, RSSI s8 (dBm), technology u8, reserved u8 (was Wi-Fi clients), data this month u16 (MB), reserved u8 (was the Wi-Fi credentials generation), flags u8 (see [Network gateway](#network-gateway)) |
+| `0x8A` | — | reserved (was WIFI QUERY) |
 | `0x8B` | GATEWAY CMD | dest u8, command u8, argument u16 |
-| `0x8C` | WIFI SHARE | dest u8 (the gateway), then the WIFI OFFER layout: another network the gateway may use for itself (the home Wi-Fi, for uploads in the garage) |
+| `0x8C` | — | reserved (was WIFI SHARE) |
 
 - **produces / consumes** are bitmaps by channel number (bit 1 = ALERT, 9 = SENSOR, 19 = UI, …). The node that
   consumes AUDIO_CMD is the audio sink; the node that consumes ALERT and SENSOR descriptions is the center. Nobody
@@ -216,40 +216,20 @@ back to the audio card) has one owner at a time, handed out over RAIL:
 
 A voice card is the first user: it listens on MIC all the time (wake word) and asks for RET only while it speaks.
 
-### Network gateway (Wi-Fi from a card)
+### Network gateway
 
-Most online work never needs this: the gateway does it and broadcasts the results on [ONLINE](#online-0x360--node).
-For bulk data (screen firmware, map tiles) and a phone in the car, a card with an internet uplink (an LTE card) can
-also run a Wi-Fi access point (off by default, turned on from the menu), and the center joins it without anyone typing
-a password. Bulk data (web requests, map tiles, firmware) then goes over Wi-Fi; CAN only carries the status and the
-handshake.
-
-1. The gateway ANNOUNCEs as node type 7.
-2. The center sends WIFI QUERY. The gateway answers with WIFI OFFER (a multi-frame transfer, about 100 bytes). It never
-   sends the offer unasked.
-3. The center stores the network as its own saved entry, separate from the home Wi-Fi the user entered, and joins it.
-   When GATEWAY STATUS shows a new credentials generation it queries again.
+A card with an internet uplink (an LTE card) announces as node type 7, does the online work itself and broadcasts the
+results on [ONLINE](#online-0x360--node). The cluster never uses Wi-Fi: nothing joins a network, and CAN carries the
+results, the gateway's status and its commands.
 
 | Field | Values |
 | --- | --- |
-| security | 0 open, 1 WPA2-PSK, 2 WPA3-SAE, 3 WPA2 / WPA3 mixed |
-| channel | 0 any, else the 2.4 GHz channel |
-| flags (OFFER) | bit0 the uplink is up now, bit1 hidden SSID |
-| SSID / password | up to 32 / 63 bytes, UTF-8, no terminator |
 | uplink | 0 off, 1 searching, 2 registered, 3 data up |
 | technology | 0 none, 2 3G, 3 LTE, 4 5G, 5 LTE-M / NB-IoT |
-| flags (STATUS) | bit0 access point on, bit1 roaming, bit2 data cap reached |
-| command | 1 access point on, 2 access point off, 3 new random password (the generation goes up), 4 data cap in MB (argument), 5 forget the shared network |
+| flags (STATUS) | bit0 reserved (was access point on), bit1 roaming, bit2 data cap reached |
+| command | 4 data cap in MB (argument); 1, 2, 3 and 5 reserved (were Wi-Fi access point on / off, new password, forget the shared network) |
 
-- **Which network first:** the center prefers the home Wi-Fi when it can see it (no mobile data used in the garage)
-  and falls back to the gateway. A setting can turn either off.
-- **Password:** the gateway makes a random one on first boot. The center shows the SSID, the password and a QR code
-  on a menu page, so a phone in the car can join too.
-- **Security:** the password crosses CAN in plain text, but only on request and only inside the car's wiring.
-- **WIFI SHARE** lets the center hand the gateway the home network, so the gateway uploads logs and GPS tracks over
-  home Wi-Fi when it is parked at home.
-- The same pattern serves any card that offers a network service (a logger with a web page): it says on CAN where to
-  find it, so nothing has to search the network.
+- The same pattern serves any card that offers a service: it says on CAN what it has, so nothing has to search for it.
 
 ## SYSTEM (`0x060 + node`)
 
@@ -257,7 +237,7 @@ What the car and the dash are doing, for everyone. Only the center sends it in v
 
 | Op | Name | Rate | Payload after the opcode |
 | --- | --- | --- | --- |
-| `0x01` | TIME | every 10 s + when set | UTC seconds u32, offset to local time in 15-minute steps s8, source u8 (0 none, 1 GPS, 2 NTP, 3 RTC) |
+| `0x01` | TIME | every 10 s + when set | UTC seconds u32, offset to local time in 15-minute steps s8, source u8 (0 none, 1 GPS, 2 reserved (was NTP), 3 RTC) |
 | `0x02` | VEHICLE | 5 Hz | flags u16, backlight % u8, road speed km/h ×10 u16 (`0xFFFF` unknown) |
 | `0x03` | PREFS | on change + every 5 s | units u8, theme u8, clock u8 (0 12 h, 1 24 h) |
 | `0x04` | POWER | on the event, 3× 100 ms apart | event u8 (1 ignition off, 2 ignition back on), seconds until the rail may drop u8 |
@@ -522,10 +502,7 @@ bytes 3–7 = 5 bytes of the object (chunk n = bytes 5n…5n+4). Up to 10 MB per
 
 Internet results, for everyone. **The dash does as much of its online work as possible over CAN**: the node with the
 internet connection (the LTE gateway, `docs/hardware/lte_card.md`) does the lookups itself and broadcasts only the
-answers, which are a few dozen bytes. The screens never need Wi-Fi for these. Wi-Fi is kept for bulk data (screen
-firmware, map tiles) and for a phone in the car, and the gateway's access point is **off by default**.
-
-The rule: a result measured in bytes or a few kilobytes goes on ONLINE; anything in hundreds of kilobytes goes over Wi-Fi.
+answers, which are a few dozen bytes. The cluster never uses Wi-Fi.
 
 | Op | Name | Sent | Payload after the opcode |
 | --- | --- | --- | --- |
@@ -548,15 +525,15 @@ The rule: a result measured in bytes or a few kilobytes goes on ONLINE; anything
 - **When it looks up the place:** when the car has moved more than 50 m since the last lookup and at least 10 s have
   passed, and once on boot. Stopped, it does not look up again. That stays well inside OpenStreetMap Nominatim's limit
   (one request per second) and to about 1–2 MB of data per hour of driving.
-- **Services:** reverse geocoding from OpenStreetMap **Nominatim** (what the center uses over Wi-Fi today; the gateway
-  sends its own User-Agent as Nominatim's policy asks). Weather and the time zone from **Open-Meteo** (no key; one call
+- **Services:** reverse geocoding from OpenStreetMap **Nominatim** (the gateway sends its own User-Agent as Nominatim's
+  policy asks). Weather and the time zone from **Open-Meteo** (no key; one call
   with `timezone=auto` returns both). The speed limit from OpenStreetMap's `maxspeed` tags through Overpass, optional
   (0 when not looked up). Each service is a setting on the gateway, so another provider can replace it.
-- **The center** keeps sending the street on `0x221` and the time on `0x220` for the screens that read those today. It
-  takes them from ONLINE when it hears a gateway, and only falls back to its own Wi-Fi lookup when there is none.
+- **The center** sends the time on `0x220` (from GPS). It does no lookups of its own; `0x221` (street) is reserved, and
+  a screen that wants the place reads PLACE here.
 - **Messages:** the A7670 can receive SMS. The gateway forwards each one as MESSAGE (shown like an alert on the menu
   screen) until a screen sends MESSAGE READ. Sending SMS from the dash is not in v1.
-- **Settings** (lookup interval, units, the APN, which services, access point on / off) are the gateway's UI items in the
+- **Settings** (lookup interval, units, the APN, which services) are the gateway's UI items in the
   menu, as for any accessory (see [UI](#ui-0x260--node)).
 - A gateway with no data connection keeps sending ONLINE STATUS and its cached PLACE (flags bit1), so the screens can
   say why nothing updates.

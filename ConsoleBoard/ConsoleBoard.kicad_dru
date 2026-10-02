@@ -1,0 +1,6 @@
+(version 1)
+
+# No via in or touching a pad, same net or not: a via in a pad wicks the solder away or has to be filled and capped.
+(rule "via off pads"
+	(constraint physical_clearance (min 0.13mm))
+	(condition "A.Type == 'Via' && B.Type == 'Pad'"))

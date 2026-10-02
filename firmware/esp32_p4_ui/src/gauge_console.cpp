@@ -1,4 +1,5 @@
 #include "gauge_console.h"
+#include <elc_usb_link.h>
 
 #include <esp_heap_caps.h>
 
@@ -51,8 +52,8 @@ void handle(GaugeConsole &c, SensorLink &link, String &line) {
 
 void GaugeConsole::poll(SensorLink &link) {
   static String acc;
-  while (Serial.available()) {
-    const char ch = (char)Serial.read();
+  while (elc_usb_available()) {  // the USB link keeps CAN records out of the text
+    const char ch = (char)elc_usb_read();
     if (ch == '\r') {
       continue;
     }

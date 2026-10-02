@@ -91,6 +91,11 @@ static void on_can_frame(const ElcCanFrame &f, void *) {
   if (phone_can_frame(f)) {  // audio bridge: calls, pairing, the paired list
     return;
   }
+  static ElcCanSensorDecoder s_sensors;  // the center's re-sent sensor pack (or a USB relay), while our UART is silent
+  if (s_sensors.feed(f)) {
+    if (f.id == ELC_CAN_ID_SENSOR_ECON && s_sensors.complete()) s_link.feedBus(s_sensors.value());
+    return;
+  }
   cluster_peer_frame(f);  // settings, center status, audio bridge
   ElcCanClusterState st;
   if (elc_can_decode_cluster_state(f, st)) {
@@ -267,7 +272,12 @@ void side_loop() {
 #if SIDE_TOUCH_ENABLE
     p4_touch_sample(&tx, &ty, &down);
 #endif
-    cluster_peer_poll(now, tx, ty, down);  // menu, media / layout hold, brightness
+    // A touch that starts on the call card (or while it shows) is the card's: hidden from the menu tap and the holds
+    // until the finger lifts, even when the card closes first (End).
+    static bool s_on_card = false;
+    if (down && phone_can_card_showing()) s_on_card = true;
+    if (!down) s_on_card = false;
+    cluster_peer_poll(now, tx, ty, down && !s_on_card);  // menu, media / layout hold, brightness
   }
   menu_can_poll(now);  // the console's menu input and state (when this is the interface screen)
 

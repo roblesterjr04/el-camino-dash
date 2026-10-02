@@ -23,8 +23,9 @@
 #include "center_menu.h"
 #include "center_gps.h"
 #include "center_sd_settings.h"
+#include "center_shell.h"
+#include "center_time.h"
 #include "center_ui.h"
-#include "center_wifi_ntp.h"
 #include "display_main.h"
 
 #ifndef SENSOR_UART_RX
@@ -56,6 +57,7 @@ static int16_t s_inject_y2 = 0;  // drag end (== s_inject_y for a tap)
 void center_set_demo(bool on) { s_link.setDemo(on); }
 
 const SensorLink &center_sensor_link() { return s_link; }
+void center_sensor_from_bus(const ElcCanSensor &s) { s_link.feedBus(s); }
 
 void center_inject_touch(int16_t x, int16_t y, uint32_t hold_ms) { center_inject_drag(x, y, y, hold_ms); }
 
@@ -75,7 +77,7 @@ void center_setup() {
   s_link.begin(Serial1, SENSOR_UART_RX, SENSOR_UART_TX);
   s_link.setKeepalive(true);
 
-  Serial.println("el-camino-dash display: CENTER (Wi-Fi, GPS time, BLE, settings, CAN)");
+  Serial.println("el-camino-dash display: CENTER (GPS time, BLE, settings, CAN)");
 
   Arduino_GFX *panel = create_tsps_display();
   if (!panel) {
@@ -85,8 +87,8 @@ void center_setup() {
     }
   }
   elc_boot_splash_framebuffer_write(panel);
-  // LVGL owns the panel from here. Gauges are LVGL faces; the full-screen legacy pages (keyboard,
-  // sensor log, GPS, phone) still draw into the legacy layer it returns.
+  // LVGL owns the panel from here. Gauges are LVGL faces; the full-screen legacy pages (sensor log,
+  // GPS data) still draw into the legacy layer it returns.
   gfx = p4_screen_begin(panel);
   {
     const int w = gfx->width(), h = gfx->height(), size = w < h ? w : h;
@@ -94,6 +96,10 @@ void center_setup() {
   }
   elc_illumination_gpio_poll();
   s_prefs.begin("center", false);
+  // Older builds stored Wi-Fi credentials; the cluster never uses Wi-Fi, so drop them (the SD copy is rewritten below).
+  for (const char *k : {"wifi_ssid", "wifi_psk"}) {
+    if (s_prefs.isKey(k)) s_prefs.remove(k);
+  }
   center_sd_settings_begin();
   center_sd_settings_import(s_prefs);
   center_sd_settings_sync(s_prefs);
@@ -102,9 +108,8 @@ void center_setup() {
   center_audio_link_begin();
 
 
-  center_wifi_ntp_begin(s_prefs);
+  center_time_begin(s_prefs);
   center_gps_begin(s_prefs);
-  center_wifi_try_connect_saved();
   center_ble_begin();
   center_ble_set_info_line("ElCamino center");
   center_ui_begin(gfx, &s_prefs);
@@ -119,7 +124,7 @@ void center_setup() {
 static void poll_sensor_link() {
   if (s_link.poll()) {
     center_ui_on_sensor_packet(s_link.last());
-    center_can_send_sensor(s_link.last());  // the slots get sensor data from the bus
+    if (!s_link.fromBus()) center_can_send_sensor(s_link.last());  // the slots get sensor data from the bus
   }
   center_can_poll();
   char uart_line[128];
@@ -157,7 +162,7 @@ static GaugeFace face_for(CenterViewMode v) {
   }
 }
 
-/** Wall time (GPS / NTP, local zone) or, without a source, time since boot. */
+/** Wall time (GPS, local zone) or, without a source, time since boot. */
 static void fill_clock(GaugeData &d, uint32_t now) {
   static const char *const kDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
   static const char *const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -182,8 +187,7 @@ static void fill_clock(GaugeData &d, uint32_t now) {
     d.second = (float)(s % 60u) + (float)(now % 1000u) / 1000.0f;
     d.date_text = nullptr;
   }
-  const char *street = center_gps_street_line();
-  d.place_text = (street && street[0]) ? street : (d.time_valid ? "" : "Boot clock");
+  d.place_text = d.time_valid ? "" : "Boot clock";
 }
 
 /** Now playing from the audio bridge ("Artist - Title"), with the position interpolated between reads. */
@@ -231,7 +235,6 @@ void center_loop() {
   elc_illumination_gpio_poll();
   center_gps_loop();
   center_shell_poll(s_prefs);
-  center_wifi_ntp_loop();
   center_ble_loop();
   center_ui_loop();
 
@@ -280,13 +283,18 @@ void center_loop() {
   const int16_t sw = gfx->width();
   const int16_t sh = gfx->height();
 
+  // A touch that starts on the call card (or while it shows) is the card's: no menu tap, view or theme hold here,
+  // even when the card closes before the finger lifts (End).
+  static bool s_on_card = false;
   if (finger_down && !s_was_down) {
     s_down_ms = now;
     s_lx = tx;
     s_ly = ty;
+    s_on_card = phone_can_card_showing();
   }
+  if (finger_down && phone_can_card_showing()) s_on_card = true;
 
-  if (!finger_down && s_was_down) {
+  if (!finger_down && s_was_down && !s_on_card) {
     const uint32_t dur = now - s_down_ms;
     clamp_touch(&s_lx, &s_ly, sw, sh);
     center_ui_process_touch_gesture(dur, s_lx, s_ly);
@@ -294,7 +302,7 @@ void center_loop() {
   s_was_down = finger_down;
   // Progress ring while holding on the gauge screen (3 s = next view, 10 s = next theme).
   center_menu_hold_feedback(finger_down ? now - s_down_ms : 0,
-                            finger_down && !center_menu_is_open() && !center_ui_fullscreen());
+                            finger_down && !s_on_card && !center_menu_is_open() && !center_ui_fullscreen());
 
   /* Poll AVRCP/transport immediately before paint so the face sees fresh I2C data. */
   center_audio_link_poll();

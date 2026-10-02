@@ -11,7 +11,7 @@
  * requests to the center, state from 0x210 / 0x213).
  *
  * Home is a vertical wheel: the selected item sits in the middle, neighbours curve away along the rim.
- * Drag or tap to move, tap the middle item to open it. Pages: Wi-Fi, Brightness, Theme, Screens, Service, Phone.
+ * Drag or tap to move, tap the middle item to open it. Pages: Brightness, Theme, Screens, Service, Phone.
  * The menu is rebuilt in the current theme's colours and fonts each time it opens.
  *
  * The Phone page (pairing, the paired list, voice assistant, redial) reads the audio bridge's phone state from
@@ -19,20 +19,25 @@
  * not part of the host.
  */
 
-/** Page numbers match the console's MENU_INPUT / MENU_STATE (ElcCanMenuPage). */
-enum class UiMenuPage : uint8_t { Home, Wifi, Brightness, Theme, Screens, Service, Phone };
+/** Page numbers match the console's MENU_INPUT / MENU_STATE (ElcCanMenuPage): keep them stable. */
+enum class UiMenuPage : uint8_t {
+  Home,
+  Reserved1,  // was Wi-Fi; ui_menu_open ignores it
+  Brightness,
+  Theme,
+  Screens,
+  Service,
+  Phone,
+};
 static const uint8_t kUiMenuPages = 7;
+/** Rows on the Service page (UiMenuHost::service_row). */
+static const int kUiServiceRows = 7;
 
 /** Screens, as in the CAN settings (ELC_CAN_SCREEN_*). */
 enum : uint8_t { kUiScreenLeft = 0, kUiScreenCenter = 1, kUiScreenRight = 2 };
 
 /** Center views (CenterViewMode numbering). */
 enum : uint8_t { kUiViewTach = 0, kUiViewClock = 1, kUiViewMedia = 2, kUiViewEcon = 3 };
-
-struct UiMenuWifiNet {
-  char ssid[33];
-  bool open;
-};
 
 struct UiMenuHost {
   /** Which screen this board is (kUiScreen*). */
@@ -53,26 +58,13 @@ struct UiMenuHost {
   bool (*dim_with_lights)() = nullptr;
   void (*set_brightness)(uint8_t level, bool follow_lights, bool save) = nullptr;
 
-  // ---- Wi-Fi. local_wifi: this board has the radio (center): full page with scan and join. Otherwise the
-  // page shows the center's status, Join saved, and "Open on center" for scanning and passwords.
-  bool local_wifi = false;
-  void (*wifi_status)(char *line1, size_t n1, char *line2, size_t n2) = nullptr;
-  bool (*wifi_has_saved)() = nullptr;
-  void (*wifi_join_saved)() = nullptr;
-  void (*wifi_scan_start)() = nullptr;
-  /** 0 = still scanning, 1 = done (*n networks), -1 = failed. */
-  int (*wifi_scan_poll)(UiMenuWifiNet *nets, int max, int *n) = nullptr;
-  /** Join a scanned network; a secured one opens the password keyboard. */
-  void (*wifi_join)(const char *ssid, bool open_net) = nullptr;
-  void (*wifi_poll)() = nullptr;  // join progress, every menu tick
-
-  // ---- Service rows: 0 Sensor link, 1 Odometer, 2 Faults, 3 GPS, 4 Wi-Fi, 5 Audio bridge, 6 Left screen,
-  // 7 Right screen. level: 0 ok, 1 warn, 2 bad.
+  // ---- Service rows: 0 Sensor link, 1 Odometer, 2 Faults, 3 GPS, 4 Audio bridge, 5 Left screen, 6 Right screen.
+  // level: 0 ok, 1 warn, 2 bad.
   void (*service_row)(int row, char *value, size_t n, int *level) = nullptr;
   bool (*demo)() = nullptr;
   void (*set_demo)(bool) = nullptr;
 
-  /** Open a full-screen page that only the center has (1 Wi-Fi keyboard/scan, 2 sensor log, 3 GPS data).
+  /** Open a full-screen page that only the center has (2 sensor log, 3 GPS data; 1 is reserved, was Wi-Fi).
    *  On the center it opens locally; elsewhere it is requested on the center screen. */
   void (*open_center_page)(uint8_t which) = nullptr;
 };

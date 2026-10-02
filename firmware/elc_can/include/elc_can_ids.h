@@ -27,8 +27,8 @@ static const uint8_t ELC_CAN_SCREEN_RIGHT = 2;   // fuel / temp / oil / amp
 
 // ---- settings: the center owns them (NVS + SD); anyone asks, the center applies and re-sends 0x210 ----
 static const uint16_t ELC_CAN_ID_SETTING_REQUEST = 0x212;  // setting u8, value u8, from node u8
-static const uint16_t ELC_CAN_ID_CENTER_STATUS = 0x213;    // flags u8, Wi-Fi RSSI s8, text serial u8 (1 Hz)
-static const uint16_t ELC_CAN_ID_CENTER_TEXT = 0x214;      // [serial << 4 | chunk] + 7 bytes: Wi-Fi network name
+static const uint16_t ELC_CAN_ID_CENTER_STATUS = 0x213;    // flags u8, reserved u8, reserved u8 (1 Hz)
+// 0x214 reserved (was the Wi-Fi network name)
 
 // ---- requests to accessory cards ----
 static const uint16_t ELC_CAN_ID_AUDIO_ART_REQUEST = 0x211;  // slot u8, art id u8, first chunk u16, variant u8 (display -> bridge)
@@ -40,9 +40,9 @@ static const uint16_t ELC_CAN_ID_MENU_STATE = 0x217;       // open u8, screen u8
 static const uint16_t ELC_CAN_ID_MENU_TEXT_MAIN = 0x218;   // [serial << 4 | chunk] + 7 bytes: the focused item or page
 static const uint16_t ELC_CAN_ID_MENU_TEXT_SUB = 0x219;    // [serial << 4 | chunk] + 7 bytes: its value or state
 
-// ---- wall time and place (center, from GPS / NTP) ----
-static const uint16_t ELC_CAN_ID_TIME = 0x220;        // UTC epoch s u32, local offset min s16, flags u8, place serial u8
-static const uint16_t ELC_CAN_ID_PLACE_TEXT = 0x221;  // [serial << 4 | chunk] + 7 bytes: street / place name
+// ---- wall time (center, from GPS) ----
+static const uint16_t ELC_CAN_ID_TIME = 0x220;        // UTC epoch s u32, local offset min s16, flags u8, reserved u8
+static const uint16_t ELC_CAN_ID_PLACE_TEXT = 0x221;  // reserved (was street name); nothing sends it
 
 // ---- accessory ranges: node 0x10 + n owns 0x400 + 0x40 * n .. + 0x3F (n = 0 .. 11, nodes 0x10 .. 0x1B) ----
 // The "slot" in these helpers and in the audio messages is that range index (node - 0x10), not the physical card

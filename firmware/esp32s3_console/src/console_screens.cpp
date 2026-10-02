@@ -202,11 +202,8 @@ void ConsoleUi::draw_clock(OledGfx &g, uint32_t t) {
   const int x = 150;
   g.text(date, x, 20, font('o'), 12, TextAlign::Left, 96);
   const bool gps = valid && (_time.flags & ELC_CAN_TIME_GPS);
-  const char *place = _place.valid() && _place.serial() == _time.place_serial && _place.text()[0]
-                          ? _place.text()
-                          : (!valid ? "Boot clock" : (gps ? "GPS time" : "NTP time"));
-  g.text(place, x, 37, font('o'), 8, TextAlign::Left, 96);
-  g.text(gps ? "GPS FIX" : (valid ? "NTP" : "BOOT CLOCK"), x, 55, TINY, 6);
+  g.text(valid ? "GPS time" : "Boot clock", x, 37, font('o'), 8, TextAlign::Left, 96);  // the center sets it from GPS only
+  g.text(gps ? "GPS FIX" : (valid ? "NO FIX" : "BOOT CLOCK"), x, 55, TINY, 6);
   if (gps) g.icon("gps", x + 46, 46, 6);
 }
 
@@ -245,7 +242,7 @@ void ConsoleUi::draw_menu(OledGfx &g, uint32_t t) {
     if (editing) g.rrect(1, y, 246, rowH - 1, 3, 15);
     g.text(item_label(i), 7, y + 12, body, sel && !editing ? 0 : 10, TextAlign::Left, 112);
     int vx = 238;
-    const bool page = i == kWifi || i == kService;
+    const bool page = i == kService;
     if (page) {
       g.icon("ext", 232, y + 2, sel && !editing ? 0 : 7);
       vx = 228;

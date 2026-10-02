@@ -20,8 +20,19 @@ bool SensorLink::poll() {
       _held = v;
       got = true;
       _fps_count++;
+      _uart_ms = now;
+      _have_uart = true;
+      _from_bus = false;
     }
   }
+  const bool uart_fresh = _have_uart && now - _uart_ms <= SENSOR_PACKET_STALE_MS;
+  if (_bus_pending && !_demo && !uart_fresh) {
+    _held = _bus;
+    got = true;
+    _fps_count++;
+    _from_bus = true;
+  }
+  _bus_pending = false;
   if (_demo && (int32_t)(now - _demo_next_ms) >= 0) {
     _demo_next_ms = now + 50;
     _drive.frame(now, _held);
@@ -42,6 +53,29 @@ bool SensorLink::poll() {
     _last_keepalive_ms = now;
   }
   return got;
+}
+
+void SensorLink::feedBus(const ElcCanSensor &s) {
+  SensorPacketValues v{};
+  v.pot_adc = s.pot_adc;
+  v.therm_adc = s.therm_adc;
+  v.pressure_adc = s.pressure_adc;
+  v.voltage_adc = s.voltage_adc;
+  v.ambient_adc = s.ambient_adc;
+  v.speed_rpm = s.speed_rpm;
+  v.engine_rpm = s.engine_rpm;
+  v.flags = s.flags;
+  v.faults = s.faults;
+  v.odometer_tenths_mile = s.odometer_tenths_mile;
+  v.has_odometer = s.odometer_tenths_mile != 0xFFFFFFFFu;
+  v.mpg_instant_x10 = s.mpg_instant_x10;
+  v.mpg_average_x10 = s.mpg_average_x10;
+  v.dte_tenths_mile = s.dte_tenths_mile;
+  v.has_fuel_economy = s.has_fuel_economy;
+  v.extended = true;
+  v.valid = true;
+  _bus = v;
+  _bus_pending = true;
 }
 
 void SensorLink::setDemo(bool on) {

@@ -8,17 +8,13 @@
  *  guides; on ESP32 this is a hardware UART, not bit-banged SoftwareSerial. */
 void center_gps_begin(Preferences &prefs);
 
-/** Drain GPS UART, parse RMC/ZDA (UTC) into settimeofday, and exchange data with the background network
- *  task (reverse geocode + POSIX TZ from lat/lon when Wi‑Fi is up). Non-blocking; call from main loop. */
+/** Drain GPS UART and parse RMC/ZDA (UTC) into settimeofday. Non-blocking; call from main loop. */
 void center_gps_loop();
-
-/** Current street / place name from last reverse geocode (empty until first successful lookup). */
-const char *center_gps_street_line();
 
 /** millis() of last byte read from the GPS UART (0 if none yet). Use to confirm wiring/baud (NEO‑6M default 9600). */
 uint32_t center_gps_last_uart_byte_ms();
 
-/** True once we have lat/lon from RMC (status A) or GGA (fix quality 1–9); reverse geocode only runs when this is true. */
+/** True once we have lat/lon from RMC (status A) or GGA (fix quality 1–9). */
 bool center_gps_have_position_fix();
 
 uint32_t center_gps_uart_baud();

@@ -65,13 +65,9 @@ static void clock_frames() {
   t.utc = 1790608980u;  // Mon Sep 28 2026, 15:23 UTC (10:23 local)
   t.offset_min = -300;
   t.flags = ELC_CAN_TIME_VALID | ELC_CAN_TIME_GPS;
-  t.place_serial = 2;
   ElcCanFrame f;
   elc_can_encode_time(t, f);
   feed(f);
-  ElcCanFrame c[ELC_CAN_TEXT_CHUNKS];
-  elc_can_encode_text(ELC_CAN_ID_PLACE_TEXT, 2, "Liberty Street", c);
-  for (auto &x : c) feed(x);
 }
 
 static void phone(uint8_t call, uint8_t flags, uint16_t secs) {

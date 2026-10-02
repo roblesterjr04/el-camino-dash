@@ -31,7 +31,7 @@ bool media_can_now_playing(char *line, size_t n, uint16_t *elapsed_s, uint16_t *
 /** Album art of the current track (row length = stride pixels). serial changes per image. */
 bool media_art(const uint16_t **px, int *w, int *h, int *stride, uint32_t *serial);
 
-/** Download buffer the decoder can read (DMA-capable), for other transports (the center's bench I2C). */
+/** Download buffer the decoder can read (DMA-capable). */
 uint8_t *media_art_buffer(size_t *cap);
 /** Decode a JPEG into the current album art. */
 bool media_art_decode(const uint8_t *jpg, size_t len);

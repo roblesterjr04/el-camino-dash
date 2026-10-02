@@ -1,6 +1,6 @@
 #pragma once
 
-// ESP32-P4 (+ WiFi/BLE coprocessor): BLE GATT info line only. No Bluetooth Classic / A2DP
+// ESP32-P4 (+ ESP32-C6 co-processor, BLE only): BLE GATT info line only. No Bluetooth Classic / A2DP
 // phone audio on this hardware path. Advertising restarts when disconnected.
 void center_ble_begin();
 void center_ble_loop();

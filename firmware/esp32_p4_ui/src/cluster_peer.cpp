@@ -24,7 +24,6 @@ uint32_t s_st_ms = 0;
 
 ElcCanCenterStatus s_status;
 uint32_t s_status_ms = 0;
-ElcCanTextDecoder s_name(ELC_CAN_ID_CENTER_TEXT);
 
 // Brightness applied to this panel: the center's setting, or the level being dragged on this screen's menu.
 uint8_t s_applied_level = 0;
@@ -64,30 +63,6 @@ void h_set_brightness(uint8_t level, bool follow, bool save) {
     if (follow != h_dim()) request(ELC_CAN_SET_DIM_WITH_LIGHTS, follow ? 1 : 0);
   }
 }
-
-void h_wifi_status(char *l1, size_t n1, char *l2, size_t n2) {
-  const char *name = s_name.valid() && s_name.serial() == s_status.text_serial ? s_name.text() : "";
-  if (!center_heard()) {
-    snprintf(l1, n1, "Center not heard");
-    snprintf(l2, n2, "Wi-Fi is on the center screen");
-  } else if (s_status.flags & ELC_CAN_STATUS_JOINING) {
-    snprintf(l1, n1, "Connecting\xE2\x80\xA6");
-    snprintf(l2, n2, "%s", name);
-  } else if (s_status.flags & ELC_CAN_STATUS_WIFI) {
-    snprintf(l1, n1, "Connected \xC2\xB7 %s", name);
-    snprintf(l2, n2, "%d dBm", (int)s_status.rssi);
-  } else {
-    snprintf(l1, n1, "Not connected");
-    if (s_status.flags & ELC_CAN_STATUS_SAVED_WIFI) {
-      snprintf(l2, n2, "Saved network: %s", name);
-    } else {
-      snprintf(l2, n2, "No saved network");
-    }
-  }
-}
-
-bool h_wifi_has_saved() { return (s_status.flags & ELC_CAN_STATUS_SAVED_WIFI) != 0; }
-void h_wifi_join_saved() { request(ELC_CAN_ACT_WIFI_JOIN_SAVED, 0); }
 
 void h_service_row(int row, char *b, size_t n, int *level) {
   const bool center = center_heard();
@@ -131,25 +106,18 @@ void h_service_row(int row, char *b, size_t n, int *level) {
       break;
     }
     case 4: {
-      const bool wf = center && (s_status.flags & ELC_CAN_STATUS_WIFI);
-      char l2[40];
-      h_wifi_status(b, n, l2, sizeof(l2));
-      *level = wf ? 0 : 1;
-      break;
-    }
-    case 5: {
       const bool au = media_can_now_playing(nullptr, 0, nullptr, nullptr, nullptr);
       snprintf(b, n, "%s", au ? "On CAN" : "Not heard");
       *level = au ? 0 : 1;
       break;
     }
     default: {
-      const uint8_t screen = row == 6 ? ELC_CAN_SCREEN_LEFT : ELC_CAN_SCREEN_RIGHT;
+      const uint8_t screen = row == 5 ? ELC_CAN_SCREEN_LEFT : ELC_CAN_SCREEN_RIGHT;
       if (screen == C.self_screen) {
         snprintf(b, n, "This screen");
         *level = 0;
       } else {
-        const bool alive = C.node_alive && C.node_alive(row == 6 ? ELC_CAN_NODE_SPEEDO : ELC_CAN_NODE_TSPS);
+        const bool alive = C.node_alive && C.node_alive(row == 5 ? ELC_CAN_NODE_SPEEDO : ELC_CAN_NODE_TSPS);
         snprintf(b, n, "%s", alive ? "On CAN" : "No reply");
         *level = alive ? 0 : 1;
       }
@@ -193,10 +161,6 @@ void cluster_peer_begin(const ClusterPeerConfig &cfg) {
   s_host.brightness = h_brightness;
   s_host.dim_with_lights = h_dim;
   s_host.set_brightness = h_set_brightness;
-  s_host.local_wifi = false;
-  s_host.wifi_status = h_wifi_status;
-  s_host.wifi_has_saved = h_wifi_has_saved;
-  s_host.wifi_join_saved = h_wifi_join_saved;
   s_host.service_row = h_service_row;
   s_host.demo = h_demo;
   s_host.set_demo = h_set_demo;
@@ -217,9 +181,6 @@ void cluster_peer_frame(const ElcCanFrame &f) {
   if (elc_can_decode_center_status(f, cs)) {
     s_status = cs;
     s_status_ms = millis();
-    return;
-  }
-  if (s_name.feed(f)) {
     return;
   }
   media_can_frame(f);

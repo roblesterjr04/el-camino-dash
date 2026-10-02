@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <elc_usb_link.h>
 
 #include "display_main.h"
 #include "display_role.h"
@@ -14,7 +15,7 @@ void setup() {
   DisplayStrap strap = DisplayStrap::Open;
   bool override = false;
   const uint8_t role = display_role_resolve(&strap, &override);
-  Serial.begin(115200);
+  elc_usb_begin();  // Serial at 115200, with the USB CAN link (docs/protocols/usb_link.md)
   delay(200);
   Serial.printf("display: %s screen (%s; strap reads %s)\n", display_role_name(role),
                 override ? "bench override from `role`" : "from the strap", display_strap_name(strap));

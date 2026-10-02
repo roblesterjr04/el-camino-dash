@@ -9,6 +9,9 @@
 #include <menu_can.h>
 #include <phone_can.h>
 
+#include "center_gps.h"
+#include "center_time.h"
+
 #ifndef ELC_CAN_TX_PIN
 #define ELC_CAN_TX_PIN -1
 #endif
@@ -33,6 +36,18 @@ static void on_frame(const ElcCanFrame &f, void *) {
     return;
   }
   if (menu_can_frame(f)) {  // the console driving the menu (applied if the center is the interface screen)
+    return;
+  }
+  // Sensor and time frames are the center's own; heard from someone else they come from a USB relay (the bench),
+  // and stand in while the sensor UART or GPS is silent.
+  static ElcCanSensorDecoder s_sensors;
+  if (s_sensors.feed(f)) {
+    if (f.id == ELC_CAN_ID_SENSOR_ECON && s_sensors.complete()) center_sensor_from_bus(s_sensors.value());
+    return;
+  }
+  ElcCanTime t;
+  if (elc_can_decode_time(f, t)) {
+    if (t.flags & ELC_CAN_TIME_VALID) center_time_from_bus(t.utc, t.offset_min);
     return;
   }
   if (phone_can_frame(f)) {  // audio bridge: calls, pairing, the paired list
@@ -91,60 +106,22 @@ void center_can_send_cluster(const ElcCanClusterState &st) {
   s_can.send(f);
 }
 
-void center_can_send_status(ElcCanCenterStatus st, const char *wifi_name) {
+void center_can_send_status(const ElcCanCenterStatus &st) {
   if (!s_can.running()) {
     return;
   }
-  // The name goes out when it changes (with a new serial) and every 5 s, so a screen that booted late gets it.
-  static char s_name[ELC_CAN_TEXT_MAX + 1] = {0};
-  static uint8_t s_serial = 0;
-  static uint32_t s_name_ms = 0;
-  const char *name = wifi_name ? wifi_name : "";
-  const bool changed = strncmp(s_name, name, ELC_CAN_TEXT_MAX) != 0;
-  if (changed) {
-    snprintf(s_name, sizeof(s_name), "%s", name);
-    s_serial = (uint8_t)((s_serial + 1) & 0x0F);
-  }
-  st.text_serial = s_serial;
   ElcCanFrame f;
   elc_can_encode_center_status(st, f);
   s_can.send(f);
-  if (changed || millis() - s_name_ms >= 5000u) {
-    s_name_ms = millis();
-    ElcCanFrame t[ELC_CAN_TEXT_CHUNKS];
-    elc_can_encode_text(ELC_CAN_ID_CENTER_TEXT, s_serial, s_name, t);
-    for (const ElcCanFrame &c : t) {
-      s_can.send(c);
-    }
-  }
 }
 
-void center_can_send_time(ElcCanTime t, const char *place) {
+void center_can_send_time(const ElcCanTime &t) {
   if (!s_can.running()) {
     return;
   }
-  // Same scheme as the Wi-Fi name: the place goes out when it changes (new serial) and every 5 s.
-  static char s_place[ELC_CAN_TEXT_MAX + 1] = {0};
-  static uint8_t s_serial = 0;
-  static uint32_t s_place_ms = 0;
-  const char *p = place ? place : "";
-  const bool changed = strncmp(s_place, p, ELC_CAN_TEXT_MAX) != 0;
-  if (changed) {
-    snprintf(s_place, sizeof(s_place), "%s", p);
-    s_serial = (uint8_t)((s_serial + 1) & 0x0F);
-  }
-  t.place_serial = s_serial;
   ElcCanFrame f;
   elc_can_encode_time(t, f);
   s_can.send(f);
-  if (changed || millis() - s_place_ms >= 5000u) {
-    s_place_ms = millis();
-    ElcCanFrame txt[ELC_CAN_TEXT_CHUNKS];
-    elc_can_encode_text(ELC_CAN_ID_PLACE_TEXT, s_serial, s_place, txt);
-    for (const ElcCanFrame &c : txt) {
-      s_can.send(c);
-    }
-  }
 }
 
 bool center_can_take_setting(ElcCanSettingRequest *out) {

@@ -137,20 +137,11 @@ void center_sd_settings_import(Preferences &prefs) {
   }
 
   // SD is a backup: only seed NVS when a key is missing (e.g. fresh flash / empty NVS). Never let a
-  // stale settings.json overwrite Wi‑Fi or TZ the user already saved in NVS.
+  // stale settings.json overwrite settings the user already saved in NVS.
   if (json_has_key(j, "tz")) {
     const String tz = json_get_string(j, "tz");
     if (tz.length() > 0 && !prefs.isKey("tz")) {
       prefs.putString("tz", tz);
-    }
-  }
-  if (json_has_key(j, "wifi_ssid")) {
-    const String ssid = json_get_string(j, "wifi_ssid");
-    if (ssid.length() > 0 && !prefs.isKey("wifi_ssid")) {
-      prefs.putString("wifi_ssid", ssid);
-      if (json_has_key(j, "wifi_psk")) {
-        prefs.putString("wifi_psk", json_get_string(j, "wifi_psk"));
-      }
     }
   }
   uint8_t v = 0;
@@ -181,8 +172,6 @@ void center_sd_settings_sync(Preferences &prefs) {
     return;
   }
   String tz = prefs.getString("tz", "GMT0");
-  String ssid = prefs.getString("wifi_ssid", "");
-  String psk = prefs.getString("wifi_psk", "");
   const uint8_t view = prefs.getUChar("view", 0);
   const uint8_t ctheme = prefs.getUChar("ctheme", 0);
   const uint8_t iface = prefs.getUChar("iface", 1);
@@ -190,13 +179,9 @@ void center_sd_settings_sync(Preferences &prefs) {
   const uint8_t rlayout = prefs.getUChar("rlayout", 0);
 
   String json;
-  json.reserve(tz.length() + ssid.length() + psk.length() + 96);
+  json.reserve(tz.length() + 96);
   json = "{\"tz\":\"";
   append_json_escape(&json, tz);
-  json += "\",\"wifi_ssid\":\"";
-  append_json_escape(&json, ssid);
-  json += "\",\"wifi_psk\":\"";
-  append_json_escape(&json, psk);
   json += "\",\"view\":";
   json += (unsigned)view;
   json += ",\"ctheme\":";

@@ -86,7 +86,7 @@ Generic uploads default to **ESP32-S3** (`esp32:esp32:esp32s3`) in `upload_esp32
 
 **esp32_audio_bridge** is different: it uses **Bluetooth Classic A2DP + AVRCP**, which requires a **classic ESP32** (`esp32:esp32:esp32`), not ESP32-S3 / C3 / S2 (those do not support BR/EDR audio). Install **ESP32-A2DP** and **arduino-audio-tools** via `install_arduino_cli.sh` (git URLs).
 
-Flash **esp32_audio_bridge** (BT media hub; the center display reads now-playing over I2C 0x2A). With no arguments, auto-selects a serial port and uses `esp32:esp32:esp32`. The pinned PlatformIO build in `firmware/esp32_classic_bt_audio` is preferred:
+Flash **esp32_audio_bridge** (BT media hub; it reaches the displays over CAN, which only the PlatformIO build has: the plain arduino-cli build has no CAN, so nothing reads its now-playing). With no arguments, auto-selects a serial port and uses `esp32:esp32:esp32`. The pinned PlatformIO build in `firmware/esp32_classic_bt_audio` is preferred:
 
 ```bash
 bash arduino/scripts/deploy_esp32_audio_usb.sh

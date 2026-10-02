@@ -7,7 +7,7 @@
 Each spec is theme,face,variant[,nodata[,phone]]: theme 0 Classic / 1 Fallout / 2 Modern; face 0 Speedo, 1 Tach,
 2 Clock, 3 Media, 4 Econ, 5 Right; variant = right display Classic layout (0 four gauges, 1 fuel + lamps);
 phone = the call card over the face, as `phone demo` on the consoles (incoming, active, waiting, held, pair;
-modifiers with +, e.g. active+muted+onphone); menu = the menu open on a page over the face (0 home … 6 phone),
+modifiers with +, e.g. active+muted+onphone); menu = the menu open on a page over the face (0 home, 2 … 6 phone),
 optionally with knob keys after a colon, separated by ; (r<n> rotate, p press, b back), e.g. 6:r2;p.
 
     python3 tools/gauge_preview/preview.py phone.png 0,1,0,0,idle,6 2,1,0,0,pair,6 1,1,0,0,discover,6

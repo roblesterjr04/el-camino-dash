@@ -96,7 +96,7 @@ OLED: SSD1322 256×64 (see sketch for U8g2 profile and `ELC_OLED_*` overrides).
 | Serial RX (device TX →) | 2 | UART2. Rev 2: J6 **SERIAL** pin 3 (was "GPS"). Today the firmware reads a GPS module here, 9600 8N1 (NEO-6M default; `GPS_UART_BAUD`); on rev 2 GPS moves to a slot card and J6 is a general serial port |
 | Serial TX (→ device RX) | 3 | UART2. Rev 2: J6 pin 2 |
 | Backlight PWM (3.4C) | 26 | `TSPS_BACKLIGHT_PIN`, active-low |
-| TF card (SDIO, 3.4C) | 39–44 | on-board slot: `elcamino/settings.json` on the card (Wi-Fi password stored in plain text) |
+| TF card (SDIO, 3.4C) | 39–44 | on-board slot: `elcamino/settings.json` on the card (time zone, view, theme, screens) |
 
 ### Display / local I2C (per board)
 
@@ -130,14 +130,12 @@ The 1 kΩ keeps a board that drives GPIO4 (older firmware used it as the UART TX
 strap uses the right screen's own 3V3, not the center's, so it still reads right with the center unplugged. A board
 off the DigiDash board reads "open" (center); `role left|center|right` on its serial console overrides that on a bench.
 
-**7-bit addresses** (do not collide with touch/audio on the display bus):
+**7-bit addresses** (do not collide with touch/PMIC on the display bus):
 
 | Device | Address | Notes |
 | ------ | ------- | ----- |
 | Speedo (slave) | **0x3C** | Receives theme bytes from center |
 | TSPS (slave) | **0x3D** | Receives theme + TSPS classic variant |
-| ESP32-D theme mirror (optional slave) | **0x3E** | Optional NVS/theme sync |
-| Classic BT metadata (on center’s **display** bus) | **0x2A** | AVRCP text; not on cluster bus |
 
 Registers (1 byte data each): **0x01** = theme (0 Classic, 1 Fallout); **0x02** = center sub-view (0 Tach, 1 Clock, 2 Media); **0x03** = TSPS classic variant (0 classic_1, 1 classic_2).
 
@@ -197,7 +195,7 @@ straps and are not used for the camera.
 
 ### Ambient illumination (all three round displays)
 
-**One digital input per board**, internal pull-up: **LOW** → dim backlight, **HIGH** (open) → full. Tie the same vehicle signal to **GPIO 24** on each ESP32-P4 module (silk **“24”** on the Waveshare 2×20 header). **GPIO 23** is not labeled on that header and is not used as the default harness pin. Do **not** use **GPIO 15** (SDIO to the C6 WiFi coprocessor on the 3.4C board). Override in firmware: `-DELC_ILLUMINATION_GPIO=…` / `-1` to disable.
+**One digital input per board**, internal pull-up: **LOW** → dim backlight, **HIGH** (open) → full. Tie the same vehicle signal to **GPIO 24** on each ESP32-P4 module (silk **“24”** on the Waveshare 2×20 header). **GPIO 23** is not labeled on that header and is not used as the default harness pin. Do **not** use **GPIO 15** (SDIO to the C6 co-processor on the 3.4C board; BLE only, Wi-Fi unused). Override in firmware: `-DELC_ILLUMINATION_GPIO=…` / `-1` to disable.
 
 ### TSPS — bench theme GPIO (optional)
 
@@ -207,22 +205,11 @@ straps and are not used for the camera.
 
 ## ESP32-D — classic Bluetooth audio (A2DP + AVRCP)
 
-Use **`arduino/sketches/esp32_audio_bridge/esp32_audio_bridge.ino`** (or `firmware/esp32_classic_bt_audio/`). The P4 center has no Classic BT; it reads **now playing** text over **I2C** at **0x2A** on the **display** bus (**GPIO7/8** on the center module), same register layout as `integrations.esp32_audio_link` in the Python stack.
-
-| Signal | Center ESP32-P4 | Audio ESP32-D |
-| ------ | --------------- | ------------- |
-| I2C SDA | GPIO7 | GPIO21 (default; set `I2C_SDA_PIN` if needed) |
-| I2C SCL | GPIO8 | GPIO22 (default) |
-| GND | GND | GND |
-
-**I2S** from the audio module to your DAC: assign **non-colliding** BCK/WS/DATA pins in the audio sketch (default I2S pins may conflict with I2C on some modules).
-
-Optional: connect ESP32-D to the **cluster** bus (**47/48**) as slave **0x3E** to mirror the global **theme** byte in NVS (see firmware).
-
-On the DigiDash board the ESP32-D sits on an **audio carrier** on one of the header positions and talks to the center
-over the **CAN bus** only (TX GPIO32, RX GPIO33 through the carrier's MCP2562; GPIO13 / GPIO23 open = node 0x10):
-now-playing, transport and album art. The I2C wiring above is for **bench** setups without transceivers: it is used
-only by the center's `*-bench` envs and the bridge's `*_bench` envs.
+Use **`firmware/esp32_classic_bt_audio/`** (PlatformIO; builds `arduino/sketches/esp32_audio_bridge`). The P4 center has
+no Classic BT. The ESP32-D sits on an **audio carrier** on one of the header positions and talks to the center over the
+**CAN bus** only (TX GPIO32, RX GPIO33 through the carrier's MCP2562; GPIO13 / GPIO23 open = node 0x10): now-playing,
+transport and album art. There is no I2C wiring between them; a bench without transceivers uses the USB CAN link
+(`tools/can_relay.py`, `docs/protocols/usb_link.md`).
 
 **I2S amplifiers** (MAX98357A; I2S is the only audio output) live on the audio carrier: DIN = **GPIO27**,
 BCLK = **GPIO14**, LRC = **GPIO25**, GAIN can float (9 dB). Each amp is mono; SD selects the channel (tied to VIN through

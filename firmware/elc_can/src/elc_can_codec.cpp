@@ -132,15 +132,13 @@ bool elc_can_decode_setting_request(const ElcCanFrame &f, ElcCanSettingRequest &
 void elc_can_encode_center_status(const ElcCanCenterStatus &s, ElcCanFrame &out) {
   frame(out, ELC_CAN_ID_CENTER_STATUS, 3);
   out.data[0] = s.flags;
-  out.data[1] = (uint8_t)s.rssi;
-  out.data[2] = (uint8_t)(s.text_serial & 0x0F);
+  out.data[1] = 0;  // reserved (was Wi-Fi RSSI)
+  out.data[2] = 0;  // reserved (was the Wi-Fi name serial)
 }
 
 bool elc_can_decode_center_status(const ElcCanFrame &f, ElcCanCenterStatus &out) {
   if (f.id != ELC_CAN_ID_CENTER_STATUS || f.len < 3) return false;
   out.flags = f.data[0];
-  out.rssi = (int8_t)f.data[1];
-  out.text_serial = (uint8_t)(f.data[2] & 0x0F);
   return true;
 }
 
@@ -316,7 +314,7 @@ void elc_can_encode_time(const ElcCanTime &t, ElcCanFrame &out) {
   put32(out.data, t.utc);
   put16(out.data + 4, (uint16_t)t.offset_min);
   out.data[6] = t.flags;
-  out.data[7] = (uint8_t)(t.place_serial & 0x0F);
+  out.data[7] = 0;  // reserved (was the place text serial)
 }
 
 bool elc_can_decode_time(const ElcCanFrame &f, ElcCanTime &out) {
@@ -324,7 +322,6 @@ bool elc_can_decode_time(const ElcCanFrame &f, ElcCanTime &out) {
   out.utc = get32(f.data);
   out.offset_min = (int16_t)get16(f.data + 4);
   out.flags = f.data[6];
-  out.place_serial = (uint8_t)(f.data[7] & 0x0F);
   return true;
 }
 

@@ -83,7 +83,7 @@ static const uint8_t T13 = 15;
 #define BOARD_SDMMC_POWER_PIN      45
 #define BOARD_SDMMC_POWER_ON_LEVEL LOW
 
-//WIFI - ESP32C6
+// ESP32-C6 co-processor (esp_hosted over SDIO; BLE only, the cluster never uses Wi-Fi)
 #define BOARD_HAS_SDIO_ESP_HOSTED
 #define BOARD_SDIO_ESP_HOSTED_CLK   18
 #define BOARD_SDIO_ESP_HOSTED_CMD   19

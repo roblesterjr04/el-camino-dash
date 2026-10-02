@@ -1,7 +1,6 @@
 #include "center_menu.h"
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -17,7 +16,6 @@
 #include "center_can.h"
 #include "center_gps.h"
 #include "center_ui.h"
-#include "center_wifi_ntp.h"
 
 namespace {
 
@@ -25,77 +23,12 @@ Preferences *s_prefs = nullptr;
 uint8_t s_level = 100;
 bool s_follow = true;
 
-bool s_joining = false;
-char s_join_ssid[33];
-
 // ---- settings
 uint8_t h_theme() { return (uint8_t)center_ui_cluster_theme(); }
 void h_set_theme(uint8_t t) { center_ui_set_theme(cluster_theme_from_reg(t)); }
 uint8_t h_center_view() { return (uint8_t)center_ui_view_mode(); }
 void h_set_center_view(uint8_t v) { center_ui_set_view((CenterViewMode)(v > 3 ? 0 : v)); }
 bool h_dim() { return s_follow; }
-
-// ---- Wi-Fi (the radio is here)
-void h_wifi_status(char *l1, size_t n1, char *l2, size_t n2) {
-  if (s_joining) {
-    snprintf(l1, n1, "Connecting to %s\xE2\x80\xA6", s_join_ssid);
-    snprintf(l2, n2, "%s", "");
-  } else if (WiFi.status() == WL_CONNECTED) {
-    snprintf(l1, n1, "Connected \xC2\xB7 %s", WiFi.SSID().c_str());
-    snprintf(l2, n2, "%s   %d dBm", WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
-  } else {
-    snprintf(l1, n1, "Not connected");
-    const String saved = s_prefs ? s_prefs->getString("wifi_ssid", "") : String();
-    if (saved.length()) {
-      snprintf(l2, n2, "Saved network: %s", saved.c_str());
-    } else {
-      snprintf(l2, n2, "No saved network");
-    }
-  }
-}
-
-bool h_wifi_has_saved() { return s_prefs && s_prefs->getString("wifi_ssid", "").length() > 0; }
-
-void h_wifi_join_saved() {
-  if (!h_wifi_has_saved()) return;
-  snprintf(s_join_ssid, sizeof(s_join_ssid), "%s", s_prefs->getString("wifi_ssid", "").c_str());
-  s_joining = true;
-  center_wifi_join_saved_async_start(*s_prefs);
-}
-
-void h_wifi_scan_start() { center_wifi_scan_async_start(); }
-
-int h_wifi_scan_poll(UiMenuWifiNet *nets, int max, int *n) {
-  char ssid[8][33];
-  uint8_t enc[8];
-  int k = 0;
-  const int r = center_wifi_scan_async_poll(ssid, enc, max < 8 ? max : 8, &k);
-  if (r == 1) {
-    for (int i = 0; i < k; i++) {
-      snprintf(nets[i].ssid, sizeof(nets[i].ssid), "%s", ssid[i]);
-      nets[i].open = enc[i] == (uint8_t)WIFI_AUTH_OPEN;
-    }
-    *n = k;
-  }
-  return r;
-}
-
-void h_wifi_join(const char *ssid, bool open_net) {
-  if (!open_net) {
-    center_menu_close();
-    center_ui_open_wifi_password(ssid);  // on-screen keyboard (legacy page)
-    return;
-  }
-  snprintf(s_join_ssid, sizeof(s_join_ssid), "%s", ssid);
-  s_joining = true;
-  center_wifi_join_async_start(*s_prefs, s_join_ssid, "");
-}
-
-void h_wifi_poll() {
-  if (s_joining && center_wifi_join_async_poll() != 0) {
-    s_joining = false;
-  }
-}
 
 // ---- Service
 void h_service_row(int row, char *b, size_t n, int *level) {
@@ -145,12 +78,6 @@ void h_service_row(int row, char *b, size_t n, int *level) {
       break;
     }
     case 4: {
-      const bool wf = WiFi.status() == WL_CONNECTED;
-      snprintf(b, n, "%s", wf ? WiFi.SSID().c_str() : "Not connected");
-      *level = wf ? 0 : 1;
-      break;
-    }
-    case 5: {
       const bool au = center_audio_link_ok();
       snprintf(b, n, "%s", au ? "Connected" : "No response");
       *level = au ? 0 : 1;
@@ -158,7 +85,7 @@ void h_service_row(int row, char *b, size_t n, int *level) {
     }
     default: {
       // The other screens: CAN heartbeat in the car, I2C ACK on a bench without transceivers.
-      const bool left = row == 6;
+      const bool left = row == 5;
       const bool can = center_can_node_alive(left ? ELC_CAN_NODE_SPEEDO : ELC_CAN_NODE_TSPS);
       const bool i2c = cluster_i2c_last_ack(left ? CLUSTER_I2C_ADDR_SPEEDO : CLUSTER_I2C_ADDR_TSPS);
       snprintf(b, n, "%s", can ? "On CAN" : (i2c ? "I2C ACK" : "No reply"));
@@ -190,14 +117,6 @@ UiMenuHost make_host() {
   h.brightness = center_menu_brightness;
   h.dim_with_lights = h_dim;
   h.set_brightness = center_menu_set_brightness;
-  h.local_wifi = true;
-  h.wifi_status = h_wifi_status;
-  h.wifi_has_saved = h_wifi_has_saved;
-  h.wifi_join_saved = h_wifi_join_saved;
-  h.wifi_scan_start = h_wifi_scan_start;
-  h.wifi_scan_poll = h_wifi_scan_poll;
-  h.wifi_join = h_wifi_join;
-  h.wifi_poll = nullptr;  // center_menu_loop() polls joins, menu open or not
   h.service_row = h_service_row;
   h.demo = h_demo;
   h.set_demo = center_set_demo;
@@ -244,7 +163,7 @@ void center_menu_set_brightness(uint8_t level, bool follow_lights, bool save) {
 
 void center_menu_open_center_page(uint8_t which) {
   switch (which) {
-    case 1: center_menu_open(CenterMenuPage::Wifi); break;
+    // 1 reserved (was Wi-Fi)
     case 2: center_ui_open_legacy_page(CenterLegacyPage::SensorLog); break;
     case 3: center_ui_open_legacy_page(CenterLegacyPage::GpsDiag); break;
     case 4:  // older side screens asked for the legacy phone page: the menu's Phone page replaces it
@@ -260,13 +179,8 @@ void center_menu_open(CenterMenuPage page) { ui_menu_open((UiMenuPage)(uint8_t)p
 void center_menu_close() { ui_menu_close(); }
 
 void center_menu_loop() {
-  h_wifi_poll();  // a join started here or from another screen finishes (and is saved)
   menu_can_poll(millis());
 }
-
-bool center_menu_wifi_joining() { return s_joining; }
-
-void center_menu_wifi_join_saved() { h_wifi_join_saved(); }
 
 bool center_menu_is_open() { return ui_menu_is_open(); }
 

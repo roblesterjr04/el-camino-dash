@@ -1,9 +1,10 @@
 # CAN bus
 
 The DigiDash board links the three displays, accessory carrier boards (on its accessory ports) and the console
-(OLED + knobs, on its own board at the end of a short cable) on one CAN bus. **CAN is the link in the car** for
-everything except the sensor UART: the I2C audio link (`cluster_i2c.md`) exists for bench setups only and is compiled
-in only by the `*-bench` / `_bench` PlatformIO envs. Ports, carriers and their rules:
+(OLED + knobs, on its own board at the end of a short cable) on one CAN bus. **CAN is the link** for everything
+except the sensor UART, in the car and on the bench: there are no bench builds, and a bench without transceivers
+reaches the bus through the USB CAN link (`tools/can_relay.py`, [`usb_link.md`](usb_link.md)). Ports, carriers and
+their rules:
 [`docs/hardware/accessory_ports.md`](../hardware/accessory_ports.md).
 
 **Accessories:** the public interface for carrier boards (alerts, sensors, menu items, input, sounds, discovery) is
@@ -98,14 +99,14 @@ All multi-byte fields are little-endian.
 | `0x210` | center | on change + every 5 s | cluster state: theme u8 (0 Classic, 1 Fallout, 2 Modern), center sub-view u8, interface screen u8, media screen u8, brightness % u8 (10–100), flags u8 (see below) |
 | `0x211` | a display / console | on demand | album art request: slot u8, art id u8, first chunk u16, variant u8 (see below) |
 | `0x212` | a display / console | on demand | setting request: setting u8, value u8, from node u8 (see below) |
-| `0x213` | center | 1 Hz | center status: flags u8, Wi-Fi RSSI s8, text serial u8 |
-| `0x214` | center | on change + every 5 s | Wi-Fi network name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes (connected network, else the saved one) |
+| `0x213` | center | 1 Hz | center status: flags u8, reserved u8 (was Wi-Fi RSSI), reserved u8 (was the `0x214` serial); reserved bytes are sent as 0 |
+| `0x214` | — | — | reserved (was the Wi-Fi network name); nothing sends it |
 | `0x215` | console (or any node) | on demand | phone command to an audio bridge: slot u8, command u8, arg u8, from node u8, list serial u8 (see *Phone*) |
 | `0x216` | console | on input | menu input for the interface screen: event u8, value s8, from node u8 (see *Console*) |
-| `0x217` | interface screen | on change + 1 s while open | menu state: open u8, screen u8, page u8, opened by u8 (0 touch, 1 console), text serial u8 |
+| `0x217` | interface screen | on change + 1 s while open | menu state: open u8, screen u8, page u8 (0 home, 2 brightness, 3 theme, 4 screens, 5 service, 6 phone; 1 reserved, was Wi-Fi, and ignored), opened by u8 (0 touch, 1 console), text serial u8 |
 | `0x218` / `0x219` | interface screen | with `0x217` | menu texts for the console: the focused item or page / its value or state, 5 frames of `[serial << 4 \| chunk]` + 7 bytes each |
-| `0x220` | center | 1 Hz | time: UTC s u32, local offset min s16, flags u8 (bit0 valid, bit1 GPS, bit2 network), place serial u8 |
-| `0x221` | center | on change + every 5 s | place (street) name: 5 frames of `[serial << 4 \| chunk]` + 7 bytes |
+| `0x220` | center | 1 Hz | time: UTC s u32, local offset min s16, flags u8 (bit0 valid, bit1 GPS fix, bit2 reserved, was network time), reserved u8 (was the `0x221` serial, sent as 0) |
+| `0x221` | — | — | reserved (was the street name); nothing sends it |
 | `0x222`–`0x226` | GPS card (node from its slot) | 5 Hz / 1 Hz | position, motion, quality, time (sent on the PPS edge), status: layouts in [`gps_card.md`](../hardware/gps_card.md#can-messages) |
 | `0x400 + 0x40·slot + msg` | accessory (slot = node − `0x10`) | accessory-specific | see below |
 | `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`; 0 today) |
@@ -141,13 +142,14 @@ when nothing changed, so the asker sees the outcome). Settings:
 | 6 | dims with the headlights | 0 / 1 |
 | 7 | media showing on the media screen | 0 / 1 |
 | 8 | demo drive cycle | 0 / 1 |
-| 9 | action: join the saved Wi-Fi network | — |
-| 10 | action: open a center-only page on the center | 1 Wi-Fi scan and passwords, 2 sensor log, 3 GPS data, 4 phone |
+| 9 | reserved (was: join the saved Wi-Fi network); ignored | — |
+| 10 | action: open a center-only page on the center | 2 sensor log, 3 GPS data, 4 phone (1 reserved, was Wi-Fi; ignored) |
 | 11 | right screen layout (Classic) | 0 four gauges, 1 fuel + lamps; the right screen follows `0x210` bit2 |
 
-`0x213` flags: bit0 Wi-Fi connected, bit1 GPS fix, bit2 NMEA arriving, bit3 audio bridge heard, bit4 demo on,
-bit5 a saved network exists, bit6 joining a network, bit7 in reverse (the center shows the rear camera). The text serial names the `0x214` text that goes with it.
-The side screens build their menu's Wi-Fi and Service pages from these.
+`0x213` flags: bit0 reserved (was Wi-Fi connected), bit1 GPS fix, bit2 NMEA arriving, bit3 audio bridge heard,
+bit4 demo on, bit5 and bit6 reserved (were saved Wi-Fi network, joining), bit7 in reverse (the center shows the rear
+camera). Reserved bits are sent as 0. The side screens build their menu's Service page from these. The cluster
+never uses Wi-Fi.
 
 The center's serial console sets the screens with `menu on left|center|right` and `media on left|center|right`.
 
@@ -168,10 +170,8 @@ Bus load is about 5 % (five 8-byte frames every 50 ms plus heartbeats and audio)
 The text serial bumps whenever the text changes; a receiver shows a text only once all five chunks of the serial named
 in the latest transport frame have arrived.
 
-The center takes now-playing, transport and album art from CAN only. A bench build of the center
-(`CENTER_AUDIO_I2C=1`, the `*-bench` envs) also reads a bridge wired to its I2C bus (`cluster_i2c.md`) when none is
-heard on CAN; a bench build of the bridge (`esp32wrover_bench` / `esp32dev_bench`) starts its I2C slaves. The default builds have no I2C
-audio code at all.
+The center takes now-playing, transport and album art from CAN only; neither the center nor the bridge has any I2C
+audio code. On the bench the bridge reaches the center through the USB CAN link ([`usb_link.md`](usb_link.md)).
 
 **Album art.** The transport frame names the cover that is ready (the phone's thumbnail, a JPEG of ~5–30 KB). The
 bridge makes two smaller copies of each cover before it announces it (`art_variants.cpp`, JPEGDEC + JPEGENC, tens of
@@ -284,9 +284,9 @@ follows the cluster theme (Barlow / Saira / VT323). Design reference: the *El Ca
 
 - **Drive pages** (dots on the right edge): *Media* (48 px grey cover, title, artist, progress, play/pause), *Trip*
   (Trip A, average MPG, range), *Engine* (oil, coolant, fuel, charge with bars, warnings blink), *Clock* (time, date,
-  place, GPS / NTP). Trip A is kept on the console (odometer at reset, in NVS).
+  GPS fix or boot clock). Trip A is kept on the console (odometer at reset, in NVS).
 - **OLED menu**: Center view, Theme, Brightness, Dim with lights, Menu on, Media on, Right layout, Trip A (reset,
-  push again to confirm), OLED contrast (console only), Wi-Fi and Service (open that page on the interface screen).
+  push again to confirm), OLED contrast (console only), Service (opens that page on the interface screen).
   Settings go to the center with `0x212`.
 - **Warnings take over** until acknowledged (push or Back), then blink as a badge: no sensor data, low oil pressure,
   engine hot, not charging, low fuel, odometer not stored. **Reverse** (`0x213` bit7) shows R and the speed.

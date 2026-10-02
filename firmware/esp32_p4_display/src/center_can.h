@@ -18,10 +18,10 @@ void center_can_poll();
 void center_can_send_sensor(const SensorPacketValues &v);
 /** Cluster state (CAN 0x210): theme, center view, interface / media screens, brightness. On change and every 5 s. */
 void center_can_send_cluster(const ElcCanClusterState &st);
-/** Center status (0x213) and the Wi-Fi name (0x214), about once a second. text_serial is filled in here. */
-void center_can_send_status(ElcCanCenterStatus st, const char *wifi_name);
-/** Wall time (0x220) and the place name (0x221: on change and every 5 s). place_serial is filled in here. */
-void center_can_send_time(ElcCanTime t, const char *place);
+/** Center status (0x213), about once a second. */
+void center_can_send_status(const ElcCanCenterStatus &st);
+/** Wall time (0x220), once a second. */
+void center_can_send_time(const ElcCanTime &t);
 /** Put one frame on the bus (false when CAN is off or the queue is full). */
 bool center_can_send(const ElcCanFrame &f);
 /** Next setting request (0x212) from another screen or the console; false when none is waiting. */
@@ -29,6 +29,9 @@ bool center_can_take_setting(ElcCanSettingRequest *out);
 
 // The audio bridge (now playing, album art; phone) is handled by media_can / phone_can (esp32_p4_ui), and the
 // console's menu input by menu_can, all fed from here.
+
+/** Defined by center_main: sensor frames heard on the bus (a USB relay), used while the sensor UART is silent. */
+void center_sensor_from_bus(const ElcCanSensor &s);
 
 /** A heartbeat from this node within the last 3 s. */
 bool center_can_node_alive(uint8_t node);

@@ -83,7 +83,7 @@ Check the exact pin numbers against the STM32G0B1 datasheet's alternate-function
 5. With no fix, or no puck: still send every frame at 1 Hz with fix type 0, so receivers know the card is alive.
 
 **Center firmware change:** the center takes GPS from CAN when it has heard `0x225` within the last 3 s, and falls back
-to the UART on J6 otherwise. It keeps sending the time (`0x220`, flags bit1 = GPS) and the street name as today.
+to the UART on J6 otherwise. It keeps sending the time (`0x220`, flags bit1 = GPS) as today.
 
 ## CAN messages
 

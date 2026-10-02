@@ -23,14 +23,12 @@ extern "C" uint32_t millis(void);
 #define IC_FUEL "\xEE\x95\x86"
 #define IC_MUSIC "\xEE\x90\x85"
 #define IC_PHONE "\xEE\x8C\xAC"
-#define IC_WIFI "\xEE\x98\xBE"
 #define IC_BRIGHT "\xEE\x8E\xAB"
 #define IC_PALETTE "\xEE\x90\x8A"
 #define IC_SETTINGS "\xEE\xA2\xB8"
 #define IC_BUILD "\xEE\xA1\xA9"
 #define IC_BACK "\xEE\x97\x84"
 #define IC_CLOSE "\xEE\x97\x8D"
-#define IC_LOCK "\xEE\xA2\x97"
 #define IC_MINUS "\xEE\x85\x9B"
 #define IC_PLUS "\xEE\x85\x85"
 #define IC_BLUETOOTH "\xEE\x86\xA7"
@@ -62,7 +60,6 @@ const Item kItems[] = {
     {IC_FUEL, "Efficiency", Act::View, kUiViewEcon},
     {IC_MUSIC, "Media", Act::View, kUiViewMedia},
     {IC_PHONE, "Phone", Act::Page, (uint8_t)UiMenuPage::Phone},
-    {IC_WIFI, "Wi-Fi", Act::Page, (uint8_t)UiMenuPage::Wifi},
     {IC_BRIGHT, "Brightness", Act::Page, (uint8_t)UiMenuPage::Brightness},
     {IC_PALETTE, "Theme", Act::Page, (uint8_t)UiMenuPage::Theme},
     {IC_SETTINGS, "Screens", Act::Page, (uint8_t)UiMenuPage::Screens},
@@ -97,15 +94,11 @@ bool s_dots_valid = false;
 int s_dots_for = -1;
 
 // pages
-lv_obj_t *s_wifi_status = nullptr, *s_wifi_status2 = nullptr, *s_wifi_list = nullptr, *s_wifi_scan_lbl = nullptr;
-bool s_scanning = false;
-UiMenuWifiNet s_scan[8];
-int s_scan_n = 0;
 lv_obj_t *s_bright_arc = nullptr, *s_bright_val = nullptr, *s_follow_sw = nullptr;
 uint8_t s_level = 100;
 bool s_follow = true;
-lv_obj_t *s_svc_val[8];
-lv_obj_t *s_svc_dot[8];
+lv_obj_t *s_svc_val[kUiServiceRows];
+lv_obj_t *s_svc_dot[kUiServiceRows];
 lv_obj_t *s_demo_btn_lbl = nullptr;
 lv_obj_t *s_screen_btn[2][3];  // [menu / media][left, center, right]
 int s_screens_sig = -1;
@@ -226,7 +219,7 @@ const char *item_sub(int i) {
     }
     switch (it.arg) {
       case kUiViewTach: return "Engine RPM";
-      case kUiViewClock: return "Time and street";
+      case kUiViewClock: return "Time and date";
       case kUiViewEcon: return "MPG and range";
       default:
         if (media_screen() != kUiScreenCenter) {
@@ -237,13 +230,6 @@ const char *item_sub(int i) {
     }
   }
   switch ((UiMenuPage)it.arg) {
-    case UiMenuPage::Wifi: {
-      char l1[48], l2[48];
-      l1[0] = l2[0] = '\0';
-      if (H->wifi_status) H->wifi_status(l1, sizeof(l1), l2, sizeof(l2));
-      snprintf(buf, sizeof(buf), "%s", l1);
-      return buf;
-    }
     case UiMenuPage::Brightness:
       snprintf(buf, sizeof(buf), "%u%%%s", (unsigned)s_level, s_follow ? " \xC2\xB7 dims with lights" : "");
       return buf;
@@ -422,107 +408,6 @@ void build_home(lv_obj_t *page) {
   layout_wheel();
 }
 
-// ---------------------------------------------------------------- Wi-Fi
-void wifi_refresh_status() {
-  if (!s_wifi_status) {
-    return;
-  }
-  char l1[64], l2[64];
-  l1[0] = l2[0] = '\0';
-  if (H->wifi_status) H->wifi_status(l1, sizeof(l1), l2, sizeof(l2));
-  if (strcmp(lv_label_get_text(s_wifi_status), l1) != 0) lv_label_set_text(s_wifi_status, l1);
-  if (strcmp(lv_label_get_text(s_wifi_status2), l2) != 0) lv_label_set_text(s_wifi_status2, l2);
-}
-
-void wifi_net_clicked(lv_event_t *e) {
-  const int i = (int)(intptr_t)lv_event_get_user_data(e);
-  if (i < 0 || i >= s_scan_n || !H->wifi_join) {
-    return;
-  }
-  H->wifi_join(s_scan[i].ssid, s_scan[i].open);
-  wifi_refresh_status();
-}
-
-void wifi_fill_list() {
-  if (!s_wifi_list) {
-    return;
-  }
-  lv_obj_clean(s_wifi_list);
-  for (int i = 0; i < s_scan_n; i++) {
-    lv_obj_t *row = lv_obj_create(s_wifi_list);
-    lv_obj_remove_style_all(row);
-    lv_obj_set_size(row, 440, 64);
-    lv_obj_set_style_radius(row, 18, 0);
-    fill(row, T.surface);
-    outline(row, T.line, 2);
-    lv_obj_set_style_bg_color(row, T.line, LV_STATE_PRESSED);
-    lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(row, wifi_net_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-    lv_obj_t *ic = label(row, IC_WIFI, &elc_icons_34, T.dim);
-    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 18, 0);
-    lv_obj_t *l = label(row, s_scan[i].ssid, T.sub, T.text);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(l, 300);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 66, 0);
-    if (!s_scan[i].open) {
-      lv_obj_t *lk = label(row, IC_LOCK, &elc_icons_34, T.faint);
-      lv_obj_align(lk, LV_ALIGN_RIGHT_MID, -16, 0);
-    }
-  }
-}
-
-void build_wifi(lv_obj_t *page) {
-  page_title(page, "Wi-Fi");
-  lv_obj_t *card = box(page, 170, 176, 460, 96);
-  lv_obj_set_style_radius(card, 22, 0);
-  fill(card, T.surface);
-  outline(card, T.line, 2);
-  s_wifi_status = label(card, "", T.body, T.text);
-  lv_label_set_long_mode(s_wifi_status, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(s_wifi_status, 420);
-  lv_obj_align(s_wifi_status, LV_ALIGN_TOP_LEFT, 20, 14);
-  s_wifi_status2 = label(card, "", T.sub, T.dim);
-  lv_label_set_long_mode(s_wifi_status2, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(s_wifi_status2, 420);
-  lv_obj_align(s_wifi_status2, LV_ALIGN_TOP_LEFT, 20, 56);
-
-  pill(page, 170, 288, 222, 56, "Join saved", [](lv_event_t *) {
-    if (H->wifi_has_saved && H->wifi_has_saved() && H->wifi_join_saved) {
-      H->wifi_join_saved();
-      wifi_refresh_status();
-    }
-  });
-  if (H->local_wifi) {
-    lv_obj_t *scan = pill(page, 408, 288, 222, 56, "Scan", [](lv_event_t *) {
-      if (s_scanning || !H->wifi_scan_start) return;
-      s_scanning = true;
-      H->wifi_scan_start();
-      if (s_wifi_scan_lbl) lv_label_set_text(s_wifi_scan_lbl, "Scanning\xE2\x80\xA6");
-    });
-    s_wifi_scan_lbl = lv_obj_get_child(scan, 0);
-    s_wifi_list = lv_obj_create(page);
-    lv_obj_remove_style_all(s_wifi_list);
-    lv_obj_set_pos(s_wifi_list, 180, 360);
-    lv_obj_set_size(s_wifi_list, 440, 300);
-    lv_obj_set_flex_flow(s_wifi_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(s_wifi_list, 10, 0);
-    lv_obj_set_scroll_dir(s_wifi_list, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(s_wifi_list, LV_SCROLLBAR_MODE_OFF);
-    wifi_fill_list();
-  } else {
-    // The radio is on the center: scanning and password entry happen there.
-    pill(page, 408, 288, 222, 56, "Open on center", [](lv_event_t *) {
-      if (H->open_center_page) H->open_center_page(1);
-    });
-    lv_obj_t *cap = label(page, "Scanning and passwords\nopen on the center screen.", T.sub, T.faint);
-    lv_obj_set_style_text_align(cap, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 384);
-  }
-  add_back(page);
-  wifi_refresh_status();
-}
-
 // ---------------------------------------------------------------- Brightness
 void bright_apply(bool save) {
   if (H->set_brightness) H->set_brightness(s_level, s_follow, save);
@@ -686,10 +571,10 @@ void build_screens(lv_obj_t *page) {
 }
 
 // ---------------------------------------------------------------- Service
-const char *const kSvcNames[8] = {"Sensor link", "Odometer", "Faults", "GPS", "Wi-Fi", "Audio bridge", "Left screen", "Right screen"};
+const char *const kSvcNames[kUiServiceRows] = {"Sensor link", "Odometer", "Faults", "GPS", "Audio bridge", "Left screen", "Right screen"};
 
 void svc_refresh() {
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < kUiServiceRows; i++) {
     if (!s_svc_val[i]) continue;
     char v[48] = "";
     int level = 1;
@@ -705,7 +590,7 @@ void svc_refresh() {
 
 void build_service(lv_obj_t *page) {
   page_title(page, "Service");
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < kUiServiceRows; i++) {
     const int y = 176 + i * 50;
     s_svc_dot[i] = box(page, 162, y + 19, 12, 12);
     lv_obj_set_style_radius(s_svc_dot[i], LV_RADIUS_CIRCLE, 0);
@@ -1242,7 +1127,6 @@ void ph_describe(char *m, size_t nm, char *sb, size_t ns) {
 
 // ---------------------------------------------------------------- lifecycle
 void clear_page_refs() {
-  s_wifi_status = s_wifi_status2 = s_wifi_list = s_wifi_scan_lbl = nullptr;
   s_bright_arc = s_bright_val = s_follow_sw = nullptr;
   memset(s_svc_val, 0, sizeof(s_svc_val));
   memset(s_svc_dot, 0, sizeof(s_svc_dot));
@@ -1271,19 +1155,6 @@ void tick(lv_timer_t *) {
       }
       layout_wheel();
     }
-  } else if (s_page_id == UiMenuPage::Wifi) {
-    if (s_scanning && H->wifi_scan_poll) {
-      int n = 0;
-      const int r = H->wifi_scan_poll(s_scan, 8, &n);
-      if (r != 0) {
-        s_scanning = false;
-        s_scan_n = (r == 1) ? n : 0;
-        if (s_wifi_scan_lbl) lv_label_set_text(s_wifi_scan_lbl, s_scan_n ? "Scan" : "Scan (none found)");
-        wifi_fill_list();
-      }
-    }
-    if (H->wifi_poll) H->wifi_poll();
-    if (slow) wifi_refresh_status();
   } else if (s_page_id == UiMenuPage::Service) {
     if (slow) svc_refresh();
   } else if (s_page_id == UiMenuPage::Screens) {
@@ -1330,7 +1201,7 @@ void ui_menu_begin(const UiMenuHost *host) {
 }
 
 void ui_menu_open(UiMenuPage page) {
-  if (!H) {
+  if (!H || page == UiMenuPage::Reserved1 || (uint8_t)page >= kUiMenuPages) {
     return;
   }
   const bool was_open = s_root != nullptr;
@@ -1371,7 +1242,7 @@ void ui_menu_open(UiMenuPage page) {
       build_home(s_page);
       break;
     }
-    case UiMenuPage::Wifi: build_wifi(s_page); break;
+    case UiMenuPage::Reserved1: break;
     case UiMenuPage::Brightness: build_brightness(s_page); break;
     case UiMenuPage::Theme: build_theme(s_page); break;
     case UiMenuPage::Screens: build_screens(s_page); break;
@@ -1394,7 +1265,6 @@ void ui_menu_close() {
   clear_page_refs();
   p4_screen_set_tear_free(true);
   s_dragging = false;
-  s_scanning = false;
 }
 
 bool ui_menu_is_open() { return s_root != nullptr; }
@@ -1470,12 +1340,6 @@ void ui_menu_describe(char *m, size_t nm, char *sb, size_t ns) {
       snprintf(m, nm, "%s", kItems[s_target].label);
       snprintf(sb, ns, "%s", item_sub(s_target));
       break;
-    case UiMenuPage::Wifi: {
-      char l2[64];
-      snprintf(m, nm, "Wi-Fi");
-      if (H->wifi_status) H->wifi_status(sb, ns, l2, sizeof(l2));
-      break;
-    }
     case UiMenuPage::Brightness:
       snprintf(m, nm, "Brightness %u%%", (unsigned)s_level);
       snprintf(sb, ns, "%s", s_follow ? "Dims with headlights" : "Fixed level");
@@ -1494,7 +1358,7 @@ void ui_menu_describe(char *m, size_t nm, char *sb, size_t ns) {
     case UiMenuPage::Service: {
       snprintf(m, nm, "Service");
       snprintf(sb, ns, "No faults");
-      for (int i = 0; i < 8 && H->service_row; i++) {
+      for (int i = 0; i < kUiServiceRows && H->service_row; i++) {
         char v[48] = "";
         int level = 1;
         H->service_row(i, v, sizeof(v), &level);
@@ -1506,6 +1370,7 @@ void ui_menu_describe(char *m, size_t nm, char *sb, size_t ns) {
       break;
     }
     case UiMenuPage::Phone: ph_describe(m, nm, sb, ns); break;
+    case UiMenuPage::Reserved1: break;
   }
   utf8_cut(m, 32);
   utf8_cut(sb, 32);

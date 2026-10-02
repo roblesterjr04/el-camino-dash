@@ -173,7 +173,7 @@ void menu_can_describe(char *out, size_t n) {
   ElcCanMenuState st;
   char m[64], sb[64];
   current(st, m, sizeof(m), sb, sizeof(sb));
-  static const char *const kPages[] = {"home", "wifi", "brightness", "theme", "screens", "service", "phone"};
+  static const char *const kPages[] = {"home", "reserved", "brightness", "theme", "screens", "service", "phone"};
   snprintf(out, n,
            "menu: %s on the %s screen (%s the interface screen), page %u %s, opened by %s\n"
            "  main \"%s\"\n"

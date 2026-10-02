@@ -13,7 +13,7 @@
  *   J1 (center)  pin 17 open              follows the pull either way       → center
  *
  * The position picks the CAN node, the I2C slave address, the gauge face and which services run (the center alone
- * runs Wi-Fi, GPS, SD, BLE, camera and owns the settings). A board off the DigiDash board (bench) reads "open"
+ * runs GPS, SD, BLE, camera and owns the settings). A board off the DigiDash board (bench) reads "open"
  * (center); `role left|center|right` on the serial console stores an override in NVS, `role auto` clears it.
  */
 

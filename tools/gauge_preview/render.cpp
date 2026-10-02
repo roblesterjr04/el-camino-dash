@@ -1,7 +1,7 @@
 // Host renderer: draws gauge faces with the firmware's LVGL code and writes PPM images.
 //   render <out.ppm> <theme 0..2> <face 0..5> <variant> [W H] [nodata] [steps]
 //   PHONE="<mode>" adds the call card (`phone demo <mode>`, e.g. "active muted"), 4 min 32 s into the call.
-//   MENU="<page>[:<keys>]" opens the menu on that page (0 home … 6 phone) over the face, then feeds knob keys
+//   MENU="<page>[:<keys>]" opens the menu on that page (0 home, 2 … 6 phone; 1 is reserved) over the face, then feeds knob keys
 //   (comma separated: r<n> rotate, p press, b back); with PHONE the phone demo runs underneath.
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +46,7 @@ static GaugeData sample(int step) {
   d.minute = 8;
   d.second = 32;
   d.date_text = "Mon, Sep 28";
-  d.place_text = "Liberty Street";
+  d.place_text = "";
   d.media_connected = true;
   d.media_title = "billy";
   d.media_artist = "Stephen Wilson Jr.";

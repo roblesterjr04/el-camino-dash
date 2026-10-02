@@ -107,16 +107,16 @@ static void test_remote_menu() {
   ConsoleUi ui;
   boot(ui);
   ui.select_press(T);
-  ui.select_turn(9, T);  // Wi-Fi
+  ui.select_turn(9, T);  // Service
   drain(ui);
   ui.select_press(T);  // opens that page on the interface screen
   ElcCanFrame f;
   ElcCanMenuInput m;
-  CHECK(pop(ui, f) && elc_can_decode_menu_input(f, m) && m.event == ELC_CAN_MENU_OPEN && m.value == ELC_CAN_PAGE_WIFI);
+  CHECK(pop(ui, f) && elc_can_decode_menu_input(f, m) && m.event == ELC_CAN_MENU_OPEN && m.value == ELC_CAN_PAGE_SERVICE);
   CHECK(ui.mode() == ConsoleMode::Remote);
   ElcCanMenuState st;
   st.open = true;
-  st.page = ELC_CAN_PAGE_WIFI;
+  st.page = ELC_CAN_PAGE_SERVICE;
   st.opened_by = ELC_CAN_MENU_BY_CONSOLE;
   elc_can_encode_menu_state(st, f);
   ui.feed(f, T);

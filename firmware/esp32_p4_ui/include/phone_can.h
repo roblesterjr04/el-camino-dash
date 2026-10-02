@@ -8,8 +8,9 @@
 /**
  * Phone state from the audio bridge on CAN (docs/protocols/can_bus.md, "Phone") and the call card: an LVGL
  * overlay on the media screen, above the face and the menu, while a call exists or a pairing code waits. It
- * shows the caller and the call state (or the phone asking to pair and its code) and names what the console's
- * two soft keys do now. The displays take no phone input: the card swallows touches and does nothing with them.
+ * shows the caller and the call state (or the phone asking to pair and its code) and two keys: the same actions
+ * as the console's two soft keys (End / Mute, Decline / Answer, …), by touch. Other touches on the card stop
+ * there; the board must not treat them as gestures on its face either (phone_can_card_showing()).
  *
  * Loop contract: call phone_can_begin() once with this board's send hook and node; pass every CAN frame to
  * phone_can_frame(); call phone_can_poll() once per loop, before p4_screen_frame(). The card follows the gauge

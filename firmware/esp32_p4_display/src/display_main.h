@@ -4,7 +4,7 @@
 
 // The two ways the unified display firmware runs (main.cpp picks one from display_role.h).
 
-/** Center: tach / clock / media / efficiency, the menu host, Wi-Fi, GPS, SD, BLE, camera, cluster settings. */
+/** Center: tach / clock / media / efficiency, the menu host, GPS, SD, BLE, camera, cluster settings. */
 void center_setup();
 void center_loop();
 

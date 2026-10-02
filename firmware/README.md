@@ -44,8 +44,8 @@ now. The displays take no phone input: the card swallows touches. On the center 
 
 ## Cluster I2C (center master)
 
-- **Bus**: second I2C peripheral on the center ESP32-P4 (`TwoWire(1)`), default **SDA = GPIO 47**, **SCL = GPIO 48**, **100 kHz**. Touch and BT metadata stay on **GPIO 7 / 8** (see [WIRING_PINOUT.md](../WIRING_PINOUT.md)).
-- **Master**: center gauge. **Slaves**: speedo `0x3C`, TSPS `0x3D`, optional ESP32-D theme mirror `0x3E` (see `arduino/sketches/esp32_audio_bridge` — `Wire1` @ `0x3E` on pins you define, default 18/19 on the dev module).
+- **Bus**: second I2C peripheral on the center ESP32-P4 (`TwoWire(1)`), default **SDA = GPIO 47**, **SCL = GPIO 48**, **100 kHz**. Touch stays on **GPIO 7 / 8** (see [WIRING_PINOUT.md](../WIRING_PINOUT.md)).
+- **Master**: center gauge. **Slaves**: speedo `0x3C`, TSPS `0x3D`.
 - **Writes**: `[register][value]` per transaction (same as SMBus byte write).
 
 | Register | Meaning |
@@ -61,9 +61,9 @@ Shared constants live in `esp32_p4_common/include/cluster_i2c.h`.
 On the DigiDash board every display and accessory carrier also sits on a 500 kbit/s CAN bus (one MCP2562 each; displays
 TX GPIO34 / RX GPIO36, the audio carrier TX GPIO32 / RX GPIO33). The center re-sends sensor frames (`0x100`–`0x104`) and the
 theme (`0x210`); speedo/TSPS take the theme from CAN or I2C, whichever arrives. The audio bridge sends now-playing,
-transport and album art in its node's range, and in the car that is the only audio link: the center's I2C audio code
-(`0x2A`, theme to `0x3E`) is compiled in only by its `*-bench` envs (`CENTER_AUDIO_I2C=1`), paired with the bridge's
-`*_bench` envs (`esp32wrover_bench`, or `esp32dev_bench` on the WROOM board). Every node sends a 1 Hz heartbeat. Pins are build flags
+transport and album art in its node's range; that is the only audio link. There are no bench builds: every board runs
+the firmware that ships, and the bench reaches the bus through the USB CAN link (`tools/can_relay.py`,
+[docs/protocols/usb_link.md](../docs/protocols/usb_link.md)) in place of the old I2C bench builds. Every node sends a 1 Hz heartbeat. Pins are build flags
 (`ELC_CAN_TX_PIN` / `ELC_CAN_RX_PIN`, `-1` = off). Spec: [docs/protocols/can_bus.md](../docs/protocols/can_bus.md).
 
 ## Layout
@@ -73,8 +73,8 @@ transport and album art in its node's range, and in the car that is the only aud
 | `esp32_p4_common/` | Shared **library**: `SensorLink` / `sensor_packet` (UART parse, staleness, demo drive), MIPI `display_setup`, `cluster_i2c` (master + slave helpers), `elc_watchdog.h`, `el_camino_speed.h` (wheel RPM → MPH). Host unit tests: `test/host/run_tests.sh`. |
 | `elc_can/` | Shared **CAN** library (displays and accessories): IDs, frame codecs, TWAI driver wrapper with heartbeat and bus-off recovery. Host unit tests: `test/host/run_tests.sh`. |
 | `esp32_p4_ui/` | Shared **screen, touch and faces**: `p4_screen` (LVGL, double-buffered panel, optional legacy GFX layer, screenshot), `gauges/` (all gauge faces), `fonts/` (LVGL fonts), `ui_menu` + `ui_theme` (menu and overlay colours / fonts per theme), `media_can` / `phone_can` (audio bridge on CAN: now playing and art; phone state and the call card), `gauge_console` (bench console for speedo/TSPS), `p4_touch` (GT911 @ 0x5D/0x14 or CST816 @ 0x15 on SDA=7/SCL=8), LVGL config. |
-| `esp32_p4_display/` | **All three round displays**, one image. At boot each board reads its position strap (header pin 17 = GPIO4 on the DigiDash board: J5 left → 1 kΩ to GND, J4 right → 1 kΩ to its 3V3, J1 center → open) and runs as **LEFT** speedometer, **CENTER** (tach / clock / media / efficiency, Wi-Fi, GPS, SD, BLE, camera, the cluster settings; I2C cluster master) or **RIGHT** fuel / oil / coolant / charge (Classic has two layouts). `src/main.cpp` picks `center_*` or `side_*`; see `src/display_role.h`. |
-| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory: now-playing, transport, album art; node 0x14 + slot − 1 on the rev 2 audio card (`audiocarrier`; `audiocarrier_bench` takes 0x14 with no main board), 0x10 + straps on a rev 1 carrier). `esp32wrover` (DevKitC-VE, PSRAM; the default) or `esp32dev` (WROOM DevKitC-32); the `*_bench` envs add the bench I2C slaves (`0x2A` metadata, `0x3E` theme). |
+| `esp32_p4_display/` | **All three round displays**, one image. At boot each board reads its position strap (header pin 17 = GPIO4 on the DigiDash board: J5 left → 1 kΩ to GND, J4 right → 1 kΩ to its 3V3, J1 center → open) and runs as **LEFT** speedometer, **CENTER** (tach / clock / media / efficiency, GPS, SD, BLE, camera, the cluster settings; I2C cluster master) or **RIGHT** fuel / oil / coolant / charge (Classic has two layouts). `src/main.cpp` picks `center_*` or `side_*`; see `src/display_role.h`. |
+| `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory: now-playing, transport, album art; node 0x14 + slot − 1 on the rev 2 audio card (`audiocarrier`; with no main board it reads no slot and takes 0x14), 0x10 + straps on a rev 1 carrier). `esp32wrover` (DevKitC-VE, PSRAM; the default) or `esp32dev` (WROOM DevKitC-32). |
 | `esp32s3_console/` | **Console board** (`ConsoleBoard/`, ESP32-S3, CAN node 0x13): SSD1322 OLED with two soft keys, Select / Volume knobs; the phone's only control (calls, pairing, paired phones), media keys, center view. UI state machine host-tested: `test/host/run_tests.sh`. |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
@@ -85,7 +85,6 @@ One environment per panel, never per position (`esp32_p4_display/platformio.ini`
 - **`display-waveshare3c4`** — Waveshare **3.4\"** 800×800 (SH8601), `esp32p4_es`, QIO.
 - **`display-waveshare4c`** — **4\"** 720×720 (JD9365), PMIC + `TSPS_USE_JD9365`.
 - **`display-ev720`**, **`display-ev7`** — Espressif P4 EV board with a 720×720 JD9165 or its stock 7\" 1024×600.
-- **`*-bench`** — the center also reads an audio bridge wired to its I2C bus (no CAN transceivers).
 
 Use the env that matches the hardware; **do not** flash a 3.4C profile on a 4\" panel or vice versa.
 
@@ -117,12 +116,12 @@ hidden one of two DSI framebuffers, the panel flips on each refresh, and the red
 buffer by DMA, so nothing tears. Layers, bottom to top: the optional legacy Arduino_GFX canvas (center only, for
 its older full-screen pages), the gauge faces (`p4_screen_gauge_parent()`), and UI (`p4_screen_ui_parent()`).
 
-The menu (`esp32_p4_ui/ui_menu.cpp`) is pure LVGL: a wheel on the home page, and Wi-Fi, Brightness, Theme, Screens,
+The menu (`esp32_p4_ui/ui_menu.cpp`) is pure LVGL: a wheel on the home page, and Brightness, Theme, Screens,
 Service and Phone pages, rebuilt in the active theme's colors and fonts each time it opens. It runs on any round screen:
 the center backs it with its own state (`center_menu.cpp`), the speedo and TSPS with CAN (`cluster_peer.cpp`: setting
-requests to the center, state from `0x210` / `0x213` / `0x214`, see `docs/protocols/can_bus.md`). The Screens page
-picks the **interface screen** (menu) and the **media screen**. The Wi-Fi password keyboard, sensor log and GPS data
-pages are still the older Arduino_GFX full-screen pages on the center; from a side screen they open there.
+requests to the center, state from `0x210` / `0x213`, see `docs/protocols/can_bus.md`). The Screens page
+picks the **interface screen** (menu) and the **media screen**. The sensor log and GPS data pages are still the
+older Arduino_GFX full-screen pages on the center; from a side screen they open there. The cluster never uses Wi-Fi.
 
 **Phone page** (any screen, from `phone_can`): the connected phone with signal and battery; *Pair new phone* (opens
 the bridge's pairing window, then "Discoverable as ElCamino-Media · m:ss left" and *Stop*); the paired list (choose
@@ -135,14 +134,14 @@ the pairing request to it. Commands go to the bridge on `0x215` from this board'
 brightness or the Phone page's focus; push opens / presses; Back goes back a page, then closes; Open opens a page)
 and sends `0x217` + texts `0x218` / `0x219` (`ui_menu_describe()`: the focused item or the page's key fact, and its
 value or hint) on change, every second while open and once on close. The center also sends the time (`0x220`, 1 Hz:
-UTC, local offset from the TZ, GPS flag; no NTP source exists, so that flag stays clear) and the street (`0x221`), and
-sets `0x213` bit7 while reversing (camera shown or reverse input on).
+UTC from GPS, local offset from the `tz` setting, GPS fix flag), and sets `0x213` bit7 while reversing (camera shown or reverse input on).
 
 Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
 
 - center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
   `drag <x> <y1> <y2> <ms>`, `knob left|right|press|back`, `menu on left|center|right`, `media on left|center|right`,
-  `can`, plus the Wi-Fi/TZ commands;
+  `can`, `tz [<posix>|<hours>]` (local zone: a POSIX string such as `CST6CDT,M3.2.0,M11.1.0` keeps DST without a
+  network; a bare hour offset such as `-6` is fixed, no DST; `tz` alone shows it);
 - left / right: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (right), `can`;
 - every screen: `role [left|center|right|auto]` (position; see above), `phone` (phone state from the audio bridge,
   with the paired list and the pairing window) and `phone demo idle|discover|incoming|active [muted] [onphone]|waiting|held|pair|off`
@@ -161,5 +160,5 @@ The tool never toggles DTR/RTS: on these boards the CH343 auto-reset circuit reb
 ## Runtime behavior
 
 - **Stale data:** no frame for 400 ms → needles fall to rest, the face dims and shows **NO DATA**; odometer shows dashes.
-- **Watchdog:** each display reboots if `loop()` stalls for 8 s. Anything slow (HTTPS lookups, Wi-Fi joins) runs asynchronously on the center.
+- **Watchdog:** each display reboots if `loop()` stalls for 8 s. Anything slow belongs in its own task.
 - **Theme sync:** the center rebroadcasts theme/sub-view every 5 s.

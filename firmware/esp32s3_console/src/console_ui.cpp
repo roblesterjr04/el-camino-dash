@@ -162,7 +162,7 @@ void ConsoleUi::feed(const ElcCanFrame &f, uint32_t now_ms) {
     _booted = true;
     return;
   }
-  if (_wifi.feed(f) || _mt_main.feed(f) || _mt_sub.feed(f) || _place.feed(f)) return;
+  if (_mt_main.feed(f) || _mt_sub.feed(f)) return;
   if (elc_can_decode_menu_state(f, _ms)) {
     _ms_ms = now_ms;
     return;
@@ -279,7 +279,7 @@ const ConsoleAlert *ConsoleUi::alert(uint32_t now_ms) {
 const char *ConsoleUi::item_label(int i) const {
   static const char *const kLabel[kItems] = {"Center view", "Theme",   "Brightness",    "Dim with lights",
                                              "Menu on",     "Media on", "Right layout", "Trip A",
-                                             "OLED contrast", "Wi-Fi", "Service"};
+                                             "OLED contrast", "Service"};
   return i >= 0 && i < kItems ? kLabel[i] : "";
 }
 
@@ -367,11 +367,6 @@ void ConsoleUi::item_value(int i, char *out, size_t n) const {
     case kLayout: snprintf(out, n, "%s", v ? "Fuel + lamps" : "Four gauges"); break;
     case kTrip: snprintf(out, n, "%.1f mi", trip_mi()); break;
     case kContrast: snprintf(out, n, "%s", v == 0 ? "Auto" : (v == 1 ? "Bright" : "Night")); break;
-    case kWifi: {
-      const bool on = _cs_ms && (_cs.flags & ELC_CAN_STATUS_WIFI) && _wifi.valid() && _wifi.text()[0];
-      snprintf(out, n, "%s", on ? _wifi.text() : "Off");
-      break;
-    }
     case kService: snprintf(out, n, "Diagnostics"); break;
     default: out[0] = '\0'; break;
   }
@@ -431,14 +426,14 @@ void ConsoleUi::select_press(uint32_t now_ms) {
     case ConsoleMode::Remote: menu_input(ELC_CAN_MENU_PRESS, 0, "press"); break;
     case ConsoleMode::Drive: _mode = ConsoleMode::Menu; break;
     case ConsoleMode::Menu:
-      if (_sel == kWifi || _sel == kService) {
+      if (_sel == kService) {
         _mode_before_remote = ConsoleMode::Menu;
         _remote_by_console = true;
-        menu_input(ELC_CAN_MENU_OPEN, _sel == kWifi ? ELC_CAN_PAGE_WIFI : ELC_CAN_PAGE_SERVICE, "open");
+        menu_input(ELC_CAN_MENU_OPEN, ELC_CAN_PAGE_SERVICE, "open");
         _mode = ConsoleMode::Remote;
         _ms.open = true;  // until the interface screen answers
         _ms.opened_by = ELC_CAN_MENU_BY_CONSOLE;
-        _ms.page = _sel == kWifi ? ELC_CAN_PAGE_WIFI : ELC_CAN_PAGE_SERVICE;
+        _ms.page = ELC_CAN_PAGE_SERVICE;
         _ms.screen = _cl.interface_screen;
         _ms_ms = now_ms;
       } else {
@@ -557,9 +552,12 @@ void ConsoleUi::volume_hold(uint32_t now_ms) {
 }
 
 void ConsoleUi::art_pump(uint32_t now_ms) {
-  const bool bridge = _tr_ms && now_ms - _tr_ms < 3000 && _tr.connected;
+  // A few lost transport frames do not drop the cover (that restarted the download and flashed the art); a phone
+  // that disconnects, or a bridge silent for 10 s, does.
+  const bool bridge = _tr_ms && now_ms - _tr_ms < 10000 && _tr.connected;
   const uint8_t want = bridge ? _tr.art_id : 0;
   if (want == 0) {
+    if (_art_id || _art_rx.art_id()) _art_resets++;
     _art_id = 0;
     _art_rx.reset();
     return;
@@ -568,6 +566,7 @@ void ConsoleUi::art_pump(uint32_t now_ms) {
   static uint8_t s_dl[ELC_CAN_ART_GRAY48_BYTES];
   if (_art_rx.art_id() != want || _art_rx.variant() != ELC_CAN_ART_GRAY48) {
     _art_rx.start(_slot, want, ELC_CAN_ART_GRAY48, s_dl, sizeof(s_dl));
+    _art_starts++;
     _art_req_ms = 0;
     _art_tries = 0;
     _art_req_have = 0;
@@ -595,6 +594,7 @@ void ConsoleUi::art_pump(uint32_t now_ms) {
     ElcCanFrame f;
     elc_can_encode_art_request(r, f);
     push_frame(f, "ART request (grey 48)");
+    _art_reqs++;
     _art_req_ms = now_ms;
     _art_req_have = _art_rx.chunks_have();
   }
@@ -640,10 +640,13 @@ void ConsoleUi::describe(char *out, size_t n, uint32_t now_ms) const {
   item_value(_sel, v, sizeof(v));
   snprintf(out, n,
            "mode %s, page %s, menu item %d (%s = %s); center %s, sensors %s, bridge %s (slot %u), call %s; "
-           "menu on screen %s (%s by %s); time %s",
+           "menu on screen %s (%s by %s); time %s; art shown %u, rx id %u size %lu have %u, starts %lu requests %lu "
+           "resets %lu, failed %u",
            kMode[(int)_mode], kPage[_page % 4], _sel, item_label(_sel), v, alive(now_ms) ? "heard" : "not heard",
            _sensor_ms && now_ms - _sensor_ms < kSensorFreshMs ? "fresh" : "none", _tr_ms && now_ms - _tr_ms < 3000 ? "heard" : "none",
            _slot, phone_fresh(now_ms) ? kCall[_ph.call % 7] : "-", remote_open(now_ms) ? "open" : "closed",
            kScreenName[_ms.screen % 3], _ms.opened_by == ELC_CAN_MENU_BY_CONSOLE ? "console" : "touch",
-           (_time_ms && (_time.flags & ELC_CAN_TIME_VALID)) ? "valid" : "none");
+           (_time_ms && (_time.flags & ELC_CAN_TIME_VALID)) ? "valid" : "none", _art_id, _art_rx.art_id(),
+           (unsigned long)_art_rx.size(), _art_rx.chunks_have(), (unsigned long)_art_starts, (unsigned long)_art_reqs,
+           (unsigned long)_art_resets, _art_failed_id);
 }

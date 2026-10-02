@@ -61,12 +61,13 @@ uint8_t elc_can_read_card_slot(int adc_pin) {
 bool ElcCan::begin(int tx_pin, int rx_pin, uint8_t node, ElcCanNodeType type) {
   _node = node;
   _type = type;
+  elc_usb_set_identity(node, (ElcCanNodeType)type, ELC_CAN_FW_VERSION);
   if (tx_pin < 0 || rx_pin < 0) {
     return false;
   }
   twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)tx_pin, (gpio_num_t)rx_pin, TWAI_MODE_NORMAL);
   g.tx_queue_len = kTxQueueLen;
-  g.rx_queue_len = 32;
+  g.rx_queue_len = 128;  // album art streams at ~1250 frames/s: room for a slow loop pass
 #if ELC_CAN_BITRATE_KBPS == 250
   twai_timing_config_t t = TWAI_TIMING_CONFIG_250KBITS();
 #else
@@ -83,12 +84,12 @@ bool ElcCan::begin(int tx_pin, int rx_pin, uint8_t node, ElcCanNodeType type) {
     return false;
   }
   _stats.running = true;
+  elc_usb_set_can_running(true);
   return true;
 }
 
-bool ElcCan::send(const ElcCanFrame &f) {
+bool ElcCan::bus_send(const ElcCanFrame &f) {
   if (!_stats.running || _recovering) {
-    _stats.tx_fail++;
     return false;
   }
   twai_message_t m = {};
@@ -96,17 +97,12 @@ bool ElcCan::send(const ElcCanFrame &f) {
   m.data_length_code = f.len > 8 ? 8 : f.len;
   m.ss = 1;  // single shot: see elc_can.h
   memcpy(m.data, f.data, m.data_length_code);
-  if (twai_transmit(&m, 0) == ESP_OK) {
-    _stats.tx_ok++;
-    return true;
-  }
-  _stats.tx_fail++;
-  return false;
+  return twai_transmit(&m, 0) == ESP_OK;
 }
 
 size_t ElcCan::txFree() const {
   if (!_stats.running || _recovering) {
-    return 0;
+    return elc_usb_active() ? kTxQueueLen : 0;  // the USB link alone does not queue
   }
   twai_status_info_t st;
   if (twai_get_status_info(&st) != ESP_OK || st.msgs_to_tx >= kTxQueueLen) {
@@ -116,69 +112,100 @@ size_t ElcCan::txFree() const {
 }
 
 void ElcCan::poll() {
-  if (!_stats.running) {
-    return;
-  }
   const uint32_t now = millis();
-  twai_status_info_t st;
-  if (twai_get_status_info(&st) == ESP_OK) {
-    _stats.tec = st.tx_error_counter;
-    _stats.rec = st.rx_error_counter;
-    if (st.state == TWAI_STATE_BUS_OFF && (!_recovering || now - _recover_ms >= kRecoverRetryMs)) {
-      if (!_recovering) {
-        _stats.bus_off++;
+  // Frames from the USB relay: delivered here like the bus's; in gateway mode they also go out on the bus.
+  elc_usb_pump();
+  ElcCanFrame uf;
+  int ubudget = 512;  // bound the work per loop pass
+  while (ubudget-- > 0 && elc_usb_take_frame(uf)) {
+    deliver(uf, now);
+    if (elc_usb_gateway()) bus_send(uf);
+  }
+
+  if (_stats.running) {
+    twai_status_info_t st;
+    if (twai_get_status_info(&st) == ESP_OK) {
+      _stats.tec = st.tx_error_counter;
+      _stats.rec = st.rx_error_counter;
+      if (st.state == TWAI_STATE_BUS_OFF && (!_recovering || now - _recover_ms >= kRecoverRetryMs)) {
+        if (!_recovering) {
+          _stats.bus_off++;
+        }
+        _recovering = true;
+        _recover_ms = now;
+        twai_initiate_recovery();
+      } else if (st.state == TWAI_STATE_STOPPED && _recovering) {
+        if (twai_start() == ESP_OK) {
+          _recovering = false;
+        }
       }
-      _recovering = true;
-      _recover_ms = now;
-      twai_initiate_recovery();
-    } else if (st.state == TWAI_STATE_STOPPED && _recovering) {
-      if (twai_start() == ESP_OK) {
-        _recovering = false;
+    }
+
+    twai_message_t m;
+    int budget = 256;  // bound the work per loop pass
+    while (budget-- > 0 && twai_receive(&m, 0) == ESP_OK) {
+      if (m.extd || m.rtr) {
+        continue;
       }
+      ElcCanFrame f;
+      f.id = (uint16_t)m.identifier;
+      f.len = m.data_length_code > 8 ? 8 : m.data_length_code;
+      memcpy(f.data, m.data, f.len);
+      _stats.rx++;
+      if (elc_usb_gateway()) elc_usb_send_frame(f);  // the laptop sees the whole bus
+      deliver(f, now);
     }
   }
 
-  twai_message_t m;
-  int budget = 64;  // bound the work per loop pass
-  while (budget-- > 0 && twai_receive(&m, 0) == ESP_OK) {
-    if (m.extd || m.rtr) {
-      continue;
-    }
-    ElcCanFrame f;
-    f.id = (uint16_t)m.identifier;
-    f.len = m.data_length_code > 8 ? 8 : m.data_length_code;
-    memcpy(f.data, m.data, f.len);
-    _stats.rx++;
-    ElcCanHeartbeat hb;
-    if (elc_can_decode_heartbeat(f, hb) && hb.node < ELC_CAN_MAX_NODES) {
-      ElcCanNodeInfo &n = _nodes[hb.node];
-      n.seen = true;
-      n.last_ms = now;
-      n.hb = hb;
-    }
-    if (_handler) {
-      _handler(f, _ctx);
-    }
-  }
-
-  heartbeat(now);
+  if (running()) heartbeat(now);
 }
 
-#else  // no TWAI on this target (host build or unsupported chip): inert
+#else  // no TWAI on this target (host build or unsupported chip): the USB link only
 
 bool ElcCan::begin(int, int, uint8_t node, ElcCanNodeType type) {
   _node = node;
   _type = type;
+  elc_usb_set_identity(node, type, ELC_CAN_FW_VERSION);
   return false;
 }
-bool ElcCan::send(const ElcCanFrame &) {
-  _stats.tx_fail++;
-  return false;
+bool ElcCan::bus_send(const ElcCanFrame &) { return false; }
+size_t ElcCan::txFree() const { return elc_usb_active() ? kTxQueueLen : 0; }
+void ElcCan::poll() {
+#if defined(ARDUINO)
+  const uint32_t now = millis();
+  elc_usb_pump();
+  ElcCanFrame uf;
+  int ubudget = 512;
+  while (ubudget-- > 0 && elc_usb_take_frame(uf)) deliver(uf, now);
+  if (running()) heartbeat(now);
+#endif
 }
-void ElcCan::poll() {}
-size_t ElcCan::txFree() const { return 0; }
 
 #endif
+
+bool ElcCan::send(const ElcCanFrame &f) {
+  const bool usb = elc_usb_send_frame(f);
+  const bool bus = bus_send(f);
+  if (bus) {
+    _stats.tx_ok++;
+  } else {
+    _stats.tx_fail++;
+  }
+  return usb || bus;
+}
+
+void ElcCan::deliver(const ElcCanFrame &f, uint32_t now) {
+  ElcCanHeartbeat hb;
+  if (elc_can_decode_heartbeat(f, hb) && hb.node < ELC_CAN_MAX_NODES) {
+    ElcCanNodeInfo &n = _nodes[hb.node];
+    n.seen = true;
+    n.last_ms = now;
+    n.hb = hb;
+  }
+  if (_handler) {
+    _handler(f, _ctx);
+  }
+}
 
 void ElcCan::heartbeat(uint32_t now) {
   if (_last_hb_ms != 0 && now - _last_hb_ms < kHeartbeatMs) {
@@ -223,6 +250,11 @@ void ElcCan::describe(char *out, size_t n) const {
     }
   }
   if (!any && w > 0 && (size_t)w < n) {
-    snprintf(out + w, n - (size_t)w, " none");
+    w += snprintf(out + w, n - (size_t)w, " none");
+  }
+  if (w > 0 && (size_t)w + 2 < n) {
+    out[w++] = ';';
+    out[w++] = ' ';
+    elc_usb_describe(out + w, n - (size_t)w);
   }
 }

@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include <demo_drive.h>
+#include <elc_can_codec.h>
 #include <sensor_packet.h>
 
 // A frame older than this counts as "no data" (sensor_pack sends every 50 ms).
@@ -56,6 +57,12 @@ class SensorLink {
   void setDemo(bool on);
   bool demo() const { return _demo; }
 
+  /** Sensor frames from the bus (0x100..0x104: the center re-sending its UART, or a USB relay): used only while
+   *  this board's own UART is silent, so the UART always wins. The next poll() reports them as a new frame. */
+  void feedBus(const ElcCanSensor &s);
+  /** The frame last() holds came from the bus (the center must not send it back out). */
+  bool fromBus() const { return _from_bus; }
+
   /** Send the 0xA5 keepalive (the center only). */
   void setKeepalive(bool on) { _keepalive = on; }
 
@@ -72,5 +79,10 @@ class SensorLink {
   uint32_t _last_ms = 0;
   uint32_t _last_keepalive_ms = 0;
   bool _have = false;
+  uint32_t _uart_ms = 0;
+  bool _have_uart = false;
+  SensorPacketValues _bus{};
+  bool _bus_pending = false;
+  bool _from_bus = false;
   bool _keepalive = SENSOR_LINK_KEEPALIVE;
 };

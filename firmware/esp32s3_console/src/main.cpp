@@ -3,6 +3,7 @@
 // drawing in console_screens.cpp (both also run on the host: test/host, tools/console_preview).
 
 #include <Arduino.h>
+#include <elc_usb_link.h>
 #include <Preferences.h>
 #include <elc_can.h>
 #include <math.h>
@@ -107,12 +108,8 @@ static void demo_feed(uint32_t now) {
   tm.utc = 1790608980u + now / 1000;
   tm.offset_min = -300;
   tm.flags = ELC_CAN_TIME_VALID | ELC_CAN_TIME_GPS;
-  tm.place_serial = 2;
   elc_can_encode_time(tm, f);
   s_ui.feed(f, now);
-  ElcCanFrame pc[ELC_CAN_TEXT_CHUNKS];
-  elc_can_encode_text(ELC_CAN_ID_PLACE_TEXT, 2, "Liberty Street", pc);
-  for (auto &x : pc) s_ui.feed(x, now);
   ElcCanPhoneStatus ps;
   ps.flags = (uint8_t)(ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP | ELC_CAN_PHONE_CALL_AUDIO | (s_demo_muted ? ELC_CAN_PHONE_MIC_MUTED : 0));
   ps.call = s_demo_call;
@@ -220,8 +217,8 @@ static void handle_line(char *line) {
 }
 
 static void poll_serial() {
-  while (Serial.available()) {
-    const int c = Serial.read();
+  while (elc_usb_available()) {  // the USB link keeps CAN records out of the text
+    const int c = elc_usb_read();
     if (c == '\r' || c == '\n') {
       if (s_line_n) {
         s_line[s_line_n] = '\0';
@@ -235,7 +232,7 @@ static void poll_serial() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  elc_usb_begin();  // Serial, with the USB CAN link (docs/protocols/usb_link.md)
   s_prefs.begin("console", false);
   s_ui.restore(s_prefs.getBool("trip_set", false), s_prefs.getUInt("trip_base", 0),
                (ConsoleContrast)(s_prefs.getUChar("contrast", 0) % 3));
@@ -256,8 +253,8 @@ void setup() {
 }
 
 void loop() {
+  s_can.poll();  // first: frames are stamped with millis() as they arrive, and nothing below may be older than them
   const uint32_t now = millis();
-  s_can.poll();
 
   ConsoleInputEvents ev;
   console_input_poll(ev, now);

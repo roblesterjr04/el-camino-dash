@@ -78,8 +78,8 @@ enum ElcCanSetting : uint8_t {
   ELC_CAN_SET_DIM_WITH_LIGHTS = 6,   // 0 / 1
   ELC_CAN_SET_MEDIA_SHOWN = 7,       // 0 / 1: media view on the media screen
   ELC_CAN_SET_DEMO = 8,              // 0 / 1: simulated drive cycle
-  ELC_CAN_ACT_WIFI_JOIN_SAVED = 9,   // action (value ignored)
-  ELC_CAN_ACT_OPEN_CENTER_PAGE = 10, // action: open a center-only page there (1 Wi-Fi, 2 sensor log, 3 GPS data, 4 phone)
+  // 9 reserved (was Wi-Fi join saved)
+  ELC_CAN_ACT_OPEN_CENTER_PAGE = 10, // action: open a center-only page there (2 sensor log, 3 GPS data, 4 phone; 1 reserved, was Wi-Fi)
   ELC_CAN_SET_RIGHT_LAYOUT = 11,     // 0 four gauges, 1 fuel + lamps (Classic only; 0x210 flag bit2)
 };
 struct ElcCanSettingRequest {
@@ -91,18 +91,15 @@ void elc_can_encode_setting_request(const ElcCanSettingRequest &r, ElcCanFrame &
 bool elc_can_decode_setting_request(const ElcCanFrame &f, ElcCanSettingRequest &out);
 
 /** What the center knows that the other displays cannot see (0x213), for a menu on another screen. */
-static const uint8_t ELC_CAN_STATUS_WIFI = 0x01;        // Wi-Fi connected (name in 0x214)
+// 0x01 reserved (was Wi-Fi connected)
 static const uint8_t ELC_CAN_STATUS_GPS_FIX = 0x02;
 static const uint8_t ELC_CAN_STATUS_GPS_NMEA = 0x04;    // NMEA arriving (fix or not)
 static const uint8_t ELC_CAN_STATUS_AUDIO = 0x08;       // audio bridge heard
 static const uint8_t ELC_CAN_STATUS_DEMO = 0x10;        // simulated drive cycle on
-static const uint8_t ELC_CAN_STATUS_SAVED_WIFI = 0x20;  // a saved network exists (Join saved makes sense)
-static const uint8_t ELC_CAN_STATUS_JOINING = 0x40;     // joining a network now
+// 0x20, 0x40 reserved (were saved Wi-Fi network, joining)
 static const uint8_t ELC_CAN_STATUS_REVERSE = 0x80;     // in reverse: the center shows the rear camera
 struct ElcCanCenterStatus {
-  uint8_t flags = 0;
-  int8_t rssi = 0;
-  uint8_t text_serial = 0;  // 0..15, bumps when the Wi-Fi name changes
+  uint8_t flags = 0;  // bytes 1 and 2 are reserved (were Wi-Fi RSSI and name serial), sent as 0
 };
 void elc_can_encode_center_status(const ElcCanCenterStatus &s, ElcCanFrame &out);
 bool elc_can_decode_center_status(const ElcCanFrame &f, ElcCanCenterStatus &out);
@@ -212,7 +209,7 @@ enum ElcCanMenuEvent : uint8_t {
 /** Pages of the round-screen menu (UiMenuPage numbering). */
 enum ElcCanMenuPage : uint8_t {
   ELC_CAN_PAGE_HOME = 0,
-  ELC_CAN_PAGE_WIFI = 1,
+  // 1 reserved (was Wi-Fi); the screens ignore it
   ELC_CAN_PAGE_BRIGHTNESS = 2,
   ELC_CAN_PAGE_THEME = 3,
   ELC_CAN_PAGE_SCREENS = 4,
@@ -242,12 +239,11 @@ bool elc_can_decode_menu_state(const ElcCanFrame &f, ElcCanMenuState &out);
 // ---- wall time (center) ----
 static const uint8_t ELC_CAN_TIME_VALID = 0x01;
 static const uint8_t ELC_CAN_TIME_GPS = 0x02;  // from a GPS fix
-static const uint8_t ELC_CAN_TIME_NTP = 0x04;  // from the network
+// 0x04 reserved (was from the network, NTP)
 struct ElcCanTime {
-  uint32_t utc = 0;          // seconds since 1970
-  int16_t offset_min = 0;    // local time = UTC + offset
-  uint8_t flags = 0;
-  uint8_t place_serial = 0;  // 0..15, names the place text on 0x221
+  uint32_t utc = 0;        // seconds since 1970
+  int16_t offset_min = 0;  // local time = UTC + offset
+  uint8_t flags = 0;       // byte 7 is reserved (was the place text serial), sent as 0
 };
 void elc_can_encode_time(const ElcCanTime &t, ElcCanFrame &out);
 bool elc_can_decode_time(const ElcCanFrame &f, ElcCanTime &out);

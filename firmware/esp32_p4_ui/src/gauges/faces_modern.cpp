@@ -126,7 +126,6 @@ class ModernTach : public Face {
     gear_ = label(root, &elc_sa_46, kAccent, g.X(400), g.Y(248), g.L(86), Align::Center);
     temp_ = label(root, &elc_sa_38, kText, g.X(312), g.Y(572), g.L(170), Align::Center);
     chg_ = label(root, &elc_sa_38, kText, g.X(488), g.Y(572), g.L(170), Align::Center);
-    song_ = label(root, &elc_sm_22, kDim, g.X(400), g.Y(684), g.L(340), Align::Center);
   }
   void update(const GaugeData &d, float dt) override {
     const float v = rpm_s_.step(d.fresh ? d.rpm : 0, dt, 10.0f);
@@ -155,16 +154,11 @@ class ModernTach : public Face {
     set_color(temp_, d.fresh && d.coolant_f > 230 ? kRed : kText);
     set_text(chg_, !d.fresh ? "\xE2\x80\x94" : d.charging == 1 ? "CHG" : d.charging == 0 ? "NO CHG" : "OFF");
     set_color(chg_, d.fresh && d.charging == 0 ? kRed : kText);
-    b[0] = 0;
-    if (d.media_connected && d.media_title && d.media_title[0]) {
-      snprintf(b, sizeof(b), "%s", d.media_title);
-    }
-    set_text(song_, b);
   }
 
  private:
   ArcFill *arc_ = nullptr;
-  lv_obj_t *rpm_ = nullptr, *gear_ = nullptr, *temp_ = nullptr, *chg_ = nullptr, *song_ = nullptr;
+  lv_obj_t *rpm_ = nullptr, *gear_ = nullptr, *temp_ = nullptr, *chg_ = nullptr;
   Smooth rpm_s_;
 };
 

@@ -91,7 +91,7 @@ class ConsoleUi {
   uint8_t bridge_slot() const { return _slot; }
   uint8_t volume() const { return _vol; }
 
-  static const int kItems = 11;
+  static const int kItems = 10;
   static constexpr uint32_t kCenterGoneMs = 2500;  // the center's heartbeat is 1 Hz: a couple missed before the bowtie
   static constexpr uint32_t kBootMs = 1700;        // bowtie at power-up: fade in, then a sheen
   static constexpr uint32_t kToastMs = 1800;
@@ -101,7 +101,7 @@ class ConsoleUi {
 
  private:
   // settings in the OLED menu
-  enum Item : uint8_t { kView, kTheme, kBright, kFollow, kIface, kMedia, kLayout, kTrip, kContrast, kWifi, kService };
+  enum Item : uint8_t { kView, kTheme, kBright, kFollow, kIface, kMedia, kLayout, kTrip, kContrast, kService };
   int item_get(int i) const;
   void item_set(int i, int v, uint32_t now_ms, bool undo = false);
   int item_count(int i) const;  // choices (0 = range / action / page)
@@ -144,13 +144,11 @@ class ConsoleUi {
   bool _have_cl = false;
   ElcCanCenterStatus _cs;
   uint32_t _cs_ms = 0;
-  ElcCanTextDecoder _wifi{ELC_CAN_ID_CENTER_TEXT};
   ElcCanMenuState _ms;
   uint32_t _ms_ms = 0;
   ElcCanTextDecoder _mt_main{ELC_CAN_ID_MENU_TEXT_MAIN}, _mt_sub{ELC_CAN_ID_MENU_TEXT_SUB};
   ElcCanTime _time;
   uint32_t _time_ms = 0;
-  ElcCanTextDecoder _place{ELC_CAN_ID_PLACE_TEXT};
   // audio bridge
   ElcCanBridgeSeen _bridges;
   uint8_t _slot = 0;
@@ -170,6 +168,7 @@ class ConsoleUi {
   uint32_t _art_req_ms = 0, _art_rx_ms = 0;
   uint16_t _art_req_have = 0;
   uint8_t _art_tries = 0, _art_failed_id = 0;
+  uint32_t _art_starts = 0, _art_reqs = 0, _art_resets = 0;  // diagnostics (`state`)
 
   // ui
   ConsoleMode _mode = ConsoleMode::Drive;

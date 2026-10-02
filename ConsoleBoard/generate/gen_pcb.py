@@ -208,6 +208,7 @@ def main():
     # the module's courtyard includes a 48 x 41 mm antenna area, and its keep-out zone is 48 mm wide: shrink both. The
     # console does not use Wi-Fi or Bluetooth (CAN only), so the antenna keep-out stays only under and beside the antenna.
     u1 = fps['U1']
+    strip_epad_vias(u1)
     for g in list(u1.GraphicalItems()):
         if g.GetLayer() in (pcbnew.F_CrtYd, pcbnew.B_CrtYd):
             u1.Remove(g)
@@ -454,7 +455,7 @@ def rules(b):
     ds.m_MinClearance = mm(0.13)
     ds.m_TrackMinWidth = mm(0.15)
     ds.m_MinSilkTextHeight = mm(0.7)
-    ds.m_MinThroughDrill = mm(0.2)      # the module's ground-pad vias
+    ds.m_MinThroughDrill = mm(0.3)
     ds.m_MinResolvedSpokes = 1          # header pins also reach the In1 plane through their holes
     ns = ds.m_NetSettings
     d = ns.GetDefaultNetclass()
@@ -508,13 +509,17 @@ def stitch(b, pitch=2.0, fanout=None):
             bb = z.GetBoundingBox()
             keepouts.append((bb.GetLeft() / 1e6 - 0.5, bb.GetTop() / 1e6 - 0.5, bb.GetRight() / 1e6 + 0.5, bb.GetBottom() / 1e6 + 0.5))
 
+    pads = pad_boxes(b)
+
     def clear(x, y, r=rv, skip=None, gnd_ok=False):
+        if r >= rv and not off_pads(pads, x, y):
+            return False                # a via never touches a pad, whatever its net
         for it in items:
             if it is skip or (gnd_ok and it[2] == 'GND'):
                 continue
             kind, g, n = it
             if n == 'GND' and (kind == 's' or (kind == 'r' and (g[2] - g[0]) * (g[3] - g[1]) > 1.0)):
-                continue                # GND on GND: tracks, and the big pads (the module's ground field)
+                continue                # GND on GND: tracks, and a track across the big pads (the module's ground field)
             if kind == 'c':
                 if np.hypot(x - g[0], y - g[1]) < r + g[2] + gap:
                     return False
@@ -666,7 +671,7 @@ def stitch(b, pitch=2.0, fanout=None):
               for r in np.arange(0.8, 3.5, 0.2):
                   for ang in np.arange(0, 2 * np.pi, np.pi / 12):
                       x, y = float(px + r * np.cos(ang)), float(py + r * np.sin(ang))
-                      if spot_ok(x, y) and all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
+                      if spot_ok(x, y) and off_pads(pads, x, y) and all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
                               all(np.hypot(x - g[0], y - g[1]) > 0.9 for kind, g, nn in items if kind == 'c'):
                           cand.append((r + 0.5, x, y, True))
               for w in (tw, 0.15):       # a narrower track squeezes between fine-pitch pins
@@ -681,12 +686,7 @@ def stitch(b, pitch=2.0, fanout=None):
                           break
                   if best:
                       break
-          if not best and all(seg_ok(geo(b), l, 'GND', px, py, px, py, rv, gap) for l in CU):
-              via(px, py)               # last resort: via in the pad (hand-solderable; plug it if paste-reflowing)
-              print('  via in pad for GND pad %s-%s' % (fp.GetReference(), pad.GetNumber()))
-              m += 1
-              continue
-          if not best:
+          if not best:                  # never a via in the pad: the pour has to reach it
               print('  no via spot for GND pad %s-%s' % (fp.GetReference(), pad.GetNumber()))
               continue
           if new_via:
@@ -727,7 +727,7 @@ def stitch(b, pitch=2.0, fanout=None):
                 for yy in np.arange(bb.GetTop() / 1e6 + 0.3, bb.GetBottom() / 1e6 - 0.3, 0.1):
                     for xx in np.arange(bb.GetLeft() / 1e6 + 0.3, bb.GetRight() / 1e6 - 0.3, 0.1):
                         x, y = float(xx), float(yy)
-                        if o.PointInside(VECTOR2I(mm(x), mm(y))) and spot_ok(x, y) and \
+                        if o.PointInside(VECTOR2I(mm(x), mm(y))) and spot_ok(x, y) and off_pads(pads, x, y) and \
                                 all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
                                 all(np.hypot(x - t.GetPosition().x / 1e6, y - t.GetPosition().y / 1e6) > 0.9
                                     for t in b.GetTracks() if t.GetClass() == 'PCB_VIA'):
@@ -745,6 +745,117 @@ def stitch(b, pitch=2.0, fanout=None):
 
 
 CU = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+PAD_GAP = 0.2                       # via copper to any pad's copper, same net or not: no via ever sits in or on a pad
+VIA_R = 0.3
+
+
+def pad_boxes(b):
+    return [(bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6)
+            for fp in b.GetFootprints() for p in fp.Pads() for bb in [p.GetBoundingBox()]]
+
+
+def off_pads(pads, x, y, r=VIA_R, gap=PAD_GAP):
+    """A via at (x, y) clears every pad (a via in or touching a pad wicks the solder away, or has to be plugged)."""
+    e = r + gap
+    return not any(x1 - e < x < x2 + e and y1 - e < y < y2 + e for x1, y1, x2, y2 in pads)
+
+
+def vias_on_pads(b, gap=0.13):
+    """(via, pad) for every via whose copper comes within gap (the board's clearance) of a pad's copper, any layer,
+    same net or not."""
+    out = []
+    for v in b.GetTracks():
+        if v.GetClass() != 'PCB_VIA':
+            continue
+        r = v.GetWidth(pcbnew.F_Cu) // 2 + mm(gap)
+        for fp in b.GetFootprints():
+            for p in fp.Pads():
+                if any(p.IsOnLayer(l) and p.GetEffectiveShape(l).Collide(v.GetPosition(), r) for l in CU + [pcbnew.In1_Cu]):
+                    out.append((v, p))
+    return out
+
+
+_removed = []
+
+
+def strip_epad_vias(fp):
+    """The ESP32 footprint's ground pad holds a grid of 0.2 mm thermal vias (12 small plated pads numbered 41).
+    Take them out: vias beside the pad tie it to the plane instead (epad_vias)."""
+    for p in [p for p in fp.Pads() if p.GetNumber() == '41' and p.GetDrillSize().x > 0]:
+        fp.Remove(p)
+        _removed.append(p)              # keep the Python proxy: freeing it crashes pcbnew
+
+
+def epad_vias(b, ref='U1'):
+    """Locked GND vias around the module's ground pad, PAD_GAP clear of it, each with a short track to the pad edge."""
+    fp = b.FindFootprintByReference(ref)
+    ep = max((p for p in fp.Pads() if p.GetNumber() == '41'), key=lambda p: p.GetSize().x)
+    lay = pcbnew.B_Cu if ep.IsOnLayer(pcbnew.B_Cu) else pcbnew.F_Cu
+    bb = ep.GetBoundingBox()
+    x1, y1, x2, y2 = bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6
+    cx, cy, d = (x1 + x2) / 2, (y1 + y2) / 2, VIA_R + PAD_GAP + 0.05
+    pads, lg, n = pad_boxes(b), geo(b), 0
+    for (vx, vy), (ex, ey) in (((x1 - d, cy), (x1, cy)), ((x2 + d, cy), (x2, cy)), ((cx, y1 - d), (cx, y1)), ((cx, y2 + d), (cx, y2))):
+        if not (off_pads(pads, vx, vy) and all(seg_ok(lg, l, 'GND', vx, vy, vx, vy, VIA_R) for l in CU)):
+            continue
+        v = pcbnew.PCB_VIA(b)
+        v.SetPosition(VECTOR2I(mm(vx), mm(vy)))
+        v.SetWidth(mm(0.6))
+        v.SetDrill(mm(0.3))
+        v.SetNet(ep.GetNet())
+        v.SetLocked(True)
+        b.Add(v)
+        t = pcbnew.PCB_TRACK(b)
+        t.SetStart(VECTOR2I(mm(vx), mm(vy)))
+        t.SetEnd(VECTOR2I(mm(ex), mm(ey)))
+        t.SetWidth(mm(0.4))
+        t.SetLayer(lay)
+        t.SetNet(ep.GetNet())
+        t.SetLocked(True)
+        b.Add(t)
+        n += 1
+    print('ground-pad vias beside %s-41: %d' % (ref, n))
+
+
+def unpad(b):
+    """Take out every GND via that sits on or touches a pad, with the tracks that led only to it; stitch() then ties
+    the pads and pours to the plane again with vias clear of the pads. A signal via on a pad is an error."""
+    bad = {v.m_Uuid.AsString(): v for v, p in vias_on_pads(b)}
+    sig = [v for v in bad.values() if v.GetNetname() != 'GND']
+    if sig:
+        raise SystemExit('signal vias on pads: ' + ', '.join('%s at %.2f, %.2f' % (v.GetNetname(), v.GetPosition().x / 1e6 - OX,
+                                                                                  v.GetPosition().y / 1e6 - OY) for v in sig))
+    gone = [v.GetPosition() for v in bad.values()]
+    for v in bad.values():
+        b.Delete(v)
+    # stubs: GND tracks left with a loose end, repeatedly (a track that ended on a removed via, then its neighbours)
+    pads = [p for fp in b.GetFootprints() for p in fp.Pads()]
+    k = 0
+    while True:
+        tr = [t for t in b.GetTracks() if t.GetNetname() == 'GND']
+        vias = [t.GetPosition() for t in tr if t.GetClass() == 'PCB_VIA']
+        segs = [t for t in tr if t.GetClass() == 'PCB_TRACK']
+
+        def held(t, q):
+            return any(q == w for w in vias) or \
+                any(o is not t and o.GetLayer() == t.GetLayer() and (o.GetStart() == q or o.GetEnd() == q) for o in segs) or \
+                any(p.GetNetname() == 'GND' and p.IsOnLayer(t.GetLayer()) and p.GetEffectiveShape(t.GetLayer()).Collide(q, 0) for p in pads)
+        loose = [t for t in segs if not (held(t, t.GetStart()) and held(t, t.GetEnd()))]
+        if not loose:
+            break
+        for t in loose:
+            b.Delete(t)
+            k += 1
+    print('vias on pads taken out: %d (and %d stub tracks)' % (len(gone), k))
+
+
+def prune(b):
+    """A via too close to a through-hole pin's drill is redundant (the pin reaches its plane through its own hole)."""
+    holes = [(p.GetPosition(), p.GetDrillSize().x) for f in b.GetFootprints() for p in f.Pads() if p.GetDrillSize().x > 0]
+    for v in [v for v in b.GetTracks() if v.GetClass() == 'PCB_VIA' and any(
+            np.hypot((v.GetPosition().x - q.x) / 1e6, (v.GetPosition().y - q.y) / 1e6) < (v.GetDrill() + d) / 2e6 + 0.26
+            for q, d in holes)]:
+        b.Delete(v)
 
 
 def geo(b):
@@ -841,6 +952,7 @@ def finish(b):
 
         hw = (0.3 if net in POWER_NETS else 0.2) / 2
         items = geo(b)
+        pads = pad_boxes(b)
         main_ = ends(clusters[0])
         for cl in clusters[1:]:
             pairs = sorted(((np.hypot(a[0] - e[0], a[1] - e[1]), a, e) for a in main_ for e in ends(cl)), key=lambda t: t[0])
@@ -875,7 +987,7 @@ def finish(b):
                         for r in np.arange(0.7, 3.6, 0.15):
                             for ang in np.arange(0, 2 * np.pi, np.pi / 12):
                                 vx, vy = float(s0[0] + r * np.cos(ang)), float(s0[1] + r * np.sin(ang))
-                                if not all(seg_ok(items, l, net, vx, vy, vx, vy, 0.3) for l in CU):
+                                if not off_pads(pads, vx, vy) or not all(seg_ok(items, l, net, vx, vy, vx, vy, 0.3) for l in CU):
                                     continue
                                 l0 = next((l for l in CU if l in s0[2] and seg_ok(items, l, net, s0[0], s0[1], vx, vy, hw)), None)
                                 if l0 is None:
@@ -956,6 +1068,7 @@ def freeroute(jar):
     for rnd in range(1):
         b = pcbnew.LoadBoard(PCB)
         rules(b)
+        epad_vias(b)
         stitch(b, fanout=['U2', 'U3', 'U4'] +      # every GND pad but the module's has its own via
                sorted(f.GetReference() for f in b.GetFootprints() if re.match(r'(C|R|JP|SW)\d', f.GetReference())))
         pcbnew.SaveBoard(PCB, b)
@@ -981,24 +1094,31 @@ def freeroute(jar):
             break
     b = pcbnew.LoadBoard(PCB)
     rules(b)
+    unpad(b)                    # Freerouting and the finisher may still leave a via on a pad
     stitch(b)
-    # a via too close to a through-hole pin's drill is redundant (the pin reaches its plane through its own hole)
-    holes = [(p.GetPosition(), p.GetDrillSize().x) for f in b.GetFootprints() for p in f.Pads() if p.GetDrillSize().x > 0]
-    for v in [v for v in b.GetTracks() if v.GetClass() == 'PCB_VIA' and any(
-            np.hypot((v.GetPosition().x - q.x) / 1e6, (v.GetPosition().y - q.y) / 1e6) < (v.GetDrill() + d) / 2e6 + 0.26
-            for q, d in holes)]:
-        b.Delete(v)
+    prune(b)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    left = vias_on_pads(b)
     pcbnew.SaveBoard(PCB, b)
+    assert not left, 'vias on pads: %d' % len(left)
 
 
 if __name__ == '__main__':
-    if '--fill' in sys.argv or '--stitch' in sys.argv:     # refill (and stitch) the routed board
+    if '--fill' in sys.argv or '--stitch' in sys.argv or '--unpad' in sys.argv:     # refill (and stitch) the routed board
         bb = pcbnew.LoadBoard(PCB)
         rules(bb)
-        if '--stitch' in sys.argv:
+        if '--unpad' in sys.argv:          # move the vias off the pads of the routed board, without routing it again
+            strip_epad_vias(bb.FindFootprintByReference('U1'))
+            unpad(bb)
+            epad_vias(bb)
+        if '--stitch' in sys.argv or '--unpad' in sys.argv:
             stitch(bb)
+            prune(bb)
         pcbnew.ZONE_FILLER(bb).Fill(bb.Zones())
+        left = vias_on_pads(bb)
+        for v, p in left:
+            print('  via on pad %s-%s at %.2f, %.2f' % (p.GetParentFootprint().GetReference(), p.GetNumber(),
+                                                        v.GetPosition().x / 1e6 - OX, v.GetPosition().y / 1e6 - OY))
         pcbnew.SaveBoard(PCB, bb)
     else:
         main()

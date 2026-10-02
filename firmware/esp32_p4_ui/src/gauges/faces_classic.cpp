@@ -205,27 +205,16 @@ class ClassicTach : public Face {
   }
 
   void build(lv_obj_t *root, const Geo &g) override {
-    ticker_ = label(root, &elc_b_22, kInkDim, g.X(400), g.Y(640), g.L(330), Align::Center);
     needle_ = classic_needle(this, add<Needle>(root), g, g.cx(), g.cy(), 258, 46, 15, 5);
     hub_at(add<Hub>(root), g.cx(), g.cy(), g.L(26));
   }
 
   void update(const GaugeData &d, float dt) override {
     needle_->set(psi_for(rpm_.step(d.fresh ? d.rpm : 0.0f, dt, 10.0f)));
-    char b[96] = "";
-    if (d.media_connected && d.media_title && d.media_title[0]) {
-      if (d.media_artist && d.media_artist[0]) {
-        snprintf(b, sizeof(b), "%s \xC2\xB7 %s", d.media_title, d.media_artist);
-      } else {
-        snprintf(b, sizeof(b), "%s", d.media_title);
-      }
-    }
-    set_text(ticker_, b);
   }
 
  private:
   Needle *needle_ = nullptr;
-  lv_obj_t *ticker_ = nullptr;
   Smooth rpm_;
 };
 

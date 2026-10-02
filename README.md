@@ -27,12 +27,12 @@ The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git t
 The center re-sends each sensor frame and the theme on CAN. Accessories are carrier boards with their own MCU and
 transceiver on generic ports: four 2×5 header positions on the back of the board and two JST PH cable ports, each
 with fused +5 V (and +12 V on the headers); see `docs/hardware/accessory_ports.md`. The audio bridge is one such
-carrier and talks to the center over CAN only (its I2C link is for bench setups). The console (OLED + knobs) is its own
+carrier and talks to the center over CAN only (the bench uses the USB CAN link, `docs/protocols/usb_link.md`). The console (OLED + knobs) is its own
 board on a short cable to cable port J17; accessories never terminate the bus, so it works with any of them unplugged.
 See `docs/protocols/can_bus.md`.
 
 - **sensor_pack** is the source of truth for all readings and the odometer. One TX fans out to all three displays; only the center sends the 0xA5 keepalive back.
-- **center** also owns GPS time/location, Wi-Fi (NTP, street name, time zone), touch menu, BLE, SD settings, and theme sync to the other two displays.
+- **center** also owns GPS time/location, the time zone (`tz` on its serial console), touch menu, BLE, SD settings, and theme sync to the other two displays. The cluster never uses Wi-Fi.
 - If sensor data stops arriving for 400 ms, the gauges dim and show **NO DATA** instead of reading zero.
 
 ## Repository

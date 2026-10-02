@@ -85,9 +85,19 @@ void changed() { s_changes++; }
 
 bool same(const uint8_t *a, const uint8_t *b) { return memcmp(a, b, ESP_BD_ADDR_LEN) == 0; }
 
+/** Copies a name or text; curly quotes become straight ones ("Rob’s iPhone"): the screens' fonts have no curly ones. */
 void copy_text(char *dst, const char *src) {
-  strncpy(dst, src ? src : "", kPhoneTextMax);
-  dst[kPhoneTextMax] = '\0';
+  size_t n = 0;
+  for (const char *p = src ? src : ""; *p && n < kPhoneTextMax; p++) {
+    const uint8_t *u = reinterpret_cast<const uint8_t *>(p);
+    if (u[0] == 0xE2 && u[1] == 0x80 && (u[2] == 0x98 || u[2] == 0x99 || u[2] == 0x9C || u[2] == 0x9D)) {
+      dst[n++] = u[2] >= 0x9C ? '"' : '\'';
+      p += 2;
+    } else {
+      dst[n++] = *p;
+    }
+  }
+  dst[n] = '\0';
 }
 
 /** "+15550104477" -> "(555) 010-4477" for North American numbers; anything else as the phone sent it. */
@@ -451,7 +461,10 @@ void set_class_of_device() {
 
 void phone_begin(BluetoothA2DPSink *sink) {
   s_sink = sink;
-  sink->activate_pin_code(true);  // IO capability "display yes/no": numeric comparison, confirmed on the console
+  // IO capability "no input, no output": Just Works pairing. With "display yes/no" an iPhone pairs Just Works anyway,
+  // then the profiles ask for an authenticated key, the stack starts a second pairing to upgrade it, and iOS never
+  // shows that request (it times out, status 9). The pairing window is what decides who may pair.
+  sink->activate_pin_code(false);
   sink->set_discoverability(ESP_BT_NON_DISCOVERABLE);  // phone_loop opens the window when there is reason to
   call_audio_set_volume(s_call_vol);
 }
@@ -481,7 +494,9 @@ void phone_gap_event(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) 
         if (event == ESP_BT_GAP_CFM_REQ_EVT) esp_bt_gap_ssp_confirm_reply(const_cast<uint8_t *>(bda), false);
         break;
       }
-      Serial.printf("phones: pairing code %06lu\n", (unsigned long)key);
+      Serial.printf("phones: pairing code %06lu (%s, %s), at %lu ms\n", (unsigned long)key,
+                    event == ESP_BT_GAP_CFM_REQ_EVT ? "confirm" : "shown only", known ? "already paired" : "new phone",
+                    (unsigned long)millis());
       portENTER_CRITICAL(&s_mux);
       s_confirm = true;
       s_confirm_reply = event == ESP_BT_GAP_CFM_REQ_EVT;
@@ -515,8 +530,24 @@ void phone_gap_event(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) 
       s_confirm = false;
       changed();
       portEXIT_CRITICAL(&s_mux);
-      Serial.printf("phones: pairing %s (%s)\n", param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS ? "done" : "failed",
-                    reinterpret_cast<const char *>(param->auth_cmpl.device_name));
+      // Link key type: 4/5 unauthenticated / authenticated (P-192), 7/8 the same with P-256 (Secure Connections).
+      Serial.printf("phones: pairing %s (%s), status %d, link key type %d, at %lu ms\n",
+                    param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS ? "done" : "failed",
+                    reinterpret_cast<const char *>(param->auth_cmpl.device_name), (int)param->auth_cmpl.stat,
+                    (int)param->auth_cmpl.lk_type, (unsigned long)millis());
+      break;
+    case ESP_BT_GAP_ACL_CONN_CMPL_STAT_EVT:
+      Serial.printf("phones: link up %02x:%02x:%02x:%02x:%02x:%02x, status %d, at %lu ms\n", param->acl_conn_cmpl_stat.bda[0],
+                    param->acl_conn_cmpl_stat.bda[1], param->acl_conn_cmpl_stat.bda[2], param->acl_conn_cmpl_stat.bda[3],
+                    param->acl_conn_cmpl_stat.bda[4], param->acl_conn_cmpl_stat.bda[5], (int)param->acl_conn_cmpl_stat.stat,
+                    (unsigned long)millis());
+      break;
+    case ESP_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT:
+      Serial.printf("phones: link down, reason 0x%02x, at %lu ms\n", (unsigned)param->acl_disconn_cmpl_stat.reason,
+                    (unsigned long)millis());
+      break;
+    case ESP_BT_GAP_ENC_CHG_EVT:
+      Serial.printf("phones: encryption mode %d, at %lu ms\n", (int)param->enc_chg.enc_mode, (unsigned long)millis());
       break;
     case ESP_BT_GAP_READ_REMOTE_NAME_EVT:
       if (param->read_rmt_name.stat != ESP_BT_STATUS_SUCCESS) break;
