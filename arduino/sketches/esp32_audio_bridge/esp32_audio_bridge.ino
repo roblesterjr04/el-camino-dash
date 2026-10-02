@@ -421,6 +421,7 @@ static void avrc_play_pos_cb(uint32_t play_pos_ms) {
 // The last play / pause the bridge sent the phone, and when: a toggle soon after follows it, not the phone's play
 // status, which an iPhone reports late (or not at all) after a remote command.
 static bool s_cmd_play = false;
+static bool s_have_play_status = false;  // the phone has reported its play status on this connection
 static uint32_t s_cmd_ms = 0;
 static constexpr uint32_t kTrustCmdMs = 2000;
 
@@ -428,6 +429,7 @@ static void avrc_play_status_cb(esp_avrc_playback_stat_t st) {
   Serial.printf("phone play status: %s\n", st == ESP_AVRC_PLAYBACK_PLAYING ? "playing" : (st == ESP_AVRC_PLAYBACK_PAUSED ? "paused" : (st == ESP_AVRC_PLAYBACK_STOPPED ? "stopped" : "other")));
   portENTER_CRITICAL(&s_track_mux);
   apply_elapsed_estimate_unlocked();  // settle elapsed before the state flips
+  s_have_play_status = true;
   s_playing = (st == ESP_AVRC_PLAYBACK_PLAYING);
   anchor_position_unlocked(s_elapsed_s);
   portEXIT_CRITICAL(&s_track_mux);
@@ -450,6 +452,7 @@ static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
   s_prev_track_for_elapsed[0] = '\0';
   rebuild_track_line();
   s_playing = false;
+  s_have_play_status = false;
   s_duration_s = 0;
   anchor_position_unlocked(0);
   portEXIT_CRITICAL(&s_track_mux);
@@ -967,12 +970,14 @@ void loop() {
   }
   s_last_tick_ms = millis();
 #endif
-  // The AVRCP play-status notification only fires on a change, so after a reboot mid-song it never
-  // comes. The A2DP stream itself is the reliable signal: audio flowing = playing.
+  // The AVRCP play-status notification only fires on a change, so after a reboot mid-song it never comes: until the
+  // phone has reported once, the A2DP stream stands in (audio flowing = playing). Once it has, its report wins: an
+  // iPhone keeps the stream started for a while after a pause (longer when locked), so the stream would say
+  // "playing" and the play / pause toggle would pause again instead of playing.
   const bool streaming = a2dp_sink && a2dp_sink->get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED;
   // Keep the elapsed estimate moving between AVRCP events.
   portENTER_CRITICAL(&s_track_mux);
-  if (streaming != s_playing) {
+  if (!s_have_play_status && streaming != s_playing) {
     apply_elapsed_estimate_unlocked();
     s_playing = streaming;
     anchor_position_unlocked(s_elapsed_s);
