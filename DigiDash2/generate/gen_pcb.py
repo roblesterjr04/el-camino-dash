@@ -117,14 +117,38 @@ FIXED = {
 FIXED_DESCR = {
     'Video input ESD': (162.0, 86.4, 90, 'F'),
     '75 R termination and 1/2 attenuation (R1)': (159.8, 86.4, 90, 'F'),
+    # the anti-alias filter's footprints (C1 not fitted, the 0 R / 2.7 uH, C2 not fitted) between the clamp and R1
+    'Anti-alias filter C1 (fit with C2 and a 2.7 uH in place of the 0 R)': (164.3, 86.4, 90, 'F'),
+    'Anti-alias filter L: 0 R as delivered, 2.7 uH 0805 inductor to fit the filter': (164.3, 82.9, 90, 'F'),
+    'Anti-alias filter C2 (fit with C1 and a 2.7 uH in place of the 0 R)': (161.6, 82.9, 90, 'F'),
     '75 R termination and 1/2 attenuation (R2)': (157.8, 86.4, 90, 'F'),
     'Input coupling (C4)': (125.9, 61.85, 0, 'F'),
     '14.31818 MHz, +/-50 ppm, fundamental': (126.9, 64.5, 90, 'B'),
     'Y3 load (2 CL - Cstray)': (126.9, 61.4, 0, 'B'),
     'Y3 load': (126.9, 67.6, 0, 'B'),
     'Across the crystal (TI note E)': (129.4, 64.5, 90, 'B'),
-    'Pixel clock series (edge damping)': (130.25, 69.6, 90, 'B'),
+    'Pixel clock series (edge damping)': (130.25, 69.6, 270, 'B'),
+    # the RESETB pull-up on the back beside the crystal: left to the placer it lands on the front right under the data
+    # pins (YOUT0-7, pins 11-18) and boxes in their escape
+    'RESETB pull-up': (127.4, 69.6, 0, 'B'),
 }
+# the video input and the pixel clock's first 2 mm, drawn by hand and locked before Freerouting runs (left to itself it detours round J1, 80-150 mm with
+# up to 8 vias): VID_ATT from the termination (R32) down to B.Cu, along under J1's pin rows (y 80.1, clear of F29),
+# up the gap between J1's and slot 5's pins (x 124.34) to the coupling cap C27, and C27 straight into AIP1A (pin 1).
+# (net, layer, width, points in board mm); a via wherever consecutive pieces change layer. Placement is fixed above,
+# so these points follow the parts; re-check them if R32, C27 or U8 move
+PREROUTE = [
+    ('/VID_ATT', 'F', 0.25, [(159.8, 85.575), (159.8, 84.2)]),
+    ('/VID_ATT', 'B', 0.25, [(159.8, 84.2), (159.8, 80.1), (124.34, 80.1), (124.34, 61.85)]),
+    ('/VID_ATT', 'F', 0.25, [(124.34, 61.85), (125.125, 61.85)]),
+    ('/VID_AIP1A', 'F', 0.2, [(126.675, 61.85), (127.2, 61.85), (127.6, 62.25), (128.84, 62.25)]),
+    # SCLK (pin 9) straight down through a via into the 22 R's pad on the back
+    ('/VID_SCLK', 'F', 0.2, [(130.25, 67.16), (130.25, 68.2)]),
+    ('/VID_SCLK', 'B', 0.2, [(130.25, 68.2), (130.25, 68.775)]),
+    # YOUT4 / YOUT5 (pins 14 / 13) out of the pin row as a pair, so neither boxes the other in
+    ('/V_D4', 'F', 0.2, [(132.75, 67.16), (132.75, 68.18), (136.0, 68.18)]),
+    ('/V_D5', 'F', 0.2, [(132.25, 67.16), (132.25, 68.2), (132.69, 68.64), (136.0, 68.64)]),
+]
 SIDE_DEFAULT = 'B'
 ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'],
           'screens': ['U5', 'U9', 'U10', 'J1', 'J4', 'J5', 'J9', 'J6', 'J27'],
@@ -223,6 +247,8 @@ def main():
         fp.GetField(pcbnew.FIELD_T_DATASHEET).SetText(sheet)
         fp.GetField(pcbnew.FIELD_T_DESCRIPTION).SetText(descr)
         fp.SetAttributes(fp.GetAttributes() & ~pcbnew.FP_EXCLUDE_FROM_BOM)
+        if groups.get(ref, {}).get('dnp'):
+            fp.SetDNP(True)             # not fitted as delivered (the schematic's DNP flag)
         b.Add(fp)
         for pad in fp.Pads():
             n = nets.get((ref, pad.GetNumber()))
@@ -534,7 +560,7 @@ CLASSES = {      # name: (track width, clearance, [nets])
     'Power': (0.4, 0.15, ['+3V3', '/+1V8', '/+1V8A', '/CAM_12V', '/TRUNK_12V', '/Illumination']),
     'Power12': (0.8, 0.2, ['/BATT_IN', '/12V_BATT', '/SW12', '/IGN_IN']),
     'Switch': (1.5, 0.2, ['/BUCK_SW']),
-    'Video': (0.25, 0.25, ['/VIDEO_IN', '/VID_ATT', '/VID_AIP1A']),
+    'Video': (0.25, 0.2, ['/VIDEO_IN', '/VID_AAF', '/VID_ATT']),
     'Aux': (2.0, 0.3, ['/AUX_IN', '/AUX_IN_F', '/AUX12', '/AUX_GND']),
 }
 
@@ -900,7 +926,20 @@ def geo(b):
                 out.append(({gi.GetLayer()}, 'r', (bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6), ''))
     return out
 
+def net_clr(name):
+    """The clearance a net's class asks for (0 for the default class): the post-route checks keep at least this much."""
+    for _, (w, clr, members) in CLASSES.items():
+        if name in members:
+            return clr
+    if re.match(r'^/S\d_12V$', name):
+        return CLASSES['Power12'][1]
+    if re.match(r'^/(S\d_5V|S\d_3V3|S\d_BATT|C\d_5V)$', name):
+        return CLASSES['Power'][1]
+    return 0.0
+
+
 def seg_ok(items, lay, net, ax, ay, ex, ey, hw, gap=0.14):
+    own = net_clr(net)
     reach = hw + gap + 3.0              # only the items near the segment matter
     x1, x2, y1, y2 = min(ax, ex) - reach, max(ax, ex) + reach, min(ay, ey) - reach, max(ay, ey) + reach
 
@@ -920,17 +959,18 @@ def seg_ok(items, lay, net, ax, ay, ex, ey, hw, gap=0.14):
         for lays, kind, g, n in items:
             if n == net or lay not in lays:
                 continue
+            gap_ = max(gap, own - 0.002, net_clr(n) - 0.002) if n else gap
             if kind == 'c':
-                if np.hypot(x - g[0], y - g[1]) < hw + g[2] + gap:
+                if np.hypot(x - g[0], y - g[1]) < hw + g[2] + gap_:
                     return False
             elif kind == 's':
                 sx, sy, tx, ty, w = g
                 dx, dy = tx - sx, ty - sy
                 L = dx * dx + dy * dy
                 u = 0 if L == 0 else max(0, min(1, ((x - sx) * dx + (y - sy) * dy) / L))
-                if np.hypot(x - sx - u * dx, y - sy - u * dy) < hw + w + gap:
+                if np.hypot(x - sx - u * dx, y - sy - u * dy) < hw + w + gap_:
                     return False
-            elif g[0] - hw - gap < x < g[2] + hw + gap and g[1] - hw - gap < y < g[3] + hw + gap:
+            elif g[0] - hw - gap_ < x < g[2] + hw + gap_ and g[1] - hw - gap_ < y < g[3] + hw + gap_:
                 return False
     return True
 
@@ -967,12 +1007,14 @@ def maze_join(b, ni, a, e, hw, gap=0.16, res=0.1, margin=8.0, dbg=False):
     for k in (0, 1):
         blocked[k] |= edge
     vblock |= edge
+    own = net_clr(net)
     for lays, kind, g, n in geo(b):
         if n == net:
             continue
+        gap_ = max(gap, own + 0.02, net_clr(n) + 0.02) if n else gap
         for k, L in enumerate(LAY):
             on = L in lays
-            for arr, inf, use in ((blocked[k], hw + gap, on), (vblock, 0.3 + gap, on or kind == 'c')):
+            for arr, inf, use in ((blocked[k], hw + gap_, on), (vblock, 0.3 + gap_, on or kind == 'c')):
                 if not use:
                     continue
                 if kind == 'c':
@@ -1315,6 +1357,7 @@ def freeroute(jar):
     rules(b)
     smd = sorted({f.GetReference() for f in b.GetFootprints()
                   if any(p.GetAttribute() == pcbnew.PAD_ATTRIB_SMD for p in f.Pads())})
+    preroute(b)
     stitch(b, fanout=smd, netname='GND')
     stitch(b, fanout=smd, netname='+5V')
     pcbnew.SaveBoard(PCB, b)
@@ -1328,6 +1371,33 @@ def freeroute(jar):
     subprocess.check_call([java, '-jar', jar, '-de', dsn, '-do', ses, '-mp', os.environ.get('FR_PASSES', '120'), '-mt', '1'],
                           cwd=TMP, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     after_route(ses)
+
+
+def preroute(b):
+    """Add PREROUTE as locked tracks (and a locked via at each layer change), so Freerouting routes around them."""
+    prev = None
+    for net, lay, w, pts in PREROUTE:
+        ni = b.FindNet(net)
+        assert ni, net
+        layer = pcbnew.F_Cu if lay == 'F' else pcbnew.B_Cu
+        if prev and prev[0] == net and prev[1] != lay:
+            v = pcbnew.PCB_VIA(b)
+            v.SetPosition(P(*pts[0]))
+            v.SetWidth(mm(0.6))
+            v.SetDrill(mm(0.3))
+            v.SetNet(ni)
+            v.SetLocked(True)
+            b.Add(v)
+        for p0, p1 in zip(pts, pts[1:]):
+            t = pcbnew.PCB_TRACK(b)
+            t.SetStart(P(*p0))
+            t.SetEnd(P(*p1))
+            t.SetWidth(mm(w))
+            t.SetLayer(layer)
+            t.SetNet(ni)
+            t.SetLocked(True)
+            b.Add(t)
+        prev = (net, lay)
 
 
 def after_route(ses):

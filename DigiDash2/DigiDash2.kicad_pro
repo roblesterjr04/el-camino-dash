@@ -299,7 +299,7 @@
         "microvia_drill": 0.1,
         "name": "Aux",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
-        "priority": 4,
+        "priority": 5,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 2.0,
         "tuning_profile": "",
@@ -382,6 +382,25 @@
         "via_diameter": 0.8,
         "via_drill": 0.4,
         "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.2,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "Video",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": 4,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.25,
+        "tuning_profile": "",
+        "via_diameter": 0.6,
+        "via_drill": 0.3,
+        "wire_width": 6
       }
     ],
     "meta": {
@@ -424,63 +443,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S6_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S2_BATT"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/C4_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S2_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/C3_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S2_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S3_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S1_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S1_BATT"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S5_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S3_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S4_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/C1_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S1_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S6_3V3"
+        "pattern": "/S5_5V"
       },
       {
         "netclass": "Power",
@@ -488,7 +451,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/C2_5V"
+        "pattern": "/S2_3V3"
       },
       {
         "netclass": "Power",
@@ -496,19 +459,75 @@
       },
       {
         "netclass": "Power",
+        "pattern": "/C2_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S3_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S1_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S2_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S3_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C4_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S6_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C3_5V"
+      },
+      {
+        "netclass": "Power",
         "pattern": "/S4_3V3"
       },
       {
         "netclass": "Power",
-        "pattern": "/S5_5V"
+        "pattern": "/S1_5V"
       },
       {
         "netclass": "Power",
-        "pattern": "/S5_BATT"
+        "pattern": "/S4_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S1_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S2_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S6_3V3"
       },
       {
         "netclass": "Power",
         "pattern": "/S4_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C1_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_BATT"
       },
       {
         "netclass": "Power12",
@@ -528,7 +547,7 @@
       },
       {
         "netclass": "Power12",
-        "pattern": "/S1_12V"
+        "pattern": "/S2_12V"
       },
       {
         "netclass": "Power12",
@@ -540,19 +559,31 @@
       },
       {
         "netclass": "Power12",
-        "pattern": "/S2_12V"
-      },
-      {
-        "netclass": "Power12",
-        "pattern": "/S4_12V"
+        "pattern": "/S1_12V"
       },
       {
         "netclass": "Power12",
         "pattern": "/S6_12V"
       },
       {
+        "netclass": "Power12",
+        "pattern": "/S4_12V"
+      },
+      {
         "netclass": "Switch",
         "pattern": "/BUCK_SW"
+      },
+      {
+        "netclass": "Video",
+        "pattern": "/VIDEO_IN"
+      },
+      {
+        "netclass": "Video",
+        "pattern": "/VID_AAF"
+      },
+      {
+        "netclass": "Video",
+        "pattern": "/VID_ATT"
       },
       {
         "netclass": "Aux",
