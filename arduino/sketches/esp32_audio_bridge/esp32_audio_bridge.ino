@@ -180,6 +180,8 @@ static BluetoothA2DPSink *a2dp_sink = nullptr;
 // in NVS), so one volume covers every source. The phone's own (AVRCP absolute) volume is held at full: with absolute
 // volume the phone sends full-scale audio and leaves the attenuation to the sink, so its slider would otherwise be the
 // car's volume. When the phone moves it, the bridge puts it back.
+// Tried on 2026-10-02 and dropped: not advertising absolute volume at all (no volume-change notification, car-audio
+// class of device). An iPhone then scales the audio itself, so its slider became a second, independent volume.
 static constexpr uint8_t kPhoneLockedVolume = 127;
 static constexpr uint8_t kMasterDefault = 8;
 
