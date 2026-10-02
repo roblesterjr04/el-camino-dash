@@ -201,7 +201,10 @@ class ConsoleUi {
   void art_pump(uint32_t now_ms);
   void touched(uint32_t now_ms) { _touch_ms = now_ms ? now_ms : 1; }
   void presets_open(uint32_t now_ms);
-  void presets_close() { _pre_open = false; }
+  void presets_close(const char *why) {
+    if (_pre_open) _pre_why = why;
+    _pre_open = false;
+  }
   uint8_t sink() const;
   uint8_t radio() const;
   bool bridge_heard(uint32_t now_ms) const { return _bridge_ms && now_ms - _bridge_ms < 3000; }
@@ -310,6 +313,7 @@ class ConsoleUi {
   bool _pre_open = false;  // the preset list
   int _pre_sel = 0;
   uint32_t _pre_ms = 0;    // its last input
+  const char *_pre_why = "";  // why it closed last (the serial console's state)
   uint8_t _src_req = 0;   // the source asked for, until STATUS says so
   uint32_t _src_req_ms = 0;
 

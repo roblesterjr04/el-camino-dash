@@ -297,7 +297,9 @@ static void test_sources_and_radio() {
   r.sent(ELC_CH_AUDIO_CMD);
   ui.soft_right(T);  // closes, and the page stays
   CHECK(!ui.presets_shown() && ui.page() == kPageMedia);
-  ui.right_click(T);
+  ui.right_click(T + 5);  // an input stamped just after the clock of the next pass (the serial console) ...
+  ui.tick(T);
+  CHECK(ui.presets_shown());  // ... does not count as long untouched
   T += ConsoleUi::kPresetsIdleMs + 100;
   center(ui);  // the center and the audio card are still there
   sensors(ui);

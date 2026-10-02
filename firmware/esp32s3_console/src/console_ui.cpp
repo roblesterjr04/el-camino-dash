@@ -974,7 +974,7 @@ void ConsoleUi::left_click(uint32_t now_ms) {
     menu_click(now_ms);
     return;
   }
-  presets_close();
+  presets_close("left click");
   const uint8_t s = sink();
   if (!s) {
     toast("SOURCE", "No audio card", now_ms);
@@ -996,7 +996,7 @@ void ConsoleUi::left_hold(uint32_t now_ms) {
   _now = now_ms;
   if (!alive(now_ms) || call_shown(now_ms) || pair_shown(now_ms)) return;
   touched(now_ms);
-  presets_close();
+  presets_close("left hold");
   if (_mode == ConsoleMode::Drive) open_menu(now_ms);
   else close_menu();
 }
@@ -1045,7 +1045,7 @@ void ConsoleUi::right_click(uint32_t now_ms) {
     return;
   }
   if (radio_is_source(now_ms)) {
-    if (_pre_open) presets_close();
+    if (_pre_open) presets_close("right click");
     else presets_open(now_ms);
   } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
     const bool on = !(_ph.flags & ELC_CAN_PHONE_VOICE);
@@ -1146,7 +1146,7 @@ void ConsoleUi::soft_right(uint32_t now_ms) {
     return;
   }
   if (_pre_open) {
-    presets_close();
+    presets_close("right soft");
     return;
   }
   page_step(1, now_ms);
@@ -1221,9 +1221,12 @@ void ConsoleUi::tick(uint32_t now_ms) {
     _mode = ConsoleMode::Menu;
     _edit_id = 0;
   }
-  if (_pre_open && (now_ms - _pre_ms > kPresetsIdleMs || !radio_is_source(now_ms) || _mode != ConsoleMode::Drive ||
-                    call_shown(now_ms))) {
-    presets_close();
+  if (_pre_open) {
+    // signed: an input stamped a little after this pass's clock (the serial console) is not "long ago"
+    if ((int32_t)(now_ms - _pre_ms) > (int32_t)kPresetsIdleMs) presets_close("idle");
+    else if (!radio_is_source(now_ms)) presets_close("radio not the source");
+    else if (_mode != ConsoleMode::Drive) presets_close("menu");
+    else if (call_shown(now_ms)) presets_close("call");
   }
   if (_mode != ConsoleMode::Drive) {
     build_rows();
@@ -1262,10 +1265,11 @@ void ConsoleUi::describe(char *out, size_t n, uint32_t now_ms) const {
   char l1[40], l2[72];
   now_text(l1, sizeof(l1), l2, sizeof(l2), now_ms);
   snprintf(out, n,
-           "mode %s, page %s, menu %s (row %d); center %s, sensors %s, bridge %s (slot %u), call %s, pairing %s; "
+           "mode %s, page %s, presets %s %d (%lu ms idle, last closed: %s), menu %s (row %d); center %s, sensors %s, bridge %s (slot %u), call %s, pairing %s; "
            "audio card %s, source %s, playing '%s' '%s'; radio %s; time %s; art shown %u, rx id %u, starts %lu "
            "requests %lu resets %lu, failed %u",
-           kMode[(int)_mode % 3], kPage[_page % 4], kMenu[L.page % 11], L.sel, alive(now_ms) ? "heard" : "not heard",
+           kMode[(int)_mode % 3], kPage[_page % 4], _pre_open ? "open" : "closed", _pre_sel + 1,
+           (unsigned long)(now_ms - _pre_ms), _pre_why, kMenu[L.page % 11], L.sel, alive(now_ms) ? "heard" : "not heard",
            _sensor_ms && now_ms - _sensor_ms < kSensorFreshMs ? "fresh" : "none", bridge_heard(now_ms) ? "heard" : "none",
            _slot, phone_fresh(now_ms) ? kCall[_ph.call % 7] : "-", pair_shown(now_ms) ? "code waiting" : "-",
            sink() ? "heard" : "none", source_name(source(now_ms)), l1, l2, radio() ? "heard" : "none",
