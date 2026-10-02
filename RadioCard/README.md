@@ -57,7 +57,7 @@ Slot +5 V ── U3 AP2112K-3.3 ── +3V3 (MCU, VIO, tuner VD) ── FB1 ─�
 | Connector | Pins |
 | --- | --- |
 | J1, slot (2×15, right angle, bottom edge) | Used: 1 / 2 +5 V, 3 / 4 / 7 / 19 / 20 GND, 5 CANH, 6 CANL, 11 slot ID, 15 BCK, 16 WS, 18 RET, 24 MCLK (through unfitted R13). Everything else open |
-| J2, antenna (SMA, top edge) | Centre: FM (and AM with JP2); shell: GND. Motorola-to-SMA pigtail to the car whip |
+| J2, antenna (SMA, top edge) | Centre: FM (and AM with JP2); shell: GND. The car whip's Motorola plug goes in through a short pigtail, DIN 41585 female to SMA male (not RP-SMA), e.g. Eightwood TB0188 (10 cm RG174); no straight adapter is sold |
 | J5, AM loopstick (1 × 2, right angle, top edge) | 1 AM node (left, square pad), 2 GND |
 | J3, SWD (1 × 5, right angle, left edge) | 1 3V3 (sense), 2 SWDIO, 3 SWCLK, 4 NRST, 5 GND (pin 1 lowest) |
 | J4, debug serial (1 × 3, right angle, left edge) | 1 GND, 2 TX (out), 3 RX (in) |
@@ -76,8 +76,10 @@ Slot +5 V ── U3 AP2112K-3.3 ── +3V3 (MCU, VIO, tuner VD) ── FB1 ─�
 ## Status
 
 **Schematic and board done** (2026-10-02). ERC: no errors (the endpoint-off-grid and project-library warnings
-every generated card has). DRC with the schematic parity check: see [Regenerating](#regenerating) for the result of the
-last run. Fab outputs in `fab/`.
+every generated card has). PCB placed and routed (Freerouting 1.9.0, 60 passes, complete; 207 ground stitching vias).
+DRC with the schematic parity check: **no errors, nothing unconnected**; J2's five edge-clearance hits are expected
+(edge-launch SMA, reported apart by `drc.py`); 32 silkscreen warnings. Fab outputs in `fab/` (48 placed parts; R13 is
+not fitted).
 
 Check before ordering:
 - The SMA's land pattern and which line is the board edge (the footprint puts the edge 2.54 mm in front of pad 1;

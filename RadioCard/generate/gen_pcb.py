@@ -42,7 +42,7 @@ W, H = 80.0, 60.0          # a slot card: the bottom edge (y = H) goes into the 
 J2_X = 45.0                # the SMA's centre pin on the top edge (its board-edge line is 2.54 mm from pad 1)
 U4_X, U4_Y = 48.0, 13.0    # the tuner, rotated so FMI / AMI (pins 8 / 12) face the SMA and VD / VA the bottom
 J5_X = 33.0                # AM loopstick header (right angle, top edge), pin 1 (the AM node) on the right
-RF_KEEP = (28.0, 0.0, 62.0, 21.0)   # x1, y1, x2, y2: no tracks or vias on In2 / B (the tuner's front end)
+RF_KEEP = (28.0, 0.0, 62.0, 12.5)   # x1, y1, x2, y2: no tracks on In2 / B over the front end (the tuner's antenna-side pins and up)
 J3_Y = 26.0                # SWD header pin 1 (left edge; its pins count upward)
 J4_Y = 36.0                # debug serial header pin 1 (left edge, below J3)
 HDR_X = 4.04               # right-angle 2.54 mm headers: pad row 4.04 mm in, so the body's outer face is on the edge

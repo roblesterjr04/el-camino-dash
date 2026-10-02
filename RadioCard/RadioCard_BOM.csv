@@ -12,7 +12,7 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,JP1,Solder jumper (PCB),"Tuner address: 3-pad solder jumper, 1-2 bridged by a copper trace as delivered (SEN low, I2C 0x11)",PCB,PCB,Top,"For 0x63: cut the 1-2 trace, bridge 2-3"
 1,JP2,Solder jumper (PCB),"AM from whip: 2-pad solder jumper, open as delivered (AM from the loopstick only)",PCB,PCB,Top,Bridge only with a car-whip AM network (not in AN383)
 1,J1,"2.54 mm pin header 2 x 15, right angle (e.g. Sullins PBC15DBAN or equal, 6 mm mating pins)",DigiDash slot: right-angle 2 x 15 male header on the bottom edge,THT,THT,Top,Body on the bottom edge; pins stand 6 mm past it into the main board's slot socket
-1,J2,Amphenol RF 132289,"SMA jack, edge mount, for 1.6 mm board (antenna)",Edge mount,SMD,Top,Top edge; Motorola-to-SMA pigtail to the car whip
+1,J2,Amphenol RF 132289,"SMA jack, edge mount, for 1.6 mm board (antenna)",Edge mount,SMD,Top,"Top edge. Motorola-to-SMA: no straight adapter is sold; use a short pigtail, DIN 41585 female to SMA male (not RP-SMA), e.g. Eightwood TB0188 (10 cm RG174, eBay / Superbat). Check the SMA end has a centre pin"
 1,J3,"2.54 mm pin header 1 x 5, right angle","SWD: 3V3 (sense), SWDIO, SWCLK, NRST, GND",THT,THT,Top,Left edge; ST-Link
 1,J4,"2.54 mm pin header 1 x 3, right angle","Debug serial: GND, TX, RX (USART1, 3.3 V)",THT,THT,Top,Left edge; USB-serial adapter
 1,J5,"2.54 mm pin header 1 x 2, right angle","AM loopstick: 1 AM node, 2 GND",THT,THT,Top,"Top edge; ferrite loopstick 180-450 uH on a wire pair"
