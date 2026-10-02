@@ -1,0 +1,52 @@
+Ref,Value,Footprint,Group
+C1,10u,Capacitor_SMD:C_0805_2012Metric,power
+C2,10u,Capacitor_SMD:C_0805_2012Metric,power
+C3,100n,Capacitor_SMD:C_0603_1608Metric,power
+C4,10u,Capacitor_SMD:C_0805_2012Metric,power
+C5,100n,Capacitor_SMD:C_0603_1608Metric,mcu
+C6,4.7u,Capacitor_SMD:C_0603_1608Metric,mcu
+C7,100n,Capacitor_SMD:C_0603_1608Metric,mcu
+C8,12p,Capacitor_SMD:C_0603_1608Metric,mcu
+C9,12p,Capacitor_SMD:C_0603_1608Metric,mcu
+C10,100n,Capacitor_SMD:C_0603_1608Metric,can
+C11,100n,Capacitor_SMD:C_0603_1608Metric,can
+C12,22n,Capacitor_SMD:C_0603_1608Metric,tuner
+C13,100n,Capacitor_SMD:C_0603_1608Metric,tuner
+C14,3p,Capacitor_SMD:C_0603_1608Metric,tuner
+C15,100n,Capacitor_SMD:C_0603_1608Metric,clock
+C16,100n,Capacitor_SMD:C_0603_1608Metric,rail
+C17,1n,Capacitor_SMD:C_0603_1608Metric,antenna
+C18,470n,Capacitor_SMD:C_0603_1608Metric,antenna
+D1,TUNED,LED_SMD:LED_0603_1608Metric,mcu
+D2,ESD < 0.5 pF,Diode_SMD:D_SOD-523,antenna
+D3,STEREO/RDS,LED_SMD:LED_0603_1608Metric,mcu
+FB1,BLM18 120R,Inductor_SMD:L_0603_1608Metric,power
+J1,DigiDash slot,Connector_PinHeader_2.54mm:PinHeader_2x15_P2.54mm_Horizontal,port
+J2,Antenna (SMA),Connector_Coaxial:SMA_Amphenol_132289_EdgeMount,antenna
+J3,SWD,Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Horizontal,prog
+J4,Debug serial,Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal,prog
+J5,AM loopstick,Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Horizontal,antenna
+J6,Bench audio,Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Horizontal,bench
+JP1,Tuner address,Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,tuner
+JP2,AM from whip,Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,antenna
+R1,10k,Resistor_SMD:R_0603_1608Metric,port
+R2,1k,Resistor_SMD:R_0603_1608Metric,mcu
+R3,1k,Resistor_SMD:R_0603_1608Metric,mcu
+R4,1k,Resistor_SMD:R_0603_1608Metric,can
+R5,600,Resistor_SMD:R_0603_1608Metric,tuner
+R6,2k,Resistor_SMD:R_0603_1608Metric,tuner
+R7,2k,Resistor_SMD:R_0603_1608Metric,tuner
+R8,100k,Resistor_SMD:R_0603_1608Metric,tuner
+R9,100k,Resistor_SMD:R_0603_1608Metric,tuner
+R10,4.7k,Resistor_SMD:R_0603_1608Metric,tuner
+R11,4.7k,Resistor_SMD:R_0603_1608Metric,tuner
+R12,100k,Resistor_SMD:R_0603_1608Metric,tuner
+R13,10k,Resistor_SMD:R_0603_1608Metric,rail
+R14,33,Resistor_SMD:R_0603_1608Metric,rail
+U1,STM32G0B1KBU6,Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm,mcu
+U2,MCP2562-E/SN,Package_SO:SOIC-8_3.9x4.9mm_P1.27mm,can
+U3,AP2112K-3.3,Package_TO_SOT_SMD:SOT-23-5,power
+U4,32.768kHz,Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm,clock
+U5,Si4735-D60-GU,Package_SO:SSOP-24_3.9x8.7mm_P0.635mm,tuner
+U6,74LVC1G125,Package_TO_SOT_SMD:SOT-353_SC-70-5,rail
+Y1,8MHz,Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm,mcu
