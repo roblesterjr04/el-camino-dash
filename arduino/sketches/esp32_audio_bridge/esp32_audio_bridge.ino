@@ -418,7 +418,14 @@ static void avrc_play_pos_cb(uint32_t play_pos_ms) {
   portEXIT_CRITICAL(&s_track_mux);
 }
 
+// The last play / pause the bridge sent the phone, and when: a toggle soon after follows it, not the phone's play
+// status, which an iPhone reports late (or not at all) after a remote command.
+static bool s_cmd_play = false;
+static uint32_t s_cmd_ms = 0;
+static constexpr uint32_t kTrustCmdMs = 2000;
+
 static void avrc_play_status_cb(esp_avrc_playback_stat_t st) {
+  Serial.printf("phone play status: %s\n", st == ESP_AVRC_PLAYBACK_PLAYING ? "playing" : (st == ESP_AVRC_PLAYBACK_PAUSED ? "paused" : (st == ESP_AVRC_PLAYBACK_STOPPED ? "stopped" : "other")));
   portENTER_CRITICAL(&s_track_mux);
   apply_elapsed_estimate_unlocked();  // settle elapsed before the state flips
   s_playing = (st == ESP_AVRC_PLAYBACK_PLAYING);
@@ -456,18 +463,24 @@ static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, boo
       a2dp_sink->next();
     } else if (arg == 2) {
       a2dp_sink->previous();
-    } else if (arg == 3) {
-      a2dp_sink->play();
-    } else if (arg == 4) {
-      a2dp_sink->pause();
     } else {
-      // Toggle from the phone's own AVRCP play status: many phones keep the A2DP stream started while paused, so
-      // the stream state alone always said "playing" and the toggle never played again.
-      portENTER_CRITICAL(&s_track_mux);
-      const bool playing = s_playing;
-      portEXIT_CRITICAL(&s_track_mux);
-      if (playing) a2dp_sink->pause();
-      else a2dp_sink->play();
+      bool play = arg == 3;
+      const char *why = "asked";
+      if (arg != 3 && arg != 4) {
+        // Toggle: the opposite of our own last command while it is fresh, else from the phone's AVRCP play status
+        // (not the A2DP stream state: many phones keep the stream started while paused).
+        portENTER_CRITICAL(&s_track_mux);
+        const bool playing = s_playing;
+        portEXIT_CRITICAL(&s_track_mux);
+        const bool fresh = s_cmd_ms && millis() - s_cmd_ms < kTrustCmdMs;
+        play = fresh ? !s_cmd_play : !playing;
+        why = fresh ? "toggle, after our last command" : (playing ? "toggle, phone says playing" : "toggle, phone says not playing");
+      }
+      if (play) a2dp_sink->play();
+      else a2dp_sink->pause();
+      s_cmd_play = play;
+      s_cmd_ms = millis() ? millis() : 1;
+      Serial.printf("media: %s (%s)\n", play ? "play" : "pause", why);
     }
     return true;
   }
