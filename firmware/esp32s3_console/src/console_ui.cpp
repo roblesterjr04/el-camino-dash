@@ -1238,6 +1238,18 @@ void ConsoleUi::art_pump(uint32_t now_ms) {
 void ConsoleUi::tick(uint32_t now_ms) {
   _now = now_ms;
   if (_boot_ms == 0) _boot_ms = now_ms ? now_ms : 1;
+  // A call: remember the source it found, and put that source back when it ends (whatever changed it meanwhile).
+  const bool in_call = call_shown(now_ms);
+  const bool status = sink() && _st_ms && now_ms - _st_ms <= kStatusMs;
+  if (in_call && !_was_call) _call_src = status ? _st.source : 0xFE;
+  if (!in_call && _was_call && _call_src != 0xFE && status && _st.source != _call_src) {
+    ElcChWriter w;
+    elc_audio_encode(ElcAudioSource{sink(), _call_src == ELC_SRC_OFF ? ELC_SRC_REQ_OFF : _call_src}, w);
+    _src_req = _call_src;
+    _src_req_ms = now_ms;
+    chan_send(ELC_CH_AUDIO_CMD, w, "SOURCE back to the one before the call");
+  }
+  _was_call = in_call;
   if (_mode == ConsoleMode::Edit && !alive(now_ms)) {
     _mode = ConsoleMode::Menu;
     _edit_id = 0;

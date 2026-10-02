@@ -583,6 +583,33 @@ static void test_calls() {
   CHECK(ui.mode() == ConsoleMode::Drive);
 }
 
+static void test_call_keeps_source() {
+  std::printf("a call: the source it found comes back when it ends\n");
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  boot(ui);
+  r.add_sink();
+  r.add_radio();
+  r.status(ELC_SRC_OFF);
+  phone(ui, ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP, ELC_CAN_CALL_INCOMING);
+  ui.tick(T);
+  r.status(ELC_SRC_RADIO);  // something changed it during the call
+  phone(ui, ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP, ELC_CAN_CALL_ACTIVE);
+  ui.tick(T);
+  r.sent(ELC_CH_AUDIO_CMD);
+  phone(ui, ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP, ELC_CAN_CALL_IDLE);
+  ui.tick(T);
+  auto m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][2] == ELC_SRC_REQ_OFF);
+  // unchanged during the call: nothing to send
+  r.status(ELC_SRC_BLUETOOTH);
+  phone(ui, ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP, ELC_CAN_CALL_ACTIVE);
+  ui.tick(T);
+  phone(ui, ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP, ELC_CAN_CALL_IDLE);
+  ui.tick(T);
+  CHECK(r.sent(ELC_CH_AUDIO_CMD).empty());
+}
+
 static void test_no_center() {
   std::printf("no center: the controls do nothing\n");
   Rig r;
@@ -608,6 +635,7 @@ int main() {
   test_accessory_pages();
   test_alerts();
   test_calls();
+  test_call_keeps_source();
   test_no_center();
   if (g_failures) {
     std::printf("%d FAILED\n", g_failures);
