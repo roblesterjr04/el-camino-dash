@@ -38,7 +38,7 @@ and a hold (`CONSOLE_HOLD_MS`, 650 ms).
 | Right knob hold | redial | seek up |
 | Left soft click | play / pause | mute / unmute |
 | Left soft hold | — | store the station as a preset (the next free one; in the preset list, the slot highlighted) |
-| Right soft click | next OLED page (Media → Trip → Engine → Clock) | same |
+| Right soft click ("Info") | next OLED page (Media → Trip → Engine → Clock) | same |
 | Right soft hold | next view on the center screen | same |
 
 Bluetooth commands go to the audio bridge (`0x215`, as before) and, when an audio card is heard, to it too (AUDIO_CMD

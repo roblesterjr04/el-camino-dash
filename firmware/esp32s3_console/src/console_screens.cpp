@@ -466,7 +466,6 @@ static void soft_label(OledGfx &g, const char *label, int cx) {
  *  control is touched. Calls and the pairing code draw their own (lit) keys. */
 void ConsoleUi::draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown) {
   const char *left = "", *right = "";
-  static const char *const kNext[kPageCount] = {"Trip", "Engine", "Clock", "Media"};
   if (_mode == ConsoleMode::Edit) {
     left = "Undo";
     right = "Done";
@@ -479,8 +478,8 @@ void ConsoleUi::draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown) {
     left = "Hold: Store";
     right = "Close";
   } else {
-    left = radio_is_source(t) ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play";
-    right = kNext[_page % kPageCount];
+    left = radio_is_source(t) ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play/Pause";
+    right = "Info";  // the next drive page
   }
   const bool lit = _touch_ms && t - _touch_ms < kHintMs;
   if (lit) {
