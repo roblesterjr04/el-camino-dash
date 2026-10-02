@@ -442,9 +442,7 @@ class Relay:
         if name == "radio":
             return RadioSim(send, log, slot=self.args.radio_slot)
         if name == "audio":
-            card = AudioCard(send, log)
-            card.on_source = self.audio_source
-            return card
+            return AudioCard(send, log)
         if name == "gps":
             return GpsCard(send, log, speed_kmh=self.drive_kmh)
         if name == "lte":
@@ -456,11 +454,6 @@ class Relay:
     @property
     def radio(self) -> RadioSim | None:
         return self.cards.get("radio")  # type: ignore
-
-    def audio_source(self, radio: bool) -> None:
-        """The audio card's Source changed: no CAN message says so, so the relay tells the radio."""
-        if self.radio:
-            self.radio.set_source(radio)
 
     def drive_kmh(self) -> float:
         """The simulated drive's speed, for the GPS card and the gateway (the drive's cycle even with :sensors off)."""
@@ -762,7 +755,7 @@ def _test() -> None:
     # next on the console with Source = Radio: the audio card forwards MEDIA, the radio seeks
     for f in transfer_frames(bytes([0x01, 17, 1, 1]), 1):
         relay.frame(board, 0x040 + 0x13, f)  # type: ignore
-    wait(lambda: any(r == bytes([0x84, 0x15, 4]) for r in board.transfers(CH_AUDIO_CMD, 0x14, 0x84)), 1.0, "MEDIA")
+    wait(lambda: any(r == bytes([0x84, 0x15, 4, 0]) for r in board.transfers(CH_AUDIO_CMD, 0x14, 0x84)), 1.0, "MEDIA")
     wait(lambda: any(b"seek" in r for r in board.transfers(0x3E0, 0x15)), 2.0, "the radio seeks")
     # the trans temp card past its warning threshold
     with trans.lock:

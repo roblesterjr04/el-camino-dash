@@ -337,6 +337,32 @@ static void test_messages() {
     ElcAudioMedia md;
     CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x01, m), md) && md.action == ELC_MEDIA_NEXT);
     CHECK(as_transfer(ELC_CH_AUDIO_CMD, 0x01, m).for_me(0x14));  // dest 0 = everyone
+    ElcChWriter old;  // a sink that sends no source fields yet
+    old.u8(ELC_AUDIO_STATUS).u8(50).u8(0).u8(0).u8(0).u8(15);
+    CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x14, old), s) && s.source == 0 && s.volume == 50);
+    ElcChWriter st;
+    elc_audio_encode(ElcAudioStatus{60, 0, 0, 0, 15, ELC_SRC_RADIO, 0x15}, st);
+    CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x14, st), s) && s.source == ELC_SRC_RADIO && s.source_node == 0x15);
+    ElcChWriter mv;
+    elc_audio_encode(ElcAudioMedia{0x14, ELC_MEDIA_PRESET_STORE, 3}, mv);
+    CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x13, mv), md) && md.action == 10 && md.value == 3);
+    ElcAudioNow now;
+    now.source = ELC_SRC_RADIO;
+    now.flags = ELC_NOW_F_STEREO | ELC_NOW_F_RDS;
+    now.preset = 2;
+    now.signal = 4;
+    std::strcpy(now.line1, "94.7 FM  THE WAVE");
+    std::strcpy(now.line2, "Now: Sea Breeze - Coastline");
+    ElcChWriter nw;
+    elc_audio_encode(now, nw);
+    CHECK(nw.size() == 1 + 4 + 1 + 17 + 1 + 27);
+    ElcAudioNow back;
+    CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x15, nw), back) && back.preset == 2 && back.signal == 4);
+    CHECK(std::strcmp(back.line1, now.line1) == 0 && std::strcmp(back.line2, now.line2) == 0);
+    ElcChWriter sw;
+    elc_audio_encode(ElcAudioSource{0x14, 0}, sw);
+    ElcAudioSource src;
+    CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x13, sw), src) && src.dest == 0x14 && src.source == 0);
   }
   {
     ElcLogLine l;

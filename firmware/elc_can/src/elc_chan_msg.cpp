@@ -183,7 +183,7 @@ bool elc_input_decode(const ElcChTransfer &t, ElcInputEncoder &v) {
 // ---- AUDIO_CMD
 
 void elc_audio_encode(const ElcAudioStatus &v, ElcChWriter &w) {
-  w.u8(ELC_AUDIO_STATUS).u8(v.volume).u8(v.flags).u8(v.active).u8(v.stream_owner).u8(v.zones);
+  w.u8(ELC_AUDIO_STATUS).u8(v.volume).u8(v.flags).u8(v.active).u8(v.stream_owner).u8(v.zones).u8(v.source).u8(v.source_node);
 }
 void elc_audio_encode(const ElcAudioPlay &v, ElcChWriter &w) {
   w.u8(ELC_AUDIO_PLAY).u8(v.dest).u16(v.sound).u8(v.zones_prio).u8(v.level).u8(v.repeat);
@@ -192,7 +192,13 @@ void elc_audio_encode(const ElcAudioStop &v, ElcChWriter &w) { w.u8(ELC_AUDIO_ST
 void elc_audio_encode(const ElcAudioVolume &v, ElcChWriter &w) {
   w.u8(ELC_AUDIO_VOLUME).u8(v.dest).u8(v.action).s8(v.value);
 }
-void elc_audio_encode(const ElcAudioMedia &v, ElcChWriter &w) { w.u8(ELC_AUDIO_MEDIA).u8(v.dest).u8(v.action); }
+void elc_audio_encode(const ElcAudioMedia &v, ElcChWriter &w) { w.u8(ELC_AUDIO_MEDIA).u8(v.dest).u8(v.action).u8(v.value); }
+void elc_audio_encode(const ElcAudioNow &v, ElcChWriter &w) {
+  const size_t n1 = strnlen(v.line1, 32), n2 = strnlen(v.line2, 64);
+  w.u8(ELC_AUDIO_NOW).u8(v.source).u8(v.flags).u8(v.preset).u8(v.signal);
+  w.u8((uint8_t)n1).bytes(v.line1, n1).u8((uint8_t)n2).bytes(v.line2, n2);
+}
+void elc_audio_encode(const ElcAudioSource &v, ElcChWriter &w) { w.u8(ELC_AUDIO_SOURCE).u8(v.dest).u8(v.source); }
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioStatus &v) {
   ElcChReader r(nullptr, 0);
   if (!open(t, ELC_CH_AUDIO_CMD, ELC_AUDIO_STATUS, r)) return false;
@@ -201,7 +207,10 @@ bool elc_audio_decode(const ElcChTransfer &t, ElcAudioStatus &v) {
   v.active = r.u8();
   v.stream_owner = r.u8();
   v.zones = r.u8();
-  return r.ok();
+  if (!r.ok()) return false;
+  v.source = r.left() ? r.u8() : 0;
+  v.source_node = r.left() ? r.u8() : 0;
+  return true;
 }
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioPlay &v) {
   ElcChReader r(nullptr, 0);
@@ -233,6 +242,36 @@ bool elc_audio_decode(const ElcChTransfer &t, ElcAudioMedia &v) {
   if (!open(t, ELC_CH_AUDIO_CMD, ELC_AUDIO_MEDIA, r)) return false;
   v.dest = r.u8();
   v.action = r.u8();
+  if (!r.ok()) return false;
+  v.value = r.left() ? r.u8() : 0;
+  return true;
+}
+bool elc_audio_decode(const ElcChTransfer &t, ElcAudioNow &v) {
+  ElcChReader r(nullptr, 0);
+  if (!open(t, ELC_CH_AUDIO_CMD, ELC_AUDIO_NOW, r)) return false;
+  v.source = r.u8();
+  v.flags = r.u8();
+  v.preset = r.u8();
+  v.signal = r.u8();
+  const uint8_t n1 = r.u8();
+  for (uint8_t i = 0; i < n1; i++) {
+    const uint8_t c = r.u8();
+    if (i < 32) v.line1[i] = (char)c;
+  }
+  v.line1[n1 < 32 ? n1 : 32] = 0;
+  const uint8_t n2 = r.u8();
+  for (uint8_t i = 0; i < n2; i++) {
+    const uint8_t c = r.u8();
+    if (i < 64) v.line2[i] = (char)c;
+  }
+  v.line2[n2 < 64 ? n2 : 64] = 0;
+  return r.ok();
+}
+bool elc_audio_decode(const ElcChTransfer &t, ElcAudioSource &v) {
+  ElcChReader r(nullptr, 0);
+  if (!open(t, ELC_CH_AUDIO_CMD, ELC_AUDIO_SOURCE, r)) return false;
+  v.dest = r.u8();
+  v.source = r.u8();
   return r.ok();
 }
 

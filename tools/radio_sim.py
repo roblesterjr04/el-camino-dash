@@ -28,6 +28,8 @@ from chan_sim import (CH_AUDIO_CMD, CH_INPUT, CH_NET, CH_SENSOR, CH_SYSTEM, CH_U
                       F_CONFIRM, F_LIVE, F_RO, F_SETTING, G_CLICK, G_REPEAT, HEARTBEAT, K_ACTION, K_CHOICE, K_GROUP,
                       K_NUMBER, K_READOUT, K_TEXT, K_TOGGLE, KEY_NEXT, KEY_PLAY, KEY_PREV, MEDIA_NEXT, MEDIA_PAUSE,
                       MEDIA_PLAY, MEDIA_PREV, MEDIA_TOGGLE, NODE_TYPE_RADIO, NODE_TYPE_SINK, NONE32,
+                      MEDIA_PRESET_NEXT, MEDIA_PRESET_PREV, MEDIA_PRESET_STORE, MEDIA_SEEK_DOWN, MEDIA_SEEK_UP,
+                      MEDIA_TUNE_DOWN, MEDIA_TUNE_UP, SRC_RADIO, AUDIO_NOW,
                       PRODUCT_AUDIO_CARD, PRODUCT_RADIO, TOP, Reassembler, SimCard, crc16, transfer_frames)
 
 FIRMWARE = 0x0001
@@ -84,7 +86,7 @@ class RadioSim(SimCard):
     FIRMWARE = FIRMWARE
     UNIQUE_ID = UNIQUE_ID
     PRODUCES = ("SENSOR", "UI", "NET", "LOG")
-    CONSUMES = ("INPUT", "SYSTEM", "AUDIO_CMD", "NET")
+    CONSUMES = ("INPUT", "SYSTEM", "NET")  # it reads the sink's AUDIO_CMD STATUS and MEDIA to it, but is no sink
     LISTENS = (CH_UI, CH_INPUT, CH_AUDIO_CMD, CH_SYSTEM)
     HELP = "status | on | off | source on|off | tune 98.3 | seek up|down"
 
@@ -95,6 +97,8 @@ class RadioSim(SimCard):
         self.on, self.band, self.region = 1, 0, 0
         self.khz = {0: 101100, 1: 1070}
         self.presets = [0] * PRESETS
+        self.store_order: list[int] = list(range(PRESETS))  # oldest stored first
+        self.sent_now, self.next_now = b'', 0.0
         self.rssi_min, self.snr_min = 20, 3
         # state
         self.source = False          # the selected source on the audio card (the relay tells it: no CAN message)
@@ -251,6 +255,34 @@ class RadioSim(SimCard):
         self.send_value(I_STATION)
         self.send_value(I_TEXT)
 
+    def preset_index(self) -> int | None:
+        k = self.khz[self.band]
+        return next((i for i, p in enumerate(self.presets) if p == k), None)
+
+    def recall(self, i: int) -> None:
+        k = self.presets[i]
+        band = 0 if k >= 10000 else 1
+        if band != self.band:
+            self.band = band
+            self.bump()
+            self.send_value(I_BAND)
+        self.tune(k, f"preset {i + 1}")
+
+    def now_playing(self) -> bytes:
+        """AUDIO_CMD NOW PLAYING: the frequency and station name, and the radio text."""
+        ps, rt = self.rds()
+        st = self.station()
+        line1 = fmt_khz(self.khz[self.band]) + (f"  {ps.strip()}" if ps.strip() else "")
+        if self.seek_dir:
+            line1 = "Seeking " + ("up" if self.seek_dir > 0 else "down")
+        flags = (1 if st and st.stereo and self.band == 0 else 0) | (2 if ps else 0) | (4 if self.muted else 0) \
+            | (8 if self.seek_dir else 0)
+        pi = self.preset_index()
+        bars = max(0, min(5, (self.rssi() - 10) // 9)) if self.on else 0
+        l1, l2 = line1.encode()[:32], rt.encode()[:64]
+        return bytes([AUDIO_NOW, SRC_RADIO, flags, (pi + 1) if pi is not None else 0, bars, len(l1)]) + l1 + \
+            bytes([len(l2)]) + l2
+
     def seek_result(self) -> int:
         """The next station past the thresholds in the seek direction, wrapping round the band."""
         k = self.khz[self.band]
@@ -313,8 +345,14 @@ class RadioSim(SimCard):
             if muted != self.sink_muted:
                 self.sink_muted = muted
                 self.log(f"sink {'muted' if muted else 'unmuted'}: radio {'pauses' if muted else 'resumes'}")
+            if len(p) >= 8 and src == self.sink_node:  # the sink names the source: is it this radio?
+                chosen = p[6] == SRC_RADIO and p[7] == self.node
+                if chosen != self.source:
+                    if chosen and not self.on:
+                        self.set_on(1)  # choosing the radio turns it on
+                    self.set_source(chosen)
         elif base == CH_AUDIO_CMD and op == 0x84 and len(p) >= 3 and p[1] == self.node:
-            self.media(p[2])
+            self.media(p[2], p[3] if len(p) > 3 else 0)
         elif base == CH_SYSTEM and op == 0x04 and len(p) >= 2:
             if p[1] == 1:
                 self.line(f"ignition off: saved {fmt_khz(self.khz[self.band])}, muted")
@@ -396,6 +434,9 @@ class RadioSim(SimCard):
             if not 0 <= v < PRESETS:
                 return 1
             self.presets[v] = self.khz[self.band]
+            if v in self.store_order:
+                self.store_order.remove(v)
+            self.store_order.append(v)
             self.line(f"stored {fmt_khz(self.presets[v])} as preset {v + 1}")
             self.bump()
             self.send_value(I_PRESET0 + v)
@@ -441,12 +482,38 @@ class RadioSim(SimCard):
             self.muted = not self.muted
             self.line(f"radio {'muted' if self.muted else 'unmuted'}")
 
-    def media(self, action: int) -> None:
-        """AUDIO_CMD MEDIA addressed to the radio: the audio card forwards next / previous / play while it is the source."""
+    def media(self, action: int, value: int = 0) -> None:
+        """AUDIO_CMD MEDIA addressed to the radio: the audio card forwards them while the radio is the source."""
         if not self.on:
             return
-        if action in (MEDIA_NEXT, MEDIA_PREV):
-            self.seek(1 if action == MEDIA_NEXT else -1)
+        if action in (MEDIA_NEXT, MEDIA_PREV, MEDIA_SEEK_UP, MEDIA_SEEK_DOWN):
+            self.seek(1 if action in (MEDIA_NEXT, MEDIA_SEEK_UP) else -1)
+        elif action in (MEDIA_TUNE_UP, MEDIA_TUNE_DOWN):
+            g = self.grid()
+            lo, hi = self.band_range()
+            k = self.khz[self.band] + (g if action == MEDIA_TUNE_UP else -g)
+            self.tune(hi if k < lo else (lo if k > hi else k), "tuned")  # wraps round the band
+        elif action in (MEDIA_PRESET_NEXT, MEDIA_PRESET_PREV):
+            stored = [i for i, k in enumerate(self.presets) if k]
+            if not stored:
+                self.line("no presets stored", 2)
+                return
+            cur = self.preset_index()
+            step = 1 if action == MEDIA_PRESET_NEXT else -1
+            if cur is None:
+                i = stored[0] if step > 0 else stored[-1]
+            else:
+                pos = stored.index(cur) if cur in stored else 0
+                i = stored[(pos + step) % len(stored)]
+            self.recall(i)
+        elif action == MEDIA_PRESET_STORE:
+            if 1 <= value <= PRESETS:
+                slot = value - 1
+            else:
+                free = [i for i, k in enumerate(self.presets) if not k]
+                slot = free[0] if free else self.store_order[0]
+            self.set(I_STORE, slot)
+            self.send_value(I_PRESET0 + slot)
         elif action in (MEDIA_TOGGLE, MEDIA_PLAY, MEDIA_PAUSE):
             muted = not self.muted if action == MEDIA_TOGGLE else action == MEDIA_PAUSE
             if muted != self.muted:
@@ -476,6 +543,11 @@ class RadioSim(SimCard):
             self.send_text(I_STATION)
         if rt != self.sent_rt:
             self.send_text(I_TEXT)
+        if self.source and self.on:  # NOW PLAYING while this radio is the source: on change and every 2 s
+            np = self.now_playing()
+            if np[:2] + np[6:] != self.sent_now[:2] + self.sent_now[6:] or now >= self.next_now:
+                self.sent_now, self.next_now = np, now + 2.0
+                self.transfer(CH_AUDIO_CMD, np)
         if self.viewed(now) and now >= self.next_live:
             self.next_live = now + 1.0
             self.send_value(I_SIGNAL)
@@ -612,6 +684,41 @@ def _test() -> None:
     sim.muted = False
     sim.on_frame(CH_AUDIO_CMD + 0x14, transfer_frames(bytes([0x84, sim.node, MEDIA_TOGGLE]), 9)[0])
     assert sim.muted
+    # the sink's STATUS names the radio as the source: it turns on; MEDIA tunes, stores and recalls presets
+    t = [100.0]
+    out: list[tuple[int, bytes]] = []
+    r = RadioSim(lambda i, d: out.append((i, d)), lambda x: None, slot=2, seed=2, clock=lambda: t[0])
+    r.boot()
+    r.set(I_ON, 0)
+    r.on_frame(HEARTBEAT + 0x14, b"\x05\x01\x00\x00\x00\x00\x00\x01")
+    r.heard(0x14, NODE_TYPE_SINK, PRODUCT_AUDIO_CARD)
+    rx4 = Reassembler()
+    tid = [0]
+
+    def from_sink(payload: bytes) -> None:
+        tid[0] += 1
+        for f in transfer_frames(payload, tid[0]):
+            r.on_frame(CH_AUDIO_CMD + 0x14, f)
+
+    from_sink(bytes([0x01, 30, 0, 0, 0, 0x0F, SRC_RADIO, r.node]))
+    assert r.on and r.source and r.rail == 1
+    r.tune(94700)
+    from_sink(bytes([0x84, r.node, MEDIA_TUNE_UP, 0]))
+    assert r.khz[0] == 94800
+    from_sink(bytes([0x84, r.node, MEDIA_PRESET_STORE, 0]))
+    assert r.presets[0] == 94800
+    r.tune(101100)
+    from_sink(bytes([0x84, r.node, MEDIA_PRESET_STORE, 0]))
+    assert r.presets[1] == 101100
+    from_sink(bytes([0x84, r.node, MEDIA_PRESET_NEXT, 0]))
+    assert r.khz[0] == 94800
+    out.clear()
+    t[0] += 3
+    r.periodic(t[0])
+    nows = [p for i, d in out for p in [rx4.feed(i, d, 0.0)] if p and i == CH_AUDIO_CMD + r.node and p[0] == AUDIO_NOW]
+    assert nows and nows[-1][1] == SRC_RADIO and nows[-1][3] == 1 and b"94.8 FM" in nows[-1]
+    from_sink(bytes([0x01, 30, 0, 0, 0, 0x0F, 1, 0x14]))  # back to Bluetooth: it lets RET go
+    assert not r.source and r.rail == 0
     print("radio_sim: all tests passed")
 
 

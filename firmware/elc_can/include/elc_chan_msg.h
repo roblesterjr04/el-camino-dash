@@ -105,20 +105,37 @@ bool elc_input_decode(const ElcChTransfer &t, ElcInputKey &v);
 bool elc_input_decode(const ElcChTransfer &t, ElcInputEncoder &v);
 
 // ---- AUDIO_CMD (0x240 + node) ----
-static const uint8_t ELC_AUDIO_STATUS = 0x01, ELC_AUDIO_DONE = 0x02, ELC_AUDIO_GRANT = 0x03, ELC_AUDIO_PLAY = 0x81,
-                     ELC_AUDIO_STOP = 0x82, ELC_AUDIO_VOLUME = 0x83, ELC_AUDIO_MEDIA = 0x84;
+static const uint8_t ELC_AUDIO_STATUS = 0x01, ELC_AUDIO_DONE = 0x02, ELC_AUDIO_GRANT = 0x03, ELC_AUDIO_NOW = 0x04,
+                     ELC_AUDIO_PLAY = 0x81, ELC_AUDIO_STOP = 0x82, ELC_AUDIO_VOLUME = 0x83, ELC_AUDIO_MEDIA = 0x84,
+                     ELC_AUDIO_SOURCE = 0x87;
 static const uint8_t ELC_AUDIO_F_MUTED = 1, ELC_AUDIO_F_PLAYING = 2, ELC_AUDIO_F_DUCKED = 4;
-static const uint8_t ELC_MEDIA_TOGGLE = 1, ELC_MEDIA_PLAY = 2, ELC_MEDIA_PAUSE = 3, ELC_MEDIA_NEXT = 4, ELC_MEDIA_PREV = 5;
-struct ElcAudioStatus { uint8_t volume = 0, flags = 0, active = 0, stream_owner = 0, zones = 0; };
+static const uint8_t ELC_MEDIA_TOGGLE = 1, ELC_MEDIA_PLAY = 2, ELC_MEDIA_PAUSE = 3, ELC_MEDIA_NEXT = 4, ELC_MEDIA_PREV = 5,
+                     ELC_MEDIA_TUNE_UP = 6, ELC_MEDIA_TUNE_DOWN = 7, ELC_MEDIA_PRESET_NEXT = 8, ELC_MEDIA_PRESET_PREV = 9,
+                     ELC_MEDIA_PRESET_STORE = 10, ELC_MEDIA_SEEK_UP = 11, ELC_MEDIA_SEEK_DOWN = 12;
+// sources (AUDIO_CMD, Sources)
+static const uint8_t ELC_SRC_NONE = 0, ELC_SRC_BLUETOOTH = 1, ELC_SRC_RADIO = 2, ELC_SRC_AUX = 3;
+static const uint8_t ELC_NOW_F_STEREO = 1, ELC_NOW_F_RDS = 2, ELC_NOW_F_MUTED = 4, ELC_NOW_F_SEEKING = 8;
+/** source / source_node read as 0 from a sink that does not send them (they were added at the end). */
+struct ElcAudioStatus { uint8_t volume = 0, flags = 0, active = 0, stream_owner = 0, zones = 0, source = 0, source_node = 0; };
+struct ElcAudioNow {
+  uint8_t source = 0, flags = 0, preset = 0, signal = 0xFF;
+  char line1[33] = {0};
+  char line2[65] = {0};
+};
+struct ElcAudioSource { uint8_t dest = 0, source = 0; };
 struct ElcAudioPlay { uint8_t dest = 0; uint16_t sound = 0; uint8_t zones_prio = 0, level = 100, repeat = 1; };
 struct ElcAudioStop { uint8_t dest = 0; uint16_t sound = 0xFFFF; };
 struct ElcAudioVolume { uint8_t dest = 0, action = 0; int8_t value = 0; };
-struct ElcAudioMedia { uint8_t dest = 0, action = 0; };
+struct ElcAudioMedia { uint8_t dest = 0, action = 0, value = 0; };
 void elc_audio_encode(const ElcAudioStatus &v, ElcChWriter &w);
 void elc_audio_encode(const ElcAudioPlay &v, ElcChWriter &w);
 void elc_audio_encode(const ElcAudioStop &v, ElcChWriter &w);
 void elc_audio_encode(const ElcAudioVolume &v, ElcChWriter &w);
 void elc_audio_encode(const ElcAudioMedia &v, ElcChWriter &w);
+void elc_audio_encode(const ElcAudioNow &v, ElcChWriter &w);
+void elc_audio_encode(const ElcAudioSource &v, ElcChWriter &w);
+bool elc_audio_decode(const ElcChTransfer &t, ElcAudioNow &v);
+bool elc_audio_decode(const ElcChTransfer &t, ElcAudioSource &v);
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioStatus &v);
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioPlay &v);
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioStop &v);

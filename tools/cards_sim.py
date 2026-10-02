@@ -40,7 +40,8 @@ from typing import Callable
 from chan_sim import (CH_ALERT, CH_AUDIO_CMD, CH_INPUT, CH_NET, CH_ONLINE, CH_SENSOR, CH_SYSTEM, CH_UI, F_LIVE,
                       F_RO, F_SETTING, G_CLICK, G_REPEAT, HEARTBEAT, K_ACTION, K_CHOICE, K_NUMBER, K_READOUT, K_TEXT,
                       KEY_MUTE, KEY_NEXT, KEY_PLAY, KEY_PREV, KEY_VOL_DOWN, KEY_VOL_UP, MEDIA_NEXT, MEDIA_PAUSE,
-                      MEDIA_PLAY, MEDIA_PREV, MEDIA_TOGGLE, NET_GATEWAY_CMD, NET_GATEWAY_STATUS, NODE_TYPE_GATEWAY,
+                      MEDIA_PLAY, MEDIA_PREV, MEDIA_TOGGLE, MEDIA_TUNE_DOWN, MEDIA_TUNE_UP, SRC_BLUETOOTH, SRC_NONE,
+                      SRC_RADIO, AUDIO_SOURCE, NET_GATEWAY_CMD, NET_GATEWAY_STATUS, NODE_TYPE_GATEWAY,
                       NODE_TYPE_RADIO, NODE_TYPE_SENSOR, NODE_TYPE_SINK, NODE_TYPE_VOICE, PRODUCT_AUDIO_CARD,
                       PRODUCT_GPS, PRODUCT_LTE, PRODUCT_NONE, PRODUCT_VOICE, RAIL_GRANTED, RAIL_RELEASE,
                       RAIL_REQUEST, TOP, UI_OK, UI_RANGE, UI_READONLY, UI_UNKNOWN, Bus, Clock, SimCard, deliver, lp)
@@ -107,7 +108,6 @@ class AudioCard(SimCard):
         self.key_seq: dict[int, int] = {}    # node: last KEY sequence
         self.sent_status: tuple[int, ...] | None = None
         self.next_status = 0.0
-        self.on_source: Callable[[bool], None] | None = None  # the relay: tell the radio it is (not) the source
 
     # ---- state
 
@@ -125,15 +125,17 @@ class AudioCard(SimCard):
 
     def status_tuple(self) -> tuple[int, ...]:
         flags = (1 if self.muted else 0) | (2 if self.playing() else 0) | (4 if self.ducked() else 0)
-        return self.volume, flags, min(len(self.sounds), 255), 0, 0x0F
+        code = SRC_RADIO if self.source == 1 else SRC_BLUETOOTH
+        src_node = self.radio_node() if self.source == 1 else self.node
+        return self.volume, flags, min(len(self.sounds), 255), 0, 0x0F, code, src_node
 
     def send_status(self) -> None:
         st = self.status_tuple()
         self.sent_status = st
-        self.transfer(CH_AUDIO_CMD, struct.pack("<BBBBBB", 0x01, *st))
+        self.transfer(CH_AUDIO_CMD, struct.pack("<BBBBBBBB", 0x01, *st))
 
     def describe_status(self) -> str:
-        v, f, n, _, _ = self.status_tuple()
+        v, f, n = self.status_tuple()[:3]
         return (f"volume {v}{' muted' if f & 1 else ''}{', playing' if f & 2 else ''}{', ducked' if f & 4 else ''}, "
                 f"{n} sound{'s' if n != 1 else ''}")
 
@@ -176,11 +178,13 @@ class AudioCard(SimCard):
     def set_source(self, v: int) -> None:
         if v == self.source:
             return
+        if v == 1 and not self.radio_node():
+            self.log("source Radio asked for, but no radio card heard: stays Bluetooth")
+            return
         self.source = v
         self.line(f"source {SOURCES[v]}")
         self.send_value(A_SOURCE)
-        if self.on_source:
-            self.on_source(v == 1)
+        self.send_status()  # the sources learn from STATUS which one plays
 
     def set_volume(self, v: int) -> None:
         v = max(0, min(100, v))
@@ -194,15 +198,17 @@ class AudioCard(SimCard):
 
     # ---- media
 
-    def media(self, action: int) -> None:
+    def media(self, action: int, value: int = 0) -> None:
         if self.source == 1:
             radio = self.radio_node()
             if not radio:
                 self.log("source Radio, but no radio card heard: media key dropped")
                 return
-            self.transfer(CH_AUDIO_CMD, bytes([0x84, radio, action]))
+            self.transfer(CH_AUDIO_CMD, bytes([0x84, radio, action, value]))
             self.log(f"media {action} forwarded to the radio 0x{radio:02x}")
             return
+        if action in (MEDIA_TUNE_UP, MEDIA_TUNE_DOWN):  # Bluetooth: tuning steps tracks
+            action = MEDIA_NEXT if action == MEDIA_TUNE_UP else MEDIA_PREV
         if action in (MEDIA_TOGGLE, MEDIA_PLAY, MEDIA_PAUSE):
             self.bt_playing = not self.bt_playing if action == MEDIA_TOGGLE else action == MEDIA_PLAY
             self.line(f"Bluetooth {'plays' if self.bt_playing else 'paused'}: {TRACKS[self.track]}")
@@ -284,7 +290,12 @@ class AudioCard(SimCard):
                 elif action == 2:
                     self.toggle_mute()
             elif op == 0x84 and len(p) >= 3:
-                self.media(p[2])
+                self.media(p[2], p[3] if len(p) > 3 else 0)
+            elif op == AUDIO_SOURCE and len(p) >= 3:
+                if p[2] == SRC_NONE:  # the next present source
+                    self.set_source(1 if self.source == 0 and self.radio_node() else 0)
+                elif p[2] in (SRC_BLUETOOTH, SRC_RADIO):
+                    self.set_source(1 if p[2] == SRC_RADIO else 0)
             elif op == 0x85 and len(p) >= 2:
                 self.transfer(CH_AUDIO_CMD, bytes([0x03, 0, p[2] if len(p) > 2 else 0, p[3] if len(p) > 3 else 0]))
                 self.log(f"STREAM_OPEN from 0x{src:02x} refused (streams are not simulated)")
@@ -1010,8 +1021,6 @@ def _test_audio() -> None:
     clock = Clock()
     bus = Bus(clock)
     a = AudioCard(bus.send, bus.lines.append, clock=clock)
-    sources: list[bool] = []
-    a.on_source = sources.append
     a.boot()
     a.tick()
     ann = bus.got(CH_NET, 0x01)[0]
@@ -1019,7 +1028,7 @@ def _test_audio() -> None:
     assert ann[2] == 5 and struct.unpack_from("<H", ann, 3)[0] == 4 and ann[20] == 1 | 1 << 1
     assert produces == (1 << 18) | (1 << 19) | (1 << 31) | (1 << 30) and consumes == (1 << 18) | (1 << 2) | (1 << 30)
     st = bus.got(CH_AUDIO_CMD, 0x01)
-    assert st and st[-1] == bytes([0x01, 30, 0, 0, 0, 0x0F])
+    assert st and st[-1] == bytes([0x01, 30, 0, 0, 0, 0x0F, SRC_BLUETOOTH, 0x14])
     deliver(a, 0x15, CH_NET, _ann(NODE_TYPE_RADIO, 9, "Radio (sim)"), 0)
     deliver(a, 0x18, CH_NET, _ann(NODE_TYPE_VOICE, PRODUCT_VOICE, "Voice (sim)"), 0)
     deliver(a, 0x17, CH_NET, _ann(NODE_TYPE_GATEWAY, PRODUCT_LTE, "LTE (sim)"), 0)
@@ -1062,9 +1071,18 @@ def _test_audio() -> None:
     assert a.track == 1
     bus.clear()
     deliver(a, 0x01, CH_UI, struct.pack("<BBBi", 0x81, 0x14, A_SOURCE, 1), 0)
-    assert a.source == 1 and sources == [True] and bus.got(CH_UI, 0x04) == [bytes([0x04, 0, 0, 0x01])]
+    assert a.source == 1 and bus.got(CH_UI, 0x04) == [bytes([0x04, 0, 0, 0x01])]
+    assert bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_RADIO, 0x15])  # STATUS names the radio
     deliver(a, 0x13, CH_INPUT, bytes([0x01, KEY_PREV, G_CLICK, 5]), 7)
-    assert bus.got(CH_AUDIO_CMD, 0x84) == [bytes([0x84, 0x15, MEDIA_PREV])] and a.track == 1
+    assert bus.got(CH_AUDIO_CMD, 0x84) == [bytes([0x84, 0x15, MEDIA_PREV, 0])] and a.track == 1
+    # SOURCE from the console: 0 steps to the next present source
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 7)
+    assert a.source == 0 and bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_BLUETOOTH, 0x14])
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 9)
+    assert a.source == 1
+    bus.clear()
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([0x84, 0x14, MEDIA_TUNE_UP, 0]), 10)
+    assert bus.got(CH_AUDIO_CMD, 0x84) == [bytes([0x84, 0x15, MEDIA_TUNE_UP, 0])]
     deliver(a, 0x01, CH_UI, struct.pack("<BBBi", 0x81, 0x14, A_FADER, 11), 1)
     assert bus.got(CH_UI, 0x04)[-1] == bytes([0x04, A_FADER, UI_RANGE, 0x01])
     # RAIL: the radio gets RET, the gateway is denied, the voice card takes it, its heartbeat stops, RET frees

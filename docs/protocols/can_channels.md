@@ -435,17 +435,32 @@ audio carrier. Commands may be sent to it by number or to `0x00` (the sink is th
 
 | Op | Name | Sender | Payload after the opcode |
 | --- | --- | --- | --- |
-| `0x01` | STATUS | sink | volume u8 (0–100), flags u8, active sounds u8, stream owner node u8 (0 none), zones fitted u8 |
+| `0x01` | STATUS | sink | volume u8 (0–100), flags u8, active sounds u8, stream owner node u8 (0 none), zones fitted u8, source u8, source node u8 |
 | `0x02` | DONE | sink | node u8, sound u16: a sound that node started has finished |
 | `0x03` | STREAM_GRANT | sink | node u8 (0 = refused / closed), codec u8, rate u8 |
+| `0x04` | NOW PLAYING | the active source | source u8, flags u8, preset u8 (0 none, 1–12), signal u8 (0–5 bars, `0xFF` unknown), line 1 length u8, line 1 (≤ 32 bytes), line 2 length u8, line 2 (≤ 64 bytes) |
 | `0x81` | PLAY | any | dest u8, sound u16, zones:4 \| priority:4 u8, level % u8, repeat u8 (0 = until STOP) |
 | `0x82` | STOP | any | dest u8, sound u16 (`0xFFFF` = every sound this node started) |
 | `0x83` | VOLUME | any | dest u8, action u8 (0 set, 1 step, 2 mute toggle), value s8 |
-| `0x84` | MEDIA | any | dest u8, action u8 (1 play/pause, 2 play, 3 pause, 4 next, 5 previous) |
+| `0x84` | MEDIA | any | dest u8, action u8 (see below), value u8 |
 | `0x85` | STREAM_OPEN | any | dest u8, codec u8, rate u8, zones:4 \| priority:4 u8, level % u8 |
 | `0x86` | STREAM_CLOSE | stream owner | dest u8 |
+| `0x87` | SOURCE | any | dest u8 (the sink), source u8 (0 = the next one, else a source code) |
 
 - STATUS at 1 Hz and on change. Flags: bit0 muted, bit1 music playing, bit2 music ducked.
+- **Sources.** The sink owns which source plays. Source codes: 0 none, 1 Bluetooth (the sink's own A2DP, or the audio
+  bridge), 2 radio, 3 aux in. **source node** is the node that provides it (the sink itself for Bluetooth and aux).
+  SOURCE with 0 steps to the next source that is present (a radio counts once its ANNOUNCE is heard, node type 9).
+  A source learns it was chosen from STATUS: the radio powers on and asks for RET when STATUS names it, and mutes and
+  releases RET when it does not. The console's left knob click sends SOURCE 0.
+- **MEDIA actions:** 1 play/pause, 2 play, 3 pause, 4 next, 5 previous, 6 tune up, 7 tune down (one grid step),
+  8 next preset, 9 previous preset, 10 store preset (value = slot 1–12, 0 = the next free one, else the oldest),
+  11 seek up, 12 seek down; value is 0 where an action takes none. The sink acts on them for its own source and
+  forwards them, unchanged and addressed to the source node, when another node is the source. A source ignores what
+  it cannot do (Bluetooth: 6 / 7 = next / previous, 8–12 nothing; the radio: play/pause = mute).
+- **NOW PLAYING** is sent by the active source on change and every 2 s, for the console and the media screen.
+  Flags: bit0 stereo, bit1 RDS, bit2 muted, bit3 seeking. The radio's line 1 is the frequency and station name
+  ("94.7 FM  THE WAVE"), line 2 its radio text. Bluetooth keeps its own frames (`can_bus.md`, `0x400`–`0x403`).
 - Zones: bit0 front left, bit1 front right, bit2 rear left, bit3 rear right; 0 = the sink's default.
 - **Priority** 0 UI click, 1 accessory, 2 advisory, 3 caution, 4 warning. A sound with priority ≥ 2 ducks the
   music; a higher-priority sound interrupts a lower one in the same zones. Accessories use 0–1; 2–4 are for the
