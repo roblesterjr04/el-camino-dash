@@ -1,6 +1,7 @@
 // Host tests for the channel protocol (elc_can/src/elc_chan.cpp). Run: ./run_tests.sh
 
 #include <elc_chan.h>
+#include <elc_chan_msg.h>
 
 #include <cstdio>
 #include <cstring>
@@ -207,11 +208,153 @@ static void test_service() {
   CHECK(bus.frames.size() == 2 && (bus.frames[0].data[3] & 0x1F) + 1 == (bus.frames[1].data[3] & 0x1F));
 }
 
+static ElcChTransfer as_transfer(uint16_t base, uint8_t src, const ElcChWriter &w) {
+  ElcChTransfer t;
+  t.base = base;
+  t.src = src;
+  t.data = w.data();
+  t.len = w.size();
+  return t;
+}
+
+static void test_messages() {
+  std::printf("channel messages\n");
+  {  // UI ITEM bytes exactly as tools/radio_sim.py sends them
+    static const uint8_t freq[] = {0x01, 0x02, 0xff, 0x03, 0x10, 0xff, 0x6b, 0x03, 0x00, 0x00, 0x38, 0x04, 0x00, 0x00, 0x01, 0x00,
+                                   0x00, 0x00, 0x46, 0x72, 0x65, 0x71, 0x75, 0x65, 0x6e, 0x63, 0x79, 0x00, 0x4d, 0x48, 0x7a};
+    ElcChTransfer t;
+    t.base = ELC_CH_UI;
+    t.src = 0x15;
+    t.data = freq;
+    t.len = sizeof(freq);
+    ElcUiItem it;
+    CHECK(elc_ui_decode(t, it));
+    CHECK(it.item == 2 && it.parent == ELC_UI_TOP && it.kind == ELC_UI_NUMBER && it.flags == ELC_UI_F_SETTING);
+    CHECK(it.exponent == -1 && it.min == 875 && it.max == 1080 && it.step == 1);
+    CHECK(std::strcmp(it.label, "Frequency") == 0 && std::strcmp(it.unit, "MHz") == 0 && it.option_count() == 0);
+    ElcChWriter w;
+    elc_ui_encode(it, w);
+    CHECK(w.size() == sizeof(freq) && std::memcmp(w.data(), freq, sizeof(freq)) == 0);
+
+    static const uint8_t preset[] = {0x01, 0x09, 0xff, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                     0x00, 0x00, 0x00, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x00, 0x00, 0x31, 0x20, 0x20, 0x31,
+                                     0x30, 0x31, 0x2e, 0x31, 0x20, 0x46, 0x4d, 0x0a, 0x32, 0x20, 0x20, 0x2d, 0x2d};
+    t.data = preset;
+    t.len = sizeof(preset);
+    CHECK(elc_ui_decode(t, it));
+    char o[32];
+    CHECK(it.kind == ELC_UI_CHOICE && it.unit[0] == 0 && it.option_count() == 2);
+    CHECK(it.option(0, o, sizeof(o)) && std::strcmp(o, "1  101.1 FM") == 0);
+    CHECK(it.option(1, o, sizeof(o)) && std::strcmp(o, "2  --") == 0);
+    CHECK(!it.option(2, o, sizeof(o)));
+  }
+  {
+    ElcChWriter w;
+    elc_ui_encode(ElcUiSet{0x15, 2, 947}, w);
+    ElcUiSet s;
+    CHECK(elc_ui_decode(as_transfer(ELC_CH_UI, 1, w), s) && s.dest == 0x15 && s.item == 2 && s.value == 947);
+    CHECK(as_transfer(ELC_CH_UI, 1, w).for_me(0x15) && !as_transfer(ELC_CH_UI, 1, w).for_me(0x16));
+    ElcUiValue bad;
+    CHECK(!elc_ui_decode(as_transfer(ELC_CH_UI, 1, w), bad));  // wrong opcode
+    char f[16];
+    elc_ui_format(947, -1, f, sizeof(f));
+    CHECK(std::strcmp(f, "94.7") == 0);
+    elc_ui_format(-5, -2, f, sizeof(f));
+    CHECK(std::strcmp(f, "-0.05") == 0);
+    elc_ui_format(1070, 0, f, sizeof(f));
+    CHECK(std::strcmp(f, "1070") == 0);
+  }
+  {
+    ElcSensorDefine d;
+    d.sensor = 3;
+    d.quantity = ELC_Q_TEMPERATURE;
+    d.exponent = -1;
+    d.flags = ELC_SENSOR_F_LOG | ELC_SENSOR_F_GAUGE;
+    d.period_ms = 200;
+    d.disp_min = 0;
+    d.disp_max = 1300;
+    d.warn_hi = 1150;
+    std::strcpy(d.name, "Engine temp");
+    ElcChWriter w;
+    elc_sensor_encode(d, w);
+    CHECK(w.size() == 1 + 30 + 11);  // op, 6 bytes, six s32, name
+    ElcSensorDefine e;
+    CHECK(elc_sensor_decode(as_transfer(ELC_CH_SENSOR, 1, w), e));
+    CHECK(e.sensor == 3 && e.exponent == -1 && e.period_ms == 200 && e.warn_hi == 1150 && e.caution_lo == ELC_CH_NONE32);
+    CHECK(std::strcmp(e.name, "Engine temp") == 0);
+    ElcChWriter v;
+    elc_sensor_encode(ElcSensorValue{3, 1043, 0}, v);
+    ElcSensorValue sv;
+    CHECK(v.size() == 7 && elc_sensor_decode(as_transfer(ELC_CH_SENSOR, 1, v), sv) && sv.value == 1043);
+    CHECK(!elc_sensor_decode(as_transfer(ELC_CH_UI, 1, v), sv));  // wrong channel
+  }
+  {
+    ElcAlertDefine a;
+    a.alert = 4;
+    a.severity = ELC_SEV_WARNING;
+    a.flags = ELC_ALERT_F_ACK;
+    a.icon = 2;
+    std::strcpy(a.text, "Oil pressure low");
+    ElcChWriter w;
+    elc_alert_encode(a, w);
+    ElcAlertDefine b;
+    CHECK(elc_alert_decode(as_transfer(ELC_CH_ALERT, 1, w), b) && b.alert == 4 && b.severity == 3 &&
+          std::strcmp(b.text, "Oil pressure low") == 0);
+    ElcChWriter s;
+    elc_alert_encode(ElcAlertState{1u << 4, 2}, s);
+    ElcAlertState st;
+    CHECK(elc_alert_decode(as_transfer(ELC_CH_ALERT, 1, s), st) && st.active == 16 && st.generation == 2);
+  }
+  {
+    ElcChWriter w;
+    elc_sys_encode(ElcSysTime{1790000000u, -20, ELC_TIME_SRC_GPS}, w);
+    ElcSysTime t;
+    CHECK(w.size() == 7 && elc_sys_decode(as_transfer(ELC_CH_SYSTEM, 1, w), t) && t.utc == 1790000000u && t.offset_q == -20);
+    ElcChWriter v;
+    elc_sys_encode(ElcSysVehicle{ELC_VEH_IGNITION | ELC_VEH_NIGHT, 40, 885}, v);
+    ElcSysVehicle vv;
+    CHECK(elc_sys_decode(as_transfer(ELC_CH_SYSTEM, 1, v), vv) && vv.flags == 0x41 && vv.backlight == 40 && vv.speed_x10 == 885);
+    ElcSysPrefs pp;
+    CHECK(!elc_sys_decode(as_transfer(ELC_CH_SYSTEM, 1, v), pp));
+  }
+  {
+    ElcChWriter w;
+    elc_input_encode(ElcInputKey{ELC_KEY_NEXT, ELC_GEST_CLICK, 9}, w);
+    ElcInputKey k;
+    CHECK(elc_input_decode(as_transfer(ELC_CH_INPUT, 0x13, w), k) && k.key == 17 && k.seq == 9);
+    ElcChWriter e;
+    elc_input_encode(ElcInputEncoder{ELC_ENC_VOLUME, -300}, e);
+    ElcInputEncoder en;
+    CHECK(elc_input_decode(as_transfer(ELC_CH_INPUT, 0x13, e), en) && en.encoder == 1 && en.position == -300);
+  }
+  {
+    ElcChWriter w;
+    elc_audio_encode(ElcAudioStatus{60, ELC_AUDIO_F_PLAYING, 0, 0, 15}, w);
+    ElcAudioStatus s;
+    CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x14, w), s) && s.volume == 60 && s.zones == 15);
+    ElcChWriter m;
+    elc_audio_encode(ElcAudioMedia{0x00, ELC_MEDIA_NEXT}, m);
+    ElcAudioMedia md;
+    CHECK(elc_audio_decode(as_transfer(ELC_CH_AUDIO_CMD, 0x01, m), md) && md.action == ELC_MEDIA_NEXT);
+    CHECK(as_transfer(ELC_CH_AUDIO_CMD, 0x01, m).for_me(0x14));  // dest 0 = everyone
+  }
+  {
+    ElcLogLine l;
+    l.level = ELC_LOG_WARN;
+    std::strcpy(l.text, "tuned 94.7 FM");
+    ElcChWriter w;
+    elc_log_encode(l, w);
+    ElcLogLine m;
+    CHECK(elc_log_decode(as_transfer(ELC_CH_LOG, 0x15, w), m) && m.level == 2 && std::strcmp(m.text, "tuned 94.7 FM") == 0);
+  }
+}
+
 int main() {
   test_crc_and_frames();
   test_reassembly();
   test_net_codecs();
   test_service();
+  test_messages();
   if (g_failures) {
     std::printf("%d FAILED\n", g_failures);
     return 1;
