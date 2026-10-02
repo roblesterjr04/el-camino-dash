@@ -138,7 +138,16 @@ channel never had a supply).
 
 ## Status
 
-See the bottom of this file: filled in after routing.
+**Schematic: done** (96 parts on the board, 4 of them not fitted). **PCB: placed and routed**, DRC
+(`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected, parity clean.** The only
+warnings are 43 silkscreen-past-the-edge ones (the right-angle headers' and the top-edge connectors' outlines, which
+stand past the edges on purpose, as on the GPS card). 842 track segments, 322 vias (193 GND stitching). ERC: no
+errors. Fab outputs in `fab/` (91 placed parts: the DNP ones are left out).
+
+How it got there, in case a re-run differs: Freerouting left the FUEL link from J2 pin 1 to its pull-up open in most
+runs (the engine-temperature tracks cross the direct path on the front). The finisher now also tries every pad-to-pad
+pair through one via, and joins it on the back from J2's through-hole pin with a via beside R18. The last route used
+`FR_TRIES=4 FR_PASSES=300,200,120,400`; `--from-ses` repeats the import and finishing steps from the last session.
 
 ## Check before ordering
 
@@ -180,5 +189,6 @@ python3 ../tools/fab_export.py SensorCard         # Gerbers, drill, placement, c
 ```
 
 Temporary files go to `$TMPDIR` with a `sensorcard` prefix. `--stitch` / `--fill` re-run only the ground stitching /
-zone fill on the routed board. `FR_TRIES=n` re-runs Freerouting from the placed board if a round leaves something
-unrouted.
+zone fill on the routed board. `--from-ses` rebuilds the pre-route board from the placed copy and repeats the import,
+finishing and stitching from the last Freerouting session (a couple of minutes). `FR_TRIES=n` (with a comma-separated
+`FR_PASSES` list) re-runs Freerouting from the placed board if a round leaves something unrouted.

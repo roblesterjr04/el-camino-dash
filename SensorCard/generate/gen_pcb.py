@@ -873,7 +873,7 @@ def finish(b):
             for it in cl:
                 if it.GetClass() == 'PAD':
                     p = it.GetPosition()
-                    out.append((p.x / 1e6, p.y / 1e6, {l for l in CU if it.IsOnLayer(l)}))
+                    out.append((p.x / 1e6, p.y / 1e6, {l for l in CU if it.IsOnLayer(l)}, 'pad'))
                 elif it.GetClass() == 'PCB_VIA':
                     p = it.GetPosition()
                     out.append((p.x / 1e6, p.y / 1e6, set(CU)))
@@ -923,8 +923,10 @@ def finish(b):
                         break
                 if done:
                     break
-            if not done:                # through one via beside either end
-                for d, a, e in pairs[:12]:
+            if not done:                # through one via beside either end: the closest pairs, then every pad-to-pad pair
+                # (the closest pairs are often all points along tracks, never the two pads the link should join)
+                pad_pairs = [p_ for p_ in pairs if len(p_[1]) > 3 and len(p_[2]) > 3 and p_[0] < 12]
+                for d, a, e in pairs[:12] + pad_pairs:
                     items = local(a, e)
                     for s0, s1 in ((a, e), (e, a)):
                         for r in np.arange(0.7, 3.6, 0.15):
@@ -1047,7 +1049,13 @@ if __name__ == '__main__':
             stitch(bb, pitch=STITCH_PITCH)
         pcbnew.ZONE_FILLER(bb).Fill(bb.Zones())
         pcbnew.SaveBoard(PCB, bb)
-    elif '--from-ses' in sys.argv:        # the pre-route board (placement + fan-out) is in PCB; resume from the last session
+    elif '--from-ses' in sys.argv:        # rebuild the pre-route board from the placed copy, then resume from the last session
+        shutil.copyfile(os.path.join(TMP, 'sensorcard_placed.kicad_pcb'), PCB)
+        bb = pcbnew.LoadBoard(PCB)
+        rules(bb)
+        stitch(bb, fanout=['U1', 'U2', 'U3', 'U4', 'U5', 'Y1', 'Y2'] +
+               sorted(f.GetReference() for f in bb.GetFootprints() if re.match(r'(C|R|JP|D|F|FB)\d', f.GetReference())))
+        pcbnew.SaveBoard(PCB, bb)
         print('%d unrouted after the import' % import_ses(os.path.join(TMP, 'sensorcard.ses')))
         finish_board()
     else:
