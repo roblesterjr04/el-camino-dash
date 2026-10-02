@@ -1,10 +1,13 @@
-// The console's screens: a line-for-line port of the El Camino Cluster prototype's OLED drawing (positions, grey
-// levels 0..15, the theme's fonts), plus the call screens it did not have (drawn in the style of its warnings).
+// The console's screens: the El Camino Cluster prototype's OLED drawing (positions, grey levels 0..15, the theme's
+// fonts) for the drive pages and warnings, plus the head unit's own: the radio, the menu, calls, pairing, and the
+// soft-key labels (drawn in the style of the warnings).
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+#include <accessory_can.h>
 
 #include "console_ui.h"
 #include "oled_gfx.h"
@@ -86,7 +89,7 @@ void ConsoleUi::draw_media(OledGfx &g, uint32_t t) {
   }
   if (!media) {
     g.text("No phone", tx, 28, font('m'), 14);
-    g.text("Pair on the center: Menu \xE2\x80\xBA Phone", tx, 46, font('s'), 7, TextAlign::Left, 180);
+    g.text("Hold the left knob: Menu \xC2\xB7 Phone", tx, 46, font('s'), 7, TextAlign::Left, 180);
     return;
   }
   // "Artist - Title" from the bridge
@@ -120,8 +123,31 @@ void ConsoleUi::draw_media(OledGfx &g, uint32_t t) {
   mmss(b + 1, sizeof(b) - 1, (int)_tr.duration_s - (int)_tr.elapsed_s);
   g.text(a, tx, 60, TINY, 7);
   g.text(b, tx + 176, 60, TINY, 7, TextAlign::Right);
-  const bool playing = _elapsed_moved_ms && t - _elapsed_moved_ms < 1600;
-  g.icon(playing ? "play" : "pause", 241, 5, 10);
+  draw_phone_status(g, t);
+}
+
+/** Top right of the media page: the phone's signal (five bars) and battery, as the phone reports them over
+ *  hands-free (0..5 each; a value it does not send is left out). Above the title, which starts at y 12. */
+void ConsoleUi::draw_phone_status(OledGfx &g, uint32_t t) {
+  if (!phone_fresh(t) || !(_ph.flags & ELC_CAN_PHONE_CONNECTED)) return;
+  int x = 254;  // right edge
+  if (_ph.battery <= 5) {
+    const int w = 13, h = 7, y = 2;
+    x -= w + 2;
+    g.rect(x, y, w, h, 9);
+    g.box(x + w, y + 2, 2, 3, 9);  // the nub
+    const int fill = (w - 4) * _ph.battery / 5;
+    const bool low = _ph.battery <= 1;
+    if (fill > 0) g.box(x + 2, y + 2, fill, h - 4, low && (t / 500) % 2 ? 4 : (low ? 15 : 12));
+    x -= 6;
+  }
+  if (_ph.signal <= 5) {
+    for (int i = 4; i >= 0; i--) {  // bars 2 px wide, 1 px apart, 2..10 px tall, bottoms on y 9
+      const int bh = 2 + i * 2;
+      x -= i == 4 ? 2 : 3;
+      g.box(x, 10 - bh, 2, bh, i < _ph.signal ? 12 : 3);
+    }
+  }
 }
 
 void ConsoleUi::draw_trip(OledGfx &g) {
@@ -207,9 +233,52 @@ void ConsoleUi::draw_clock(OledGfx &g, uint32_t t) {
   if (gps) g.icon("gps", x + 46, 46, 6);
 }
 
+/** The media page while the radio is the source: frequency and station, radio text, preset, stereo, signal. */
+void ConsoleUi::draw_radio(OledGfx &g, uint32_t t) {
+  const bool have = _now_ms && t - _now_ms < 5000 && _now_playing.source == ELC_SRC_RADIO;
+  const ElcAudioNow &np = _now_playing;
+  g.rrect(4, 8, 48, 48, 4, 5);
+  const bool am = have && strstr(np.line1, " AM") != nullptr;
+  g.text(am ? "AM" : "FM", 28, 30, font('m'), have ? 12 : 5, TextAlign::Center);
+  g.text("RADIO", 28, 48, TINY, 6, TextAlign::Center);
+  const int tx = 62;
+  char top[24] = "RADIO";
+  if (have && np.preset) snprintf(top, sizeof(top), "PRESET %u", (unsigned)np.preset);
+  g.text(top, tx, 9, TINY, 7);
+  if (have && (np.flags & ELC_NOW_F_STEREO)) g.text("ST", 200, 9, TINY, 10);
+  if (have && (np.flags & ELC_NOW_F_MUTED)) g.text("MUTED", 160, 9, TINY, blink(t, 600) ? 15 : 6);
+  if (have && np.signal <= 5) {  // five bars, as for the phone
+    int x = 254;
+    for (int i = 4; i >= 0; i--) {
+      const int bh = 2 + i * 2;
+      x -= i == 4 ? 2 : 3;
+      g.box(x, 10 - bh, 2, bh, i < np.signal ? 12 : 3);
+    }
+  }
+  const char *l1 = have ? np.line1 : "Radio";
+  const lv_font_t *mid = font('m');
+  const int tw = OledGfx::text_width(l1, mid), room = 186;
+  g.clip(tx, 10, room, 22);
+  if (tw > room) {  // marquee
+    const int span = tw + 30;
+    const int x = tx - (int)((t / 40) % (uint32_t)span);
+    g.text(l1, x, 29, mid, 15);
+    g.text(l1, x + span, 29, mid, 15);
+  } else {
+    g.text(l1, tx, 29, mid, (have && (np.flags & ELC_NOW_F_SEEKING)) && blink(t, 300) ? 8 : 15);
+  }
+  g.no_clip();
+  const char *l2 = have && np.line2[0] ? np.line2 : (have ? "" : "Waiting for the radio card");
+  g.text(l2, tx, 45, font('o'), 8, TextAlign::Left, 186);
+  g.text("TURN TUNE \xC2\xB7 PUSH PRESET \xC2\xB7 HOLD SEEK", tx, 60, TINY, 5, TextAlign::Left, 186);
+}
+
 void ConsoleUi::draw_page(OledGfx &g, int page, uint32_t t) {
   switch (page) {
-    case kPageMedia: draw_media(g, t); break;
+    case kPageMedia:
+      if (radio_is_source(t)) draw_radio(g, t);
+      else draw_media(g, t);
+      break;
     case kPageTrip: draw_trip(g); break;
     case kPageEngine: draw_engine(g, t); break;
     default: draw_clock(g, t); break;
@@ -219,68 +288,65 @@ void ConsoleUi::draw_page(OledGfx &g, int page, uint32_t t) {
 // ---- OLED menu, the round-screen menu, warnings, calls ----
 
 void ConsoleUi::draw_menu(OledGfx &g, uint32_t t) {
+  static const char *const kTitle[11] = {"MENU", "SOURCE", "PHONE", "PHONE", "DISPLAY", "TRIP", "SERVICE",
+                                         "ACCESSORIES", "", "", "CONFIRM"};
+  build_rows();
+  Level &L = _stack[_depth];
   const int rowH = 17, y0 = 12;
-  if (_sel < _top) _top = _sel;
-  if (_sel > _top + 2) _top = (uint8_t)(_sel - 2);
+  if (L.sel < L.top) L.top = L.sel;
+  if (L.sel > L.top + 2) L.top = L.sel - 2;
   const bool edit = _mode == ConsoleMode::Edit;
-  g.text(edit ? (_confirm ? "PUSH TO CONFIRM \xC2\xB7 BACK CANCELS" : "TURN TO CHANGE \xC2\xB7 PUSH OK \xC2\xB7 BACK UNDO") : "MENU",
-         4, 8, TINY, edit ? 10 : 6);
+  char title[48];
+  if (L.page == kMAccPage || L.page == kMAccChoice) {
+    const AccItem *g2 = L.page == kMAccChoice ? accessory_can_item(L.node, L.arg)
+                                              : (L.arg != ELC_UI_TOP ? accessory_can_item(L.node, L.arg) : nullptr);
+    snprintf(title, sizeof(title), "%s%s%s", accessory_can_name(L.node), g2 ? " \xC2\xB7 " : "", g2 ? g2->d.label : "");
+    for (char *c = title; *c; c++) *c = (char)(*c >= 'a' && *c <= 'z' ? *c - 32 : *c);
+  } else if (L.page == kMPhoneOne) {
+    const char *pn = phone_paired_name(L.arg);
+    snprintf(title, sizeof(title), "%s", pn[0] ? pn : "PHONE");
+  } else {
+    snprintf(title, sizeof(title), "%s", kTitle[L.page % 11]);
+  }
+  g.text(edit ? "TURN \xC2\xB7 PUSH OK \xC2\xB7 LEFT KEY UNDO" : title, 4, 8, TINY, edit ? 10 : 6,
+         TextAlign::Left, 210);
   char n[8];
-  snprintf(n, sizeof(n), "%d/%d", _sel + 1, kItems);
+  snprintf(n, sizeof(n), "%d/%d", _nrows ? L.sel + 1 : 0, _nrows);
   g.text(n, 250, 8, TINY, 5, TextAlign::Right);
   const lv_font_t *body = font('o');
   for (int r = 0; r < 3; r++) {
-    const int i = _top + r;
-    if (i >= kItems) break;
+    const int i = L.top + r;
+    if (i >= _nrows) break;
+    const ConsoleRow &row = _rows[i];
     const int y = y0 + r * rowH;
-    const bool sel = i == _sel, editing = sel && edit;
-    char val[32];
-    if (i == kTrip && editing && _confirm) snprintf(val, sizeof(val), "Reset?");
-    else item_value(i, val, sizeof(val));
-    const bool note = i == kLayout && _cl.theme != 0;  // "Classic only"
-    if (sel && !editing) g.rbox(1, y, 246, rowH - 1, 3, 13);
+    const bool sel = i == L.sel;
+    const bool editing = sel && edit;
+    const bool info = row.kind == ConsoleRow::Info;
+    if (sel && !editing) g.rbox(1, y, 246, rowH - 1, 3, info ? 6 : 13);
     if (editing) g.rrect(1, y, 246, rowH - 1, 3, 15);
-    g.text(item_label(i), 7, y + 12, body, sel && !editing ? 0 : 10, TextAlign::Left, 112);
+    const uint8_t fg = sel && !editing ? 0 : (row.dim ? 5 : (info ? 8 : 11));
+    g.text(row.label, 7, y + 12, body, fg, TextAlign::Left, 130);
     int vx = 238;
-    const bool page = i == kService;
-    if (page) {
+    if (row.kind == ConsoleRow::Sub) {
       g.icon("ext", 232, y + 2, sel && !editing ? 0 : 7);
       vx = 228;
     }
-    if (editing && i != kTrip) {
+    if (editing) {
       const bool bl = blink(t, 350);
-      const int vw = OledGfx::text_width(val, body);
+      const int vw = OledGfx::text_width(row.value, body);
       g.text("\xE2\x80\xB9", 238 - vw - 10, y + 12, body, bl ? 15 : 6);
       g.text("\xE2\x80\xBA", 240, y + 12, body, bl ? 15 : 6);
-      g.text(val, 236, y + 12, body, 15, TextAlign::Right);
-    } else if (note) {
-      g.text("Classic only", vx, y + 12, TINY, sel && !editing ? 2 : 5, TextAlign::Right, 112);
+      g.text(row.value, 236, y + 12, body, 15, TextAlign::Right);
     } else {
-      g.text(val, vx, y + 12, body, sel && !editing ? 0 : 8, TextAlign::Right, 112);
+      g.text(row.value, vx, y + 12, body, sel ? 0 : (row.dim ? 4 : 8), TextAlign::Right, 110);
     }
   }
-  // scrollbar
-  g.box(251, 12, 2, 50, 2);
-  const float th = fmaxf(8, 50.0f * 3 / kItems);
-  const float ty = 12 + (50 - th) * ((float)_top / (kItems - 3));
-  g.box(251, (int)lroundf(ty), 2, (int)lroundf(th), 9);
-}
-
-void ConsoleUi::draw_remote(OledGfx &g) {
-  static const char *const kScr[3] = {"LEFT", "CENTER", "RIGHT"};
-  char head[32];
-  snprintf(head, sizeof(head), "ON %s DISPLAY", kScr[_ms.screen % 3]);
-  g.icon("round", 6, 6, 10);
-  g.text(head, 22, 13, TINY, 7);
-  g.text(_ms.opened_by == ELC_CAN_MENU_BY_CONSOLE ? "OPENED HERE" : "TOUCH OPENED", 250, 13, TINY, 4, TextAlign::Right);
-  const bool texts = _mt_main.valid() && _mt_main.serial() == _ms.text_serial;
-  g.text(texts ? _mt_main.text() : "Menu", 6, 36, font('m'), 15, TextAlign::Left, 240);
-  if (_mt_sub.valid() && _mt_sub.serial() == _ms.text_serial) g.text(_mt_sub.text(), 6, 49, font('s'), 8, TextAlign::Left, 240);
-  const char *hint = _ms.page == ELC_CAN_PAGE_HOME        ? "TURN MOVE \xC2\xB7 PUSH OPEN \xC2\xB7 BACK CLOSE"
-                     : _ms.page == ELC_CAN_PAGE_BRIGHTNESS ? "TURN ADJUST \xC2\xB7 PUSH/BACK MENU"
-                     : _ms.page == ELC_CAN_PAGE_PHONE      ? "TURN MOVE \xC2\xB7 PUSH SELECT \xC2\xB7 BACK MENU"
-                                                           : "TOUCH TO CHOOSE \xC2\xB7 BACK MENU";
-  g.text(hint, 6, 62, TINY, 5, TextAlign::Left, 246);
+  if (_nrows > 3) {  // scrollbar
+    g.box(251, 12, 2, 50, 2);
+    const float th = fmaxf(8, 50.0f * 3 / _nrows);
+    const float ty = 12 + (50 - th) * ((float)L.top / (_nrows - 3));
+    g.box(251, (int)lroundf(ty), 2, (int)lroundf(th), 9);
+  }
 }
 
 void ConsoleUi::draw_alert(OledGfx &g, const ConsoleAlert &a, uint32_t t) {
@@ -293,7 +359,7 @@ void ConsoleUi::draw_alert(OledGfx &g, const ConsoleAlert &a, uint32_t t) {
   g.box(10 + (int)(5.4f * 2.4f), 16 + (int)(8.8f * 2.4f), 3, 3, 0);
   g.text(a.title, 50, 30, font('m'), 15, TextAlign::Left, 200);
   g.text(a.line, 50, 45, font('s'), 10, TextAlign::Left, 200);
-  g.text("PUSH OR BACK TO ACKNOWLEDGE", 50, 58, TINY, 5, TextAlign::Left, 200);
+  g.text("LEFT KEY TO ACKNOWLEDGE", 50, 58, TINY, 5, TextAlign::Left, 200);
 }
 
 /** A soft-key label over one of the keys under the OLED: an inverted pill centred on the key. */
@@ -340,6 +406,36 @@ void ConsoleUi::draw_call(OledGfx &g, uint32_t t) {
   g.text(who, 10, 39, font('m'), 15, TextAlign::Left, 236);
   soft_key(g, left, CONSOLE_KEY_LEFT_X);
   soft_key(g, right, CONSOLE_KEY_RIGHT_X);
+}
+
+/** A phone asks to pair: its name and the code to compare, Reject / Pair on the soft keys. */
+void ConsoleUi::draw_pair(OledGfx &g, uint32_t t) {
+  const bool bl = blink(t, 450);
+  g.rect(0, 0, 256, 64, bl ? 15 : 6);
+  g.rect(2, 2, 252, 60, bl ? 6 : 2);
+  g.icon("phone", 10, 8, 15);
+  const char *who = _ph_pairing.valid() && _ph_pairing.text()[0] ? _ph_pairing.text() : "A phone";
+  char title[48];
+  snprintf(title, sizeof(title), "PAIR WITH %s?", who);
+  for (char *c = title; *c; c++) *c = (char)(*c >= 'a' && *c <= 'z' ? *c - 32 : *c);
+  g.text(title, 28, 17, TINY, 15, TextAlign::Left, 220);
+  char code[16];
+  if (_have_passkey) snprintf(code, sizeof(code), "%03u %03u", (unsigned)(_passkey / 1000u), (unsigned)(_passkey % 1000u));
+  else snprintf(code, sizeof(code), "--- ---");
+  g.text(code, 128, 42, font('b'), 15, TextAlign::Center);
+  soft_key(g, "Reject", CONSOLE_KEY_LEFT_X);
+  soft_key(g, "Pair", CONSOLE_KEY_RIGHT_X);
+}
+
+/** At rest, after a control was touched: what the soft keys do now, over the keys. */
+void ConsoleUi::draw_hints(OledGfx &g, uint32_t t) {
+  if (!_touch_ms || t - _touch_ms > kHintMs || _mode != ConsoleMode::Drive) return;
+  const bool radio_src = radio_is_source(t);
+  const char *left = radio_src ? ((_now_ms && (_now_playing.flags & ELC_NOW_F_MUTED)) ? "Unmute" : "Mute") : "Play/Pause";
+  static const char *const kNext[kPageCount] = {"Trip", "Engine", "Clock", "Media"};
+  g.box(0, 47, 248, 17, 0);  // over the page's bottom line
+  soft_key(g, left, CONSOLE_KEY_LEFT_X);
+  soft_key(g, kNext[_page % kPageCount], CONSOLE_KEY_RIGHT_X);
 }
 
 void ConsoleUi::draw_volume(OledGfx &g, uint32_t t) {
@@ -404,6 +500,8 @@ void ConsoleUi::render(OledGfx &g, uint32_t t) {
   const bool reverse = _cs_ms && (_cs.flags & ELC_CAN_STATUS_REVERSE);
   if (call_shown(t)) {
     draw_call(g, t);
+  } else if (pair_shown(t)) {
+    draw_pair(g, t);
   } else if (reverse) {
     g.text("R", 10, 50, font('h'), 15);
     g.text("REVERSE", 50, 24, font('m'), 15);
@@ -415,12 +513,10 @@ void ConsoleUi::render(OledGfx &g, uint32_t t) {
     g.text(mph, 50, 58, TINY, 6);
   } else {
     const ConsoleAlert *al = alert(t);
-    if (al && _mode != ConsoleMode::Remote && _mode != ConsoleMode::Edit) {
+    if (al && _mode == ConsoleMode::Drive) {
       draw_alert(g, *al, t);
     } else if (_mode == ConsoleMode::Menu || _mode == ConsoleMode::Edit) {
       draw_menu(g, t);
-    } else if (_mode == ConsoleMode::Remote) {
-      draw_remote(g);
     } else {
       const float e = fminf(1, (t - _page_ms) / 180.0f);
       const float ez = 1 - powf(1 - e, 3);
@@ -438,6 +534,7 @@ void ConsoleUi::render(OledGfx &g, uint32_t t) {
         g.box(252, 17 + i * 8 + (on ? 0 : 1), 3, on ? 6 : 3, on ? 13 : 3);
       }
       if (_n_alerts && blink(t, 500)) g.icon("warn", 238, 50, 15);
+      draw_hints(g, t);
     }
   }
   draw_toast(g, t);

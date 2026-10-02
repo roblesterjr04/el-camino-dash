@@ -1,6 +1,8 @@
 #include "console_ui.h"
 
+#include <accessory_can.h>
 #include <elc_sensor_units.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,12 +15,13 @@ namespace {
 constexpr uint32_t kSensorFreshMs = 1000;
 constexpr uint32_t kOwnEchoMs = 2000;     // our own setting's echo does not toast
 constexpr uint32_t kVolHoldMs = 1500;     // our volume wins over the bridge's stale echo
+constexpr uint32_t kStatusMs = 3000;      // the audio card's STATUS is 1 Hz
 constexpr uint32_t kArtQuietMs = 300;
 constexpr uint8_t kArtMaxTries = 20;
 
 const char *const kViewName[4] = {"Tachometer", "Clock", "Media", "Efficiency"};
 const char *const kScreenName[3] = {"Left", "Center", "Right"};
-// OLED menu order Classic, Modern, Fallout; on the wire 0 Classic, 1 Fallout, 2 Modern.
+// Display menu order Classic, Modern, Fallout; on the wire 0 Classic, 1 Fallout, 2 Modern.
 const uint8_t kThemeWire[3] = {0, 2, 1};
 const char *const kThemeName[3] = {"Classic", "Modern", "Fallout"};
 
@@ -39,7 +42,7 @@ bool ConsoleUi::take_persist_dirty() {
   return d;
 }
 
-// ---- frames out ----
+// ---- frames and messages out ----
 
 void ConsoleUi::push_frame(const ElcCanFrame &f, const char *what) {
   if (_qn == sizeof(_q) / sizeof(_q[0])) {  // full: drop the oldest
@@ -57,6 +60,26 @@ bool ConsoleUi::pop_action(ConsoleAction &out) {
   out = _q[_qh];
   _qh = (uint8_t)((_qh + 1) % (sizeof(_q) / sizeof(_q[0])));
   _qn--;
+  return true;
+}
+
+void ConsoleUi::log(const char *fmt, ...) {
+  if (_ln == 4) {
+    _lh = (uint8_t)((_lh + 1) % 4);
+    _ln--;
+  }
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(_log[(_lh + _ln) % 4], sizeof(_log[0]), fmt, ap);
+  va_end(ap);
+  _ln++;
+}
+
+bool ConsoleUi::pop_log(char *out, size_t n) {
+  if (!_ln) return false;
+  snprintf(out, n, "%s", _log[_lh]);
+  _lh = (uint8_t)((_lh + 1) % 4);
+  _ln--;
   return true;
 }
 
@@ -88,22 +111,74 @@ void ConsoleUi::phone_cmd(uint8_t cmd, uint8_t arg, const char *what) {
   push_frame(f, buf);
 }
 
-void ConsoleUi::menu_input(uint8_t event, int8_t value, const char *what) {
-  ElcCanMenuInput m;
-  m.event = event;
-  m.value = value;
-  m.from_node = _node;
-  ElcCanFrame f;
-  elc_can_encode_menu_input(m, f);
-  char buf[48];
-  snprintf(buf, sizeof(buf), "MENU %s %d", what, value);
-  push_frame(f, buf);
+bool ConsoleUi::chan_send(uint16_t base, const ElcChWriter &w, const char *what) {
+  if (!_ch) return false;
+  const bool ok = _ch->send(base, w);
+  log("chan %s%s", what, ok ? "" : " (not sent)");
+  return ok;
+}
+
+/** AUDIO_CMD MEDIA to the audio card, which plays it or forwards it to the source (the radio). */
+void ConsoleUi::media(uint8_t action, uint8_t value, const char *what) {
+  const uint8_t s = sink();
+  if (!s) return;
+  ElcChWriter w;
+  elc_audio_encode(ElcAudioMedia{s, action, value}, w);
+  chan_send(ELC_CH_AUDIO_CMD, w, what);
+}
+
+void ConsoleUi::play_pause(uint32_t now_ms) {
+  if (radio_is_source(now_ms)) {
+    media(ELC_MEDIA_TOGGLE, 0, "MEDIA mute");
+    return;
+  }
+  phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 0, "play/pause");  // the Bluetooth bridge (old frames)
+  media(ELC_MEDIA_TOGGLE, 0, "MEDIA play/pause");       // and the audio card's own Bluetooth
 }
 
 void ConsoleUi::toast(const char *title, const char *value, uint32_t now_ms) {
   snprintf(_toast_title, sizeof(_toast_title), "%s", title);
   snprintf(_toast_value, sizeof(_toast_value), "%s", value);
   _toast_ms = now_ms ? now_ms : 1;
+}
+
+uint8_t ConsoleUi::sink() const { return _ch ? _ch->findNode(ELC_TYPE_AUDIO_SINK) : 0; }
+uint8_t ConsoleUi::radio() const { return _ch ? _ch->findNode(ELC_TYPE_RADIO) : 0; }
+
+uint8_t ConsoleUi::source(uint32_t now_ms) const {
+  if (!_st_ms || now_ms - _st_ms > kStatusMs) return ELC_SRC_NONE;
+  return _st.source;
+}
+
+const char *ConsoleUi::source_name(uint8_t code) const {
+  switch (code) {
+    case ELC_SRC_BLUETOOTH: return "Bluetooth";
+    case ELC_SRC_RADIO: return "Radio";
+    case ELC_SRC_AUX: return "Aux in";
+    default: return "None";
+  }
+}
+
+/** What plays, in two lines: the radio's NOW PLAYING, or the Bluetooth title and artist. */
+void ConsoleUi::now_text(char *l1, size_t n1, char *l2, size_t n2, uint32_t now_ms) const {
+  l1[0] = l2[0] = '\0';
+  if (radio_is_source(now_ms)) {
+    if (_now_ms && now_ms - _now_ms < 5000 && _now_playing.source == ELC_SRC_RADIO) {
+      snprintf(l1, n1, "%s", _now_playing.line1);
+      snprintf(l2, n2, "%s", _now_playing.line2);
+    } else {
+      snprintf(l1, n1, "Radio");
+    }
+    return;
+  }
+  const char *np = _np.valid() ? _np.text() : "";
+  const char *sep = strstr(np, " - ");
+  if (sep) {
+    snprintf(l1, n1, "%s", sep + 3);
+    snprintf(l2, n2, "%.*s", (int)(sep - np), np);
+  } else {
+    snprintf(l1, n1, "%s", np);
+  }
 }
 
 // ---- frames in ----
@@ -118,6 +193,10 @@ void ConsoleUi::cluster_changed(const ElcCanClusterState &old, uint32_t now_ms) 
 
 void ConsoleUi::feed(const ElcCanFrame &f, uint32_t now_ms) {
   _now = now_ms;
+  if (!_kinds_set) {  // paired names: kind 0x10 + index
+    _kinds_set = true;
+    for (uint8_t i = 0; i < ELC_CAN_PHONE_MAX_PAIRED; i++) _ph_paired[i].set_kind((uint8_t)(ELC_CAN_PHONE_TEXT_PAIRED + i));
+  }
   // Audio frames only from a range whose heartbeat says audio bridge: node numbers follow the card slot, so another
   // card's private messages can sit at the same offsets.
   _bridges.feed(f, now_ms);
@@ -162,11 +241,6 @@ void ConsoleUi::feed(const ElcCanFrame &f, uint32_t now_ms) {
     _booted = true;
     return;
   }
-  if (_mt_main.feed(f) || _mt_sub.feed(f)) return;
-  if (elc_can_decode_menu_state(f, _ms)) {
-    _ms_ms = now_ms;
-    return;
-  }
   if (elc_can_decode_time(f, _time)) {
     _time_ms = now_ms;
     return;
@@ -183,7 +257,7 @@ void ConsoleUi::feed(const ElcCanFrame &f, uint32_t now_ms) {
     if (tr.elapsed_s != _last_elapsed) _elapsed_moved_ms = now_ms;
     _last_elapsed = tr.elapsed_s;
     _tr = tr;
-    if (!_vol_set || now_ms - _vol_set_ms > kVolHoldMs) _vol = tr.volume > 15 ? 15 : tr.volume;
+    if (!sink() && (!_vol_set || now_ms - _vol_set_ms > kVolHoldMs)) _vol = tr.volume > 15 ? 15 : tr.volume;
     return;
   }
   ElcCanPhoneStatus ps;
@@ -192,13 +266,48 @@ void ConsoleUi::feed(const ElcCanFrame &f, uint32_t now_ms) {
     _slot = slot;
     _slot_known = true;
     _bridge_ms = _ph_ms = now_ms;
+    if (!(ps.flags & ELC_CAN_PHONE_CONFIRM)) _have_passkey = false;
     _ph = ps;
+    return;
+  }
+  uint32_t key = 0;
+  uint8_t left = 0;
+  if (elc_can_decode_phone_pairing(f, &slot, &key, &left)) {
+    if (_slot_known && slot != _slot) return;
+    _passkey = key;
+    _pair_left = left;
+    _have_passkey = true;
+    _pair_ms = now_ms;
     return;
   }
   const int s = elc_can_slot_of(f.id);
   if (s >= 0 && _slot_known && s != _slot) return;
-  if (_np.feed(f) || _caller.feed(f)) return;
+  if (_np.feed(f) || _caller.feed(f) || _ph_connected.feed(f) || _ph_pairing.feed(f)) return;
+  for (auto &d : _ph_paired) {
+    if (d.feed(f)) return;
+  }
   if (_art_rx.feed(f)) _art_rx_ms = now_ms;
+}
+
+void ConsoleUi::transfer(const ElcChTransfer &t, uint32_t now_ms) {
+  _now = now_ms;
+  if (t.base != ELC_CH_AUDIO_CMD) return;
+  ElcAudioStatus st;
+  ElcAudioNow np;
+  if (elc_audio_decode(t, st)) {
+    if (t.src != sink()) return;  // only the audio card (a sink announced as node type 5)
+    const bool had = _st_ms && now_ms - _st_ms <= kStatusMs;
+    if (had && st.source != _st.source && !(_src_req_ms && now_ms - _src_req_ms < kOwnEchoMs && st.source == _src_req)) {
+      toast("SOURCE", source_name(st.source), now_ms);  // changed by someone else
+    }
+    _st = st;
+    _st_ms = now_ms;
+    if (!_vol_set || now_ms - _vol_set_ms > kVolHoldMs) _vol = (uint8_t)clampi((st.volume * 15 + 50) / 100, 0, 15);
+  } else if (elc_audio_decode(t, np)) {
+    if (t.src != _st.source_node && !(np.source == ELC_SRC_RADIO && t.src == radio())) return;
+    _now_playing = np;
+    _now_ms = now_ms;
+  }
 }
 
 // ---- state ----
@@ -207,9 +316,17 @@ bool ConsoleUi::alive(uint32_t now_ms) const {
   return _booted && now_ms - _center_ms < kCenterGoneMs && now_ms - _boot_ms >= kBootMs;
 }
 
-bool ConsoleUi::remote_open(uint32_t now_ms) const { return _ms_ms && _ms.open && now_ms - _ms_ms < 2500; }
-
 bool ConsoleUi::call_shown(uint32_t now_ms) const { return phone_fresh(now_ms) && _ph.call != ELC_CAN_CALL_IDLE; }
+
+bool ConsoleUi::pair_shown(uint32_t now_ms) const {
+  return phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_CONFIRM) && !call_shown(now_ms);
+}
+
+const char *ConsoleUi::phone_paired_name(uint8_t i) const {
+  if (i >= ELC_CAN_PHONE_MAX_PAIRED || i >= _ph.paired) return "";
+  const ElcCanPhoneTextDecoder &d = _ph_paired[i];
+  return d.valid() && d.serial() == _ph.list_serial ? d.text() : "";
+}
 
 float ConsoleUi::trip_mi() const {
   return _s.odo_valid && _trip_set && _s.odo_tenths >= _trip_base ? (float)(_s.odo_tenths - _trip_base) / 10.0f : 0.0f;
@@ -274,81 +391,74 @@ const ConsoleAlert *ConsoleUi::alert(uint32_t now_ms) {
   return nullptr;
 }
 
-// ---- OLED menu items ----
+// ---- display settings (the Display page) ----
 
-const char *ConsoleUi::item_label(int i) const {
-  static const char *const kLabel[kItems] = {"Center view", "Theme",   "Brightness",    "Dim with lights",
-                                             "Menu on",     "Media on", "Right layout", "Trip A",
-                                             "OLED contrast", "Service"};
-  return i >= 0 && i < kItems ? kLabel[i] : "";
+int ConsoleUi::setting_count(uint16_t id) const {
+  switch (id) {
+    case kRView: return 4;
+    case kRTheme: return 3;
+    case kRFollow: return 2;
+    case kRIface: case kRMedia: return 3;
+    case kRLayout: return 2;
+    case kRContrast: return 3;
+    default: return 0;  // brightness: 10..100 in 5s
+  }
 }
 
-int ConsoleUi::item_count(int i) const {
-  switch (i) {
-    case kView: return 4;
-    case kTheme: return 3;
-    case kFollow: return 2;
-    case kIface: case kMedia: return 3;
-    case kLayout: return 2;
-    case kContrast: return 3;
+int ConsoleUi::setting_get(uint16_t id) const {
+  switch (id) {
+    case kRView: return _cl.center_subview & 3;
+    case kRTheme: return theme_index(_cl.theme);
+    case kRBright: return _bright_live >= 0 ? _bright_live : _cl.brightness;
+    case kRFollow: return (_cl.flags & ELC_CAN_CLUSTER_DIM_WITH_LIGHTS) ? 0 : 1;  // On, Off
+    case kRIface: return _cl.interface_screen % 3;
+    case kRMedia: return _cl.media_screen % 3;
+    case kRLayout: return (_cl.flags & ELC_CAN_CLUSTER_RIGHT_LAYOUT2) ? 1 : 0;
+    case kRContrast: return (int)_contrast;
     default: return 0;
   }
 }
 
-int ConsoleUi::item_get(int i) const {
-  switch (i) {
-    case kView: return _cl.center_subview & 3;
-    case kTheme: return theme_index(_cl.theme);
-    case kBright: return _bright_live >= 0 ? _bright_live : _cl.brightness;
-    case kFollow: return (_cl.flags & ELC_CAN_CLUSTER_DIM_WITH_LIGHTS) ? 0 : 1;  // On, Off
-    case kIface: return _cl.interface_screen % 3;
-    case kMedia: return _cl.media_screen % 3;
-    case kLayout: return (_cl.flags & ELC_CAN_CLUSTER_RIGHT_LAYOUT2) ? 1 : 0;
-    case kContrast: return (int)_contrast;
-    default: return 0;
-  }
-}
-
-void ConsoleUi::item_set(int i, int v, uint32_t now_ms, bool undo) {
+void ConsoleUi::setting_set(uint16_t id, int v, uint32_t now_ms, bool undo) {
   const char *u = undo ? " (undo)" : "";
   char what[32];
-  switch (i) {
-    case kView:
+  switch (id) {
+    case kRView:
       snprintf(what, sizeof(what), "view%s", u);
       _cl.center_subview = (uint8_t)v;  // show the choice at once; the center's 0x210 confirms it
       setting(ELC_CAN_SET_CENTER_VIEW, (uint8_t)v, now_ms, what);
       break;
-    case kTheme:
+    case kRTheme:
       snprintf(what, sizeof(what), "theme%s", u);
       _cl.theme = kThemeWire[v];
       setting(ELC_CAN_SET_THEME, kThemeWire[v], now_ms, what);
       break;
-    case kBright:
+    case kRBright:
       snprintf(what, sizeof(what), "brightness%s", u);
       _bright_live = v;
       setting(ELC_CAN_SET_BRIGHTNESS, (uint8_t)v, now_ms, what);
       break;
-    case kFollow:
+    case kRFollow:
       snprintf(what, sizeof(what), "dim-with-lights%s", u);
       _cl.flags = (uint8_t)(v == 0 ? (_cl.flags | ELC_CAN_CLUSTER_DIM_WITH_LIGHTS) : (_cl.flags & ~ELC_CAN_CLUSTER_DIM_WITH_LIGHTS));
       setting(ELC_CAN_SET_DIM_WITH_LIGHTS, v == 0 ? 1 : 0, now_ms, what);
       break;
-    case kIface:
+    case kRIface:
       snprintf(what, sizeof(what), "menu-on%s", u);
       _cl.interface_screen = (uint8_t)v;
       setting(ELC_CAN_SET_INTERFACE_SCREEN, (uint8_t)v, now_ms, what);
       break;
-    case kMedia:
+    case kRMedia:
       snprintf(what, sizeof(what), "media-on%s", u);
       _cl.media_screen = (uint8_t)v;
       setting(ELC_CAN_SET_MEDIA_SCREEN, (uint8_t)v, now_ms, what);
       break;
-    case kLayout:
+    case kRLayout:
       snprintf(what, sizeof(what), "right-layout%s", u);
       _cl.flags = (uint8_t)(v ? (_cl.flags | ELC_CAN_CLUSTER_RIGHT_LAYOUT2) : (_cl.flags & ~ELC_CAN_CLUSTER_RIGHT_LAYOUT2));
       setting(ELC_CAN_SET_RIGHT_LAYOUT, (uint8_t)v, now_ms, what);
       break;
-    case kContrast:
+    case kRContrast:
       _contrast = (ConsoleContrast)v;
       _persist_dirty = true;
       break;
@@ -356,20 +466,431 @@ void ConsoleUi::item_set(int i, int v, uint32_t now_ms, bool undo) {
   }
 }
 
-void ConsoleUi::item_value(int i, char *out, size_t n) const {
-  const int v = item_get(i);
-  switch (i) {
-    case kView: snprintf(out, n, "%s", kViewName[v & 3]); break;
-    case kTheme: snprintf(out, n, "%s", kThemeName[v % 3]); break;
-    case kBright: snprintf(out, n, "%d%%", v); break;
-    case kFollow: snprintf(out, n, "%s", v == 0 ? "On" : "Off"); break;
-    case kIface: case kMedia: snprintf(out, n, "%s", kScreenName[v % 3]); break;
-    case kLayout: snprintf(out, n, "%s", v ? "Fuel + lamps" : "Four gauges"); break;
-    case kTrip: snprintf(out, n, "%.1f mi", trip_mi()); break;
-    case kContrast: snprintf(out, n, "%s", v == 0 ? "Auto" : (v == 1 ? "Bright" : "Night")); break;
-    case kService: snprintf(out, n, "Diagnostics"); break;
+void ConsoleUi::setting_text(uint16_t id, int v, char *out, size_t n) const {
+  switch (id) {
+    case kRView: snprintf(out, n, "%s", kViewName[v & 3]); break;
+    case kRTheme: snprintf(out, n, "%s", kThemeName[v % 3]); break;
+    case kRBright: snprintf(out, n, "%d%%", v); break;
+    case kRFollow: snprintf(out, n, "%s", v == 0 ? "On" : "Off"); break;
+    case kRIface: case kRMedia: snprintf(out, n, "%s", kScreenName[v % 3]); break;
+    case kRLayout: snprintf(out, n, "%s", v ? "Fuel + lamps" : "Four gauges"); break;
+    case kRContrast: snprintf(out, n, "%s", v == 0 ? "Auto" : (v == 1 ? "Bright" : "Night")); break;
     default: out[0] = '\0'; break;
   }
+}
+
+// ---- the menu ----
+
+void ConsoleUi::open_menu(uint32_t now_ms) {
+  (void)now_ms;
+  _mode = ConsoleMode::Menu;
+  _depth = 0;
+  _stack[0] = Level();
+  _advanced = false;
+  build_rows();
+}
+
+void ConsoleUi::close_menu() {
+  _mode = ConsoleMode::Drive;
+  _depth = 0;
+  _stack[0] = Level();
+  accessory_can_view(0, ELC_UI_TOP);
+}
+
+void ConsoleUi::push(uint8_t page, uint8_t node, uint8_t arg) {
+  if (_depth + 1 >= (int)(sizeof(_stack) / sizeof(_stack[0]))) return;
+  _depth++;
+  _stack[_depth] = Level();
+  _stack[_depth].page = page;
+  _stack[_depth].node = node;
+  _stack[_depth].arg = arg;
+  build_rows();
+  for (int i = 0; i < _nrows; i++) {  // start on the first row that does something
+    if (_rows[i].kind != ConsoleRow::Info) {
+      _stack[_depth].sel = i;
+      break;
+    }
+  }
+}
+
+void ConsoleUi::pop() {
+  if (_depth == 0) {
+    close_menu();
+    return;
+  }
+  _depth--;
+  build_rows();
+}
+
+void ConsoleUi::row_add(uint8_t kind, uint16_t id, uint8_t arg, const char *label, const char *value, bool dim) {
+  if (_nrows >= (int)(sizeof(_rows) / sizeof(_rows[0]))) return;
+  ConsoleRow &r = _rows[_nrows++];
+  r.kind = kind;
+  r.id = id;
+  r.arg = arg;
+  r.dim = dim;
+  snprintf(r.label, sizeof(r.label), "%s", label);
+  snprintf(r.value, sizeof(r.value), "%s", value ? value : "");
+}
+
+int ConsoleUi::menu_rows(const ConsoleRow **rows) {
+  if (_mode == ConsoleMode::Drive) return 0;
+  build_rows();
+  *rows = _rows;
+  return _nrows;
+}
+
+void ConsoleUi::build_rows() {
+  _nrows = 0;
+  const Level &L = _stack[_depth];
+  const uint32_t now = _now;
+  char v[40];
+  switch (L.page) {
+    case kMHome: {
+      const uint8_t src = source(now);
+      row_add(ConsoleRow::Sub, kRSource, 0, "Source", sink() ? source_name(src) : "No audio card", !sink());
+      if (radio()) {
+        char l1[40], l2[8];
+        if (src == ELC_SRC_RADIO) now_text(l1, sizeof(l1), l2, sizeof(l2), now);
+        else snprintf(l1, sizeof(l1), "Not playing");
+        row_add(ConsoleRow::Sub, kRRadio, 0, "Radio", l1);
+      }
+      const char *ph = !phone_fresh(now)                              ? "Bridge not heard"
+                       : (_ph.flags & ELC_CAN_PHONE_CONNECTED)        ? (_ph_connected.valid() && _ph_connected.text()[0]
+                                                                            ? _ph_connected.text() : "Connected")
+                                                                      : "Not connected";
+      row_add(ConsoleRow::Sub, kRPhone, 0, "Phone", ph);
+      uint8_t nodes[kAccMaxNodes];
+      const int na = accessory_can_nodes(nodes, kAccMaxNodes);
+      snprintf(v, sizeof(v), "%d", na);
+      row_add(ConsoleRow::Sub, kRAccessories, 0, "Accessories", na ? v : "None");
+      row_add(ConsoleRow::Sub, kRDisplay, 0, "Display", kThemeName[theme_index(_cl.theme)]);
+      snprintf(v, sizeof(v), "%.1f mi", trip_mi());
+      row_add(ConsoleRow::Sub, kRTrip, 0, "Trip A", v);
+      row_add(ConsoleRow::Sub, kRService, 0, "Service", "");
+      break;
+    }
+    case kMSource: {
+      if (!sink()) {
+        row_add(ConsoleRow::Info, kRNone, 0, "No audio card heard", "", true);
+        break;
+      }
+      const uint8_t cur = source(now);
+      row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_BLUETOOTH, "Bluetooth", cur == ELC_SRC_BLUETOOTH ? "Playing" : "");
+      if (radio()) row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_RADIO, "Radio", cur == ELC_SRC_RADIO ? "Playing" : "");
+      break;
+    }
+    case kMPhone: {
+      if (!phone_fresh(now)) {
+        row_add(ConsoleRow::Info, kRNone, 0, "Audio bridge not heard", "", true);
+        break;
+      }
+      const bool conn = _ph.flags & ELC_CAN_PHONE_CONNECTED;
+      const char *nm = _ph_connected.valid() && _ph_connected.text()[0] ? _ph_connected.text() : "Phone";
+      row_add(ConsoleRow::Info, kRPhStatus, 0, conn ? nm : "No phone connected",
+              conn ? ((_ph.flags & ELC_CAN_PHONE_HFP) ? "Hands-free" : "Audio only") : "", !conn);
+      if (_ph.flags & ELC_CAN_PHONE_PAIRING) {
+        if (_pair_left != 0xFF && _pair_ms) {
+          const uint32_t gone = (now - _pair_ms) / 1000;
+          const int left = _pair_left > gone ? (int)(_pair_left - gone) : 0;
+          snprintf(v, sizeof(v), "%d:%02d", left / 60, left % 60);
+        } else {
+          snprintf(v, sizeof(v), "On");
+        }
+        row_add(ConsoleRow::Action, kRPhStop, 0, "Stop pairing", v);
+      } else {
+        row_add(ConsoleRow::Action, kRPhPair, 0, "Pair new phone", "");
+      }
+      if (_ph.flags & ELC_CAN_PHONE_HFP) {
+        row_add(ConsoleRow::Action, kRPhVoice, 0, "Voice assistant", (_ph.flags & ELC_CAN_PHONE_VOICE) ? "On" : "Off");
+        row_add(ConsoleRow::Action, kRPhRedial, 0, "Redial", "");
+      }
+      for (uint8_t i = 0; i < _ph.paired && i < ELC_CAN_PHONE_MAX_PAIRED; i++) {
+        const char *pn = phone_paired_name(i);
+        char lb[24];
+        if (pn[0]) snprintf(lb, sizeof(lb), "%s", pn);
+        else snprintf(lb, sizeof(lb), "Phone %u", (unsigned)i + 1);
+        row_add(ConsoleRow::Sub, kRPhPaired, i, lb, conn && _ph.connected_index == i ? "Connected" : "Paired");
+      }
+      break;
+    }
+    case kMPhoneOne: {
+      const uint8_t i = L.arg;
+      if (i >= _ph.paired) {
+        row_add(ConsoleRow::Info, kRNone, 0, "Not in the list any more", "", true);
+        break;
+      }
+      const bool on = (_ph.flags & ELC_CAN_PHONE_CONNECTED) && _ph.connected_index == i;
+      if (on) row_add(ConsoleRow::Action, kRPhDisconnect, i, "Disconnect", "");
+      else row_add(ConsoleRow::Action, kRPhConnect, i, "Connect", "");
+      row_add(ConsoleRow::Action, kRPhForget, i, "Forget", "");
+      break;
+    }
+    case kMDisplay: {
+      static const uint16_t kIds[8] = {kRView, kRTheme, kRBright, kRFollow, kRIface, kRMedia, kRLayout, kRContrast};
+      static const char *const kLabels[8] = {"Center view", "Theme", "Brightness", "Dim with lights", "Menu on",
+                                             "Media on", "Right layout", "OLED contrast"};
+      for (int k = 0; k < 8; k++) {
+        const int val = (_mode == ConsoleMode::Edit && _edit_id == kIds[k]) ? _edit_val : setting_get(kIds[k]);
+        setting_text(kIds[k], val, v, sizeof(v));
+        const bool classic_only = kIds[k] == kRLayout && _cl.theme != 0;
+        row_add(ConsoleRow::Setting, kIds[k], 0, kLabels[k], classic_only ? "Classic only" : v, classic_only);
+      }
+      break;
+    }
+    case kMTrip:
+      snprintf(v, sizeof(v), "%.1f mi", trip_mi());
+      row_add(ConsoleRow::Info, kRNone, 0, "Trip A", v);
+      row_add(ConsoleRow::Action, kRTripReset, 0, "Reset Trip A", "", !_s.odo_valid);
+      break;
+    case kMService: {
+      const bool fresh = _sensor_ms && now - _sensor_ms < kSensorFreshMs;
+      row_add(ConsoleRow::Info, kRNone, 0, "Center", alive(now) ? "Heard" : "Not heard", !alive(now));
+      row_add(ConsoleRow::Info, kRNone, 0, "Sensors", fresh ? "Fresh" : "No data", !fresh);
+      snprintf(v, sizeof(v), "Node 0x%02X", (unsigned)(ELC_CAN_NODE_SLOT0 + _slot));
+      row_add(ConsoleRow::Info, kRNone, 0, "Audio bridge", bridge_heard(now) ? v : "Not heard", !bridge_heard(now));
+      if (sink()) snprintf(v, sizeof(v), "0x%02X \xC2\xB7 %s", (unsigned)sink(), source_name(source(now)));
+      row_add(ConsoleRow::Info, kRNone, 0, "Audio card", sink() ? v : "Not heard", !sink());
+      if (radio()) snprintf(v, sizeof(v), "Node 0x%02X", (unsigned)radio());
+      row_add(ConsoleRow::Info, kRNone, 0, "Radio", radio() ? v : "Not heard", !radio());
+      int nodes = 0;
+      for (uint8_t i = 1; _ch && i < 32; i++) nodes += _ch->nodeInfo(i).announced;
+      snprintf(v, sizeof(v), "%d announced", nodes);
+      row_add(ConsoleRow::Info, kRNone, 0, "Channel nodes", _ch ? v : "Off", !_ch);
+      break;
+    }
+    case kMAccessories: {
+      uint8_t nodes[kAccMaxNodes];
+      const int n = accessory_can_nodes(nodes, kAccMaxNodes);
+      if (!n) row_add(ConsoleRow::Info, kRNone, 0, "No accessory pages yet", "", true);
+      for (int i = 0; i < n; i++) row_add(ConsoleRow::Sub, kRAccNode, nodes[i], accessory_can_name(nodes[i]), "");
+      break;
+    }
+    case kMAccPage: {
+      const AccItem *items[32];
+      const int n = accessory_can_items(L.node, L.arg, _advanced, items, 31);
+      if (!n) row_add(ConsoleRow::Info, kRNone, 0, "Nothing on this page yet", "", true);
+      for (int i = 0; i < n; i++) {
+        const AccItem &it = *items[i];
+        char val[40];
+        const bool editing = _mode == ConsoleMode::Edit && _edit_node == L.node && _edit_item == it.d.item;
+        if (editing) {
+          char num[24];
+          elc_ui_format(_edit_val, it.d.exponent, num, sizeof(num));
+          snprintf(val, sizeof(val), it.d.unit[0] ? "%s %s" : "%s", num, it.d.unit);
+        } else if (it.pending) {
+          snprintf(val, sizeof(val), "\xE2\x80\xA6");
+        } else if (it.result_ms && it.result && now - it.result_ms < 4000) {
+          snprintf(val, sizeof(val), "%s", it.result == 0xFF ? "No answer" : "Refused");
+        } else {
+          accessory_can_value_text(it, val, sizeof(val));
+        }
+        const bool ro = (it.d.flags & ELC_UI_F_RO) || it.d.kind == ELC_UI_READOUT || it.d.kind == ELC_UI_TEXTOUT;
+        const uint8_t kind = it.d.kind == ELC_UI_GROUP ? ConsoleRow::Sub : (ro ? ConsoleRow::Info : ConsoleRow::Action);
+        row_add(kind, kRAccItem, it.d.item, it.d.label, it.d.kind == ELC_UI_GROUP ? "" : val);
+      }
+      if (L.arg == ELC_UI_TOP) {
+        const AccItem *all[32];
+        if (accessory_can_items(L.node, L.arg, true, all, 31) > n || _advanced) {
+          row_add(ConsoleRow::Action, kRAdvanced, 0, "Show advanced", _advanced ? "On" : "Off");
+        }
+      }
+      break;
+    }
+    case kMAccChoice: {
+      const AccItem *it = accessory_can_item(L.node, L.arg);
+      if (!it) break;
+      const int n = it->d.option_count();
+      for (int k = 0; k < n && k < 30; k++) {
+        char opt[33];
+        if (!it->d.option(k, opt, sizeof(opt))) break;
+        row_add(ConsoleRow::Action, kRAccOpt, (uint8_t)k, opt, it->has_value && it->value == k ? "Current" : "");
+      }
+      break;
+    }
+    case kMConfirm:
+      row_add(ConsoleRow::Info, kRNone, 0, _cf_question, "");
+      row_add(ConsoleRow::Action, kRNo, 0, "Cancel", "");
+      row_add(ConsoleRow::Action, kRYes, 0, "OK", "");
+      break;
+  }
+  Level &M = _stack[_depth];
+  if (M.sel >= _nrows) M.sel = _nrows ? _nrows - 1 : 0;
+  if (M.sel < 0) M.sel = 0;
+}
+
+void ConsoleUi::menu_move(int steps) {
+  Level &M = _stack[_depth];
+  M.sel = clampi(M.sel + steps, 0, _nrows ? _nrows - 1 : 0);
+}
+
+void ConsoleUi::confirm(uint16_t what, uint8_t node, uint8_t arg, int32_t value, const char *question) {
+  _cf_what = what;
+  _cf_node = node;
+  _cf_arg = arg;
+  _cf_value = value;
+  snprintf(_cf_question, sizeof(_cf_question), "%s", question);
+  push(kMConfirm);
+  _stack[_depth].sel = 1;  // on Cancel
+}
+
+void ConsoleUi::do_confirmed(uint32_t now_ms) {
+  switch (_cf_what) {
+    case kRPhForget: phone_cmd(ELC_CAN_PHONE_CMD_FORGET, _cf_arg, "forget"); break;
+    case kRTripReset:
+      if (_s.odo_valid) {
+        _trip_base = _s.odo_tenths;
+        _trip_set = true;
+        _persist_dirty = true;
+        toast("TRIP A", "Reset", now_ms);
+      }
+      break;
+    case kRAccItem: accessory_can_set(_cf_node, _cf_arg, _cf_value); break;
+    default: break;
+  }
+}
+
+void ConsoleUi::menu_click(uint32_t now_ms) {
+  build_rows();
+  const Level L = _stack[_depth];
+  if (L.sel >= _nrows) return;
+  const ConsoleRow r = _rows[L.sel];
+  switch (r.id) {
+    case kRSource: push(kMSource); return;
+    case kRRadio: push(kMAccPage, radio(), ELC_UI_TOP); return;
+    case kRPhone: push(kMPhone); return;
+    case kRAccessories: push(kMAccessories); return;
+    case kRDisplay: push(kMDisplay); return;
+    case kRTrip: push(kMTrip); return;
+    case kRService: push(kMService); return;
+    case kRPhPaired: push(kMPhoneOne, 0, r.arg); return;
+    case kRAccNode: push(kMAccPage, r.arg, ELC_UI_TOP); return;
+    case kRSrcPick: {
+      const uint8_t s = sink();
+      if (!s) return;
+      ElcChWriter w;
+      elc_audio_encode(ElcAudioSource{s, r.arg}, w);
+      _src_req = r.arg;
+      _src_req_ms = now_ms;
+      chan_send(ELC_CH_AUDIO_CMD, w, r.arg == ELC_SRC_RADIO ? "SOURCE radio" : "SOURCE bluetooth");
+      toast("SOURCE", source_name(r.arg), now_ms);
+      close_menu();
+      return;
+    }
+    case kRPhPair: phone_cmd(ELC_CAN_PHONE_CMD_PAIRING, 1, "pairing on"); return;
+    case kRPhStop: phone_cmd(ELC_CAN_PHONE_CMD_PAIRING, 0, "pairing off"); return;
+    case kRPhVoice: phone_cmd(ELC_CAN_PHONE_CMD_VOICE, (_ph.flags & ELC_CAN_PHONE_VOICE) ? 0 : 1, "voice"); return;
+    case kRPhRedial: phone_cmd(ELC_CAN_PHONE_CMD_REDIAL, 0, "redial"); close_menu(); return;
+    case kRPhConnect: phone_cmd(ELC_CAN_PHONE_CMD_CONNECT, r.arg, "connect"); pop(); return;
+    case kRPhDisconnect: phone_cmd(ELC_CAN_PHONE_CMD_DISCONNECT, 0, "disconnect"); pop(); return;
+    case kRPhForget: {
+      char q[48];
+      const char *pn = phone_paired_name(r.arg);
+      snprintf(q, sizeof(q), "Forget %s?", pn[0] ? pn : "this phone");
+      confirm(kRPhForget, 0, r.arg, 0, q);
+      return;
+    }
+    case kRTripReset:
+      if (_s.odo_valid) confirm(kRTripReset, 0, 0, 0, "Reset Trip A?");
+      return;
+    case kRAdvanced: _advanced = !_advanced; build_rows(); return;
+    case kRAccItem: {
+      const AccItem *it = accessory_can_item(L.node, r.arg);
+      if (!it) return;
+      if (it->d.kind == ELC_UI_GROUP) {
+        push(kMAccPage, L.node, it->d.item);
+        return;
+      }
+      if (it->d.flags & ELC_UI_F_RO) return;
+      int32_t v = 0;
+      switch (it->d.kind) {
+        case ELC_UI_TOGGLE: v = it->has_value && it->value ? 0 : 1; break;
+        case ELC_UI_ACTION: v = 1; break;
+        case ELC_UI_CHOICE: push(kMAccChoice, L.node, it->d.item); return;
+        case ELC_UI_NUMBER:
+          _mode = ConsoleMode::Edit;
+          _edit_id = kRAccItem;
+          _edit_node = L.node;
+          _edit_item = it->d.item;
+          _edit_val = it->has_value ? it->value : it->d.min;
+          if (it->d.max > it->d.min) _edit_val = clampi(_edit_val, it->d.min, it->d.max);
+          build_rows();
+          return;
+        default: return;
+      }
+      if (it->d.flags & ELC_UI_F_CONFIRM) {
+        char q[48];
+        snprintf(q, sizeof(q), "%s?", it->d.label);
+        confirm(kRAccItem, L.node, it->d.item, v, q);
+      } else {
+        accessory_can_set(L.node, it->d.item, v);
+      }
+      return;
+    }
+    case kRAccOpt: {
+      const AccItem *it = accessory_can_item(L.node, L.arg);
+      if (!it) return;
+      if (it->d.flags & ELC_UI_F_CONFIRM) {
+        char q[48], opt[33] = "";
+        it->d.option(r.arg, opt, sizeof(opt));
+        snprintf(q, sizeof(q), "%s: %s?", it->d.label, opt);
+        pop();
+        confirm(kRAccItem, L.node, it->d.item, r.arg, q);
+      } else {
+        accessory_can_set(L.node, it->d.item, r.arg);
+        pop();
+      }
+      return;
+    }
+    case kRYes: {
+      const uint16_t what = _cf_what;
+      pop();
+      do_confirmed(now_ms);
+      if (what == kRPhForget) pop();  // the phone's page goes with it
+      return;
+    }
+    case kRNo: pop(); return;
+    default: break;
+  }
+  if (r.kind == ConsoleRow::Setting && !r.dim) {
+    _mode = ConsoleMode::Edit;
+    _edit_id = r.id;
+    _edit_val = _edit_orig = setting_get(r.id);
+    build_rows();
+  }
+}
+
+void ConsoleUi::edit_turn(int steps, uint32_t now_ms) {
+  if (_edit_id == kRAccItem) {
+    const AccItem *it = accessory_can_item(_edit_node, _edit_item);
+    if (!it) return;
+    const int32_t step = it->d.step > 0 ? it->d.step : 1;
+    int32_t v = _edit_val + steps * step;
+    if (it->d.max > it->d.min) v = clampi(v, it->d.min, it->d.max);
+    _edit_val = v;
+  } else if (_edit_id == kRBright) {
+    const int v = clampi(_edit_val + steps * 5, 10, 100);
+    if (v != _edit_val) setting_set(kRBright, _edit_val = v, now_ms);
+  } else if (setting_count(_edit_id)) {
+    const int v = clampi(_edit_val + steps, 0, setting_count(_edit_id) - 1);
+    if (v != _edit_val) setting_set(_edit_id, _edit_val = v, now_ms);  // live: the screens follow as it turns
+  }
+  build_rows();
+}
+
+void ConsoleUi::edit_done(uint32_t now_ms) {
+  (void)now_ms;
+  if (_edit_id == kRAccItem) accessory_can_set(_edit_node, _edit_item, _edit_val);
+  _mode = ConsoleMode::Menu;
+  _edit_id = 0;
+  build_rows();
+}
+
+void ConsoleUi::edit_cancel(uint32_t now_ms) {
+  if (_edit_id != kRAccItem && _edit_val != _edit_orig) setting_set(_edit_id, _edit_orig, now_ms, true);
+  _mode = ConsoleMode::Menu;
+  _edit_id = 0;
+  build_rows();
 }
 
 // ---- input ----
@@ -381,143 +902,19 @@ void ConsoleUi::page_step(int dir, uint32_t now_ms) {
   _page_dir = (int8_t)dir;
 }
 
-void ConsoleUi::select_turn(int steps, uint32_t now_ms) {
+/** Left knob turn: volume at rest (the call's volume in a call), the selection in the menu, the value in an editor. */
+void ConsoleUi::left_turn(int steps, uint32_t now_ms) {
   _now = now_ms;
   if (!steps || !alive(now_ms)) return;
-  if (call_shown(now_ms)) return;
-  if (_mode == ConsoleMode::Remote) {
-    menu_input(ELC_CAN_MENU_ROTATE, (int8_t)clampi(steps, -127, 127), "rotate");
-    return;
-  }
+  touched(now_ms);
   if (_mode == ConsoleMode::Edit) {
-    const int i = _sel;
-    if (i == kBright) {
-      const int v = clampi(item_get(i) + steps * 5, 10, 100);
-      if (v != item_get(i)) item_set(i, v, now_ms);
-    } else if (item_count(i)) {
-      const int v = clampi(item_get(i) + steps, 0, item_count(i) - 1);
-      if (v != item_get(i)) item_set(i, v, now_ms);
-    }
+    edit_turn(steps, now_ms);
     return;
   }
-  if (_mode == ConsoleMode::Menu) {
-    _sel = (uint8_t)clampi(_sel + steps, 0, kItems - 1);
+  if (_mode == ConsoleMode::Menu && !call_shown(now_ms)) {
+    menu_move(steps);
     return;
   }
-  if (alert(now_ms)) return;
-  page_step(steps > 0 ? 1 : -1, now_ms);
-}
-
-void ConsoleUi::select_press(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms) || call_shown(now_ms)) return;
-  if (_mode != ConsoleMode::Remote && _mode != ConsoleMode::Edit) {
-    build_alerts(now_ms);
-    static const char *const kIds[6] = {"nodata", "oil", "hot", "gen", "fuel", "odo"};
-    const ConsoleAlert *a = alert(now_ms);
-    if (a) {
-      for (int k = 0; k < 6; k++) {
-        if (!strcmp(a->id, kIds[k])) _ack[k] = true;
-      }
-      return;
-    }
-  }
-  switch (_mode) {
-    case ConsoleMode::Remote: menu_input(ELC_CAN_MENU_PRESS, 0, "press"); break;
-    case ConsoleMode::Drive: _mode = ConsoleMode::Menu; break;
-    case ConsoleMode::Menu:
-      if (_sel == kService) {
-        _mode_before_remote = ConsoleMode::Menu;
-        _remote_by_console = true;
-        menu_input(ELC_CAN_MENU_OPEN, ELC_CAN_PAGE_SERVICE, "open");
-        _mode = ConsoleMode::Remote;
-        _ms.open = true;  // until the interface screen answers
-        _ms.opened_by = ELC_CAN_MENU_BY_CONSOLE;
-        _ms.page = ELC_CAN_PAGE_SERVICE;
-        _ms.screen = _cl.interface_screen;
-        _ms_ms = now_ms;
-      } else {
-        _mode = ConsoleMode::Edit;
-        _confirm = _sel == kTrip;
-        _edit_orig = item_get(_sel);
-      }
-      break;
-    case ConsoleMode::Edit:
-      if (_sel == kTrip && _s.odo_valid) {
-        _trip_base = _s.odo_tenths;
-        _trip_set = true;
-        _persist_dirty = true;
-      }
-      _mode = ConsoleMode::Menu;
-      _confirm = false;
-      break;
-  }
-}
-
-void ConsoleUi::back(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms)) return;
-  if (call_shown(now_ms)) {  // soft key: Decline / Ignore / End
-    if (_ph.call == ELC_CAN_CALL_WAITING) phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 0, "ignore");
-    else phone_cmd(ELC_CAN_PHONE_CMD_END, 0, _ph.call == ELC_CAN_CALL_INCOMING ? "decline" : "end");
-    return;
-  }
-  if (_mode != ConsoleMode::Remote && _mode != ConsoleMode::Edit) {
-    static const char *const kIds[6] = {"nodata", "oil", "hot", "gen", "fuel", "odo"};
-    const ConsoleAlert *a = alert(now_ms);
-    if (a) {
-      for (int k = 0; k < 6; k++) {
-        if (!strcmp(a->id, kIds[k])) _ack[k] = true;
-      }
-      return;
-    }
-  }
-  switch (_mode) {
-    case ConsoleMode::Remote: menu_input(ELC_CAN_MENU_BACK, 0, "back"); break;
-    case ConsoleMode::Edit:
-      if (item_count(_sel) || _sel == kBright) {
-        if (item_get(_sel) != _edit_orig) item_set(_sel, _edit_orig, now_ms, true);
-      }
-      _mode = ConsoleMode::Menu;
-      _confirm = false;
-      break;
-    case ConsoleMode::Menu: _mode = ConsoleMode::Drive; break;
-    case ConsoleMode::Drive:
-      if (_page != kPageMedia) {
-        _page_from = _page;
-        _page = kPageMedia;
-        _page_ms = now_ms;
-        _page_dir = -1;
-      }
-      break;
-  }
-}
-
-void ConsoleUi::view(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms)) return;
-  if (call_shown(now_ms)) {  // soft key: Answer / Mute / Swap
-    switch (_ph.call) {
-      case ELC_CAN_CALL_INCOMING: phone_cmd(ELC_CAN_PHONE_CMD_ANSWER, 0, "answer"); break;
-      case ELC_CAN_CALL_WAITING: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "answer (hold)"); break;
-      case ELC_CAN_CALL_ACTIVE:
-        phone_cmd(ELC_CAN_PHONE_CMD_MIC_MUTE, (_ph.flags & ELC_CAN_PHONE_MIC_MUTED) ? 0 : 1, "mute");
-        break;
-      case ELC_CAN_CALL_HELD: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "swap"); break;
-      default: break;  // dialing / alerting: only End
-    }
-    return;
-  }
-  if (_cs_ms && (_cs.flags & ELC_CAN_STATUS_REVERSE)) return;
-  const uint8_t v = next_view();
-  _view_req = v;
-  _view_req_ms = now_ms;
-  setting(ELC_CAN_SET_CENTER_VIEW, v, now_ms, "view");
-}
-
-void ConsoleUi::volume_turn(int steps, uint32_t now_ms) {
-  _now = now_ms;
-  if (!steps || !alive(now_ms)) return;
   _vol_ms = now_ms;
   if (call_shown(now_ms)) {
     const int v = clampi(_ph.call_volume + steps, 0, 15);
@@ -530,25 +927,202 @@ void ConsoleUi::volume_turn(int steps, uint32_t now_ms) {
   _vol = (uint8_t)v;
   _vol_set = true;
   _vol_set_ms = now_ms;
-  phone_cmd(ELC_CAN_PHONE_CMD_MEDIA_VOLUME, (uint8_t)v, "volume");
+  phone_cmd(ELC_CAN_PHONE_CMD_MEDIA_VOLUME, (uint8_t)v, "volume");  // the Bluetooth bridge (0..15)
+  if (const uint8_t s = sink()) {                                   // the audio card (0..100)
+    ElcChWriter w;
+    elc_audio_encode(ElcAudioVolume{s, 0, (int8_t)((v * 100 + 7) / 15)}, w);
+    chan_send(ELC_CH_AUDIO_CMD, w, "VOLUME");
+  }
 }
 
-void ConsoleUi::volume_press(uint32_t now_ms) {
+/** Left knob click: the next source at rest (mic mute in a call), select in the menu, confirm in an editor. */
+void ConsoleUi::left_click(uint32_t now_ms) {
   _now = now_ms;
   if (!alive(now_ms)) return;
+  touched(now_ms);
   if (call_shown(now_ms)) {
     if (_ph.call == ELC_CAN_CALL_ACTIVE || _ph.call == ELC_CAN_CALL_HELD || _ph.call == ELC_CAN_CALL_WAITING) {
       phone_cmd(ELC_CAN_PHONE_CMD_MIC_MUTE, (_ph.flags & ELC_CAN_PHONE_MIC_MUTED) ? 0 : 1, "mute");
     }
     return;
   }
-  phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 0, "play/pause");
+  if (_mode == ConsoleMode::Edit) {
+    edit_done(now_ms);
+    return;
+  }
+  if (_mode == ConsoleMode::Menu) {
+    menu_click(now_ms);
+    return;
+  }
+  const uint8_t s = sink();
+  if (!s) {
+    toast("SOURCE", "No audio card", now_ms);
+    return;
+  }
+  // the next source, shown at once; STATUS confirms it
+  const uint8_t cur = source(now_ms);
+  const uint8_t next = cur == ELC_SRC_BLUETOOTH && radio() ? ELC_SRC_RADIO : ELC_SRC_BLUETOOTH;
+  ElcChWriter w;
+  elc_audio_encode(ElcAudioSource{s, ELC_SRC_NONE}, w);
+  _src_req = next;
+  _src_req_ms = now_ms;
+  chan_send(ELC_CH_AUDIO_CMD, w, "SOURCE next");
+  toast("SOURCE", source_name(next), now_ms);
 }
 
-void ConsoleUi::volume_hold(uint32_t now_ms) {
+/** Left knob hold: open the menu (close it when open). */
+void ConsoleUi::left_hold(uint32_t now_ms) {
+  _now = now_ms;
+  if (!alive(now_ms) || call_shown(now_ms) || pair_shown(now_ms)) return;
+  touched(now_ms);
+  if (_mode == ConsoleMode::Drive) open_menu(now_ms);
+  else close_menu();
+}
+
+/** Right knob turn: tune (radio) or skip tracks (Bluetooth) at rest; the selection or value in the menu. */
+void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
+  _now = now_ms;
+  if (!steps || !alive(now_ms) || call_shown(now_ms)) return;
+  touched(now_ms);
+  if (_mode == ConsoleMode::Edit) {
+    edit_turn(steps, now_ms);
+    return;
+  }
+  if (_mode == ConsoleMode::Menu) {
+    menu_move(steps);
+    return;
+  }
+  const int n = clampi(steps < 0 ? -steps : steps, 1, 5);
+  for (int i = 0; i < n; i++) {
+    if (radio_is_source(now_ms)) {
+      media(steps > 0 ? ELC_MEDIA_TUNE_UP : ELC_MEDIA_TUNE_DOWN, 0, steps > 0 ? "MEDIA tune up" : "MEDIA tune down");
+    } else {
+      phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, steps > 0 ? 1 : 2, steps > 0 ? "next" : "previous");
+      media(steps > 0 ? ELC_MEDIA_NEXT : ELC_MEDIA_PREV, 0, steps > 0 ? "MEDIA next" : "MEDIA previous");
+    }
+  }
+}
+
+/** Right knob click: the next preset (radio) or the voice assistant (Bluetooth); select in the menu. */
+void ConsoleUi::right_click(uint32_t now_ms) {
   _now = now_ms;
   if (!alive(now_ms) || call_shown(now_ms)) return;
-  phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 1, "next");
+  touched(now_ms);
+  if (_mode == ConsoleMode::Edit) {
+    edit_done(now_ms);
+    return;
+  }
+  if (_mode == ConsoleMode::Menu) {
+    menu_click(now_ms);
+    return;
+  }
+  if (radio_is_source(now_ms)) {
+    media(ELC_MEDIA_PRESET_NEXT, 0, "MEDIA next preset");
+  } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
+    const bool on = !(_ph.flags & ELC_CAN_PHONE_VOICE);
+    phone_cmd(ELC_CAN_PHONE_CMD_VOICE, on ? 1 : 0, "voice");
+    toast("VOICE", on ? "Listening" : "Off", now_ms);
+  }
+}
+
+/** Right knob hold: seek up (radio) or redial (Bluetooth). */
+void ConsoleUi::right_hold(uint32_t now_ms) {
+  _now = now_ms;
+  if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
+  touched(now_ms);
+  if (radio_is_source(now_ms)) {
+    media(ELC_MEDIA_SEEK_UP, 0, "MEDIA seek up");
+    toast("RADIO", "Seeking", now_ms);
+  } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
+    phone_cmd(ELC_CAN_PHONE_CMD_REDIAL, 0, "redial");
+    toast("PHONE", "Redial", now_ms);
+  }
+}
+
+/** Left soft key: Decline / Ignore / End in a call, Reject a pairing, acknowledge a warning, Back in the menu (undo in
+ *  an editor), play / pause (mute for the radio) at rest. */
+void ConsoleUi::soft_left(uint32_t now_ms) {
+  _now = now_ms;
+  if (!alive(now_ms)) return;
+  touched(now_ms);
+  if (call_shown(now_ms)) {
+    if (_ph.call == ELC_CAN_CALL_WAITING) phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 0, "ignore");
+    else phone_cmd(ELC_CAN_PHONE_CMD_END, 0, _ph.call == ELC_CAN_CALL_INCOMING ? "decline" : "end");
+    return;
+  }
+  if (pair_shown(now_ms)) {
+    phone_cmd(ELC_CAN_PHONE_CMD_CONFIRM, 0, "reject pairing");
+    return;
+  }
+  if (_mode == ConsoleMode::Edit) {
+    edit_cancel(now_ms);
+    return;
+  }
+  if (_mode == ConsoleMode::Menu) {
+    pop();
+    return;
+  }
+  static const char *const kIds[6] = {"nodata", "oil", "hot", "gen", "fuel", "odo"};
+  if (const ConsoleAlert *a = alert(now_ms)) {
+    for (int k = 0; k < 6; k++) {
+      if (!strcmp(a->id, kIds[k])) _ack[k] = true;
+    }
+    return;
+  }
+  play_pause(now_ms);
+}
+
+/** Left soft key held: store the station as a preset (radio). */
+void ConsoleUi::soft_left_hold(uint32_t now_ms) {
+  _now = now_ms;
+  if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
+  touched(now_ms);
+  if (radio_is_source(now_ms)) {
+    media(ELC_MEDIA_PRESET_STORE, 0, "MEDIA store preset");
+    toast("PRESET", "Stored", now_ms);
+  }
+}
+
+/** Right soft key: Answer / Mute / Swap in a call, Pair a phone, leave the menu, the next OLED page at rest. */
+void ConsoleUi::soft_right(uint32_t now_ms) {
+  _now = now_ms;
+  if (!alive(now_ms)) return;
+  touched(now_ms);
+  if (call_shown(now_ms)) {
+    switch (_ph.call) {
+      case ELC_CAN_CALL_INCOMING: phone_cmd(ELC_CAN_PHONE_CMD_ANSWER, 0, "answer"); break;
+      case ELC_CAN_CALL_WAITING: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "answer (hold)"); break;
+      case ELC_CAN_CALL_ACTIVE:
+        phone_cmd(ELC_CAN_PHONE_CMD_MIC_MUTE, (_ph.flags & ELC_CAN_PHONE_MIC_MUTED) ? 0 : 1, "mute");
+        break;
+      case ELC_CAN_CALL_HELD: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "swap"); break;
+      default: break;  // dialing / alerting: only End
+    }
+    return;
+  }
+  if (pair_shown(now_ms)) {
+    phone_cmd(ELC_CAN_PHONE_CMD_CONFIRM, 1, "accept pairing");
+    return;
+  }
+  if (_mode == ConsoleMode::Edit) edit_done(now_ms);
+  if (_mode == ConsoleMode::Menu) {
+    close_menu();
+    return;
+  }
+  page_step(1, now_ms);
+}
+
+/** Right soft key held: the next view on the center screen. */
+void ConsoleUi::soft_right_hold(uint32_t now_ms) {
+  _now = now_ms;
+  if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
+  touched(now_ms);
+  if (_cs_ms && (_cs.flags & ELC_CAN_STATUS_REVERSE)) return;
+  const uint8_t v = next_view();
+  _view_req = v;
+  _view_req_ms = now_ms;
+  setting(ELC_CAN_SET_CENTER_VIEW, v, now_ms, "view");
+  toast("VIEW", kViewName[v & 3], now_ms);
 }
 
 void ConsoleUi::art_pump(uint32_t now_ms) {
@@ -603,16 +1177,17 @@ void ConsoleUi::art_pump(uint32_t now_ms) {
 void ConsoleUi::tick(uint32_t now_ms) {
   _now = now_ms;
   if (_boot_ms == 0) _boot_ms = now_ms ? now_ms : 1;
-  // The round-screen menu open (by touch or by us): the knob drives it; closed: back to where we were.
-  if (remote_open(now_ms) && _mode != ConsoleMode::Remote) {
-    _mode_before_remote = _mode == ConsoleMode::Edit ? ConsoleMode::Menu : _mode;
-    _remote_by_console = _ms.opened_by == ELC_CAN_MENU_BY_CONSOLE;
-    _mode = ConsoleMode::Remote;
-  } else if (!remote_open(now_ms) && _mode == ConsoleMode::Remote) {
-    _mode = _remote_by_console ? ConsoleMode::Menu : _mode_before_remote;
-    _remote_by_console = false;
+  if (_mode == ConsoleMode::Edit && !alive(now_ms)) {
+    _mode = ConsoleMode::Menu;
+    _edit_id = 0;
   }
-  if (_mode == ConsoleMode::Edit && !alive(now_ms)) _mode = ConsoleMode::Menu;
+  if (_mode != ConsoleMode::Drive) {
+    build_rows();
+    // keep an accessory page's live items coming while it shows (UI VIEW)
+    const Level &L = _stack[_depth];
+    if (L.page == kMAccPage || L.page == kMAccChoice) accessory_can_view(L.node, L.page == kMAccPage ? L.arg : ELC_UI_TOP);
+    else accessory_can_view(0, ELC_UI_TOP);
+  }
   art_pump(now_ms);
 }
 
@@ -625,28 +1200,31 @@ float ConsoleUi::level_scale() const {
 
 float ConsoleUi::led_level(uint32_t now_ms) const {
   const float base = level_scale() * 0.6f;
-  if (call_shown(now_ms) && (_ph.call == ELC_CAN_CALL_INCOMING || _ph.call == ELC_CAN_CALL_WAITING)) {
+  if ((call_shown(now_ms) && (_ph.call == ELC_CAN_CALL_INCOMING || _ph.call == ELC_CAN_CALL_WAITING)) ||
+      pair_shown(now_ms)) {
     const uint32_t p = now_ms % 1000;
-    return (p < 500 ? p : 1000 - p) / 500.0f;  // pulse while it rings
+    return (p < 500 ? p : 1000 - p) / 500.0f;  // pulse while it rings or a code waits
   }
   return base;
 }
 
 void ConsoleUi::describe(char *out, size_t n, uint32_t now_ms) const {
-  static const char *const kMode[4] = {"drive", "menu", "edit", "remote"};
+  static const char *const kMode[3] = {"drive", "menu", "edit"};
   static const char *const kPage[4] = {"media", "trip", "engine", "clock"};
   static const char *const kCall[7] = {"idle", "incoming", "dialing", "alerting", "active", "waiting", "held"};
-  char v[24];
-  item_value(_sel, v, sizeof(v));
+  static const char *const kMenu[11] = {"home", "source", "phone", "phone-one", "display", "trip", "service",
+                                        "accessories", "accessory", "choice", "confirm"};
+  const Level &L = _stack[_depth];
+  char l1[40], l2[72];
+  now_text(l1, sizeof(l1), l2, sizeof(l2), now_ms);
   snprintf(out, n,
-           "mode %s, page %s, menu item %d (%s = %s); center %s, sensors %s, bridge %s (slot %u), call %s; "
-           "menu on screen %s (%s by %s); time %s; art shown %u, rx id %u size %lu have %u, starts %lu requests %lu "
-           "resets %lu, failed %u",
-           kMode[(int)_mode], kPage[_page % 4], _sel, item_label(_sel), v, alive(now_ms) ? "heard" : "not heard",
-           _sensor_ms && now_ms - _sensor_ms < kSensorFreshMs ? "fresh" : "none", _tr_ms && now_ms - _tr_ms < 3000 ? "heard" : "none",
-           _slot, phone_fresh(now_ms) ? kCall[_ph.call % 7] : "-", remote_open(now_ms) ? "open" : "closed",
-           kScreenName[_ms.screen % 3], _ms.opened_by == ELC_CAN_MENU_BY_CONSOLE ? "console" : "touch",
+           "mode %s, page %s, menu %s (row %d); center %s, sensors %s, bridge %s (slot %u), call %s, pairing %s; "
+           "audio card %s, source %s, playing '%s' '%s'; radio %s; time %s; art shown %u, rx id %u, starts %lu "
+           "requests %lu resets %lu, failed %u",
+           kMode[(int)_mode % 3], kPage[_page % 4], kMenu[L.page % 11], L.sel, alive(now_ms) ? "heard" : "not heard",
+           _sensor_ms && now_ms - _sensor_ms < kSensorFreshMs ? "fresh" : "none", bridge_heard(now_ms) ? "heard" : "none",
+           _slot, phone_fresh(now_ms) ? kCall[_ph.call % 7] : "-", pair_shown(now_ms) ? "code waiting" : "-",
+           sink() ? "heard" : "none", source_name(source(now_ms)), l1, l2, radio() ? "heard" : "none",
            (_time_ms && (_time.flags & ELC_CAN_TIME_VALID)) ? "valid" : "none", _art_id, _art_rx.art_id(),
-           (unsigned long)_art_rx.size(), _art_rx.chunks_have(), (unsigned long)_art_starts, (unsigned long)_art_reqs,
-           (unsigned long)_art_resets, _art_failed_id);
+           (unsigned long)_art_starts, (unsigned long)_art_reqs, (unsigned long)_art_resets, _art_failed_id);
 }

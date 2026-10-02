@@ -1,8 +1,11 @@
-// Console board (node 0x13): SSD1322 OLED (16 grey levels), Select and Volume knobs, Back and View keys, CAN.
-// Behaviour: the El Camino Cluster prototype (docs/protocols/can_bus.md, "Console"); logic in console_ui.cpp,
-// drawing in console_screens.cpp (both also run on the host: test/host, tools/console_preview).
+// Console board (node 0x13): SSD1322 OLED (16 grey levels), two knobs (left = Volume encoder, right = Select), two
+// soft keys under the OLED (left = Back, right = View), CAN. It is the car's radio head unit (README.md, Controls);
+// logic in console_ui.cpp, drawing in console_screens.cpp (both also run on the host: test/host,
+// tools/console_preview). On the channel protocol it announces itself, follows the audio card's sources and shows
+// the accessories' pages (accessory_can).
 
 #include <Arduino.h>
+#include <accessory_can.h>
 #include <elc_usb_link.h>
 #include <Preferences.h>
 #include <elc_can.h>
@@ -24,6 +27,7 @@
 #endif
 
 static ElcCan s_can;
+static ElcChannels s_chan;
 static ConsoleUi s_ui(ELC_CAN_NODE_CONSOLE);
 static OledGfx s_gfx;
 static Preferences s_prefs;
@@ -125,12 +129,22 @@ static void demo_feed(uint32_t now) {
 
 static void on_frame(const ElcCanFrame &f, void *) { s_ui.feed(f, millis()); }
 
+static void on_transfer(const ElcChTransfer &t, void *) {
+  const uint32_t now = millis();
+  accessory_can_transfer(t, now);
+  s_ui.transfer(t, now);
+}
+
 static void send_actions() {
   ConsoleAction a;
   while (s_ui.pop_action(a)) {
     if (s_demo) demo_apply(a.frame);
     const bool ok = s_can.running() && s_can.send(a.frame);
     if (s_log_tx) Serial.printf("tx 0x%03X %s%s\n", a.frame.id, a.what, ok ? "" : " (not sent)");
+  }
+  char line[80];
+  while (s_ui.pop_log(line, sizeof(line))) {
+    if (s_log_tx) Serial.printf("tx %s\n", line);
   }
 }
 
@@ -147,14 +161,15 @@ static void print_help() {
   Serial.println("commands:");
   Serial.println("  help                 this list");
   Serial.println("  state                mode, page, what the console hears");
-  Serial.println("  key back|view        press BACK (left) or VIEW (right)");
-  Serial.println("  sel +N|-N|press      turn / push the Select knob");
-  Serial.println("  vol +N|-N|press|hold turn / push / hold the Volume knob");
+  Serial.println("  soft left|right [hold]   the soft keys under the OLED (left = Back, right = View)");
+  Serial.println("  left +N|-N|click|hold    the left knob (volume, source, menu)");
+  Serial.println("  right +N|-N|click|hold   the right knob (tune / tracks, preset / voice, seek / redial)");
+  Serial.println("  chan                 the channel node: announced nodes, accessory pages");
   Serial.println("  shot                 the frame as hex (tools/console_preview/shot.py turns it into a PNG)");
   Serial.println("  oled test|off        every pixel on / normal");
   Serial.println("  log on|off           log the frames sent");
   Serial.println("  demo on|off          pretend center, sensors and phone (no bus needed; or hold BACK at power-up)");
-  Serial.println("  demo call            (demo) an incoming call: Back declines, View answers");
+  Serial.println("  demo call            (demo) an incoming call: the left soft key declines, the right answers");
 }
 
 static void shot() {
@@ -200,17 +215,25 @@ static void handle_line(char *line) {
     Serial.printf("demo %s\n", s_demo ? "on" : "off");
   } else if (!strcmp(cmd, "log") && arg) {
     s_log_tx = !strcmp(arg, "on");
-  } else if (!strcmp(cmd, "key") && arg) {
-    if (!strcmp(arg, "back") || !strcmp(arg, "left")) s_ui.back(now);
-    else s_ui.view(now);
-  } else if ((!strcmp(cmd, "sel") || !strcmp(cmd, "vol")) && arg) {
-    const bool sel = cmd[0] == 's';
-    if (!strcmp(arg, "press")) sel ? s_ui.select_press(now) : s_ui.volume_press(now);
-    else if (!strcmp(arg, "hold") && !sel) s_ui.volume_hold(now);
+  } else if (!strcmp(cmd, "soft") && arg) {
+    const char *how = strtok(nullptr, " \t");
+    const bool hold = how && !strcmp(how, "hold");
+    if (!strcmp(arg, "left")) hold ? s_ui.soft_left_hold(now) : s_ui.soft_left(now);
+    else hold ? s_ui.soft_right_hold(now) : s_ui.soft_right(now);
+  } else if ((!strcmp(cmd, "left") || !strcmp(cmd, "right")) && arg) {
+    const bool left = cmd[0] == 'l';
+    if (!strcmp(arg, "click")) left ? s_ui.left_click(now) : s_ui.right_click(now);
+    else if (!strcmp(arg, "hold")) left ? s_ui.left_hold(now) : s_ui.right_hold(now);
     else {
       const int n = (int)strtol(arg, nullptr, 10);
-      sel ? s_ui.select_turn(n, now) : s_ui.volume_turn(n, now);
+      left ? s_ui.left_turn(n, now) : s_ui.right_turn(n, now);
     }
+  } else if (!strcmp(cmd, "chan")) {
+    char buf[600];
+    s_chan.describe(buf, sizeof(buf));
+    Serial.println(buf);
+    accessory_can_describe(buf, sizeof(buf));
+    Serial.println(buf);
   } else {
     Serial.printf("unknown: %s (try help)\n", cmd);
   }
@@ -250,6 +273,19 @@ void setup() {
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_CONSOLE, ElcCanNodeType::Console);
   Serial.printf("console: node 0x%02X, CAN %s (TX=%d RX=%d). Type help.\n", ELC_CAN_NODE_CONSOLE, ok ? "up" : "off",
                 ELC_CAN_TX_PIN, ELC_CAN_RX_PIN);
+  // the channel protocol: announce (a console, product 0x0003), the audio card's sources, the accessory pages
+  ElcNetAnnounce me;
+  me.type = ELC_TYPE_CONSOLE;
+  me.product = ELC_PRODUCT_CONSOLE;
+  me.fw = ELC_CAN_FW_VERSION;
+  me.uid = (uint32_t)(ESP.getEfuseMac() >> 16) ^ (uint32_t)ESP.getEfuseMac();
+  me.produces = elc_ch_bit(ELC_CH_AUDIO_CMD) | elc_ch_bit(ELC_CH_UI);  // SOURCE / MEDIA / VOLUME, UI SET / VIEW
+  me.consumes = elc_ch_bit(ELC_CH_UI) | elc_ch_bit(ELC_CH_SENSOR) | elc_ch_bit(ELC_CH_SYSTEM);
+  snprintf(me.name, sizeof(me.name), "Console");
+  s_can.attachChannels(&s_chan, me);
+  s_chan.onTransfer(on_transfer, nullptr);
+  accessory_can_begin(&s_chan);
+  s_ui.attach(&s_chan);
 }
 
 void loop() {
@@ -258,14 +294,18 @@ void loop() {
 
   ConsoleInputEvents ev;
   console_input_poll(ev, now);
-  if (ev.back) s_ui.back(now);
-  if (ev.view) s_ui.view(now);
-  if (ev.sel_steps) s_ui.select_turn(ev.sel_steps, now);
-  if (ev.sel_press) s_ui.select_press(now);
-  if (ev.vol_steps) s_ui.volume_turn(ev.vol_steps, now);
-  if (ev.vol_press) s_ui.volume_press(now);
-  if (ev.vol_hold) s_ui.volume_hold(now);
+  if (ev.left_steps) s_ui.left_turn(ev.left_steps, now);
+  if (ev.left_click) s_ui.left_click(now);
+  if (ev.left_hold) s_ui.left_hold(now);
+  if (ev.right_steps) s_ui.right_turn(ev.right_steps, now);
+  if (ev.right_click) s_ui.right_click(now);
+  if (ev.right_hold) s_ui.right_hold(now);
+  if (ev.soft_left) s_ui.soft_left(now);
+  if (ev.soft_left_hold) s_ui.soft_left_hold(now);
+  if (ev.soft_right) s_ui.soft_right(now);
+  if (ev.soft_right_hold) s_ui.soft_right_hold(now);
   poll_serial();
+  accessory_can_poll(now);
 
   if (s_demo) demo_feed(now);
   s_ui.tick(now);

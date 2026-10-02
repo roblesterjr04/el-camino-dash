@@ -56,7 +56,7 @@ static int encoder_steps(Encoder &e) {
   return (int)(e.reverse ? -d : d);
 }
 
-// ---- keys: debounced by time, act on the press ----
+// ---- keys: debounced by time; clicks act on release so a hold can be told apart ----
 
 struct Key {
   uint8_t pin;
@@ -98,30 +98,35 @@ void console_input_begin() {
   encoder_begin(s_vol);
 }
 
-/** Volume push: a short press acts on release, a hold (CONSOLE_HOLD_MS) acts once while still down. */
-static void hold_key(Key &k, uint32_t now_ms, bool *press, bool *hold) {
-  static uint32_t s_down_ms = 0;
-  static bool s_held = false;
+/** A click acts on release; a hold (CONSOLE_HOLD_MS) acts once while still down, and its release does nothing. */
+struct HoldState {
+  uint32_t down_ms;
+  bool held;
+};
+
+static void hold_key(Key &k, HoldState &h, uint32_t now_ms, bool *click, bool *hold) {
   const bool was = k.stable_down;
   const bool went_down = key_pressed(k, now_ms);
   if (went_down) {
-    s_down_ms = now_ms;
-    s_held = false;
-  } else if (was && !k.stable_down && !s_held) {
-    *press = true;
+    h.down_ms = now_ms;
+    h.held = false;
+  } else if (was && !k.stable_down && !h.held) {
+    *click = true;
   }
-  if (k.stable_down && !s_held && now_ms - s_down_ms >= CONSOLE_HOLD_MS) {
-    s_held = true;
+  if (k.stable_down && !h.held && now_ms - h.down_ms >= CONSOLE_HOLD_MS) {
+    h.held = true;
     *hold = true;
   }
 }
 
+static HoldState s_h_back, s_h_view, s_h_sel, s_h_vol;
+
 void console_input_poll(ConsoleInputEvents &ev, uint32_t now_ms) {
   ev = ConsoleInputEvents();
-  ev.back = key_pressed(s_back, now_ms);
-  ev.view = key_pressed(s_view, now_ms);
-  ev.sel_press = key_pressed(s_sel_sw, now_ms);
-  hold_key(s_vol_sw, now_ms, &ev.vol_press, &ev.vol_hold);
-  ev.sel_steps = encoder_steps(s_sel);
-  ev.vol_steps = encoder_steps(s_vol);
+  hold_key(s_back, s_h_back, now_ms, &ev.soft_left, &ev.soft_left_hold);
+  hold_key(s_view, s_h_view, now_ms, &ev.soft_right, &ev.soft_right_hold);
+  hold_key(s_sel_sw, s_h_sel, now_ms, &ev.right_click, &ev.right_hold);
+  hold_key(s_vol_sw, s_h_vol, now_ms, &ev.left_click, &ev.left_hold);
+  ev.right_steps = encoder_steps(s_sel);
+  ev.left_steps = encoder_steps(s_vol);
 }

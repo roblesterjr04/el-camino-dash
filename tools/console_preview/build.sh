@@ -17,5 +17,6 @@ for f in $LV/src/font/lv_font.c $LV/src/font/lv_font_fmt_txt.c $LV/src/misc/lv_u
   objs="$objs $o"
 done
 clang++ -std=c++17 $CF $C/src/console_ui.cpp $C/src/console_screens.cpp $C/src/oled_gfx.cpp \
-  $FW/elc_can/src/elc_can_codec.cpp $H/render.cpp $objs -o $O/render
+  $FW/elc_can/src/elc_can_codec.cpp $FW/elc_can/src/elc_chan.cpp $FW/elc_can/src/elc_chan_msg.cpp \
+  $FW/elc_can/src/accessory_can.cpp $H/render.cpp $objs -o $O/render
 echo "built $O/render"

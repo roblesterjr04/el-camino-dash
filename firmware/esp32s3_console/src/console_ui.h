@@ -1,14 +1,18 @@
 #pragma once
 
-// The console's behaviour, as designed in the El Camino Cluster prototype (docs/protocols/can_bus.md, "Console"):
-// four drive pages, an OLED menu of quick settings, the round-screen menu driven by the knob, warnings and calls
-// that take over, toasts and a volume bar. No Arduino dependency: it takes CAN frames and knob/key input with a clock
-// and queues the frames to send, so it runs in the host tests and the host preview. Drawing: console_screens.cpp.
+// The console is the car's radio head unit (decided 2026-10-02; the El Camino Cluster prototype's drive pages and
+// warnings stay): the left knob is volume / source / menu, the right knob tunes or skips, the two keys under the OLED
+// are soft keys. Its own menu on the OLED holds Source, Radio and the other accessory pages (UI channel), Phone,
+// Display, Trip and Service. No Arduino dependency: it takes CAN frames, channel transfers and knob / key input with a
+// clock, and queues the frames to send, so it runs in the host tests and the host preview. Drawing:
+// console_screens.cpp. Controls: firmware/esp32s3_console/README.md.
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include <elc_can_codec.h>
+#include <elc_chan.h>
+#include <elc_chan_msg.h>
 
 class OledGfx;
 struct _lv_font_t;
@@ -20,7 +24,7 @@ struct ConsoleAction {
   char what[48];  // for the serial log
 };
 
-enum class ConsoleMode : uint8_t { Drive, Menu, Edit, Remote };
+enum class ConsoleMode : uint8_t { Drive, Menu, Edit };
 enum ConsolePage : uint8_t { kPageMedia, kPageTrip, kPageEngine, kPageClock, kPageCount };
 enum class ConsoleContrast : uint8_t { Auto, Bright, Night };
 
@@ -42,9 +46,23 @@ struct ConsoleAlert {
   char line[64];
 };
 
+/** One row of a menu page. */
+struct ConsoleRow {
+  enum Kind : uint8_t { Sub, Action, Setting, Info };
+  uint8_t kind = Info;
+  uint16_t id = 0;   // what it does (ConsoleUi::RowId)
+  uint8_t arg = 0;   // a paired phone, an accessory item, an option
+  char label[33] = {0};
+  char value[33] = {0};
+  bool dim = false;  // greyed (read-only, not available)
+};
+
 class ConsoleUi {
  public:
   explicit ConsoleUi(uint8_t node = ELC_CAN_NODE_CONSOLE) : _node(node) {}
+
+  /** The channel node the console sends through (AUDIO_CMD, UI); null = not on the channel protocol. */
+  void attach(ElcChannels *ch) { _ch = ch; }
 
   /** Persistent settings kept by the console (NVS in the firmware). */
   void restore(bool trip_set, uint32_t trip_base_tenths, ConsoleContrast contrast);
@@ -54,18 +72,25 @@ class ConsoleUi {
   /** True once after a persistent setting changed (the firmware saves them). */
   bool take_persist_dirty();
 
-  // ---- input
+  // ---- input (left knob = Volume encoder, right knob = Select encoder, left / right soft keys = Back / View keys)
   void feed(const ElcCanFrame &f, uint32_t now_ms);
-  void select_turn(int steps, uint32_t now_ms);
-  void select_press(uint32_t now_ms);
-  void back(uint32_t now_ms);  // left key
-  void view(uint32_t now_ms);  // right key
-  void volume_turn(int steps, uint32_t now_ms);
-  void volume_press(uint32_t now_ms);
-  void volume_hold(uint32_t now_ms);
+  /** Every complete channel transfer (also give it to accessory_can_transfer, which the firmware does). */
+  void transfer(const ElcChTransfer &t, uint32_t now_ms);
+  void left_turn(int steps, uint32_t now_ms);
+  void left_click(uint32_t now_ms);
+  void left_hold(uint32_t now_ms);
+  void right_turn(int steps, uint32_t now_ms);
+  void right_click(uint32_t now_ms);
+  void right_hold(uint32_t now_ms);
+  void soft_left(uint32_t now_ms);
+  void soft_left_hold(uint32_t now_ms);
+  void soft_right(uint32_t now_ms);
+  void soft_right_hold(uint32_t now_ms);
   void tick(uint32_t now_ms);
 
   bool pop_action(ConsoleAction &out);
+  /** A line for the serial log about a channel message the console sent ("" when none waits). */
+  bool pop_log(char *out, size_t n);
 
   // ---- output
   /** Draws the whole screen for time now_ms. */
@@ -80,60 +105,116 @@ class ConsoleUi {
   // ---- state (tests, serial console)
   ConsoleMode mode() const { return _mode; }
   uint8_t page() const { return _page; }
-  uint8_t menu_sel() const { return _sel; }
   bool alive(uint32_t now_ms) const;
   const ConsoleSensors &sensors() const { return _s; }
   const ElcCanClusterState &cluster() const { return _cl; }
   const ElcCanPhoneStatus &phone() const { return _ph; }
   bool phone_fresh(uint32_t now_ms) const { return _ph_ms && now_ms - _ph_ms < 3000; }
   bool call_shown(uint32_t now_ms) const;
+  bool pair_shown(uint32_t now_ms) const;
   const ConsoleAlert *alert(uint32_t now_ms);  // the unacknowledged warning shown, or null
   uint8_t bridge_slot() const { return _slot; }
   uint8_t volume() const { return _vol; }
+  /** The source the audio card plays (ELC_SRC_*), ELC_SRC_NONE with no audio card. */
+  uint8_t source(uint32_t now_ms) const;
+  bool radio_is_source(uint32_t now_ms) const { return source(now_ms) == ELC_SRC_RADIO; }
+  /** The menu page shown and its rows (tests, describe). */
+  uint8_t menu_page() const { return _stack[_depth].page; }
+  int menu_rows(const ConsoleRow **rows);
+  int menu_sel() const { return _stack[_depth].sel; }
+  const char *phone_paired_name(uint8_t i) const;
 
-  static const int kItems = 10;
   static constexpr uint32_t kCenterGoneMs = 2500;  // the center's heartbeat is 1 Hz: a couple missed before the bowtie
   static constexpr uint32_t kBootMs = 1700;        // bowtie at power-up: fade in, then a sheen
   static constexpr uint32_t kToastMs = 1800;
   static constexpr uint32_t kVolumeShowMs = 1450;
-  const char *item_label(int i) const;
-  void item_value(int i, char *out, size_t n) const;
+  static constexpr uint32_t kHintMs = 2600;        // soft-key labels after the last touch of a control
+
+  // Menu pages.
+  enum MenuPage : uint8_t { kMHome, kMSource, kMPhone, kMPhoneOne, kMDisplay, kMTrip, kMService, kMAccessories,
+                            kMAccPage, kMAccChoice, kMConfirm };
+  // What a row does.
+  enum RowId : uint16_t {
+    kRNone, kRSource, kRRadio, kRPhone, kRAccessories, kRDisplay, kRTrip, kRService,  // home
+    kRSrcPick,                                                                          // source page (arg = code)
+    kRPhStatus, kRPhPair, kRPhStop, kRPhVoice, kRPhRedial, kRPhPaired,                  // phone page (arg = index)
+    kRPhConnect, kRPhDisconnect, kRPhForget,                                            // one phone
+    kRView, kRTheme, kRBright, kRFollow, kRIface, kRMedia, kRLayout, kRContrast,        // display settings
+    kRTripReset,
+    kRAccNode, kRAccItem, kRAccOpt, kRAdvanced,                                         // accessories (arg)
+    kRYes, kRNo,                                                                        // confirmation
+  };
 
  private:
-  // settings in the OLED menu
-  enum Item : uint8_t { kView, kTheme, kBright, kFollow, kIface, kMedia, kLayout, kTrip, kContrast, kService };
-  int item_get(int i) const;
-  void item_set(int i, int v, uint32_t now_ms, bool undo = false);
-  int item_count(int i) const;  // choices (0 = range / action / page)
+  struct Level {
+    uint8_t page = kMHome;
+    uint8_t node = 0;       // accessory pages: the node
+    uint8_t arg = 0;        // the group / the item / the paired phone
+    int sel = 0, top = 0;
+  };
 
+  // menu
+  void open_menu(uint32_t now_ms);
+  void close_menu();
+  void push(uint8_t page, uint8_t node = 0, uint8_t arg = 0);
+  void pop();
+  void build_rows();
+  void row_add(uint8_t kind, uint16_t id, uint8_t arg, const char *label, const char *value = "", bool dim = false);
+  void menu_move(int steps);
+  void menu_click(uint32_t now_ms);
+  void edit_turn(int steps, uint32_t now_ms);
+  void edit_done(uint32_t now_ms);
+  void edit_cancel(uint32_t now_ms);
+  void confirm(uint16_t what, uint8_t node, uint8_t arg, int32_t value, const char *question);
+  void do_confirmed(uint32_t now_ms);
+  const char *source_name(uint8_t code) const;
+  void now_text(char *line1, size_t n1, char *line2, size_t n2, uint32_t now_ms) const;
+
+  // display settings (the old OLED menu's items)
+  int setting_get(uint16_t id) const;
+  void setting_set(uint16_t id, int v, uint32_t now_ms, bool undo = false);
+  int setting_count(uint16_t id) const;  // choices (0 = a number range)
+  void setting_text(uint16_t id, int v, char *out, size_t n) const;
+
+  // frames and messages out
   void push_frame(const ElcCanFrame &f, const char *what);
+  void log(const char *fmt, ...);
   void setting(uint8_t setting, uint8_t value, uint32_t now_ms, const char *what);
   void phone_cmd(uint8_t cmd, uint8_t arg, const char *what);
-  void menu_input(uint8_t event, int8_t value, const char *what);
+  bool chan_send(uint16_t base, const ElcChWriter &w, const char *what);
+  void media(uint8_t action, uint8_t value, const char *what);
+  void play_pause(uint32_t now_ms);
   void toast(const char *title, const char *value, uint32_t now_ms);
   void cluster_changed(const ElcCanClusterState &old, uint32_t now_ms);
   void build_alerts(uint32_t now_ms);
-  bool remote_open(uint32_t now_ms) const;
   uint8_t next_view() const;
   void page_step(int dir, uint32_t now_ms);
   float trip_mi() const;
   void art_pump(uint32_t now_ms);
+  void touched(uint32_t now_ms) { _touch_ms = now_ms ? now_ms : 1; }
+  uint8_t sink() const;
+  uint8_t radio() const;
+  bool bridge_heard(uint32_t now_ms) const { return _bridge_ms && now_ms - _bridge_ms < 3000; }
 
   // drawing (console_screens.cpp)
   void draw_media(OledGfx &g, uint32_t t);
+  void draw_radio(OledGfx &g, uint32_t t);
+  void draw_phone_status(OledGfx &g, uint32_t t);
   void draw_trip(OledGfx &g);
   void draw_engine(OledGfx &g, uint32_t t);
   void draw_clock(OledGfx &g, uint32_t t);
   void draw_page(OledGfx &g, int page, uint32_t t);
   void draw_menu(OledGfx &g, uint32_t t);
-  void draw_remote(OledGfx &g);
   void draw_alert(OledGfx &g, const ConsoleAlert &a, uint32_t t);
   void draw_call(OledGfx &g, uint32_t t);
+  void draw_pair(OledGfx &g, uint32_t t);
+  void draw_hints(OledGfx &g, uint32_t t);
   void draw_volume(OledGfx &g, uint32_t t);
   void draw_toast(OledGfx &g, uint32_t t);
   const lv_font_t *font(char role) const;  // h huge, b big, m mid, o body, s small
 
   uint8_t _node;
+  ElcChannels *_ch = nullptr;
 
   // bus state
   ElcCanSensorDecoder _sdec;
@@ -144,12 +225,9 @@ class ConsoleUi {
   bool _have_cl = false;
   ElcCanCenterStatus _cs;
   uint32_t _cs_ms = 0;
-  ElcCanMenuState _ms;
-  uint32_t _ms_ms = 0;
-  ElcCanTextDecoder _mt_main{ELC_CAN_ID_MENU_TEXT_MAIN}, _mt_sub{ELC_CAN_ID_MENU_TEXT_SUB};
   ElcCanTime _time;
   uint32_t _time_ms = 0;
-  // audio bridge
+  // audio bridge (Bluetooth on the old frames)
   ElcCanBridgeSeen _bridges;
   uint8_t _slot = 0;
   bool _slot_known = false;
@@ -161,6 +239,19 @@ class ConsoleUi {
   ElcCanPhoneStatus _ph;
   uint32_t _ph_ms = 0;
   ElcCanPhoneTextDecoder _caller{ELC_CAN_PHONE_TEXT_CALLER};
+  ElcCanPhoneTextDecoder _ph_connected{ELC_CAN_PHONE_TEXT_CONNECTED};
+  ElcCanPhoneTextDecoder _ph_pairing{ELC_CAN_PHONE_TEXT_PAIRING};
+  ElcCanPhoneTextDecoder _ph_paired[ELC_CAN_PHONE_MAX_PAIRED];
+  bool _kinds_set = false;
+  uint32_t _passkey = 0;
+  uint8_t _pair_left = 0xFF;
+  bool _have_passkey = false;
+  uint32_t _pair_ms = 0;
+  // audio card (the sink) and the active source, on the channel protocol
+  ElcAudioStatus _st;
+  uint32_t _st_ms = 0;
+  ElcAudioNow _now_playing;
+  uint32_t _now_ms = 0;
   // album art (48×48 grey)
   uint8_t _art[ELC_CAN_ART_GRAY48_BYTES];
   uint8_t _art_id = 0;  // id shown (0 = none)
@@ -172,27 +263,40 @@ class ConsoleUi {
 
   // ui
   ConsoleMode _mode = ConsoleMode::Drive;
-  bool _remote_by_console = false;
-  ConsoleMode _mode_before_remote = ConsoleMode::Drive;
   uint8_t _page = kPageMedia, _page_from = kPageMedia;
   int8_t _page_dir = 1;
   uint32_t _page_ms = 0;
-  uint8_t _sel = 0, _top = 0;
-  int _edit_orig = 0;
-  bool _confirm = false;
+  Level _stack[6];
+  int _depth = 0;
+  ConsoleRow _rows[32];
+  int _nrows = 0;
+  bool _rows_dirty = true;
+  bool _advanced = false;
+  // the value being edited: a display setting (live, undone on cancel) or an accessory number (sent on confirm)
+  uint16_t _edit_id = 0;
+  int32_t _edit_val = 0, _edit_orig = 0;
+  uint8_t _edit_node = 0, _edit_item = 0;
+  // a confirmation page waiting
+  uint16_t _cf_what = 0;
+  uint8_t _cf_node = 0, _cf_arg = 0;
+  int32_t _cf_value = 0;
+  char _cf_question[48] = {0};
   bool _ack[8] = {false};
   ConsoleAlert _alerts[8];
   int _n_alerts = 0;
   char _toast_title[16] = {0}, _toast_value[24] = {0};
   uint32_t _toast_ms = 0;
   uint32_t _own_change_ms = 0;  // a setting the console itself asked for: no toast for its echo
-  uint8_t _vol = 0;
+  uint8_t _vol = 0;             // 0..15 (the bar)
   uint32_t _vol_ms = 0;
   bool _vol_set = false;
   uint32_t _vol_set_ms = 0;
   uint8_t _view_req = 0;
   uint32_t _view_req_ms = 0;
   int _bright_live = -1;  // brightness while being edited (the center's echo lags)
+  uint32_t _touch_ms = 0;
+  uint8_t _src_req = 0;   // the source asked for, until STATUS says so
+  uint32_t _src_req_ms = 0;
 
   // persistent
   bool _trip_set = false;
@@ -202,5 +306,7 @@ class ConsoleUi {
 
   ConsoleAction _q[16];
   uint8_t _qh = 0, _qn = 0;
+  char _log[4][72];
+  uint8_t _lh = 0, _ln = 0;
   uint32_t _now = 0;
 };

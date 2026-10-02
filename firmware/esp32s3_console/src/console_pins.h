@@ -65,5 +65,5 @@
 #endif
 
 #ifndef CONSOLE_HOLD_MS
-#define CONSOLE_HOLD_MS 650  // Volume push held this long = next track (the prototype's hold)
+#define CONSOLE_HOLD_MS 650  // any switch held this long = its hold action (menu, store preset, seek, view)
 #endif

@@ -1,8 +1,9 @@
 # Console firmware (ESP32-S3, CAN node 0x13)
 
-Firmware for the console board ([`ConsoleBoard/`](../../ConsoleBoard/)): the SSD1322 256 × 64 OLED, the two keys
-under it (**Back** left, **View** right), the **Select** and **Volume** knobs and the key LEDs. It is the only
-control for the phone on the audio bridge: answering calls, pairing and managing phones. Spec:
+Firmware for the console board ([`ConsoleBoard/`](../../ConsoleBoard/)): the SSD1322 256 × 64 OLED, the two soft
+keys under it (**Back** left, **View** right), the **Volume** (left) and **Select** (right) knobs and the key LEDs. It
+is the car's radio head unit: sources, the radio, volume, the phone (calls, pairing, the paired phones) and every
+accessory's settings, with no touch screen needed. Spec:
 [`docs/protocols/can_bus.md`](../../docs/protocols/can_bus.md), *Phone* and *Console*.
 
 ```bash
@@ -18,29 +19,51 @@ test/host/run_tests.sh                           # UI state machine tests on the
 | `src/console_pins.h` | Pins and input build flags |
 | `src/main.cpp` | CAN (`elc_can`), the loop and the serial console |
 
-## Soft keys
+## Controls
 
-The bottom row names what each key does now; Select press = the right key (except on home, where it is play /
-pause). Highest priority first:
+The console is the car's radio head unit. The left knob is the Volume encoder, the right knob the Select encoder; the
+two keys under the OLED are soft keys (left = Back, right = View): their labels show over them in a call, while a
+phone waits to pair, and for a couple of seconds after any control is touched. Every switch has a click (on release)
+and a hold (`CONSOLE_HOLD_MS`, 650 ms).
 
-| Screen | Left (Back) | Right (View) |
+**At rest** (the drive pages):
+
+| Control | Bluetooth | Radio |
 | --- | --- | --- |
-| a pairing code to confirm | Reject | Pair |
-| incoming call | Decline | Answer |
-| call waiting | Ignore | Answer (holds the active call) |
-| calling | End | — |
-| in a call | End | Mute / Unmute |
-| call on hold | End | Swap |
-| pairing window open | Stop | — |
-| phone menu (paired phones, Pair new phone, Voice assistant, Redial) | Back | Options / Start |
-| a phone's options (Connect or Disconnect, Forget) | Back | OK |
-| forget, to confirm | Cancel | Forget |
-| home | Phone | View (next center view) |
+| Left knob turn | volume | volume |
+| Left knob click | next source (AUDIO_CMD SOURCE to the audio card) | same |
+| Left knob hold | the menu | the menu |
+| Right knob turn | next / previous track | tune one grid step per detent |
+| Right knob click | voice assistant | next preset |
+| Right knob hold | redial | seek up |
+| Left soft click | play / pause | mute / unmute |
+| Left soft hold | — | store the station as a preset (the next free one) |
+| Right soft click | next OLED page (Media → Trip → Engine → Clock) | same |
+| Right soft hold | next view on the center screen | same |
 
-Knobs: Select turns move through lists, and on home skip tracks. Volume sets the call volume during a call and the
-media volume otherwise (0–15); its press mutes the microphone during a call and is play / pause otherwise. Menus go
-back to home after 20 s untouched; a call covers whatever page was open and returns to it when it ends. The key LEDs
-follow the cluster brightness and pulse while a call rings or a code waits.
+Bluetooth commands go to the audio bridge (`0x215`, as before) and, when an audio card is heard, to it too (AUDIO_CMD
+MEDIA / VOLUME); radio commands go to the audio card, which forwards them to the radio
+(`docs/protocols/can_channels.md`, AUDIO_CMD). A warning on the drive page is acknowledged with the left soft key.
+
+**In a call** the soft keys are Decline / Answer, End / Mute (Unmute), Ignore / Answer (holds the active call), End /
+Swap; the left knob sets the call volume and its click mutes the microphone. **A phone asking to pair** takes over the
+screen with its code: Reject / Pair.
+
+**The menu** (left knob hold) is drawn on the OLED itself; the touch screens' menu is no longer mirrored here. Left
+knob turn moves, click opens or changes; left soft is Back (it leaves the menu from the top page), right soft leaves
+the menu. In an editor either knob changes the value, a click sends it, the left soft key undoes it.
+
+| Page | What it holds |
+| --- | --- |
+| Source | Bluetooth, Radio (when a radio card is heard) |
+| Radio | the radio card's own page from the UI channel: on / off, band, frequency, seek, presets, region… |
+| Phone | the connected phone, Pair new phone / Stop pairing, voice assistant, redial, the paired phones (Connect or Disconnect, Forget with a confirmation) |
+| Accessories | every accessory's page from the UI channel (the audio card, GPS, the gateway…) |
+| Display | center view, theme, brightness, dim with lights, menu screen, media screen, right layout, OLED contrast (live, undone with the left soft key) |
+| Trip | Trip A, and resetting it |
+| Service | the center, the sensors, the audio bridge, the audio card and its source, the radio, the channel nodes |
+
+The key LEDs follow the cluster brightness and pulse while a call rings or a code waits.
 
 ## Build flags
 
@@ -55,8 +78,9 @@ follow the cluster brightness and pulse while a call rings or a code waits.
 
 ## Serial console (USB, 115200)
 
-For the bench, without knobs wired: `help`, `state` (CAN, phone status and texts, media, cluster), `screen` (the
-current screen as text with its soft-key labels), `key left|right`, `sel +N|-N|press`, `vol +N|-N|press`. Every
+For the bench, without knobs wired: `help`, `state` (CAN, phone, the audio card's source and what plays, cluster),
+`chan` (the channel node's announced nodes and accessory pages), `soft left|right [hold]`, `left +N|-N|click|hold`,
+`right +N|-N|click|hold`. Every
 command the console sends is logged as `tx 0x215 phone ANSWER arg 0 slot 0 list 3`.
 
 The console follows the first audio bridge it hears: a node whose heartbeat says audio bridge (node type 1). Its

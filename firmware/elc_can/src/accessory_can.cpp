@@ -1,5 +1,6 @@
 #include "accessory_can.h"
 
+#include <new>
 #include <stdio.h>
 #include <string.h>
 
@@ -8,8 +9,8 @@ namespace {
 struct AccNode {
   uint8_t node = 0;  // 0 = free
   uint8_t generation = 0;
-  AccItem *items = nullptr;  // kAccMaxItems, allocated with the node's first ITEM
-  int n = 0;
+  AccItem *items = nullptr;  // grows 16, 32, 64 as items arrive (the console has little RAM)
+  int n = 0, cap = 0;
   uint32_t sig = 0;
 };
 
@@ -18,7 +19,6 @@ AccNode s_nodes[kAccMaxNodes];
 uint32_t s_query_ms[32] = {0};
 uint8_t s_view_node = 0, s_view_group = ELC_UI_TOP;
 uint32_t s_view_ms = 0;
-bool s_view_sent_close = true;
 uint32_t s_rx_items = 0, s_rx_values = 0, s_tx_sets = 0;
 uint32_t s_now = 0;  // the time of the last poll or transfer
 
@@ -40,9 +40,6 @@ AccNode *find_or_add(uint8_t node) {
   if (n) return n;
   for (AccNode &x : s_nodes) {
     if (!x.node) {
-      if (!x.items) x.items = new AccItem[kAccMaxItems];
-      if (!x.items) return nullptr;
-      for (int i = 0; i < kAccMaxItems; i++) x.items[i] = AccItem();
       x.node = node;
       x.n = 0;
       x.sig = 1;
@@ -57,6 +54,15 @@ AccItem *item_of(AccNode *n, uint8_t item, bool add) {
     if (n->items[i].d.item == item) return &n->items[i];
   }
   if (!add || n->n >= kAccMaxItems) return nullptr;
+  if (n->n == n->cap) {  // grow: pointers handed out earlier are only used within one call
+    const int cap = n->cap ? n->cap * 2 : 16;
+    AccItem *more = new (std::nothrow) AccItem[cap > kAccMaxItems ? kAccMaxItems : cap];
+    if (!more) return nullptr;
+    for (int i = 0; i < n->n; i++) more[i] = n->items[i];
+    delete[] n->items;
+    n->items = more;
+    n->cap = cap > kAccMaxItems ? kAccMaxItems : cap;
+  }
   AccItem *it = &n->items[n->n++];
   *it = AccItem();
   it->d.item = item;
