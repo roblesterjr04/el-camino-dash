@@ -5,7 +5,7 @@
 > **Status: design, not yet built.** Every figure below is calculated from the schematic and the parts' datasheets,
 > not measured on a board. Values that depend on the senders in the car are marked as such. The card's firmware (a
 > port of `arduino/sketches/sensor_pack`) is not written yet; the firmware interface section describes what the
-> hardware provides and what the firmware is planned to send.
+> hardware provides and what the firmware is planned to send. Calibration: [`sensor_calibration.md`](../docs/protocols/sensor_calibration.md).
 
 ![Sensor card, parts side](doc/sensorcard_top.png)
 
@@ -116,7 +116,7 @@ Calculated at +5 V = 5.0 V, 25 °C, unless noted.
 | Parameter | Typ | Max | Unit | Notes |
 | --- | --- | --- | --- | --- |
 | +5 V current, card only | 45 | 110 | mA | MCU about 20 mA, MCP2515 5 mA, MCP2562 5 mA recessive / 70 mA dominant (max is a bus held dominant), FRAM, LED, fuse monitors |
-| + senders, as delivered | 20 | 50 | mA | Fuel 220 Ω (16–23 mA with a 0–90 Ω sender), oil 220 Ω (12–22 mA), temp 1 kΩ (about 5 mA), ambient (< 0.1 mA) |
+| + senders, as delivered | 65 | 80 | mA | Fuel 100 Ω (38–50 mA with the factory 0–30 Ω sender: most at empty), oil 220 Ω (12–22 mA), temp 1 kΩ (about 5 mA), ambient (< 0.1 mA) |
 | + speed sensor | | 100 | mA | The sensor's own draw, from 5 V or switched 12 V (JP1) |
 | Constant 12 V draw, key off | 0.11 | | mA | The battery-sense divider (122 kΩ). The rest of the card is unpowered with the key off |
 
@@ -276,7 +276,7 @@ connects one resistor between that common side and the channel's input.
 
 | Channel | Topology (PU = 1-2, PD = 2-3) | Bank (value: jumper) | As delivered |
 | --- | --- | --- | --- |
-| Fuel (ADC0) | JP2 | 100 Ω: JP6 · **220 Ω: JP7** · 470 Ω: JP8 | PU, 220 Ω |
+| Fuel (ADC0) | JP2 | **100 Ω: JP6** · 220 Ω: JP7 · 470 Ω: JP8 | PU, 100 Ω (the factory 1964 0–30 Ω sender) |
 | Engine temp (ADC1) | JP3 | 220 Ω: JP9 · **1 kΩ: JP10** · 10 kΩ: JP11 | PU, 1 kΩ |
 | Oil pressure (ADC2) | JP4 | **220 Ω: JP12** · 1 kΩ: JP13 · 100 kΩ: JP14 | PU, 220 Ω |
 | Ambient (ADC3) | JP5 | 10 kΩ: JP15 · **100 kΩ: JP16** | PU, 100 kΩ |
@@ -313,10 +313,10 @@ calibration table converts the reading.
 
 **Fuel senders, pull-up mode** (ADC counts, empty → full):
 
-| Sender | 100 Ω (JP6) | 220 Ω (JP7, as delivered) | 470 Ω (JP8) | Suggested |
+| Sender | 100 Ω (JP6, as delivered) | 220 Ω (JP7) | 470 Ω (JP8) | Suggested |
 | --- | --- | --- | --- | --- |
-| GM to 1964, 0 Ω empty – 30 Ω full | 0 → 236 | 0 → 123 | 0 → 61 | **100 Ω** |
-| GM 1965–97, 0 – 90 Ω | 0 → 485 | 0 → 297 | 0 → 164 | 220 Ω (100 Ω for more resolution, at 50 mA) |
+| GM to 1964, 0 Ω empty – 30 Ω full (**the factory 1964 El Camino sender**) | 0 → 236 | 0 → 123 | 0 → 61 | **100 Ω** (as delivered; 100‖220 = 69 Ω gives about 310 counts at 72 mA) |
+| GM 1965–97, 0 – 90 Ω (also some "1964–67" replacement senders: measure yours) | 0 → 485 | 0 → 297 | 0 → 164 | 220 Ω (100 Ω for more resolution, at 50 mA) |
 | Ford to 1987, 73 – 10 Ω | 432 → 93 | 255 → 44 | 138 → 21 | 100 Ω |
 | Aftermarket universal, 240 – 33 Ω | 722 → 254 | 534 → 133 | 346 → 67 | 220 Ω |
 | VDO-style, 10 – 180 Ω | 93 → 658 | 44 → 460 | 21 → 283 | 220 Ω |
@@ -396,7 +396,9 @@ The center stops re-sending `0x100`–`0x104` when it hears them from node `0x04
 
 ### Conversions the firmware needs
 
-- **Senders:** a per-channel calibration table (raw ADC → value), entered for the senders and settings actually fitted.
+- **Senders:** calibrated on the card and stored in its FRAM, set from the center screen's menu (Menu → Accessories
+  → Sensor card) or the bench console on J7, backed up to the center's SD card. The full design (presets, captured
+  points, storage layout, menu items, CAN, procedures) is [`docs/protocols/sensor_calibration.md`](../docs/protocols/sensor_calibration.md).
   The old 328P firmware's thermistor maths and `*_INVERT_ADC` settings assumed the rev 1 pull-down wiring; with the
   card's pull-up default the reading rises with sender resistance.
 - **Battery:** volts = ADC × 0.02710.

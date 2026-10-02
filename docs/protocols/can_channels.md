@@ -587,6 +587,7 @@ u16) are free for a product's own use.
 | `0x0005` | GPS / clock / motion card |
 | `0x0006` | LTE gateway card |
 | `0x0007` | AI voice card |
+| `0x0008` | sensor card (the sensor pack, node `0x04`; calibration on its UI page: `sensor_calibration.md`) |
 
 ### Quantities
 

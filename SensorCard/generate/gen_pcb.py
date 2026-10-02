@@ -121,7 +121,7 @@ KEEP_SILK = {'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7', 'J8', 'J9', 'J10', 'JP1'}
 # The sender config block: one column per channel between the 2560 and the MCP2515, the topology jumper (pull-up /
 # pull-down) on top and the value jumpers below it, each labelled on the silk with its value (* = bridged as delivered).
 CFG_X0, CFG_Y0, CFG_DX = 42.4, 21.0, 4.7
-CFG = [('FUEL', 'JP2', [('JP6', '100'), ('JP7', '220*'), ('JP8', '470')]),
+CFG = [('FUEL', 'JP2', [('JP6', '100*'), ('JP7', '220'), ('JP8', '470')]),
        ('TEMP', 'JP3', [('JP9', '220'), ('JP10', '1k*'), ('JP11', '10k')]),
        ('OIL', 'JP4', [('JP12', '220*'), ('JP13', '1k'), ('JP14', '100k')]),
        ('AMB', 'JP5', [('JP15', '10k'), ('JP16', '100k*')])]

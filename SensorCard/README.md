@@ -18,7 +18,9 @@ sender, speed or tach wiring means a new card, not a new main board.
 - the **sensor serial out** (J8): the 36-byte frames on USART1, for an optional jumper wire to the main board's J27,
   which fans them out to the three screens (the fallback path when CAN is down)
 
-**The full specification, configuration guide and sender tables are in [`DATASHEET.md`](DATASHEET.md).**
+**The full specification, configuration guide and sender tables are in [`DATASHEET.md`](DATASHEET.md).** How the
+readings are calibrated (stored on the card, set from the center's menu, backed up on the center):
+[`docs/protocols/sensor_calibration.md`](../docs/protocols/sensor_calibration.md).
 
 **Any slot but slot 1** (slot 1 is kept for the audio card's tall parts). Power comes from the slot's 5 V only; the
 slot's switched 12 V and constant 12 V are used for sensing and the speed sensor's 12 V option.
@@ -66,7 +68,7 @@ through the channel's PTC, because the PTC's drop would read as a level error. E
 
 | Channel | Topology | Bank (jumper) | As delivered |
 | --- | --- | --- | --- |
-| Fuel (ADC0) | JP2 | 100 Ω, 2010 (JP6) · 220 Ω, 1206 (JP7) · 470 Ω, 0805 (JP8) | pull-up, 220 Ω |
+| Fuel (ADC0) | JP2 | 100 Ω, 2010 (JP6) · 220 Ω, 1206 (JP7) · 470 Ω, 0805 (JP8) | pull-up, 100 Ω (the factory 1964 0–30 Ω sender) |
 | Engine temp (ADC1) | JP3 | 220 Ω, 1206 (JP9) · 1k (JP10) · 10k (JP11) | pull-up, 1k |
 | Oil pressure (ADC2) | JP4 | 220 Ω, 1206 (JP12) · 1k (JP13) · 100k (JP14) | pull-up, 220 Ω |
 | Ambient (ADC3) | JP5 | 10k (JP15) · 100k (JP16) | pull-up, 100k |
@@ -163,9 +165,9 @@ left open); `--from-ses` repeats the import and finishing steps from the last se
 ## Check before ordering
 
 - **The delivered jumper settings** against the senders actually fitted to the car (the datasheet's tables). They
-  can be changed on the bench with a blade and a soldering iron; the delivered ones are a guess: 220 Ω fuel (0–90 Ω
-  GM), 1k temp, 220 Ω oil (10–180 Ω), 100k ambient NTC, all pull-up.
-- **Bridged solder jumpers:** the as-delivered ones (JP1, JP2–JP5 1-2, JP7, JP10, JP12, JP16) are bridged by a thin
+  can be changed on the bench with a blade and a soldering iron; the delivered fuel setting suits the factory 1964 0–30 Ω sender (100 Ω);
+  the rest are a guess: 1k temp, 220 Ω oil (10–180 Ω), 100k ambient NTC, all pull-up.
+- **Bridged solder jumpers:** the as-delivered ones (JP1, JP2–JP5 1-2, JP6, JP10, JP12, JP16) are bridged by a thin
   copper trace in the footprint, so the card works with no solder work. Confirm the assembler leaves those traces alone.
 - **The speed sensor's supply and output** (JP1, and that it is a hall / square-wave sensor, not a 2-wire VR pickup).
 - **J4's rating and the tach clearance** against the ignition: points and HEI kick back a few hundred volts on the coil
@@ -183,8 +185,9 @@ left open); `--from-ses` repeats the import and finishing steps from the last se
   `docs/hardware/digidash_rev2_plan.md`, "Sensor pack on CAN");
 - **ignition from the slot's switched 12 V** (PA1), battery voltage from ADC8 (scale 122 / 22), and PWR_HOLD driving
   WAKE after key-off until the FRAM work is done;
-- **new sender curves:** the delivered pull-ups invert the old pull-down wiring, so the thermistor and pressure
-  conversions (and the `*_INVERT_ADC` settings) change, and `POT_IS_3WIRE` goes to 0 for a 1-wire fuel sender;
+- **calibration** per [`docs/protocols/sensor_calibration.md`](../docs/protocols/sensor_calibration.md): presets,
+  captured points in FRAM, the menu items on the UI channel, the bench console, SENSOR values on `0x124` (the
+  delivered pull-ups invert the old pull-down wiring, so the old thermistor maths and `*_INVERT_ADC` go away);
 - the odometer: a blank FRAM is seeded with `ODO_INITIAL_TENTHS`; set the car's mileage there (or add a command) when
   a card is replaced.
 

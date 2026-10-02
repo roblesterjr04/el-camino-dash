@@ -21,8 +21,8 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,JP3,"(PCB solder jumper, no part)",ETEMP topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
 1,JP4,"(PCB solder jumper, no part)",OILP topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
 1,JP5,"(PCB solder jumper, no part)",AMB topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
-1,JP6,"(PCB solder jumper, no part)",FUEL 100 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
-1,JP7,"(PCB solder jumper, no part)",FUEL 220 select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP6,"(PCB solder jumper, no part)",FUEL 100 select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP7,"(PCB solder jumper, no part)",FUEL 220 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
 1,JP8,"(PCB solder jumper, no part)",FUEL 470 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
 1,JP9,"(PCB solder jumper, no part)",ETEMP 220 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
 1,JP10,"(PCB solder jumper, no part)",ETEMP 1k select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
@@ -46,7 +46,7 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,R7,"47k resistor, 0603, 1%, 0.1 W",WAKE into the 2560 (series: the line may be up while the 2560 is unpowered),0603,SMD,Top,
 11,R9 R16 R18 R20 R26 R29 R33 R34 R35 R36 R44,"1k resistor, 0603, 1%, 0.1 W",1k resistor,0603,SMD,Top,
 1,R15,"100 resistor, 0603, 1%, 0.1 W",Series R on the serial out (a wire leaves the card),0603,SMD,Top,
-1,R22,"100 resistor, 2010, 1%, 0.5 W","FUEL bank, 100: 0-30R senders (original GM); 2010 for 0.25 W into a shorted sender",2010,SMD,Top,Sender bias bank: selected by a solder jumper
+1,R22,"100 resistor, 2010, 1%, 0.5 W","FUEL bank, 100: 0-30R senders (the factory 1964 GM sender); 2010 for 0.25 W into a shorted sender",2010,SMD,Top,Sender bias bank: selected by a solder jumper
 3,R23 R25 R28,"220 resistor, 1206, 1%, 0.25 W",220 resistor,1206,SMD,Top,
 1,R24,"470 resistor, 0805, 1%, 0.125 W","FUEL bank, 470: 240-33R senders",0805,SMD,Top,Sender bias bank: selected by a solder jumper
 2,R41 R42,"4.7k resistor, 1206, 1%, 0.25 W",4.7k resistor,1206,SMD,Top,

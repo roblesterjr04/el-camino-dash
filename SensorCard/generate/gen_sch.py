@@ -446,7 +446,7 @@ place(HDR[12], 'J2', 'Senders', 'Connector_JST:JST_PH_S12B-PH-K_1x12_P2.00mm_Hor
        '7': 'OIL_PRESSURE_VIN', '8': 'GND', '9': 'AMB_TEMP', '10': 'GND', '11': 'ALT_L_IN', '12': 'GND'},
       descr='Senders: 1 FUEL, 2 FUEL return, 3 ETEMP, 4 ETEMP V (5 V, 0.1 A PTC), 5 ETEMP return, 6 OILP, 7 OILP V (5 V, 0.1 A PTC), '
             '8 OILP return, 9 AMB, 10 AMB return, 11 ALT L (alternator lamp terminal, 12 V level), 12 GND')
-text(cur[0].x0 + 200, cur[0].y0 + 6, 'As delivered: every channel pull-up (topology jumper 1-2); FUEL 220R, ETEMP 1k, OILP 220R, AMB 100k bridged.\\n'
+text(cur[0].x0 + 200, cur[0].y0 + 6, 'As delivered: every channel pull-up (topology jumper 1-2); FUEL 100R (the factory 0-30R sender), ETEMP 1k, OILP 220R, AMB 100k bridged.\\n'
      'Pull-up mode: any resistive sender whose other end is ground (the block, the tank, or its return pin). Pull-down mode: a sender fed '
      'from the channel\'s V pin, or a 3-wire 0.5-4.5 V transducer (OILP 100k as a light load; or no value bridged).\\n'
      'The pull-ups come straight from +5 V, not through the PTCs (their drop would read as level error). Sender selection: SensorCard/DATASHEET.md.', 1.6)
@@ -459,8 +459,8 @@ r_('1k', 'OIL_PRESSURE_VIN', 'PRESS_MON', 'Oil feed monitor')
 r_('10k', 'PRESS_MON', 'GND', 'Monitor pull-down')
 # the banks: (channel net, short name, topology jumper, [(value, footprint, jumper ref, bridged as delivered, note)])
 BANKS = [
-    ('FUEL', 'FUEL', 'JP2', [('100', FP_R2010, 'JP6', False, '0-30R senders (original GM); 2010 for 0.25 W into a shorted sender'),
-                              ('220', FP_R1206, 'JP7', True, '0-90R senders (GM 1965 on), 10-180R'),
+    ('FUEL', 'FUEL', 'JP2', [('100', FP_R2010, 'JP6', True, '0-30R senders (the factory 1964 GM sender); 2010 for 0.25 W into a shorted sender'),
+                              ('220', FP_R1206, 'JP7', False, '0-90R senders (GM 1965 on), 10-180R'),
                               ('470', FP_R0805, 'JP8', False, '240-33R senders')]),
     ('ENGINE_TEMP', 'ETEMP', 'JP3', [('220', FP_R1206, 'JP9', False, 'gauge senders that read tens of ohms hot'),
                                     ('1k', FP_R, 'JP10', True, 'senders of a few hundred ohms near 100 C (2-wire EFI CTS)'),
