@@ -251,7 +251,7 @@ FP_SOIC = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_SOT23 = 'Package_TO_SOT_SMD:SOT-23'
 FP_SOD123 = 'Diode_SMD:D_SOD-123'
 FP_PH = 'Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal'
-FP_RJ = 'Connector_RJ:RJ14_Connfly_DS1133-S4_Horizontal'
+FP_RJ = 'ConsoleBoard4Key:RJ11_Wayconn_MJBA-640_Vertical'
 FP_KEY = 'ConsoleBoard4Key:SW_TL1240YQ'
 FP_SW = 'Button_Switch_SMD:SW_SPST_PTS810'
 
@@ -391,9 +391,9 @@ for k in range(4):
           {'1': 'GND', '2': 'GND', '3': 'KEY%d' % (k + 1), '4': 'KEY%d' % (k + 1), 'A': 'LED_A%d' % (k + 1), 'K': 'LED_K'},
           descr='Soft key %d (top to bottom): E-Switch TL1240YQ, illuminated, yellow' % (k + 1))
 place(HDR4, 'J4', 'Select knob (RJ11)', FP_RJ, 240, 300, {'1': 'GND', '2': 'SEL_3', '3': 'SEL_4', '4': 'GND'},
-      descr='RJ11 6P4C jack (footprint pins 1-4 = jack contacts 2-5): 2 black GND, 3 red encoder, 4 green switches, 5 yellow GND')
+      descr='RJ11 6P4C top-entry jack, Wayconn MJBA-640 (footprint pins 1-4 = jack contacts 2-5): 2 black GND, 3 red encoder, 4 green switches, 5 yellow GND')
 place(HDR4, 'J5', 'Volume knob (RJ11)', FP_RJ, 290, 300, {'1': 'GND', '2': 'VOL_3', '3': 'VOL_4', '4': 'GND'},
-      descr='RJ11 6P4C jack (footprint pins 1-4 = jack contacts 2-5): 2 black GND, 3 red encoder, 4 green switches, 5 yellow GND')
+      descr='RJ11 6P4C top-entry jack, Wayconn MJBA-640 (footprint pins 1-4 = jack contacts 2-5): 2 black GND, 3 red encoder, 4 green switches, 5 yellow GND')
 place(HDR3, 'J6', 'IR receiver', 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical', 340, 300,
       {'1': 'GND', '2': '+3V3', '3': 'IR_IN'}, descr='Optional IR demodulator (as on the encoder_controller firmware): GND, 3.3 V, OUT')
 for i, n in enumerate(['KEY1', 'KEY2', 'KEY3', 'KEY4', 'SEL_3', 'SEL_4', 'VOL_3', 'VOL_4', 'IR_IN']):

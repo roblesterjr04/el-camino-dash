@@ -86,9 +86,9 @@ def load(fpid):
 # (ref: (x, y, rotation, side)); side 'B' parts are flipped to the bottom (mirrored left-right, so a connector's origin
 # is at the right end of its pins).
 BOT = H                             # bottom edge
-RJ_X = (58.0, 73.5)                # the two RJ11 jacks' body centres, clear of the ESP32 (they reach 13.5 mm in)
-RJ_DX = 1.53                       # pin 1 to the body centre (the Connfly body runs -4.72 ... 7.78 from pin 1; mirrored on the back)
-RJ_FRONT = 8.55                    # pin 1 to the jack's front face, which sits on the bottom edge
+RJ_X = (58.0, 74.0)                # the two top-entry RJ11 jacks (plugs go in from behind the board): centre lines
+RJ_BODY = (-1.75, 14.63)           # the MJBA-640 body from its first contact row (see gen_footprints.py)
+RJ_Y = H - 1.0 - RJ_BODY[1]        # first contact row: the bodies end 1 mm above the bottom edge
 U1_X = 26.0                     # the ESP32-S3 module: right of the keys' pins and clear of the left M2 holes
 FIXED = {
     'J1': (HDR_X0, HDR_Y, 0, 'F'),         # socket pad 1 top right of the pair (module pin 1 = pad 2, see gen_sch.py)
@@ -99,8 +99,8 @@ FIXED = {
     'SW6': (KEY_X, KEY_Y[3], 0, 'F'),
     'J3': (23.5, BOT - 4.8, 0, 'B'),       # CAN cable, side entry, opening past the bottom edge
     'J2': (42.0, BOT - 3.7, 0, 'B'),       # USB-C
-    'J4': (RJ_X[0] - RJ_DX, BOT - RJ_FRONT, 180, 'B'),   # Select knob, RJ11 (6P4C), plug from the bottom edge
-    'J5': (RJ_X[1] - RJ_DX, BOT - RJ_FRONT, 180, 'B'),   # Volume knob
+    'J4': (RJ_X[0], RJ_Y, 0, 'B'),        # Select knob, RJ11 6P4C, top entry
+    'J5': (RJ_X[1], RJ_Y, 0, 'B'),        # Volume knob
     'J6': (93.0, BOT - 2.5, 90, 'B'),      # IR header
     'SW1': (42.0, 5.5, 0, 'B'),            # RESET
     'SW2': (42.0, 11.0, 0, 'B'),           # BOOT
@@ -268,7 +268,7 @@ def main():
         mark(ref)
     occ['B'].rect(FIXED['J3'][0] - 9.5, BOT - 8.7, FIXED['J3'][0] + 3.5, BOT - 7.3)   # the CAN caption, between the ESP32 and J3
     for cx in RJ_X:                       # the knob captions, above the RJ11 jacks
-        occ['B'].rect(cx - 5.0, BOT - 15.3, cx + 5.0, BOT - 13.7)
+        occ['B'].rect(cx - 5.0, RJ_Y + RJ_BODY[0] - 3.4, cx + 5.0, RJ_Y + RJ_BODY[0] - 1.8)
     occ['B'].rect(FIXED['J2'][0] - 3.0, BOT - 10.3, FIXED['J2'][0] + 3.0, BOT - 8.9)
     occ['B'].rect(FIXED['J6'][0] - 1.5, BOT - 6.2, FIXED['J6'][0] + 6.5, BOT - 4.6)   # the IR header's caption
     for swref in ('SW1', 'SW2'):          # the RST / BOOT captions beside the two buttons
@@ -383,8 +383,8 @@ def main():
     silk('OLED', W - 9.0, MY + SCREEN_H - 1.2, 0.8)
     silk('CONSOLE 4K', 70.0, 1.6, 0.8, BS)
     silk('CAN 5V H L G', FIXED['J3'][0] - 3.0, BOT - 8.0, 0.7, BS)
-    silk('SELECT KNOB', RJ_X[0], BOT - 14.5, 0.7, BS)
-    silk('VOLUME KNOB', RJ_X[1], BOT - 14.5, 0.7, BS)
+    silk('SELECT KNOB', RJ_X[0], RJ_Y + RJ_BODY[0] - 2.6, 0.7, BS)
+    silk('VOLUME KNOB', RJ_X[1], RJ_Y + RJ_BODY[0] - 2.6, 0.7, BS)
     silk('USB', FIXED['J2'][0], BOT - 9.6, 0.7, BS)
     silk('IR G 3 O', FIXED['J6'][0] + 2.5, BOT - 5.4, 0.7, BS)
     silk('RST', FIXED['SW1'][0] + 6.5, 5.5, 0.7, BS)

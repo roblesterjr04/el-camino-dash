@@ -160,12 +160,12 @@
   "value": "CAN to DigiDash"
  },
  "J4": {
-  "fp": "Connector_RJ:RJ14_Connfly_DS1133-S4_Horizontal",
+  "fp": "ConsoleBoard4Key:RJ11_Wayconn_MJBA-640_Vertical",
   "group": "ui",
   "value": "Select knob (RJ11)"
  },
  "J5": {
-  "fp": "Connector_RJ:RJ14_Connfly_DS1133-S4_Horizontal",
+  "fp": "ConsoleBoard4Key:RJ11_Wayconn_MJBA-640_Vertical",
   "group": "ui",
   "value": "Volume knob (RJ11)"
  },

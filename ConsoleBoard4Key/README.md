@@ -9,7 +9,7 @@ instead of the Back / View keys under it, no separate LEDs, and **two RJ11 jacks
 | Files | |
 | --- | --- |
 | `ConsoleBoard4Key.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 108.0 × 35.0 mm, 4 layers, parts on both sides. KiCad 10 |
-| `ConsoleBoard4Key.pretty` | The TL1240YQ footprint (E-Switch drawing P010363 rev E). Everything else is stock KiCad |
+| `ConsoleBoard4Key.pretty` | The TL1240YQ (E-Switch drawing P010363 rev E) and MJBA-640 RJ11 (Wayconn drawing MJBA-XXXXXX rev A) footprints. Everything else is stock KiCad |
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
 | `ConsoleBoard4Key_BOM.csv`, `fab/` | BOM, Gerbers / drill, placement and centroid, PCBWay BOM |
 
@@ -42,11 +42,13 @@ instead of the Back / View keys under it, no separate LEDs, and **two RJ11 jacks
   down the screen's left edge (top key = top label), not level with each key.
 - **Front** (module side): J1, the four M2 holes and the four keys. **Back:** the ESP32 module (antenna on the top
   edge, behind the keys' column), RESET / BOOT, USB-C, the CAN cable, the two RJ11 jacks, the IR header and all the
-  passives. The connectors are along the bottom edge, plugs entering from below; left to right seen from the front:
-  CAN (J3, under the ESP32), USB-C (J2), Select knob (J4), Volume knob (J5), IR (J6).
-- **RJ11 jacks:** Connfly DS1133-S4 (6P4C), 12.5 mm wide and 13.5 mm deep, front face on the bottom edge, centred at
-  x = 58.0 and 73.5 mm. They are the tallest parts on the back (check the housing depth behind the board), and the
-  housing's bottom wall needs two openings for the plugs.
+  passives. CAN (J3, under the ESP32), USB-C (J2) and the IR header (J6) are on the bottom edge, plugs entering from
+  below; the two knob jacks (J4 Select, J5 Volume) face out of the back.
+- **RJ11 jacks:** Wayconn MJBA-640 (6P4C, top entry), 13.46 × 16.38 mm on the board and 16.5 mm tall, on the back with
+  their openings facing away from the board: the plugs go in from behind, straight toward the board. Centre lines at
+  x = 58.0 and 74.0 mm (seen from the front); the bodies end 1 mm above the bottom edge. The drawing does not tie the
+  body to the holes, so the footprint takes it to start 1.75 mm before the first contact row and run back over the
+  pegs (courtyard 0.5 mm bigger all round): check this against a jack in hand.
 
 ## Schematic blocks
 
@@ -54,7 +56,7 @@ As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, 
 
 | Block | Parts | Notes |
 | --- | --- | --- |
-| Knobs | J4 Select, J5 Volume: RJ11 6P4C jacks; contacts 2 and 5 to GND, 3 and 4 to ADC1 with a 33k pull-up + 10 nF each | See [Knobs](#knobs-rj11) |
+| Knobs | J4 Select, J5 Volume: RJ11 6P4C top-entry jacks; contacts 2 and 5 to GND, 3 and 4 to ADC1 with a 33k pull-up + 10 nF each | See [Knobs](#knobs-rj11) |
 | Keys | SW3-SW6 TL1240YQ (keys 1-4, top to bottom) to GND, 10k pull-up + 10 nF on each | Pins 1 / 2 and 3 / 4 are each one contact; 1 / 2 go to GND |
 | Key LEDs | The yellow LED in each key (10 mA max, 2.5 V), 100 Ω each from `+3V3` (about 8 mA), Q1 2N7002 on the low side, 100k gate pull-down | GPIO 38 PWM (LEDC) dims all four, as the four separate LEDs were. Square pad = anode (+) |
 
