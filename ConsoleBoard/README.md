@@ -4,6 +4,9 @@ The console's own board (CAN node `0x13`): a bare **ESP32-S3-WROOM-1-N8** (no de
 female 2 × 8 socket the 100 × 33.5 mm **SSD1322 256 × 64 OLED** module plugs into, **Back** and **View** keys, four yellow LEDs (to match the yellow OLED), and top-entry
 connectors for the **Select** and **Volume** encoders. One 4-wire cable goes to a DigiDash cable port.
 
+For the 111.5 × 38.5 mm housing there is a variant with the same OLED and four lit soft keys beside it:
+[`ConsoleBoard4Key/`](../ConsoleBoard4Key/).
+
 | Files | |
 | --- | --- |
 | `ConsoleBoard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 100.0 × 50.0 mm, 4 layers, parts on both sides. KiCad 10 |
