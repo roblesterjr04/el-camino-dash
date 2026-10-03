@@ -13,6 +13,7 @@
 
 #include "center_camera.h"
 #include "center_menu.h"
+#include "center_store.h"
 #include "center_time.h"
 #include "center_ui.h"
 
@@ -72,6 +73,8 @@ void send_defines() {
     ch->send(ELC_CH_SENSOR, w);
   }
 }
+
+void on_transfer(const ElcChTransfer &t, void *) { center_store_transfer(t); }
 
 void on_describe(uint8_t what, void *) {
   if (what & ELC_NET_Q_SENSORS) send_defines();
@@ -187,7 +190,10 @@ void send_prefs(ElcChannels *ch, bool force) {
 
 }  // namespace
 
-void center_chan_begin() { chan_screen_on_describe(on_describe, nullptr); }
+void center_chan_begin() {
+  chan_screen_on_describe(on_describe, nullptr);
+  chan_screen_on_transfer(on_transfer, nullptr);
+}
 
 void center_chan_loop(uint32_t now) {
   ElcChannels *ch = chan_screen();

@@ -22,7 +22,8 @@ void chan_screen_poll(uint32_t now_ms);
 /** The board's channel node (nullptr before begin). */
 ElcChannels *chan_screen();
 
-/** Called with every transfer after the built-in handling (the center adds its own: alerts, settings backup). */
+/** Called with every transfer after the built-in handling (the center adds its own: the store, later alerts and the
+ *  settings backup). */
 void chan_screen_on_transfer(void (*fn)(const ElcChTransfer &t, void *ctx), void *ctx);
 /** Called when a node asks for this screen's descriptions (QUERY bits 1-3) and at boot. */
 void chan_screen_on_describe(void (*fn)(uint8_t what, void *ctx), void *ctx);

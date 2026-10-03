@@ -383,3 +383,106 @@ void elc_ui_format(int32_t value, int8_t exponent, char *out, size_t cap) {
 
 // (copy() kept for callers that fill fixed text fields)
 void elc_ch_copy_text(char *dst, size_t cap, const char *src) { copy(dst, cap, src); }
+
+// ---- STORE
+
+static void put_key(ElcChWriter &w, const char *key) {
+  const size_t n = strnlen(key, ELC_STORE_KEY_MAX);
+  w.u8((uint8_t)n).bytes(key, n);
+}
+
+static bool get_key(ElcChReader &r, char *key) {
+  const uint8_t n = r.u8();
+  if (!r.ok() || r.left() < n) return false;
+  const uint8_t *p = r.rest();
+  for (uint8_t i = 0; i < n; i++) r.u8();
+  if (n > ELC_STORE_KEY_MAX) {
+    key[0] = 0;
+    return true;
+  }
+  memcpy(key, p, n);
+  key[n] = 0;
+  return true;
+}
+
+void elc_store_encode(const ElcStorePut &v, ElcChWriter &w) {
+  w.u8(ELC_STORE_PUT).u8(v.dest).u8(v.tag).u8(v.mode);
+  put_key(w, v.key);
+  w.bytes(v.data, v.len);
+}
+void elc_store_encode(const ElcStoreGet &v, ElcChWriter &w) {
+  w.u8(ELC_STORE_GET).u8(v.dest).u8(v.tag).u32(v.offset).u8(v.max);
+  put_key(w, v.key);
+}
+void elc_store_encode(const ElcStoreDelete &v, ElcChWriter &w) {
+  w.u8(ELC_STORE_DELETE).u8(v.dest).u8(v.tag);
+  put_key(w, v.key);
+}
+void elc_store_encode(const ElcStoreResult &v, ElcChWriter &w) {
+  w.u8(ELC_STORE_RESULT).u8(v.dest).u8(v.tag).u8(v.result).u32(v.size);
+}
+void elc_store_encode(const ElcStoreData &v, ElcChWriter &w) {
+  w.u8(ELC_STORE_DATA).u8(v.dest).u8(v.tag).u8(v.result).u32(v.size).u32(v.offset).bytes(v.data, v.len);
+}
+
+bool elc_store_decode(const ElcChTransfer &t, ElcStorePut &v) {
+  ElcChReader r(nullptr, 0);
+  if (!open(t, ELC_CH_STORE, ELC_STORE_PUT, r)) return false;
+  v.dest = r.u8();
+  v.tag = r.u8();
+  v.mode = r.u8();
+  if (!r.ok() || !get_key(r, v.key)) return false;
+  v.data = r.rest();
+  v.len = r.left();
+  return true;
+}
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreGet &v) {
+  ElcChReader r(nullptr, 0);
+  if (!open(t, ELC_CH_STORE, ELC_STORE_GET, r)) return false;
+  v.dest = r.u8();
+  v.tag = r.u8();
+  v.offset = r.u32();
+  v.max = r.u8();
+  return r.ok() && get_key(r, v.key);
+}
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreDelete &v) {
+  ElcChReader r(nullptr, 0);
+  if (!open(t, ELC_CH_STORE, ELC_STORE_DELETE, r)) return false;
+  v.dest = r.u8();
+  v.tag = r.u8();
+  return r.ok() && get_key(r, v.key);
+}
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreResult &v) {
+  ElcChReader r(nullptr, 0);
+  if (!open(t, ELC_CH_STORE, ELC_STORE_RESULT, r)) return false;
+  v.dest = r.u8();
+  v.tag = r.u8();
+  v.result = r.u8();
+  v.size = r.u32();
+  return r.ok();
+}
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreData &v) {
+  ElcChReader r(nullptr, 0);
+  if (!open(t, ELC_CH_STORE, ELC_STORE_DATA, r)) return false;
+  v.dest = r.u8();
+  v.tag = r.u8();
+  v.result = r.u8();
+  v.size = r.u32();
+  v.offset = r.u32();
+  if (!r.ok()) return false;
+  v.data = r.rest();
+  v.len = r.left();
+  return true;
+}
+
+bool elc_store_key_ok(const char *key) {
+  if (!key || !key[0] || key[0] == '.') return false;
+  size_t n = 0;
+  for (; key[n]; n++) {
+    const char c = key[n];
+    const bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' ||
+                    c == '-' || c == '.';
+    if (!ok || n >= ELC_STORE_KEY_MAX) return false;
+  }
+  return true;
+}

@@ -84,6 +84,8 @@ static bool json_get_u8_field(const String &j, const char *field, uint8_t *out) 
 
 #endif
 
+bool center_sd_mounted() { return s_sd_mounted; }
+
 void center_sd_settings_begin() {
 #if defined(BOARD_HAS_SDMMC) && defined(SOC_SDMMC_HOST_SUPPORTED)
 #if defined(TSPS_WAVESHARE_3C4)

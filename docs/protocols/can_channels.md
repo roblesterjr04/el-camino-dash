@@ -17,6 +17,7 @@ document defines that interface as a set of **channels**, one per dash service, 
 | AUDIO_CMD | Play and stop sounds from the sink's library; volume, media transport | audio sink |
 | AUDIO_STREAM | Stream a voice-quality sound (short, one at a time) | audio sink |
 | SYSTEM | Time, ignition, lights, reverse, speed, units, dimming, power-down notice | center |
+| STORE | Keep named records (settings, trip logs, counters, anything) on the center's SD card, and read them back | center |
 | BULK | Move files: sound clips to the sink, later firmware images | whoever owns the object |
 | NET, LOG | Discovery, capabilities, identify, text logs to the center's SD card | everyone / center |
 
@@ -73,7 +74,8 @@ The 11-bit ID space, lowest (highest priority) first. Channel number = ID >> 5; 
 | `0x200`–`0x23F` | 16–17 | legacy cluster state, requests, center status, GPS reserve | legacy |
 | `0x240`–`0x25F` | 18 | **AUDIO_CMD** | transfer |
 | `0x260`–`0x27F` | 19 | **UI** | transfer |
-| `0x280`–`0x2FF` | 20–23 | reserved | |
+| `0x280`–`0x29F` | 20 | **STORE** | transfer |
+| `0x2A0`–`0x2FF` | 21–23 | reserved | |
 | `0x300`–`0x31F` | 24 | **AUDIO_STREAM** | raw |
 | `0x320`–`0x33F` | 25 | **BULK** (control) | transfer |
 | `0x340`–`0x35F` | 26 | **BULK_DATA** | raw |
@@ -492,6 +494,37 @@ For audio an accessory generates and the sink cannot have stored (a voice prompt
   200 ms closes the stream; so does 30 s without STREAM_CLOSE unless the sink allows longer.
 - While a 16 kHz stream is open, BULK and album art halve their pace so the bus stays under about 70 %.
 
+## STORE (`0x280 + node`)
+
+Any node can keep data on the center's SD card: a setting it has no flash for, a trip log it appends to, a counter
+that must survive a board swap. The center is the store: it is the node that announces it **consumes STORE**
+(clients find it with that, not by node number). Requests are addressed; the store answers every one, to the asker.
+
+| Op | Name | Sender | Payload after the opcode |
+| --- | --- | --- | --- |
+| `0x81` | PUT | any | dest u8 (the store), tag u8, mode u8 (0 replace, 1 append), key length u8, key, data (the rest, up to 251 − key length bytes) |
+| `0x82` | GET | any | dest u8, tag u8, offset u32, max u8 (bytes wanted, 0 = as many as fit), key length u8, key |
+| `0x83` | DELETE | any | dest u8, tag u8, key length u8, key |
+| `0x88` | RESULT | store | dest u8 (the asker), tag u8, result u8, size u32 (the record's size now) |
+| `0x89` | DATA | store | dest u8 (the asker), tag u8, result u8, size u32 (the whole record), offset u32, data (≤ 244 bytes) |
+
+- **A node only ever reaches its own records.** The store files them by the sender's ANNOUNCE as
+  `/elcamino/store/<product>_<node>/<key>` (hex, e.g. `0005_14/trip.log`), so, as with the settings backup, a
+  replacement board of the same product at the same node number finds them again. A request from a node the store
+  has not heard announce is answered BUSY, and the store QUERYs it; retry after about 1 s.
+- **Keys** are 1–24 characters of `A–Z a–z 0–9 _ - .`, not starting with `.` (they are file names). Records are
+  opaque bytes: the store never looks inside.
+- **Larger than one transfer:** write the first piece with PUT replace and the rest with PUT append; read with GET at
+  increasing offsets until offset + length reaches size. GET at offset = size returns no data and result 0.
+- **tag** is the client's own number, echoed in the answer. Keep **one request outstanding** per node and wait for
+  its answer (or 500 ms) before the next: that paces the bus and the SD card, and keeps appends in order. A retried
+  frame is not appended twice (the transfer layer drops duplicates), but a request repeated after a lost answer is:
+  GET the size first when it matters.
+- **Limits:** 64 KB per record, 64 records per node. **Results:** 0 ok, 1 not found, 2 bad key, 3 full (record or
+  node limit), 4 no SD card, 5 busy (ANNOUNCE first), 6 I/O error, 7 bad request (malformed, unknown mode, offset
+  past the end).
+- The center's console shows the counters and every node's records (`store`).
+
 ## BULK (`0x320 + node` control, `0x340 + node` data)
 
 Moving objects larger than a transfer: a sound clip to the sink, later a firmware image to an accessory. It
@@ -689,7 +722,7 @@ change to any other firmware: the audio sink and the menu screen already listen 
 | --- | --- |
 | Legacy sensor, cluster, heartbeats, audio transport (today) | ~5 % |
 | Core sensors on SENSOR (center) | ~2 % |
-| SYSTEM, ALERT, INPUT, UI, NET, LOG, ONLINE | < 1 % |
+| SYSTEM, ALERT, INPUT, UI, STORE, NET, LOG, ONLINE | < 1 % |
 | Accessory sensors (budget: 20 values at 10 Hz) | ~6 % |
 | BULK and album art together (paced, only while transferring) | ≤ 34 % |
 | AUDIO_STREAM, one at a time (8 kHz / 16 kHz) | 16 % / 31 % |
@@ -704,6 +737,7 @@ by bulk and stream traffic anyway, because those have the higher IDs.
 | Minimum | heartbeat (flags bit0), NET ANNOUNCE / QUERY / IDENTIFY |
 | Per service | the channels it announces as produced or consumed, with their repeat rules |
 | Recommended | LOG, and SYSTEM POWER (save state before the rail drops) |
+| Optional | STORE, for anything a board wants kept off-board |
 
 ## Order of work (when firmware starts)
 

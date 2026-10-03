@@ -25,6 +25,7 @@
 #include "center_gps.h"
 #include "center_sd_settings.h"
 #include "center_shell.h"
+#include "center_store.h"
 #include "center_time.h"
 #include "center_ui.h"
 #include "display_main.h"
@@ -119,6 +120,7 @@ void center_setup() {
   cluster_i2c_master_begin();
   center_can_begin();
   center_chan_begin();  // core sensors and SYSTEM on the channel protocol
+  center_store_begin();  // any node's records on the SD card (STORE channel)
   center_ui_sync_cluster_bus();
   elc_loop_watchdog_begin();
 }

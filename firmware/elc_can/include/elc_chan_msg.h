@@ -1,6 +1,6 @@
 #pragma once
 
-// Messages on the channels (docs/protocols/can_channels.md): SYSTEM, LOG, SENSOR, ALERT, INPUT, AUDIO_CMD, UI.
+// Messages on the channels (docs/protocols/can_channels.md): SYSTEM, LOG, SENSOR, ALERT, INPUT, AUDIO_CMD, UI, STORE.
 // Each encode_* builds a transfer payload (send it with ElcChannels::send(base, writer)); each decode_* reads one from
 // a received transfer and returns false when the opcode or length is wrong. Trailing bytes a later version adds are
 // ignored. No Arduino dependencies: host-tested.
@@ -183,6 +183,54 @@ bool elc_ui_decode(const ElcChTransfer &t, ElcUiText &v);
 bool elc_ui_decode(const ElcChTransfer &t, ElcUiResult &v);
 bool elc_ui_decode(const ElcChTransfer &t, ElcUiSet &v);
 bool elc_ui_decode(const ElcChTransfer &t, ElcUiView &v);
+// ---- STORE (0x280 + node): records a node keeps in the center's store (its SD card) ----
+// Requests are addressed to the store (the node that consumes STORE: the center); it answers each one, to the asker,
+// with RESULT (PUT, DELETE) or DATA (GET). A node only ever reaches its own records.
+static const uint8_t ELC_STORE_PUT = 0x81, ELC_STORE_GET = 0x82, ELC_STORE_DELETE = 0x83, ELC_STORE_RESULT = 0x88,
+                     ELC_STORE_DATA = 0x89;
+static const uint8_t ELC_STORE_REPLACE = 0, ELC_STORE_APPEND = 1;
+static const uint8_t ELC_STORE_OK = 0, ELC_STORE_NOT_FOUND = 1, ELC_STORE_BAD_KEY = 2, ELC_STORE_FULL = 3,
+                     ELC_STORE_NO_MEDIA = 4, ELC_STORE_BUSY = 5, ELC_STORE_IO = 6, ELC_STORE_BAD = 7;
+static const size_t ELC_STORE_KEY_MAX = 24;
+static const uint32_t ELC_STORE_RECORD_MAX = 65536;  // bytes per record
+static const int ELC_STORE_RECORDS_MAX = 64;         // records per node
+/** Most bytes one DATA carries (256 - op, dest, tag, result, size, offset). */
+static const size_t ELC_STORE_DATA_MAX = ELC_CH_MAX_PAYLOAD - 12;
+struct ElcStorePut {
+  uint8_t dest = 0, tag = 0, mode = ELC_STORE_REPLACE;
+  char key[ELC_STORE_KEY_MAX + 1] = {0};
+  const uint8_t *data = nullptr;  // decode: points into the transfer
+  size_t len = 0;
+};
+struct ElcStoreGet {
+  uint8_t dest = 0, tag = 0;
+  uint32_t offset = 0;
+  uint8_t max = 0;  // 0 = as much as one DATA carries
+  char key[ELC_STORE_KEY_MAX + 1] = {0};
+};
+struct ElcStoreDelete { uint8_t dest = 0, tag = 0; char key[ELC_STORE_KEY_MAX + 1] = {0}; };
+struct ElcStoreResult { uint8_t dest = 0, tag = 0, result = 0; uint32_t size = 0; };
+struct ElcStoreData {
+  uint8_t dest = 0, tag = 0, result = 0;
+  uint32_t size = 0, offset = 0;
+  const uint8_t *data = nullptr;  // decode: points into the transfer
+  size_t len = 0;
+};
+void elc_store_encode(const ElcStorePut &v, ElcChWriter &w);
+void elc_store_encode(const ElcStoreGet &v, ElcChWriter &w);
+void elc_store_encode(const ElcStoreDelete &v, ElcChWriter &w);
+void elc_store_encode(const ElcStoreResult &v, ElcChWriter &w);
+void elc_store_encode(const ElcStoreData &v, ElcChWriter &w);
+/** A key longer than ELC_STORE_KEY_MAX decodes as "" (which elc_store_key_ok rejects), so the store can answer
+ *  BAD_KEY rather than act on a cut name. */
+bool elc_store_decode(const ElcChTransfer &t, ElcStorePut &v);
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreGet &v);
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreDelete &v);
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreResult &v);
+bool elc_store_decode(const ElcChTransfer &t, ElcStoreData &v);
+/** 1-24 characters of A-Z a-z 0-9 _ - . and not starting with '.': safe as a file name. */
+bool elc_store_key_ok(const char *key);
+
 /** Copies text into a fixed field, cut to cap - 1, NUL-terminated. */
 void elc_ch_copy_text(char *dst, size_t cap, const char *src);
 /** "94.7" from value 947, exponent -1. */

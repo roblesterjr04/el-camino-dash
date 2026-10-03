@@ -19,6 +19,7 @@ static const uint16_t ELC_CH_SYSTEM = 0x060;
 static const uint16_t ELC_CH_SENSOR = 0x120;
 static const uint16_t ELC_CH_AUDIO_CMD = 0x240;
 static const uint16_t ELC_CH_UI = 0x260;
+static const uint16_t ELC_CH_STORE = 0x280;
 static const uint16_t ELC_CH_AUDIO_STREAM = 0x300;  // raw (no tail byte)
 static const uint16_t ELC_CH_BULK = 0x320;
 static const uint16_t ELC_CH_BULK_DATA = 0x340;     // raw
@@ -119,6 +120,8 @@ class ElcChReader {
   /** Text up to the next NUL (consumed) or the end. */
   size_t field(char *out, size_t cap);
   size_t left() const { return _n - _i; }
+  /** The unread bytes (left() of them), for binary payloads. */
+  const uint8_t *rest() const { return _p + _i; }
   bool ok() const { return !_short; }
 
  private:

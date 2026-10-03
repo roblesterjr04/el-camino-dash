@@ -11,7 +11,7 @@ uint16_t elc_ch_base(uint16_t id) {
   const uint16_t base = id & ~0x1F;
   switch (base) {
     case ELC_CH_ALERT: case ELC_CH_INPUT: case ELC_CH_SYSTEM: case ELC_CH_SENSOR: case ELC_CH_AUDIO_CMD:
-    case ELC_CH_UI: case ELC_CH_BULK: case ELC_CH_ONLINE: case ELC_CH_NET: case ELC_CH_LOG:
+    case ELC_CH_UI: case ELC_CH_STORE: case ELC_CH_BULK: case ELC_CH_ONLINE: case ELC_CH_NET: case ELC_CH_LOG:
       return base;
     default:
       return 0;

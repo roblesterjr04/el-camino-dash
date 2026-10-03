@@ -78,13 +78,15 @@ void chan_screen_begin(ElcCan &can, uint8_t screen) {
   me.fw = ELC_CAN_FW_VERSION;
   me.uid = unique_id();
   // Every screen can be the menu screen: it sends UI SET / VIEW and reads every accessory's UI, alerts and
-  // sensors. The center also owns SYSTEM, the core SENSOR readings and the alert manager, and logs LOG lines.
+  // sensors. The center also owns SYSTEM, the core SENSOR readings and the alert manager, logs LOG lines and keeps
+  // every node's STORE records.
   me.produces = elc_ch_bit(ELC_CH_UI);
   me.consumes = elc_ch_bit(ELC_CH_UI) | elc_ch_bit(ELC_CH_ALERT) | elc_ch_bit(ELC_CH_SENSOR) | elc_ch_bit(ELC_CH_SYSTEM) |
                 elc_ch_bit(ELC_CH_INPUT);
   if (center) {
-    me.produces |= elc_ch_bit(ELC_CH_SYSTEM) | elc_ch_bit(ELC_CH_SENSOR) | elc_ch_bit(ELC_CH_ALERT);
-    me.consumes |= elc_ch_bit(ELC_CH_LOG);
+    me.produces |= elc_ch_bit(ELC_CH_SYSTEM) | elc_ch_bit(ELC_CH_SENSOR) | elc_ch_bit(ELC_CH_ALERT) |
+                   elc_ch_bit(ELC_CH_STORE);
+    me.consumes |= elc_ch_bit(ELC_CH_LOG) | elc_ch_bit(ELC_CH_STORE);  // the store: findConsumer(ELC_CH_STORE)
   }
   snprintf(me.name, sizeof(me.name), "%s screen",
            center ? "Center" : (screen == ELC_CAN_SCREEN_LEFT ? "Left" : "Right"));

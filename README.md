@@ -32,7 +32,7 @@ board on a short cable to cable port J17; accessories never terminate the bus, s
 See `docs/protocols/can_bus.md`.
 
 - **sensor_pack** is the source of truth for all readings and the odometer. One TX fans out to all three displays; only the center sends the 0xA5 keepalive back.
-- **center** also owns GPS time/location, the time zone (`tz` on its serial console), touch menu, BLE, SD settings, and theme sync to the other two displays. The cluster never uses Wi-Fi.
+- **center** also owns GPS time/location, the time zone (`tz` on its serial console), touch menu, BLE, SD settings, and theme sync to the other two displays. It is also the bus's store: any module can save and read back records on its SD card over the STORE channel (`docs/protocols/can_channels.md`). The cluster never uses Wi-Fi.
 - If sensor data stops arriving for 400 ms, the gauges dim and show **NO DATA** instead of reading zero.
 
 ## Repository

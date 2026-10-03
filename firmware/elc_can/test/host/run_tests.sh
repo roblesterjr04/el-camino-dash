@@ -17,3 +17,9 @@ c++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-const-variable -O1 -fsanitize=a
   "$lib/src/elc_chan.cpp" "$lib/src/elc_chan_msg.cpp" "$lib/src/accessory_can.cpp" "$lib/src/elc_can_codec.cpp" "$here/test_elc_chan.cpp" \
   -o "$out/test_elc_chan"
 "$out/test_elc_chan"
+
+c++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-const-variable -O1 -fsanitize=address,undefined \
+  -I "$lib/include" \
+  "$lib/src/elc_chan.cpp" "$lib/src/elc_chan_msg.cpp" "$lib/src/elc_store.cpp" "$lib/src/elc_can_codec.cpp" "$here/test_elc_store.cpp" \
+  -o "$out/test_elc_store"
+"$out/test_elc_store"
