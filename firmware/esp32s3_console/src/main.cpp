@@ -1,5 +1,6 @@
-// Console board (node 0x13): SSD1322 OLED (16 grey levels), two knobs (left = Volume encoder, right = Select), two
-// soft keys under the OLED (left = Back, right = View), CAN. It is the car's radio head unit (README.md, Controls);
+// Console board (node 0x13, ConsoleBoard4Key): SSD1322 OLED (16 grey levels), two RetroSound knobs (left = Volume,
+// right = Select: turn, push, outer ring), four soft keys left of the OLED, CAN. It is the car's radio head unit
+// (README.md, Controls);
 // logic in console_ui.cpp, drawing in console_screens.cpp (both also run on the host: test/host,
 // tools/console_preview). On the channel protocol it announces itself, follows the audio card's sources and shows
 // the accessories' pages (accessory_can).
@@ -161,15 +162,17 @@ static void print_help() {
   Serial.println("commands:");
   Serial.println("  help                 this list");
   Serial.println("  state                mode, page, what the console hears");
-  Serial.println("  soft left|right [hold]   the soft keys under the OLED (left = Back, right = View)");
-  Serial.println("  left +N|-N|click|hold    the left knob (volume, source, menu)");
-  Serial.println("  right +N|-N|click|hold   the right knob (tune / tracks, preset / voice, seek / redial)");
+  Serial.println("  keys                 what the four soft keys say now");
+  Serial.println("  key 1..4 [hold]      a soft key, top to bottom");
+  Serial.println("  left +N|-N|click|hold|ringl|ringr    the left knob (volume, mute, power, source)");
+  Serial.println("  right +N|-N|click|hold|ringl|ringr   the right knob (tune / tracks / lists, OK, voice, seek / back)");
+  Serial.println("  knobs                the knob lines (mV, band, which contact is the encoder)");
   Serial.println("  chan                 the channel node: announced nodes, accessory pages");
   Serial.println("  shot                 the frame as hex (tools/console_preview/shot.py turns it into a PNG)");
   Serial.println("  oled test|off        every pixel on / normal");
   Serial.println("  log on|off           log the frames sent");
-  Serial.println("  demo on|off          pretend center, sensors and phone (no bus needed; or hold BACK at power-up)");
-  Serial.println("  demo call            (demo) an incoming call: the left soft key declines, the right answers");
+  Serial.println("  demo on|off          pretend center, sensors and phone (no bus needed; or hold the top key at power-up)");
+  Serial.println("  demo call            (demo) an incoming call: the top key answers, the bottom one declines");
 }
 
 static void shot() {
@@ -215,16 +218,29 @@ static void handle_line(char *line) {
     Serial.printf("demo %s\n", s_demo ? "on" : "off");
   } else if (!strcmp(cmd, "log") && arg) {
     s_log_tx = !strcmp(arg, "on");
-  } else if (!strcmp(cmd, "soft") && arg) {
+  } else if (!strcmp(cmd, "keys")) {
+    ConsoleKey k[ConsoleUi::kKeys];
+    s_ui.keys(k, now);
+    for (int i = 0; i < ConsoleUi::kKeys; i++) {
+      Serial.printf("key %d: %s%s\n", i + 1, k[i].label[0] ? k[i].label : "-", k[i].hold ? " (has a hold)" : "");
+    }
+  } else if (!strcmp(cmd, "key") && arg) {
     const char *how = strtok(nullptr, " \t");
-    const bool hold = how && !strcmp(how, "hold");
-    if (!strcmp(arg, "left")) hold ? s_ui.soft_left_hold(now) : s_ui.soft_left(now);
-    else hold ? s_ui.soft_right_hold(now) : s_ui.soft_right(now);
+    const int i = atoi(arg) - 1;
+    if (how && !strcmp(how, "hold")) s_ui.key_hold(i, now);
+    else s_ui.key_click(i, now);
+  } else if (!strcmp(cmd, "knobs")) {
+    char buf[320];
+    console_input_describe(buf, sizeof(buf));
+    Serial.println(buf);
   } else if ((!strcmp(cmd, "left") || !strcmp(cmd, "right")) && arg) {
     const bool left = cmd[0] == 'l';
     if (!strcmp(arg, "click")) left ? s_ui.left_click(now) : s_ui.right_click(now);
     else if (!strcmp(arg, "hold")) left ? s_ui.left_hold(now) : s_ui.right_hold(now);
-    else {
+    else if (!strcmp(arg, "ringl") || !strcmp(arg, "ringr")) {
+      const int dir = arg[4] == 'r' ? 1 : -1;
+      left ? s_ui.left_ring(dir, now) : s_ui.right_ring(dir, now);
+    } else {
       const int n = (int)strtol(arg, nullptr, 10);
       left ? s_ui.left_turn(n, now) : s_ui.right_turn(n, now);
     }
@@ -260,11 +276,12 @@ void setup() {
   s_ui.restore(s_prefs.getBool("trip_set", false), s_prefs.getUInt("trip_base", 0),
                (ConsoleContrast)(s_prefs.getUChar("contrast", 0) % 3));
   console_input_begin();
-  // Bench: BACK held at power-up starts the demo (a pretend center, sensors and phone); a normal start leaves it off.
+  // Bench: the top key held at power-up starts the demo (a pretend center, sensors and phone); a normal start leaves it
+  // off.
   delay(30);
-  if (digitalRead(CONSOLE_BACK_PIN) == LOW) {
+  if (digitalRead(CONSOLE_KEY1_PIN) == LOW) {
     s_demo = true;
-    Serial.println("demo on (BACK held at start)");
+    Serial.println("demo on (top key held at start)");
   }
   oled_begin();
   ledcAttach(CONSOLE_LED_PIN, 5000, 10);
@@ -297,13 +314,15 @@ void loop() {
   if (ev.left_steps) s_ui.left_turn(ev.left_steps, now);
   if (ev.left_click) s_ui.left_click(now);
   if (ev.left_hold) s_ui.left_hold(now);
+  if (ev.left_ring) s_ui.left_ring(ev.left_ring, now);
   if (ev.right_steps) s_ui.right_turn(ev.right_steps, now);
   if (ev.right_click) s_ui.right_click(now);
   if (ev.right_hold) s_ui.right_hold(now);
-  if (ev.soft_left) s_ui.soft_left(now);
-  if (ev.soft_left_hold) s_ui.soft_left_hold(now);
-  if (ev.soft_right) s_ui.soft_right(now);
-  if (ev.soft_right_hold) s_ui.soft_right_hold(now);
+  if (ev.right_ring) s_ui.right_ring(ev.right_ring, now);
+  for (int i = 0; i < 4; i++) {
+    if (ev.key_click[i]) s_ui.key_click(i, now);
+    if (ev.key_hold[i]) s_ui.key_hold(i, now);
+  }
   poll_serial();
   accessory_can_poll(now);
 

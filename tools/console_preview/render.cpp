@@ -239,17 +239,18 @@ int main(int argc, char **argv) {
     }
     ui.tick(T);
   };
-  if (!strcmp(sc, "trip")) { ui.soft_right(T); step(400); }
-  if (!strcmp(sc, "engine")) { ui.soft_right(T); step(400); ui.soft_right(T); step(400); }
-  if (!strcmp(sc, "clock")) { for (int i = 0; i < 3; i++) { ui.soft_right(T); step(400); } }
+  // the third soft key is the next page; the right knob opens the menu, moves and picks
+  if (!strcmp(sc, "trip")) { ui.key_click(2, T); step(400); }
+  if (!strcmp(sc, "engine")) { ui.key_click(2, T); step(400); ui.key_click(2, T); step(400); }
+  if (!strcmp(sc, "clock")) { for (int i = 0; i < 3; i++) { ui.key_click(2, T); step(400); } }
   if (!strcmp(sc, "hints")) { ui.right_turn(1, T); step(300); }
-  if (!strcmp(sc, "presets")) { ui.right_click(T); ui.right_turn(2, T); step(200); }
-  if (!strcmp(sc, "menu")) { ui.left_hold(T); step(100); }
-  if (!strcmp(sc, "menu-display")) { ui.left_hold(T); ui.left_turn(3, T); ui.left_click(T); ui.left_turn(1, T); step(100); }
+  if (!strcmp(sc, "presets")) { ui.key_click(0, T); ui.right_turn(2, T); step(200); }
+  if (!strcmp(sc, "menu")) { ui.right_click(T); step(100); }
+  if (!strcmp(sc, "menu-display")) { ui.right_click(T); ui.right_turn(3, T); ui.right_click(T); ui.right_turn(1, T); step(100); }
   if (!strcmp(sc, "edit")) {
-    ui.left_hold(T); ui.left_turn(3, T); ui.left_click(T); ui.left_turn(1, T); ui.left_click(T); ui.left_turn(1, T); step(100);
+    ui.right_click(T); ui.right_turn(3, T); ui.right_click(T); ui.right_turn(1, T); ui.right_click(T); ui.right_turn(1, T); step(100);
   }
-  if (!strcmp(sc, "menu-radio")) { ui.left_hold(T); ui.left_turn(1, T); ui.left_click(T); ui.left_turn(2, T); step(100); }
+  if (!strcmp(sc, "menu-radio")) { ui.right_click(T); ui.right_turn(1, T); ui.right_click(T); ui.right_turn(2, T); step(100); }
   if (!strcmp(sc, "menu-phone")) {
     ElcCanPhoneStatus ps;
     ps.flags = (uint8_t)(ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP);
@@ -265,10 +266,10 @@ int main(int argc, char **argv) {
     for (auto &x : c) feed(x);
     elc_can_encode_phone_text(0, ELC_CAN_PHONE_TEXT_PAIRED + 1, 2, "Rob's iPad", c);
     for (auto &x : c) feed(x);
-    ui.left_hold(T); ui.left_turn(2, T); ui.left_click(T); ui.left_turn(3, T);
+    ui.right_click(T); ui.right_turn(2, T); ui.right_click(T); ui.right_turn(3, T);
     feed(f);
   }
-  if (!strcmp(sc, "source")) { ui.left_click(T); T += 300; }
+  if (!strcmp(sc, "source")) { ui.left_ring(1, T); T += 300; }
   if (!strcmp(sc, "pair")) {
     ElcCanPhoneStatus ps;
     ps.flags = (uint8_t)(ELC_CAN_PHONE_PAIRING | ELC_CAN_PHONE_CONFIRM);

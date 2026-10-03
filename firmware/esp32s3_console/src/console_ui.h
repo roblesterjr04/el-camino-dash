@@ -1,10 +1,12 @@
 #pragma once
 
 // The console is the car's radio head unit (decided 2026-10-02; the El Camino Cluster prototype's drive pages and
-// warnings stay): the left knob is volume / source / menu, the right knob tunes or skips, the two keys under the OLED
-// are soft keys. Its own menu on the OLED holds Source, Radio and the other accessory pages (UI channel), Phone,
-// Display, Trip and Service. No Arduino dependency: it takes CAN frames, channel transfers and knob / key input with a
-// clock, and queues the frames to send, so it runs in the host tests and the host preview. Drawing:
+// warnings stay). Two RetroSound knobs (turn, push, outer ring left / right) and four soft keys in a column left of the
+// OLED (ConsoleBoard4Key): the left knob is the audio (volume, mute, power, source) everywhere, the right knob tunes
+// at rest and moves through lists, and the keys do what their labels on the screen's left edge say, which change with
+// what is on the screen. Its own menu on the OLED holds Source, Radio and the other accessory pages (UI channel),
+// Phone, Display, Trip and Service. No Arduino dependency: it takes CAN frames, channel transfers and knob / key input
+// with a clock, and queues the frames to send, so it runs in the host tests and the host preview. Drawing:
 // console_screens.cpp. Controls: firmware/esp32s3_console/README.md.
 
 #include <stddef.h>
@@ -46,6 +48,13 @@ struct ConsoleAlert {
   char line[64];
 };
 
+/** A soft key as the screen shows it: its label, and what a click and a hold do (ConsoleUi::KeyAct). A key with only
+ *  a hold action (storing a preset, resetting the trip) answers a click with a hint. */
+struct ConsoleKey {
+  uint8_t click = 0, hold = 0;
+  char label[10] = {0};
+};
+
 /** One row of a menu page. */
 struct ConsoleRow {
   enum Kind : uint8_t { Sub, Action, Setting, Info };
@@ -72,21 +81,26 @@ class ConsoleUi {
   /** True once after a persistent setting changed (the firmware saves them). */
   bool take_persist_dirty();
 
-  // ---- input (left knob = Volume encoder, right knob = Select encoder, left / right soft keys = Back / View keys)
+  // ---- input: left knob = Volume, right knob = Select (turn in detents, + = clockwise; push click / hold; the outer
+  // ring flicked left (-1) or right (+1)), keys 0..3 = the soft keys top to bottom
   void feed(const ElcCanFrame &f, uint32_t now_ms);
   /** Every complete channel transfer (also give it to accessory_can_transfer, which the firmware does). */
   void transfer(const ElcChTransfer &t, uint32_t now_ms);
   void left_turn(int steps, uint32_t now_ms);
   void left_click(uint32_t now_ms);
   void left_hold(uint32_t now_ms);
+  void left_ring(int dir, uint32_t now_ms);
   void right_turn(int steps, uint32_t now_ms);
   void right_click(uint32_t now_ms);
   void right_hold(uint32_t now_ms);
-  void soft_left(uint32_t now_ms);
-  void soft_left_hold(uint32_t now_ms);
-  void soft_right(uint32_t now_ms);
-  void soft_right_hold(uint32_t now_ms);
+  void right_ring(int dir, uint32_t now_ms);
+  void key_click(int key, uint32_t now_ms);
+  void key_hold(int key, uint32_t now_ms);
   void tick(uint32_t now_ms);
+
+  static constexpr int kKeys = 4;
+  /** What the four soft keys are now, top to bottom (an empty label = the key does nothing). */
+  void keys(ConsoleKey out[kKeys], uint32_t now_ms);
 
   bool pop_action(ConsoleAction &out);
   /** A line for the serial log about a channel message the console sent ("" when none waits). */
@@ -138,7 +152,10 @@ class ConsoleUi {
   static constexpr uint32_t kPresetsIdleMs = 4000;  // the preset list closes after this long untouched
   static constexpr int kPresets = 12;
   static constexpr uint8_t kRadioPresetItem0 = 15;  // the radio's preset frequency items 15..26 (radio_card.md)
+  static constexpr uint8_t kRadioBandItem = 1;      // the radio's Band choice: 0 FM, 1 AM
   static constexpr uint32_t kHintMs = 2600;        // soft-key labels stay lit this long after a control is touched
+  static constexpr int kRailW = 44;                 // the soft-key labels' column on the screen's left edge, px
+  static constexpr int kX0 = kRailW + 3;            // where the pages start, right of the column and its rule
 
   // Menu pages.
   enum MenuPage : uint8_t { kMHome, kMSource, kMPhone, kMPhoneOne, kMDisplay, kMTrip, kMService, kMAccessories,
@@ -153,6 +170,16 @@ class ConsoleUi {
     kRTripReset,
     kRAccNode, kRAccItem, kRAccOpt, kRAdvanced,                                         // accessories (arg)
     kRYes, kRNo,                                                                        // confirmation
+  };
+  // What a soft key does.
+  enum KeyAct : uint8_t {
+    kKNone,
+    kKAnswer, kKDecline, kKEnd, kKMicMute, kKAudioRoute, kKSwap, kKIgnore,  // calls
+    kKPair, kKReject,                                                        // a pairing code
+    kKAlertOk,                                                               // a warning
+    kKMenu, kKBack, kKExit, kKDone, kKUndo, kKYes, kKNo,                     // the menu
+    kKPresets, kKStore, kKBand, kKPlayPause, kKVoice, kKRedial, kKPhone,     // the source
+    kKAudioOn, kKPage, kKView, kKTripReset, kKClose,                         // the drive pages, the preset list
   };
 
  private:
@@ -177,6 +204,8 @@ class ConsoleUi {
   void edit_cancel(uint32_t now_ms);
   void confirm(uint16_t what, uint8_t node, uint8_t arg, int32_t value, const char *question);
   void do_confirmed(uint32_t now_ms);
+  void confirm_answer(bool yes, uint32_t now_ms);
+  void menu_back();
   const char *source_name(uint8_t code) const;
   void now_text(char *line1, size_t n1, char *line2, size_t n2, uint32_t now_ms) const;
 
@@ -194,6 +223,14 @@ class ConsoleUi {
   bool chan_send(uint16_t base, const ElcChWriter &w, const char *what);
   void media(uint8_t action, uint8_t value, const char *what);
   void play_pause(uint32_t now_ms);
+  void request_source(uint8_t code, const char *what, uint32_t now_ms);
+  void source_step(int dir, uint32_t now_ms);
+  void audio_power(uint32_t now_ms);
+  void do_key(uint8_t act, uint32_t now_ms);
+  void key_hint(uint8_t act, uint32_t now_ms);
+  const char *page_name(int page, uint32_t now_ms) const;
+  bool reverse_shown() const { return _cs_ms && (_cs.flags & ELC_CAN_STATUS_REVERSE); }
+  bool idle_input(uint32_t now_ms);  // the common start of every input: false = ignore it
   void toast(const char *title, const char *value, uint32_t now_ms);
   void cluster_changed(const ElcCanClusterState &old, uint32_t now_ms);
   void build_alerts(uint32_t now_ms);
@@ -226,7 +263,7 @@ class ConsoleUi {
   void draw_call(OledGfx &g, uint32_t t);
   void draw_pair(OledGfx &g, uint32_t t);
   void draw_presets(OledGfx &g, uint32_t t);
-  void draw_softkeys(OledGfx &g, uint32_t t, bool alert_shown);
+  void draw_softkeys(OledGfx &g, uint32_t t);
   void draw_volume(OledGfx &g, uint32_t t);
   void draw_toast(OledGfx &g, uint32_t t);
   const lv_font_t *font(char role) const;  // h huge, b big, m mid, o body, s small
@@ -319,9 +356,10 @@ class ConsoleUi {
   uint32_t _pre_ms = 0;    // its last input
   const char *_pre_why = "";  // why it closed last (the serial console's state)
   uint8_t _src_req = 0;   // the source asked for, until STATUS says so
+  uint8_t _on_src = ELC_SRC_BLUETOOTH;  // the source to put back when the audio is switched on again
   bool _bt_was_playing = true;
   bool _was_call = false;     // a call showed at the last tick
-  uint8_t _call_src = 0xFE;   // the source when the call began (0xFE = not known): put back when it ends  // the bridge played when the source left Bluetooth (resume it on return)
+  uint8_t _call_src = 0xFE;   // the source when the call began (0xFE = not known): put back when it ends
   uint32_t _src_req_ms = 0;
 
   // persistent

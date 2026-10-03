@@ -310,6 +310,7 @@ void ConsoleUi::transfer(const ElcChTransfer &t, uint32_t now_ms) {
         phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 3, "play (back to Bluetooth)");
       }
     }
+    if (had && st.source == ELC_SRC_OFF && _st.source != ELC_SRC_OFF) _on_src = _st.source;
     _st = st;
     _st_ms = now_ms;
     if (!_vol_set || now_ms - _vol_set_ms > kVolHoldMs) _vol = (uint8_t)clampi((st.volume * 15 + 50) / 100, 0, 15);
@@ -761,6 +762,18 @@ void ConsoleUi::do_confirmed(uint32_t now_ms) {
   }
 }
 
+void ConsoleUi::confirm_answer(bool yes, uint32_t now_ms) {
+  if (_stack[_depth].page != kMConfirm) return;
+  const uint16_t what = _cf_what;
+  pop();
+  if (!yes) return;
+  do_confirmed(now_ms);
+  if (what == kRPhForget) pop();  // the phone's page goes with it
+}
+
+/** Back one page; from the top page, out of the menu. */
+void ConsoleUi::menu_back() { pop(); }
+
 void ConsoleUi::menu_click(uint32_t now_ms) {
   build_rows();
   const Level L = _stack[_depth];
@@ -776,18 +789,12 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
     case kRService: push(kMService); return;
     case kRPhPaired: push(kMPhoneOne, 0, r.arg); return;
     case kRAccNode: push(kMAccPage, r.arg, ELC_UI_TOP); return;
-    case kRSrcPick: {
-      const uint8_t s = sink();
-      if (!s) return;
-      ElcChWriter w;
-      elc_audio_encode(ElcAudioSource{s, r.arg}, w);
-      _src_req = r.arg == ELC_SRC_REQ_OFF ? ELC_SRC_OFF : r.arg;
-      _src_req_ms = now_ms;
-      chan_send(ELC_CH_AUDIO_CMD, w, r.arg == ELC_SRC_RADIO ? "SOURCE radio" : (r.arg == ELC_SRC_REQ_OFF ? "SOURCE off" : "SOURCE bluetooth"));
-      toast("SOURCE", r.arg == ELC_SRC_REQ_OFF ? "Off" : source_name(r.arg), now_ms);
+    case kRSrcPick:
+      if (!sink()) return;
+      request_source(r.arg, r.arg == ELC_SRC_RADIO ? "SOURCE radio" : (r.arg == ELC_SRC_REQ_OFF ? "SOURCE off" : "SOURCE bluetooth"),
+                     now_ms);
       close_menu();
       return;
-    }
     case kRPhPair: phone_cmd(ELC_CAN_PHONE_CMD_PAIRING, 1, "pairing on"); return;
     case kRPhStop: phone_cmd(ELC_CAN_PHONE_CMD_PAIRING, 0, "pairing off"); return;
     case kRPhVoice: phone_cmd(ELC_CAN_PHONE_CMD_VOICE, (_ph.flags & ELC_CAN_PHONE_VOICE) ? 0 : 1, "voice"); return;
@@ -853,14 +860,8 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
       }
       return;
     }
-    case kRYes: {
-      const uint16_t what = _cf_what;
-      pop();
-      do_confirmed(now_ms);
-      if (what == kRPhForget) pop();  // the phone's page goes with it
-      return;
-    }
-    case kRNo: pop(); return;
+    case kRYes: confirm_answer(true, now_ms); return;
+    case kRNo: confirm_answer(false, now_ms); return;
     default: break;
   }
   if (r.kind == ConsoleRow::Setting && !r.dim) {
@@ -933,6 +934,10 @@ void ConsoleUi::presets_open(uint32_t now_ms) {
 }
 
 // ---- input ----
+//
+// Left knob: the audio, on every screen (volume, mute, power, source). Right knob: tune or skip at rest, move through
+// whatever list shows (menu, presets, a value), push = OK. The soft keys: whatever keys() says now, top = yes / the
+// main action, bottom = no / back / the menu.
 
 void ConsoleUi::page_step(int dir, uint32_t now_ms) {
   _page_from = _page;
@@ -941,19 +946,69 @@ void ConsoleUi::page_step(int dir, uint32_t now_ms) {
   _page_dir = (int8_t)dir;
 }
 
-/** Left knob turn: volume at rest (the call's volume in a call), the selection in the menu, the value in an editor. */
-void ConsoleUi::left_turn(int steps, uint32_t now_ms) {
+const char *ConsoleUi::page_name(int page, uint32_t now_ms) const {
+  switch (page) {
+    case kPageMedia: return radio_is_source(now_ms) ? "Radio" : "Media";
+    case kPageTrip: return "Trip";
+    case kPageEngine: return "Engine";
+    default: return "Clock";
+  }
+}
+
+bool ConsoleUi::idle_input(uint32_t now_ms) {
   _now = now_ms;
-  if (!steps || !alive(now_ms)) return;
+  if (!alive(now_ms)) return false;
   touched(now_ms);
-  if (_mode == ConsoleMode::Edit) {
-    edit_turn(steps, now_ms);
+  return true;
+}
+
+/** SOURCE to the audio card: shown at once, STATUS confirms it. */
+void ConsoleUi::request_source(uint8_t code, const char *what, uint32_t now_ms) {
+  const uint8_t s = sink();
+  if (!s) {
+    toast("SOURCE", "No audio card", now_ms);
     return;
   }
-  if (_mode == ConsoleMode::Menu && !call_shown(now_ms)) {
-    menu_move(steps);
+  const uint8_t cur = source(now_ms);
+  if (code == ELC_SRC_REQ_OFF && cur != ELC_SRC_OFF) _on_src = cur;
+  ElcChWriter w;
+  elc_audio_encode(ElcAudioSource{s, code}, w);
+  _src_req = code == ELC_SRC_REQ_OFF ? ELC_SRC_OFF : code;
+  _src_req_ms = now_ms;
+  chan_send(ELC_CH_AUDIO_CMD, w, what);
+  toast("SOURCE", code == ELC_SRC_REQ_OFF ? "Off" : source_name(code), now_ms);
+  presets_close("source");
+}
+
+/** Left ring: the previous / next source of the ones there are (Bluetooth, the radio when heard); off is the left
+ *  knob held. From off, right goes to the first and left to the last. */
+void ConsoleUi::source_step(int dir, uint32_t now_ms) {
+  uint8_t list[2];
+  int n = 0;
+  list[n++] = ELC_SRC_BLUETOOTH;
+  if (radio()) list[n++] = ELC_SRC_RADIO;
+  const uint8_t cur = source(now_ms);
+  int i = -1;
+  for (int k = 0; k < n; k++) {
+    if (list[k] == cur) i = k;
+  }
+  const int next = i < 0 ? (dir > 0 ? 0 : n - 1) : ((i + dir) % n + n) % n;
+  if (next == i) {  // the only one there is
+    toast("SOURCE", source_name(cur), now_ms);
     return;
   }
+  request_source(list[next], dir > 0 ? "SOURCE next" : "SOURCE previous", now_ms);
+}
+
+/** Left knob held: audio off, or back on to the source it had (a radio's power button). */
+void ConsoleUi::audio_power(uint32_t now_ms) {
+  if (audio_off(now_ms)) request_source(_on_src == ELC_SRC_RADIO && !radio() ? ELC_SRC_BLUETOOTH : _on_src, "SOURCE on", now_ms);
+  else request_source(ELC_SRC_REQ_OFF, "SOURCE off", now_ms);
+}
+
+/** Left knob turn: the volume (the call's in a call), on every screen, the menu too. */
+void ConsoleUi::left_turn(int steps, uint32_t now_ms) {
+  if (!steps || !idle_input(now_ms)) return;
   if (!_vol_ms || now_ms - _vol_ms >= kVolumeShowMs) _vol_shown_ms = now_ms;  // the bar was hidden: it slides in
   _vol_ms = now_ms;
   if (call_shown(now_ms)) {
@@ -975,60 +1030,37 @@ void ConsoleUi::left_turn(int steps, uint32_t now_ms) {
   }
 }
 
-/** Left knob click: the next source at rest (mic mute in a call), select in the menu, confirm in an editor. */
+/** Left knob push: mute (the radio) / play-pause (Bluetooth); the microphone in a call; audio on when it is off. */
 void ConsoleUi::left_click(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms)) return;
-  touched(now_ms);
+  if (!idle_input(now_ms) || pair_shown(now_ms)) return;
   if (call_shown(now_ms)) {
     if (_ph.call == ELC_CAN_CALL_ACTIVE || _ph.call == ELC_CAN_CALL_HELD || _ph.call == ELC_CAN_CALL_WAITING) {
       phone_cmd(ELC_CAN_PHONE_CMD_MIC_MUTE, (_ph.flags & ELC_CAN_PHONE_MIC_MUTED) ? 0 : 1, "mute");
     }
     return;
   }
-  if (_mode == ConsoleMode::Edit) {
-    edit_done(now_ms);
+  if (audio_off(now_ms)) {
+    audio_power(now_ms);
     return;
   }
-  if (_mode == ConsoleMode::Menu) {
-    menu_click(now_ms);
-    return;
-  }
-  presets_close("left click");
-  const uint8_t s = sink();
-  if (!s) {
-    toast("SOURCE", "No audio card", now_ms);
-    return;
-  }
-  // the next source, shown at once; STATUS confirms it
-  // Bluetooth, the radio (when heard), off, Bluetooth: the audio card's order (can_channels.md, Sources)
-  const uint8_t cur = _st_ms && now_ms - _st_ms <= kStatusMs ? _st.source : ELC_SRC_OFF;
-  const uint8_t next = cur == ELC_SRC_BLUETOOTH ? (radio() ? ELC_SRC_RADIO : ELC_SRC_OFF)
-                       : cur == ELC_SRC_RADIO   ? ELC_SRC_OFF
-                                                : ELC_SRC_BLUETOOTH;
-  ElcChWriter w;
-  elc_audio_encode(ElcAudioSource{s, ELC_SRC_NONE}, w);
-  _src_req = next;
-  _src_req_ms = now_ms;
-  chan_send(ELC_CH_AUDIO_CMD, w, "SOURCE next");
-  toast("SOURCE", source_name(next), now_ms);
+  play_pause(now_ms);
 }
 
-/** Left knob hold: open the menu (close it when open). */
+/** Left knob held: audio off / on. */
 void ConsoleUi::left_hold(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms) || call_shown(now_ms) || pair_shown(now_ms)) return;
-  touched(now_ms);
-  presets_close("left hold");
-  if (_mode == ConsoleMode::Drive) open_menu(now_ms);
-  else close_menu();
+  if (!idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms)) return;
+  audio_power(now_ms);
 }
 
-/** Right knob turn: tune (radio) or skip tracks (Bluetooth) at rest; the selection or value in the menu. */
+/** Left ring: the previous / next source. */
+void ConsoleUi::left_ring(int dir, uint32_t now_ms) {
+  if (!dir || !idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms)) return;
+  source_step(dir > 0 ? 1 : -1, now_ms);
+}
+
+/** Right knob turn: tune (radio) or skip tracks (Bluetooth) at rest; the highlight in a list; the value in an editor. */
 void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
-  _now = now_ms;
-  if (!steps || !alive(now_ms) || call_shown(now_ms)) return;
-  touched(now_ms);
+  if (!steps || !idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms) || reverse_shown()) return;
   if (_mode == ConsoleMode::Edit) {
     edit_turn(steps, now_ms);
     return;
@@ -1054,11 +1086,14 @@ void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
   }
 }
 
-/** Right knob click: the next preset (radio) or the voice assistant (Bluetooth); select in the menu. */
+/** Right knob push: OK. Opens the menu at rest, picks in a list, ends an edit, tunes the preset highlighted; answers a
+ *  ringing call. */
 void ConsoleUi::right_click(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms) || call_shown(now_ms)) return;
-  touched(now_ms);
+  if (!idle_input(now_ms) || pair_shown(now_ms) || reverse_shown()) return;
+  if (call_shown(now_ms)) {
+    if (_ph.call == ELC_CAN_CALL_INCOMING) phone_cmd(ELC_CAN_PHONE_CMD_ANSWER, 0, "answer");
+    return;
+  }
   if (_mode == ConsoleMode::Edit) {
     edit_done(now_ms);
     return;
@@ -1067,131 +1102,272 @@ void ConsoleUi::right_click(uint32_t now_ms) {
     menu_click(now_ms);
     return;
   }
-  if (audio_off(now_ms)) return;
-  if (radio_is_source(now_ms)) {
-    if (_pre_open) presets_choose("right click");
-    else presets_open(now_ms);
-  } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
-    const bool on = !(_ph.flags & ELC_CAN_PHONE_VOICE);
-    phone_cmd(ELC_CAN_PHONE_CMD_VOICE, on ? 1 : 0, "voice");
-    toast("VOICE", on ? "Listening" : "Off", now_ms);
+  if (_pre_open) {
+    presets_choose("right click");
+    return;
   }
+  open_menu(now_ms);
 }
 
-/** Right knob hold: seek up (radio) or redial (Bluetooth). */
+/** Right knob held: the voice assistant (any source); leaves the menu. */
 void ConsoleUi::right_hold(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
-  touched(now_ms);
-  if (audio_off(now_ms)) return;
-  if (radio_is_source(now_ms)) {
-    media(ELC_MEDIA_SEEK_UP, 0, "MEDIA seek up");
-    toast("RADIO", "Seeking", now_ms);
-  } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
-    phone_cmd(ELC_CAN_PHONE_CMD_REDIAL, 0, "redial");
-    toast("PHONE", "Redial", now_ms);
-  }
-}
-
-/** Left soft key: Decline / Ignore / End in a call, Reject a pairing, acknowledge a warning, Back in the menu (undo in
- *  an editor), play / pause (mute for the radio) at rest. */
-void ConsoleUi::soft_left(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms)) return;
-  touched(now_ms);
-  if (call_shown(now_ms)) {
-    if (_ph.call == ELC_CAN_CALL_WAITING) phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 0, "ignore");
-    else phone_cmd(ELC_CAN_PHONE_CMD_END, 0, _ph.call == ELC_CAN_CALL_INCOMING ? "decline" : "end");
-    return;
-  }
-  if (pair_shown(now_ms)) {
-    phone_cmd(ELC_CAN_PHONE_CMD_CONFIRM, 0, "reject pairing");
-    return;
-  }
-  if (_mode == ConsoleMode::Edit) {
-    edit_cancel(now_ms);
-    return;
-  }
-  if (_mode == ConsoleMode::Menu) {
-    pop();
-    return;
-  }
-  static const char *const kIds[6] = {"nodata", "oil", "hot", "gen", "fuel", "odo"};
-  if (const ConsoleAlert *a = alert(now_ms)) {
-    for (int k = 0; k < 6; k++) {
-      if (!strcmp(a->id, kIds[k])) _ack[k] = true;
-    }
-    return;
-  }
-  if (audio_off(now_ms)) {
-    toast("SOURCE", "Off", now_ms);  // the left knob click turns a source on
-    return;
-  }
-  play_pause(now_ms);
-}
-
-/** Left soft key held: store the station as a preset (radio). */
-void ConsoleUi::soft_left_hold(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
-  touched(now_ms);
-  if (!radio_is_source(now_ms)) return;
-  if (_pre_open) {  // into the slot highlighted, over whatever it held
-    _pre_ms = now_ms;
-    media(ELC_MEDIA_PRESET_STORE, (uint8_t)(_pre_sel + 1), "MEDIA store preset");
-    char v[16];
-    snprintf(v, sizeof(v), "Stored in %d", _pre_sel + 1);
-    toast("PRESET", v, now_ms);
-    return;
-  }
-  media(ELC_MEDIA_PRESET_STORE, 0, "MEDIA store preset");  // the next free slot (else the oldest)
-  toast("PRESET", "Stored", now_ms);
-}
-
-/** Right soft key: Answer / Mute / Swap in a call, Pair a phone, leave the menu, the next OLED page at rest. */
-void ConsoleUi::soft_right(uint32_t now_ms) {
-  _now = now_ms;
-  if (!alive(now_ms)) return;
-  touched(now_ms);
-  if (call_shown(now_ms)) {
-    switch (_ph.call) {
-      case ELC_CAN_CALL_INCOMING: phone_cmd(ELC_CAN_PHONE_CMD_ANSWER, 0, "answer"); break;
-      case ELC_CAN_CALL_WAITING: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "answer (hold)"); break;
-      case ELC_CAN_CALL_ACTIVE:
-        phone_cmd(ELC_CAN_PHONE_CMD_MIC_MUTE, (_ph.flags & ELC_CAN_PHONE_MIC_MUTED) ? 0 : 1, "mute");
-        break;
-      case ELC_CAN_CALL_HELD: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "swap"); break;
-      default: break;  // dialing / alerting: only End
-    }
-    return;
-  }
-  if (pair_shown(now_ms)) {
-    phone_cmd(ELC_CAN_PHONE_CMD_CONFIRM, 1, "accept pairing");
-    return;
-  }
-  if (_mode == ConsoleMode::Edit) edit_done(now_ms);
-  if (_mode == ConsoleMode::Menu) {
+  if (!idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms) || reverse_shown()) return;
+  if (_mode != ConsoleMode::Drive) {
+    if (_mode == ConsoleMode::Edit) edit_cancel(now_ms);
     close_menu();
     return;
   }
-  if (_pre_open) {
-    presets_choose("right soft");
-    return;
-  }
-  page_step(1, now_ms);
+  do_key(kKVoice, now_ms);
 }
 
-/** Right soft key held: the next view on the center screen. */
-void ConsoleUi::soft_right_hold(uint32_t now_ms) {
+/** Right ring: seek (radio) or the previous / next track (Bluetooth) at rest; Back / OK in a list; Undo / Done in an
+ *  editor. */
+void ConsoleUi::right_ring(int dir, uint32_t now_ms) {
+  if (!dir || !idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms) || reverse_shown()) return;
+  if (_mode == ConsoleMode::Edit) {
+    dir > 0 ? edit_done(now_ms) : edit_cancel(now_ms);
+    return;
+  }
+  if (_mode == ConsoleMode::Menu) {
+    if (dir > 0) menu_click(now_ms);
+    else menu_back();
+    return;
+  }
+  if (_pre_open) {
+    if (dir > 0) presets_choose("right ring");
+    else presets_close("right ring");
+    return;
+  }
+  if (audio_off(now_ms)) return;
+  if (radio_is_source(now_ms)) {
+    media(dir > 0 ? ELC_MEDIA_SEEK_UP : ELC_MEDIA_SEEK_DOWN, 0, dir > 0 ? "MEDIA seek up" : "MEDIA seek down");
+    toast("RADIO", dir > 0 ? "Seek up" : "Seek down", now_ms);
+  } else {
+    phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, dir > 0 ? 1 : 2, dir > 0 ? "next" : "previous");
+    media(dir > 0 ? ELC_MEDIA_NEXT : ELC_MEDIA_PREV, 0, dir > 0 ? "MEDIA next" : "MEDIA previous");
+  }
+}
+
+// ---- the soft keys ----
+
+/** The keys for what shows now: the same order of priority as render() draws the screens. */
+void ConsoleUi::keys(ConsoleKey out[kKeys], uint32_t now_ms) {
   _now = now_ms;
-  if (!alive(now_ms) || call_shown(now_ms) || _mode != ConsoleMode::Drive) return;
-  touched(now_ms);
-  if (_cs_ms && (_cs.flags & ELC_CAN_STATUS_REVERSE)) return;
-  const uint8_t v = next_view();
-  _view_req = v;
-  _view_req_ms = now_ms;
-  setting(ELC_CAN_SET_CENTER_VIEW, v, now_ms, "view");
-  toast("VIEW", kViewName[v & 3], now_ms);
+  for (int i = 0; i < kKeys; i++) out[i] = ConsoleKey();
+  auto set = [&](int i, uint8_t click, const char *label, uint8_t hold = kKNone) {
+    out[i].click = click;
+    out[i].hold = hold;
+    snprintf(out[i].label, sizeof(out[i].label), "%s", label);
+  };
+  if (!alive(now_ms)) return;
+  if (call_shown(now_ms)) {
+    const bool muted = _ph.flags & ELC_CAN_PHONE_MIC_MUTED;
+    switch (_ph.call) {
+      case ELC_CAN_CALL_INCOMING:
+        set(0, kKAnswer, "Answer");
+        set(3, kKDecline, "Decline");
+        break;
+      case ELC_CAN_CALL_WAITING:  // answer holds the active call
+        set(0, kKAnswer, "Answer");
+        set(3, kKIgnore, "Ignore");
+        break;
+      case ELC_CAN_CALL_ACTIVE:
+        set(0, kKMicMute, muted ? "Unmute" : "Mute");
+        set(1, kKAudioRoute, (_ph.flags & ELC_CAN_PHONE_CALL_AUDIO) ? "Private" : "Car");
+        set(3, kKEnd, "End");
+        break;
+      case ELC_CAN_CALL_HELD:
+        set(0, kKSwap, "Swap");
+        set(1, kKMicMute, muted ? "Unmute" : "Mute");
+        set(3, kKEnd, "End");
+        break;
+      default: set(3, kKEnd, "End"); break;  // dialing / ringing out
+    }
+    return;
+  }
+  if (pair_shown(now_ms)) {
+    set(0, kKPair, "Pair");
+    set(3, kKReject, "Reject");
+    return;
+  }
+  if (reverse_shown()) return;
+  if (_mode == ConsoleMode::Edit) {
+    set(0, kKDone, "Done");
+    set(3, kKUndo, "Undo");
+    return;
+  }
+  if (_mode == ConsoleMode::Menu) {
+    if (_stack[_depth].page == kMConfirm) {
+      set(0, kKYes, "Yes");
+      set(3, kKNo, "No");
+      return;
+    }
+    if (_depth) {
+      set(2, kKExit, "Exit");
+      set(3, kKBack, "Back", kKExit);
+    } else {
+      set(3, kKExit, "Exit");
+    }
+    return;
+  }
+  if (alert(now_ms)) {
+    set(0, kKAlertOk, "OK");
+    set(3, kKMenu, "Menu");
+    return;
+  }
+  if (_pre_open) {
+    set(0, kKNone, "Store", kKStore);
+    set(3, kKClose, "Close");
+    return;
+  }
+  // the drive pages: the source's own keys on top, the next page and the menu below
+  if (audio_off(now_ms)) {
+    set(0, kKAudioOn, "On");
+  } else if (radio_is_source(now_ms)) {
+    set(0, kKPresets, "Presets", kKStore);
+    set(1, kKBand, "Band");
+  } else if (_tr_ms && now_ms - _tr_ms < 3000 && _tr.connected) {
+    set(0, kKPlayPause, _tr.playing ? "Pause" : "Play");
+    if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) set(1, kKVoice, "Voice", kKRedial);
+  } else if (phone_fresh(now_ms) || bridge_heard(now_ms)) {
+    set(1, kKPhone, "Phone");  // no phone playing: straight to pairing / connecting
+  }
+  if (_page == kPageTrip) set(1, kKNone, "Reset", kKTripReset);
+  set(2, kKPage, page_name((_page + 1) % kPageCount, now_ms), kKView);
+  set(3, kKMenu, "Menu");
+}
+
+void ConsoleUi::key_hint(uint8_t act, uint32_t now_ms) {
+  switch (act) {
+    case kKStore: toast("PRESET", "Hold to store", now_ms); break;
+    case kKTripReset: toast("TRIP A", _s.odo_valid ? "Hold to reset" : "No odometer", now_ms); break;
+    default: break;
+  }
+}
+
+void ConsoleUi::key_click(int key, uint32_t now_ms) {
+  if (key < 0 || key >= kKeys || !idle_input(now_ms)) return;
+  ConsoleKey k[kKeys];
+  keys(k, now_ms);
+  if (k[key].click) do_key(k[key].click, now_ms);
+  else if (k[key].hold) key_hint(k[key].hold, now_ms);
+}
+
+void ConsoleUi::key_hold(int key, uint32_t now_ms) {
+  if (key < 0 || key >= kKeys || !idle_input(now_ms)) return;
+  ConsoleKey k[kKeys];
+  keys(k, now_ms);
+  if (k[key].hold) do_key(k[key].hold, now_ms);
+}
+
+void ConsoleUi::do_key(uint8_t act, uint32_t now_ms) {
+  switch (act) {
+    // calls
+    case kKAnswer:
+      if (_ph.call == ELC_CAN_CALL_WAITING) phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "answer (hold)");
+      else phone_cmd(ELC_CAN_PHONE_CMD_ANSWER, 0, "answer");
+      break;
+    case kKDecline: phone_cmd(ELC_CAN_PHONE_CMD_END, 0, "decline"); break;
+    case kKEnd: phone_cmd(ELC_CAN_PHONE_CMD_END, 0, "end"); break;
+    case kKIgnore: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 0, "ignore"); break;
+    case kKSwap: phone_cmd(ELC_CAN_PHONE_CMD_CALL_WAITING, 2, "swap"); break;
+    case kKMicMute: phone_cmd(ELC_CAN_PHONE_CMD_MIC_MUTE, (_ph.flags & ELC_CAN_PHONE_MIC_MUTED) ? 0 : 1, "mute"); break;
+    case kKAudioRoute:
+      phone_cmd(ELC_CAN_PHONE_CMD_AUDIO_ROUTE, (_ph.flags & ELC_CAN_PHONE_CALL_AUDIO) ? 0 : 1, "audio route");
+      break;
+    case kKPair: phone_cmd(ELC_CAN_PHONE_CMD_CONFIRM, 1, "accept pairing"); break;
+    case kKReject: phone_cmd(ELC_CAN_PHONE_CMD_CONFIRM, 0, "reject pairing"); break;
+    // a warning
+    case kKAlertOk: {
+      static const char *const kIds[6] = {"nodata", "oil", "hot", "gen", "fuel", "odo"};
+      if (const ConsoleAlert *a = alert(now_ms)) {
+        for (int k = 0; k < 6; k++) {
+          if (!strcmp(a->id, kIds[k])) _ack[k] = true;
+        }
+      }
+      break;
+    }
+    // the menu
+    case kKMenu:
+      presets_close("menu");
+      open_menu(now_ms);
+      break;
+    case kKBack: menu_back(); break;
+    case kKExit:
+      if (_mode == ConsoleMode::Edit) edit_cancel(now_ms);
+      close_menu();
+      break;
+    case kKDone: edit_done(now_ms); break;
+    case kKUndo: edit_cancel(now_ms); break;
+    case kKYes: confirm_answer(true, now_ms); break;
+    case kKNo: confirm_answer(false, now_ms); break;
+    // the source
+    case kKPresets: presets_open(now_ms); break;
+    case kKClose: presets_close("close key"); break;
+    case kKStore:
+      if (!radio_is_source(now_ms)) break;
+      if (_pre_open) {  // into the slot highlighted, over whatever it held
+        _pre_ms = now_ms;
+        media(ELC_MEDIA_PRESET_STORE, (uint8_t)(_pre_sel + 1), "MEDIA store preset");
+        char v[16];
+        snprintf(v, sizeof(v), "Stored in %d", _pre_sel + 1);
+        toast("PRESET", v, now_ms);
+      } else {
+        media(ELC_MEDIA_PRESET_STORE, 0, "MEDIA store preset");  // the next free slot (else the oldest)
+        toast("PRESET", "Stored", now_ms);
+      }
+      break;
+    case kKBand: {
+      const uint8_t r = radio();
+      const AccItem *it = r ? accessory_can_item(r, kRadioBandItem) : nullptr;
+      if (!it) {
+        toast("RADIO", "Band not heard yet", now_ms);
+        break;
+      }
+      const int32_t v = it->has_value && it->value ? 0 : 1;  // FM <-> AM
+      accessory_can_set(r, kRadioBandItem, v);
+      toast("BAND", v ? "AM" : "FM", now_ms);
+      break;
+    }
+    case kKPlayPause: play_pause(now_ms); break;
+    case kKVoice:
+      if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
+        const bool on = !(_ph.flags & ELC_CAN_PHONE_VOICE);
+        phone_cmd(ELC_CAN_PHONE_CMD_VOICE, on ? 1 : 0, "voice");
+        toast("VOICE", on ? "Listening" : "Off", now_ms);
+      } else {
+        toast("VOICE", "No phone", now_ms);
+      }
+      break;
+    case kKRedial:
+      phone_cmd(ELC_CAN_PHONE_CMD_REDIAL, 0, "redial");
+      toast("PHONE", "Redial", now_ms);
+      break;
+    case kKPhone:
+      open_menu(now_ms);
+      push(kMPhone);
+      break;
+    case kKAudioOn: audio_power(now_ms); break;
+    // the drive pages
+    case kKPage: page_step(1, now_ms); break;
+    case kKView: {
+      const uint8_t v = next_view();
+      _view_req = v;
+      _view_req_ms = now_ms;
+      setting(ELC_CAN_SET_CENTER_VIEW, v, now_ms, "view");
+      toast("VIEW", kViewName[v & 3], now_ms);
+      break;
+    }
+    case kKTripReset:
+      if (_s.odo_valid) {
+        _trip_base = _s.odo_tenths;
+        _trip_set = true;
+        _persist_dirty = true;
+        toast("TRIP A", "Reset", now_ms);
+      }
+      break;
+    default: break;
+  }
 }
 
 void ConsoleUi::art_pump(uint32_t now_ms) {

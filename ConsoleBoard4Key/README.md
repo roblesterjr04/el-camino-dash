@@ -70,8 +70,9 @@ As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, 
 | 1 / 2 | Select knob, jack contacts 3 / 4 (ADC1) | 38 | Key LED PWM |
 | 19 / 20 | USB D- / D+ | 39 | IR in |
 
-Keys 1 and 2 keep the Back and View pins, so today's console firmware runs on this board with those two keys working;
-keys 3 and 4 (GPIO 48 and 13) and the knobs (now analog, see below) need firmware support. GPIO 14-18 are free.
+Keys 1 and 2 keep the Back and View pins of `ConsoleBoard`. The console firmware
+([`firmware/esp32s3_console/`](../firmware/esp32s3_console/README.md)) drives all four keys and reads the knobs on the
+ADC. GPIO 14-18 are free.
 
 ## Knobs (RJ11)
 
