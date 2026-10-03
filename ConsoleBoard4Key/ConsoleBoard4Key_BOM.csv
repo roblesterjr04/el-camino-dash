@@ -8,7 +8,8 @@ Qty,Designators,Value,Description,Package / footprint,Manufacturer part (example
 2,"D1, D2",B5819W,"Schottky 40 V 1 A (power OR: USB VBUS and cable 5 V)",SOD-123,any B5819W,
 1,J1,2x8 female socket,"2.54 mm pin socket, 2 x 8, vertical (OLED module plugs in)",PinSocket_2x08_P2.54mm_Vertical,"any 2.54 mm 2x8 female, about 8.5 mm tall","Wired to the measured module pinout (1 GND, 2 VCC, 4 CLK, 5 DIN, 14 DC, 15 RES, 16 CS)"
 1,J2,USB-C,"USB-C receptacle, USB 2.0, 16 pin, top mount",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,GCT USB4105-GF-A,
-3,"J3, J4, J5",JST PH 4-pin,"JST PH 2.0 mm, 4 pin, side entry, through hole (J3 CAN cable, J4 Select encoder, J5 Volume encoder)",JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal,JST S4B-PH-K-S(LF)(SN),"Mating housing PHR-4 + SPH-002T-P0.5S crimps (per cable)"
+1,J3,JST PH 4-pin,"JST PH 2.0 mm, 4 pin, side entry, through hole (CAN cable)",JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal,JST S4B-PH-K-S(LF)(SN),"Mating housing PHR-4 + SPH-002T-P0.5S crimps"
+2,"J4, J5",RJ11 6P4C,"Modular jack 6P4C (RJ11 / RJ14), horizontal, through hole (J4 Select knob, J5 Volume knob)",RJ14_Connfly_DS1133-S4_Horizontal,Connfly DS1133-S4,"Plugs in from the bottom edge. A substitute must have the same footprint (4 pins, two 2.3 mm pegs)"
 1,J6,1x3 header,"2.54 mm pin header, 1 x 3, vertical (optional IR receiver)",PinHeader_1x03_P2.54mm_Vertical,any,"Optional: fit only if the IR receiver is used"
 4,"SW3, SW4, SW5, SW6",TL1240YQ,"Illuminated tact switch 6 x 6 mm, through hole, yellow LED (10 mA, 2.5 V) (soft keys 1-4)",SW_TL1240YQ (ConsoleBoard4Key.pretty),E-Switch TL1240YQ,"Plunger top 7.2 mm above the board: the housing needs key caps to reach its face"
 2,"SW1, SW2",PTS810,"Tact switch 4.2 x 3.2 mm SMT (RESET, BOOT)",SW_SPST_PTS810,C&K PTS810 SJM 250 SMTR LFS,
@@ -16,8 +17,9 @@ Qty,Designators,Value,Description,Package / footprint,Manufacturer part (example
 4,"C1, C5, C7, C8",10u,"Ceramic X5R 16 V (on +5V / +3V3)",0805,any,"16 V or 25 V rating keeps capacitance at 5 V (DC bias)"
 1,C4,1u,"Ceramic X7R 16 V",0603,any,EN reset delay (with R2 10k)
 5,"C2, C6, C9, C10, C11",100n,"Ceramic X7R 50 V",0603,any,
-10,C12-C21,10n,"Ceramic X7R 50 V",0603,any,"Key / encoder debounce"
-12,"R2, R11-R21",10k,"Resistor 1 % 1/10 W",0603,any,"R2 EN pull-up; R11-R21 key / encoder / IR pull-ups"
+8,C12-C19,10n,"Ceramic X7R 50 V",0603,any,"Key debounce, knob ladder filtering"
+6,"R2, R11-R14, R19",10k,"Resistor 1 % 1/10 W",0603,any,"R2 EN pull-up; R11-R14 key pull-ups; R19 IR pull-up"
+4,R15-R18,33k,"Resistor 1 % 1/10 W",0603,any,"Knob ladder pull-ups (the same on both lines of each jack)"
 2,"R1, R10",100k,"Resistor 1 % 1/10 W",0603,any,"R1 OLED CS pull-up; R10 key LED gate pull-down"
 2,"R3, R4",5.1k,"Resistor 1 % 1/10 W",0603,any,USB-C CC1 / CC2 (device)
 4,R6-R9,100,"Resistor 1 % 1/10 W",0603,any,"Key LED current, about 8 mA (the LED is rated 10 mA)"

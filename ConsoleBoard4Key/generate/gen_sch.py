@@ -251,6 +251,7 @@ FP_SOIC = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_SOT23 = 'Package_TO_SOT_SMD:SOT-23'
 FP_SOD123 = 'Diode_SMD:D_SOD-123'
 FP_PH = 'Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal'
+FP_RJ = 'Connector_RJ:RJ14_Connfly_DS1133-S4_Horizontal'
 FP_KEY = 'ConsoleBoard4Key:SW_TL1240YQ'
 FP_SW = 'Button_Switch_SMD:SW_SPST_PTS810'
 
@@ -274,9 +275,9 @@ def c_(v, a, b, x, y, fp=None, d=None):
     return ref
 
 
-text(15, 12, 'CONSOLE BOARD, 4 KEYS  -  ESP32-S3-WROOM-1 + SSD1322 256x64 OLED (16-pin, SPI) + four lit soft keys + two encoders + CAN node 0x13', 3)
+text(15, 12, 'CONSOLE BOARD, 4 KEYS  -  ESP32-S3-WROOM-1 + SSD1322 256x64 OLED (16-pin, SPI) + four lit soft keys + two RetroSound knobs on RJ11 + CAN node 0x13', 3)
 text(15, 20, 'Screen sits on standoffs above the board, soldered to J1. CAN cable J3 (5 V, CANH, CANL, GND) to a DigiDash cable port. '
-     'Encoders are pigtailed to J4 / J5. USB-C is for programming (and bench power); in the car the board is powered from J3.', 1.6)
+     'The two knobs (RetroSound 258A style, resistor ladders) plug into RJ11 jacks J4 / J5. USB-C is for programming (and bench power); in the car the board is powered from J3.', 1.6)
 
 # --- OLED header
 G('oled')
@@ -307,8 +308,8 @@ r_('100k', 'OLED_CS', '+3V3', 20, 100, 'Keeps the panel deselected while the ESP
 # --- ESP32
 G('esp')
 sig = {'IO12': 'OLED_SCK', 'IO11': 'OLED_MOSI', 'IO10': 'OLED_CS', 'IO9': 'OLED_DC', 'IO8': 'OLED_RST',
-       'IO5': 'CAN_TXD', 'IO6': 'CAN_RX', 'IO15': 'ENC1_A', 'IO16': 'ENC1_B', 'IO17': 'ENC1_SW',
-       'IO18': 'ENC2_A', 'IO7': 'ENC2_B', 'IO14': 'ENC2_SW', 'IO21': 'KEY1', 'IO47': 'KEY2', 'IO48': 'KEY3', 'IO13': 'KEY4',
+       'IO5': 'CAN_TXD', 'IO6': 'CAN_RX', 'IO1': 'SEL_3', 'IO2': 'SEL_4', 'IO4': 'VOL_3', 'IO7': 'VOL_4',
+       'IO21': 'KEY1', 'IO47': 'KEY2', 'IO48': 'KEY3', 'IO13': 'KEY4',
        'IO38': 'LED_PWM', 'IO39': 'IR_IN', 'USB_D-': 'USB_DM', 'USB_D+': 'USB_DP', 'IO0': 'BOOT', 'EN': 'EN',
        '3V3': '+3V3', 'GND': 'GND'}
 en = {}
@@ -319,8 +320,8 @@ place(ESP, 'U1', 'ESP32-S3-WROOM-1-N8', 'RF_Module:ESP32-S3-WROOM-1', 180, 100, 
 c_('10u', '+3V3', 'GND', 150, 150, d='Module supply, at pin 2')
 c_('100n', '+3V3', 'GND', 165, 150, d='Module supply, at pin 2')
 c_('22u', '+3V3', 'GND', 135, 150, d='Bulk, for the module current peaks')
-text(120, 25, 'GPIO map: OLED SPI (FSPI) SCK 12, MOSI 11, CS 10, DC 9, RST 8. CAN TX 5, RX 6. Encoder 1 (Select) A 15, B 16, SW 17. '
-     'Encoder 2 (Volume) A 18, B 7, SW 14. Keys 1-4 (top to bottom) 21, 47, 48, 13. Key LED PWM 38. IR in 39. USB 19 / 20. Strapping pins 0, 3, 45, 46 not used '
+text(120, 25, 'GPIO map: OLED SPI (FSPI) SCK 12, MOSI 11, CS 10, DC 9, RST 8. CAN TX 5, RX 6. Select knob (J4) contacts 3 / 4 on ADC1 1 / 2, '
+     'Volume knob (J5) contacts 3 / 4 on ADC1 4 / 7. Keys 1-4 (top to bottom) 21, 47, 48, 13. Key LED PWM 38. IR in 39. USB 19 / 20. Strapping pins 0, 3, 45, 46 not used '
      'except BOOT (0).', 1.4)
 
 G('boot')
@@ -380,20 +381,24 @@ place(NFET, 'Q1', '2N7002', FP_SOT23, 310, 190, {'1': 'LED_PWM', '2': 'GND', '3'
 r_('100k', 'LED_PWM', 'GND', 330, 205, 'Keeps the LEDs off while the ESP32 boots')
 
 G('ui')
-text(220, 215, 'KEYS 1-4 (top to bottom, the soft keys beside the OLED): TL1240YQ to GND, 10k pull-up + 10 nF at the pin. Encoders: pigtailed to J4 (Select) / J5 (Volume), '
-     'pins 1 GND (common + switch), 2 A, 3 B, 4 SW; the same 10k / 10 nF on each line.', 1.4)
+text(220, 215, 'KEYS 1-4 (top to bottom, the soft keys beside the OLED): TL1240YQ to GND, 10k pull-up + 10 nF at the pin.', 1.4)
+text(220, 222, 'KNOBS: RetroSound 258A style controls on RJ11 (6P4C). Contacts 2 black and 5 yellow are ground (shorted inside the knob); 3 red is the encoder '
+     '(to ground through open / 82k / 30k / 47k, a 2-bit Gray code), 4 green the switches (open; 6.8k outer left; 22k outer right; 0 R push). '
+     'A reversed phone cord swaps 3 and 4, so both get the same 33k pull-up and 10 nF and go to ADC1: the levels tell the firmware which is which '
+     '(green 0 / 0.56 / 1.32 / 3.3 V, red 1.57 / 1.94 / 2.35 / 3.3 V).', 1.4)
 for k in range(4):
     place(KEY, 'SW%d' % (k + 3), 'TL1240YQ', FP_KEY, 240 + 30 * k, 250,
           {'1': 'GND', '2': 'GND', '3': 'KEY%d' % (k + 1), '4': 'KEY%d' % (k + 1), 'A': 'LED_A%d' % (k + 1), 'K': 'LED_K'},
           descr='Soft key %d (top to bottom): E-Switch TL1240YQ, illuminated, yellow' % (k + 1))
-place(HDR4, 'J4', 'Encoder 1 (Select)', FP_PH, 240, 300, {'1': 'GND', '2': 'ENC1_A', '3': 'ENC1_B', '4': 'ENC1_SW'},
-      descr='JST PH 4-pin, pigtail to the Select encoder: GND, A, B, push')
-place(HDR4, 'J5', 'Encoder 2 (Volume)', FP_PH, 290, 300, {'1': 'GND', '2': 'ENC2_A', '3': 'ENC2_B', '4': 'ENC2_SW'},
-      descr='JST PH 4-pin, pigtail to the Volume encoder: GND, A, B, push')
+place(HDR4, 'J4', 'Select knob (RJ11)', FP_RJ, 240, 300, {'1': 'GND', '2': 'SEL_3', '3': 'SEL_4', '4': 'GND'},
+      descr='RJ11 6P4C jack (footprint pins 1-4 = jack contacts 2-5): 2 black GND, 3 red encoder, 4 green switches, 5 yellow GND')
+place(HDR4, 'J5', 'Volume knob (RJ11)', FP_RJ, 290, 300, {'1': 'GND', '2': 'VOL_3', '3': 'VOL_4', '4': 'GND'},
+      descr='RJ11 6P4C jack (footprint pins 1-4 = jack contacts 2-5): 2 black GND, 3 red encoder, 4 green switches, 5 yellow GND')
 place(HDR3, 'J6', 'IR receiver', 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical', 340, 300,
       {'1': 'GND', '2': '+3V3', '3': 'IR_IN'}, descr='Optional IR demodulator (as on the encoder_controller firmware): GND, 3.3 V, OUT')
-for i, n in enumerate(['KEY1', 'KEY2', 'KEY3', 'KEY4', 'ENC1_A', 'ENC1_B', 'ENC1_SW', 'ENC2_A', 'ENC2_B', 'ENC2_SW', 'IR_IN']):
-    r_('10k', '+3V3', n, 230 + 15 * i, 340)
+for i, n in enumerate(['KEY1', 'KEY2', 'KEY3', 'KEY4', 'SEL_3', 'SEL_4', 'VOL_3', 'VOL_4', 'IR_IN']):
+    r_('33k' if n[:3] in ('SEL', 'VOL') else '10k', '+3V3', n, 230 + 15 * i, 340,
+       'Ladder pull-up: the same on both knob lines, so a reversed cord still reads' if n[:3] in ('SEL', 'VOL') else None)
     if n != 'IR_IN':
         c_('10n', n, 'GND', 230 + 15 * i, 355)
 
@@ -408,7 +413,7 @@ out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "A2")',
        '  (title_block (title "DigiDash console board, 4 keys") (date "2026-10-03") (rev "A")',
-       '    (comment 1 "ESP32-S3 + SSD1322 256x64 OLED + 4 lit soft keys + 2 encoders + CAN (node 0x13)")',
+       '    (comment 1 "ESP32-S3 + SSD1322 256x64 OLED + 4 lit soft keys + 2 RJ11 knobs + CAN (node 0x13)")',
        '    (comment 2 "Cable to a DigiDash cable port"))',
        '  (lib_symbols']
 for t in lib_text.values():

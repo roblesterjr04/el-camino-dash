@@ -1,9 +1,10 @@
 # Console board, 4 keys
 
 A variant of the [console board](../ConsoleBoard/) (CAN node `0x13`) for a housing **111.5 × 38.5 mm outside**: the
-same ESP32-S3, the same **SSD1322 256 × 64 OLED** module (100 × 33.5 mm) on the same 2 × 8 socket, CAN, USB-C,
-encoder pigtails and IR header, but **four lit soft keys** (E-Switch TL1240YQ, yellow LED in the plunger) in a column
-left of the screen instead of the Back / View keys under it, and no separate LEDs.
+same ESP32-S3, the same **SSD1322 256 × 64 OLED** module (100 × 33.5 mm) on the same 2 × 8 socket, CAN, USB-C and
+IR header, but **four lit soft keys** (E-Switch TL1240YQ, yellow LED in the plunger) in a column left of the screen
+instead of the Back / View keys under it, no separate LEDs, and **two RJ11 jacks** for RetroSound-style knobs
+(resistor-ladder encoders, read on the ESP32's ADC) instead of the encoder pigtails.
 
 | Files | |
 | --- | --- |
@@ -40,16 +41,20 @@ left of the screen instead of the Back / View keys under it, and no separate LED
 - **Labels:** the screen is 19.2 mm tall and the keys span 25.5 mm, so the firmware draws the four labels as a list
   down the screen's left edge (top key = top label), not level with each key.
 - **Front** (module side): J1, the four M2 holes and the four keys. **Back:** the ESP32 module (antenna on the top
-  edge, behind the keys' column), RESET / BOOT, USB-C, the CAN cable, both encoder connectors, the IR header and all
-  the passives. The cable connectors are along the bottom edge, with their captions on one line between them and the
-  ESP32.
+  edge, behind the keys' column), RESET / BOOT, USB-C, the CAN cable, the two RJ11 jacks, the IR header and all the
+  passives. The connectors are along the bottom edge, plugs entering from below; left to right seen from the front:
+  CAN (J3, under the ESP32), USB-C (J2), Select knob (J4), Volume knob (J5), IR (J6).
+- **RJ11 jacks:** Connfly DS1133-S4 (6P4C), 12.5 mm wide and 13.5 mm deep, front face on the bottom edge, centred at
+  x = 58.0 and 73.5 mm. They are the tallest parts on the back (check the housing depth behind the board), and the
+  housing's bottom wall needs two openings for the plugs.
 
 ## Schematic blocks
 
-As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, USB, CAN, OLED, encoders, IR), except:
+As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, USB, CAN, OLED, IR), except:
 
 | Block | Parts | Notes |
 | --- | --- | --- |
+| Knobs | J4 Select, J5 Volume: RJ11 6P4C jacks; contacts 2 and 5 to GND, 3 and 4 to ADC1 with a 33k pull-up + 10 nF each | See [Knobs](#knobs-rj11) |
 | Keys | SW3-SW6 TL1240YQ (keys 1-4, top to bottom) to GND, 10k pull-up + 10 nF on each | Pins 1 / 2 and 3 / 4 are each one contact; 1 / 2 go to GND |
 | Key LEDs | The yellow LED in each key (10 mA max, 2.5 V), 100 Ω each from `+3V3` (about 8 mA), Q1 2N7002 on the low side, 100k gate pull-down | GPIO 38 PWM (LEDC) dims all four, as the four separate LEDs were. Square pad = anode (+) |
 
@@ -57,14 +62,41 @@ As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, 
 
 | ESP32 GPIO | Signal | ESP32 GPIO | Signal |
 | --- | --- | --- | --- |
-| 12 / 11 / 10 | OLED SCK / MOSI / CS | 18 / 7 / 14 | Volume A / B / push |
+| 12 / 11 / 10 | OLED SCK / MOSI / CS | 4 / 7 | Volume knob, jack contacts 3 / 4 (ADC1) |
 | 9 / 8 | OLED D/C / RST | 21 / 47 | Key 1 / key 2 (Back / View on `ConsoleBoard`) |
 | 5 / 6 | CAN TX / RX | 48 / 13 | Key 3 / key 4 |
-| 15 / 16 / 17 | Select A / B / push | 38 | Key LED PWM |
+| 1 / 2 | Select knob, jack contacts 3 / 4 (ADC1) | 38 | Key LED PWM |
 | 19 / 20 | USB D- / D+ | 39 | IR in |
 
 Keys 1 and 2 keep the Back and View pins, so today's console firmware runs on this board with those two keys working;
-keys 3 and 4 (GPIO 48 and 13) need firmware support.
+keys 3 and 4 (GPIO 48 and 13) and the knobs (now analog, see below) need firmware support. GPIO 14-18 are free.
+
+## Knobs (RJ11)
+
+The knobs are RetroSound 258A-style dual controls (inner encoder with push, outer three-position ring), measured in
+[gpiozero discussion #1119](https://github.com/gpiozero/gpiozero/discussions/1119). Each has a 4-wire RJ11 lead:
+
+| Jack contact | Wire | Inside the knob |
+| --- | --- | --- |
+| 2 | Black | Ground |
+| 3 | Red | Encoder: to ground through open, 82k, 30k (82k ∥ 47k), 47k, open as it turns one way (the reverse the other way). Open and 30k are the detents, so it is a 2-bit Gray code with two steps per detent |
+| 4 | Green | Switches: open (none), 6.8k (outer ring left), 22k (outer ring right), 0 Ω (inner push) |
+| 5 | Yellow | Ground (0 Ω to black inside the knob, so never power it) |
+
+Contacts 3 and 4 each have a 33k pull-up to 3.3 V and 10 nF to ground, and go to ADC1 (12 dB attenuation). The
+levels:
+
+| Green | Volts | Red | Volts |
+| --- | --- | --- | --- |
+| push (0 Ω) | 0.00 | 30k (detent) | 1.57 |
+| outer left (6.8k) | 0.56 | 47k | 1.94 |
+| outer right (22k) | 1.32 | 82k | 2.35 |
+| none (open) | 3.30 | open (detent) | 3.30 |
+
+The two lines are wired identically on purpose: a reversed phone cord (the usual kind) swaps black with yellow, which
+does nothing, and red with green. The firmware tells them apart by their levels (only the encoder ever reads 1.5 to
+2.4 V; only the switches read below 1.4 V) and remembers which is which. Sample each line at 1 kHz or so; the 10 nF
+settles in about 1.7 ms (5 τ with 33k), well inside one step of a quickly turned knob.
 
 J3 (cable to the DigiDash board): 1 +5 V, 2 CANH, 3 CANL, 4 GND (the cable-port order, see
 `docs/hardware/accessory_ports.md`).
