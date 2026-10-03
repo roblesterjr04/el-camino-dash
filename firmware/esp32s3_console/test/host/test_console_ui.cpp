@@ -289,14 +289,19 @@ static void test_sources_and_radio() {
   ui.soft_left_hold(T);  // store the station in slot 2
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_STORE && m[0][3] == 2);
-  ui.right_turn(1, T);  // slot 3 holds 1070 AM: recall it
-  m = r.sent(ELC_CH_AUDIO_CMD);
-  CHECK(ui.preset_sel() == 2 && m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_RECALL && m[0][3] == 3);
+  ui.right_turn(1, T);  // slot 3 holds 1070 AM: only the highlight moves
+  CHECK(ui.preset_sel() == 2 && r.sent(ELC_CH_AUDIO_CMD).empty());
   ui.right_turn(-4, T);  // wraps to slot 11
   CHECK(ui.preset_sel() == 10);
-  r.sent(ELC_CH_AUDIO_CMD);
-  ui.soft_right(T);  // closes, and the page stays
-  CHECK(!ui.presets_shown() && ui.page() == kPageMedia);
+  ui.right_turn(4, T);  // back on slot 3
+  ui.right_click(T);  // closing on it tunes to it
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(!ui.presets_shown() && m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_RECALL && m[0][3] == 3);
+  ui.right_click(T);  // reopens on slot 1 (94.7: no preset reported playing)
+  CHECK(ui.preset_sel() == 0);
+  ui.soft_right(T);  // the Close key also tunes, and the page stays
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(!ui.presets_shown() && ui.page() == kPageMedia && m.size() == 1 && m[0][3] == 1);
   ui.right_click(T + 5);  // an input stamped just after the clock of the next pass (the serial console) ...
   ui.tick(T);
   CHECK(ui.presets_shown());  // ... does not count as long untouched
@@ -305,7 +310,8 @@ static void test_sources_and_radio() {
   sensors(ui);
   r.status(ELC_SRC_RADIO);
   ui.tick(T);
-  CHECK(!ui.presets_shown());  // closes by itself when left alone
+  CHECK(!ui.presets_shown());  // closes by itself when left alone ...
+  CHECK(r.sent(ELC_CH_AUDIO_CMD).empty());  // ... without changing the station
   ui.right_hold(T);  // seek up
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_SEEK_UP);

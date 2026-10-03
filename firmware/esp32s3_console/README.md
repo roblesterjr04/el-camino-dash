@@ -46,9 +46,10 @@ MEDIA / VOLUME); radio commands go to the audio card, which forwards them to the
 (`docs/protocols/can_channels.md`, AUDIO_CMD). A warning on the drive page is acknowledged with the left soft key.
 
 **The preset list** (right knob click with the radio playing): the twelve presets, four by three, with their
-frequencies; the one playing is outlined. Turning the right knob moves along them and tunes to each stored one as it
-lands (AUDIO_CMD MEDIA 13, recall); holding the left soft key stores the station in the slot highlighted, over what it
-held; the right soft key or the right knob click closes it, and it closes by itself after 4 s untouched.
+frequencies; the one playing is outlined. Turning the right knob moves the highlight only; closing the list with the
+right knob click or the right soft key tunes to the highlighted preset (AUDIO_CMD MEDIA 13, recall). Holding the left
+soft key stores the station in the slot highlighted, over what it held. Left alone for 4 s it closes without changing
+the station.
 
 **In a call** the soft keys are Decline / Answer, End / Mute (Unmute), Ignore / Answer (holds the active call), End /
 Swap; the left knob sets the call volume and its click mutes the microphone. **A phone asking to pair** takes over the

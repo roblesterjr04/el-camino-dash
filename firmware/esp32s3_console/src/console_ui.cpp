@@ -915,6 +915,15 @@ bool ConsoleUi::preset_khz(int i, uint32_t *khz) const {
   return true;
 }
 
+void ConsoleUi::presets_choose(const char *why) {
+  const bool np = _now_ms && _now - _now_ms < 5000 && _now_playing.source == ELC_SRC_RADIO;
+  const bool playing = np && _now_playing.preset == _pre_sel + 1;
+  if (preset_khz(_pre_sel, nullptr) && !playing) {
+    media(ELC_MEDIA_PRESET_RECALL, (uint8_t)(_pre_sel + 1), "MEDIA recall preset");
+  }
+  presets_close(why);
+}
+
 void ConsoleUi::presets_open(uint32_t now_ms) {
   _pre_open = true;
   _pre_ms = now_ms;
@@ -1028,10 +1037,9 @@ void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
     menu_move(steps);
     return;
   }
-  if (_pre_open) {  // the preset list: move along it, tuning to each stored one as it lands
+  if (_pre_open) {  // the preset list: move the highlight; the station changes when the list closes on it
     _pre_ms = now_ms;
     _pre_sel = ((_pre_sel + steps) % kPresets + kPresets) % kPresets;
-    if (preset_khz(_pre_sel, nullptr)) media(ELC_MEDIA_PRESET_RECALL, (uint8_t)(_pre_sel + 1), "MEDIA recall preset");
     return;
   }
   if (audio_off(now_ms)) return;  // no source: nothing to tune or skip
@@ -1061,7 +1069,7 @@ void ConsoleUi::right_click(uint32_t now_ms) {
   }
   if (audio_off(now_ms)) return;
   if (radio_is_source(now_ms)) {
-    if (_pre_open) presets_close("right click");
+    if (_pre_open) presets_choose("right click");
     else presets_open(now_ms);
   } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
     const bool on = !(_ph.flags & ELC_CAN_PHONE_VOICE);
@@ -1167,7 +1175,7 @@ void ConsoleUi::soft_right(uint32_t now_ms) {
     return;
   }
   if (_pre_open) {
-    presets_close("right soft");
+    presets_choose("right soft");
     return;
   }
   page_step(1, now_ms);

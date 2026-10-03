@@ -203,6 +203,8 @@ class ConsoleUi {
   void art_pump(uint32_t now_ms);
   void touched(uint32_t now_ms) { _touch_ms = now_ms ? now_ms : 1; }
   void presets_open(uint32_t now_ms);
+  /** Close the list and tune to the preset highlighted (when it is stored and not already playing). */
+  void presets_choose(const char *why);
   void presets_close(const char *why) {
     if (_pre_open) _pre_why = why;
     _pre_open = false;
