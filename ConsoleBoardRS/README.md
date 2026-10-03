@@ -61,9 +61,9 @@ As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, 
 | 5 / 6 | CAN TX / RX | 39 | IR in |
 | 19 / 20 | USB D- / D+ | | |
 
-GPIO 13-18, 21, 38, 47 and 48 are free. Today's console firmware reads the encoders and keys as digital pins, so this
-board needs firmware that reads the knobs on the ADC; the firmware can draw the soft-key labels in the screen's bottom
-corners and take them from one knob's ring (left / right).
+GPIO 13-18, 21, 38, 47 and 48 are free. The console firmware
+([`firmware/esp32s3_console/`](../firmware/esp32s3_console/README.md)) reads the knobs on the ADC and draws two
+soft-key labels in the screen's bottom corners, used with the right knob's ring (left / right).
 
 ## Knobs (RJ11)
 

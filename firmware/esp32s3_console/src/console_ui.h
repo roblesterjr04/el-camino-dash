@@ -1,13 +1,13 @@
 #pragma once
 
 // The console is the car's radio head unit (decided 2026-10-02; the El Camino Cluster prototype's drive pages and
-// warnings stay). Two RetroSound knobs (turn, push, outer ring left / right) and four soft keys in a column left of the
-// OLED (ConsoleBoard4Key): the left knob is the audio (volume, mute, power, source) everywhere, the right knob tunes
-// at rest and moves through lists, and the keys do what their labels on the screen's left edge say, which change with
-// what is on the screen. Its own menu on the OLED holds Source, Radio and the other accessory pages (UI channel),
-// Phone, Display, Trip and Service. No Arduino dependency: it takes CAN frames, channel transfers and knob / key input
-// with a clock, and queues the frames to send, so it runs in the host tests and the host preview. Drawing:
-// console_screens.cpp. Controls: firmware/esp32s3_console/README.md.
+// warnings stay). The only controls are two RetroSound knobs (ConsoleBoardRS), each a turn, a push and an outer ring
+// that pushes left or right: the left knob is the audio (volume, mute, source, seek / skip) everywhere; the right knob tunes
+// at rest and moves through lists, its push is OK and its hold the menu, and its ring is two soft keys whose labels
+// sit in the screen's bottom corners and change with what is on the screen. Its own menu on the OLED holds Source,
+// Radio and the other accessory pages (UI channel), Phone, Display, Trip and Service. No Arduino dependency: it takes
+// CAN frames, channel transfers and knob input with a clock, and queues the frames to send, so it runs in the host
+// tests and the host preview. Drawing: console_screens.cpp. Controls: firmware/esp32s3_console/README.md.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -48,8 +48,9 @@ struct ConsoleAlert {
   char line[64];
 };
 
-/** A soft key as the screen shows it: its label, and what a click and a hold do (ConsoleUi::KeyAct). A key with only
- *  a hold action (storing a preset, resetting the trip) answers a click with a hint. */
+/** A soft key (the right ring pushed left or right) as the screen shows it: its label, and what a click and a hold do
+ *  (ConsoleUi::KeyAct). A key with only a hold action (storing a preset, resetting the trip) answers a click with a
+ *  hint. */
 struct ConsoleKey {
   uint8_t click = 0, hold = 0;
   char label[10] = {0};
@@ -81,8 +82,8 @@ class ConsoleUi {
   /** True once after a persistent setting changed (the firmware saves them). */
   bool take_persist_dirty();
 
-  // ---- input: left knob = Volume, right knob = Select (turn in detents, + = clockwise; push click / hold; the outer
-  // ring flicked left (-1) or right (+1)), keys 0..3 = the soft keys top to bottom
+  // ---- input: left knob = Volume, right knob = Select (turn in detents, + = clockwise; push click / hold). The left
+  // ring flicked left (-1) or right (+1); the right ring is the two soft keys, 0 = left, 1 = right (click / hold)
   void feed(const ElcCanFrame &f, uint32_t now_ms);
   /** Every complete channel transfer (also give it to accessory_can_transfer, which the firmware does). */
   void transfer(const ElcChTransfer &t, uint32_t now_ms);
@@ -93,13 +94,12 @@ class ConsoleUi {
   void right_turn(int steps, uint32_t now_ms);
   void right_click(uint32_t now_ms);
   void right_hold(uint32_t now_ms);
-  void right_ring(int dir, uint32_t now_ms);
   void key_click(int key, uint32_t now_ms);
   void key_hold(int key, uint32_t now_ms);
   void tick(uint32_t now_ms);
 
-  static constexpr int kKeys = 4;
-  /** What the four soft keys are now, top to bottom (an empty label = the key does nothing). */
+  static constexpr int kKeys = 2;
+  /** What the two soft keys are now, left then right (an empty label = the key does nothing). */
   void keys(ConsoleKey out[kKeys], uint32_t now_ms);
 
   bool pop_action(ConsoleAction &out);
@@ -111,8 +111,6 @@ class ConsoleUi {
   void render(OledGfx &g, uint32_t now_ms);
   /** 0..1 panel brightness for the grey levels (OLED contrast setting and the cluster brightness). */
   float level_scale() const;
-  /** Key LEDs: 0..1 (they follow the cluster brightness and pulse while a call rings). */
-  float led_level(uint32_t now_ms) const;
   /** One line per state, for the serial console. */
   void describe(char *out, size_t n, uint32_t now_ms) const;
 
@@ -154,8 +152,6 @@ class ConsoleUi {
   static constexpr uint8_t kRadioPresetItem0 = 15;  // the radio's preset frequency items 15..26 (radio_card.md)
   static constexpr uint8_t kRadioBandItem = 1;      // the radio's Band choice: 0 FM, 1 AM
   static constexpr uint32_t kHintMs = 2600;        // soft-key labels stay lit this long after a control is touched
-  static constexpr int kRailW = 44;                 // the soft-key labels' column on the screen's left edge, px
-  static constexpr int kX0 = kRailW + 3;            // where the pages start, right of the column and its rule
 
   // Menu pages.
   enum MenuPage : uint8_t { kMHome, kMSource, kMPhone, kMPhoneOne, kMDisplay, kMTrip, kMService, kMAccessories,
@@ -177,8 +173,8 @@ class ConsoleUi {
     kKAnswer, kKDecline, kKEnd, kKMicMute, kKAudioRoute, kKSwap, kKIgnore,  // calls
     kKPair, kKReject,                                                        // a pairing code
     kKAlertOk,                                                               // a warning
-    kKMenu, kKBack, kKExit, kKDone, kKUndo, kKYes, kKNo,                     // the menu
-    kKPresets, kKStore, kKBand, kKPlayPause, kKVoice, kKRedial, kKPhone,     // the source
+    kKBack, kKExit, kKDone, kKUndo, kKYes, kKNo,                             // the menu
+    kKSeekUp, kKSeekDown, kKStore, kKBand, kKRedial, kKVoice, kKPhone,      // the source
     kKAudioOn, kKPage, kKView, kKTripReset, kKClose,                         // the drive pages, the preset list
   };
 
@@ -224,8 +220,8 @@ class ConsoleUi {
   void media(uint8_t action, uint8_t value, const char *what);
   void play_pause(uint32_t now_ms);
   void request_source(uint8_t code, const char *what, uint32_t now_ms);
-  void source_step(int dir, uint32_t now_ms);
-  void audio_power(uint32_t now_ms);
+  void source_next(uint32_t now_ms);
+  void audio_on(uint32_t now_ms);
   void do_key(uint8_t act, uint32_t now_ms);
   void key_hint(uint8_t act, uint32_t now_ms);
   const char *page_name(int page, uint32_t now_ms) const;

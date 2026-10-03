@@ -5,7 +5,7 @@
 
 #include "console_pins.h"
 
-// ---- knobs: RetroSound 258A-style, two analog lines each (ConsoleBoard4Key/README.md, "Knobs") ----
+// ---- knobs: RetroSound 258A-style, two analog lines each (ConsoleBoardRS/README.md, "Knobs") ----
 //
 // Each jack's two lines have a 33k pull-up, so every resistance in the knob reads as a voltage. The encoder line
 // steps open -> 82k -> 30k -> 47k -> open one way (the reverse the other), with detents at open and 30k: a two-bit
@@ -128,7 +128,7 @@ static int knob_steps(Knob &k) {
   return (int)d;
 }
 
-// ---- keys and knob pushes: debounced by time; clicks act on release so a hold can be told apart ----
+// ---- pushes and the right ring: clicks act on release so a hold can be told apart (the task has debounced them) ----
 
 struct Key {
   bool stable_down;
@@ -138,16 +138,15 @@ struct Key {
   bool held;
 };
 
-static const uint8_t kKeyPins[4] = {CONSOLE_KEY1_PIN, CONSOLE_KEY2_PIN, CONSOLE_KEY3_PIN, CONSOLE_KEY4_PIN};
-static Key s_keys[4], s_sel_push, s_vol_push;
+static Key s_sel_push, s_vol_push, s_ring_left, s_ring_right;
 
 /** One switch: `down` is its level now. A click on release, a hold once at CONSOLE_HOLD_MS (its release does nothing). */
-static void key_step(Key &k, bool down, uint32_t now_ms, uint32_t debounce_ms, bool *click, bool *hold) {
+static void key_step(Key &k, bool down, uint32_t now_ms, bool *click, bool *hold) {
   if (down != k.raw_down) {
     k.raw_down = down;
     k.change_ms = now_ms;
   }
-  if (k.raw_down != k.stable_down && now_ms - k.change_ms >= debounce_ms) {
+  if (k.raw_down != k.stable_down) {
     k.stable_down = k.raw_down;
     if (k.stable_down) {
       k.down_ms = now_ms;
@@ -162,9 +161,9 @@ static void key_step(Key &k, bool down, uint32_t now_ms, uint32_t debounce_ms, b
   }
 }
 
-static Sw s_sel_ring = kSwNone, s_vol_ring = kSwNone;
+static Sw s_vol_ring = kSwNone;
 
-/** The ring acts once as it is flicked (the next flick needs it back in the middle first). */
+/** The left ring acts once as it is flicked (the next flick needs it back in the middle first). */
 static int ring_step(Sw now, Sw &last) {
   const Sw ring = now == kSwLeft || now == kSwRight ? now : kSwNone;
   const int r = ring != last && ring != kSwNone ? (ring == kSwRight ? 1 : -1) : 0;
@@ -173,28 +172,20 @@ static int ring_step(Sw now, Sw &last) {
 }
 
 void console_input_begin() {
-  for (int i = 0; i < 4; i++) {
-    pinMode(kKeyPins[i], INPUT_PULLUP);
-    s_keys[i].raw_down = s_keys[i].stable_down = digitalRead(kKeyPins[i]) == LOW;  // held at boot: no press until released
-    s_keys[i].held = true;
-  }
   analogReadResolution(12);
   knob_begin(s_sel);
   knob_begin(s_vol);
-  s_sel_push.held = s_vol_push.held = true;
+  s_sel_push.held = s_vol_push.held = s_ring_left.held = s_ring_right.held = true;
   xTaskCreatePinnedToCore(knob_task, "knobs", 3072, nullptr, 5, nullptr, 0);
 }
 
 void console_input_poll(ConsoleInputEvents &ev, uint32_t now_ms) {
   ev = ConsoleInputEvents();
-  for (int i = 0; i < 4; i++) {
-    key_step(s_keys[i], digitalRead(kKeyPins[i]) == LOW, now_ms, CONSOLE_DEBOUNCE_MS, &ev.key_click[i], &ev.key_hold[i]);
-  }
-  // the knob task has already debounced its lines
   const Sw sel = s_sel.sw, vol = s_vol.sw;
-  key_step(s_sel_push, sel == kSwPush, now_ms, 0, &ev.right_click, &ev.right_hold);
-  key_step(s_vol_push, vol == kSwPush, now_ms, 0, &ev.left_click, &ev.left_hold);
-  ev.right_ring = ring_step(sel, s_sel_ring);
+  key_step(s_sel_push, sel == kSwPush, now_ms, &ev.right_click, &ev.right_hold);
+  key_step(s_vol_push, vol == kSwPush, now_ms, &ev.left_click, &ev.left_hold);
+  key_step(s_ring_left, sel == kSwLeft, now_ms, &ev.key_click[0], &ev.key_hold[0]);
+  key_step(s_ring_right, sel == kSwRight, now_ms, &ev.key_click[1], &ev.key_hold[1]);
   ev.left_ring = ring_step(vol, s_vol_ring);
   ev.right_steps = knob_steps(s_sel);
   ev.left_steps = knob_steps(s_vol);

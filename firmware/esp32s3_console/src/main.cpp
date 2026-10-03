@@ -1,5 +1,5 @@
-// Console board (node 0x13, ConsoleBoard4Key): SSD1322 OLED (16 grey levels), two RetroSound knobs (left = Volume,
-// right = Select: turn, push, outer ring), four soft keys left of the OLED, CAN. It is the car's radio head unit
+// Console board (node 0x13, ConsoleBoardRS): SSD1322 OLED (16 grey levels), two RetroSound knobs (left = Volume,
+// right = Select: turn, push, outer ring; the right ring is the two soft keys), CAN. It is the car's radio head unit
 // (README.md, Controls);
 // logic in console_ui.cpp, drawing in console_screens.cpp (both also run on the host: test/host,
 // tools/console_preview). On the channel protocol it announces itself, follows the audio card's sources and shows
@@ -162,17 +162,17 @@ static void print_help() {
   Serial.println("commands:");
   Serial.println("  help                 this list");
   Serial.println("  state                mode, page, what the console hears");
-  Serial.println("  keys                 what the four soft keys say now");
-  Serial.println("  key 1..4 [hold]      a soft key, top to bottom");
+  Serial.println("  keys                 what the two soft keys (the right ring) say now");
+  Serial.println("  key left|right [hold]    the right ring pushed left / right");
   Serial.println("  left +N|-N|click|hold|ringl|ringr    the left knob (volume, mute, power, source)");
-  Serial.println("  right +N|-N|click|hold|ringl|ringr   the right knob (tune / tracks / lists, OK, voice, seek / back)");
+  Serial.println("  right +N|-N|click|hold   the right knob (tune / tracks / lists, OK, menu)");
   Serial.println("  knobs                the knob lines (mV, band, which contact is the encoder)");
   Serial.println("  chan                 the channel node: announced nodes, accessory pages");
   Serial.println("  shot                 the frame as hex (tools/console_preview/shot.py turns it into a PNG)");
   Serial.println("  oled test|off        every pixel on / normal");
   Serial.println("  log on|off           log the frames sent");
-  Serial.println("  demo on|off          pretend center, sensors and phone (no bus needed; or hold the top key at power-up)");
-  Serial.println("  demo call            (demo) an incoming call: the top key answers, the bottom one declines");
+  Serial.println("  demo on|off          pretend center, sensors and phone (no bus needed)");
+  Serial.println("  demo call            (demo) an incoming call: the right ring right answers, left declines");
 }
 
 static void shot() {
@@ -222,11 +222,11 @@ static void handle_line(char *line) {
     ConsoleKey k[ConsoleUi::kKeys];
     s_ui.keys(k, now);
     for (int i = 0; i < ConsoleUi::kKeys; i++) {
-      Serial.printf("key %d: %s%s\n", i + 1, k[i].label[0] ? k[i].label : "-", k[i].hold ? " (has a hold)" : "");
+      Serial.printf("%s: %s%s\n", i ? "right" : "left", k[i].label[0] ? k[i].label : "-", k[i].hold ? " (has a hold)" : "");
     }
   } else if (!strcmp(cmd, "key") && arg) {
     const char *how = strtok(nullptr, " \t");
-    const int i = atoi(arg) - 1;
+    const int i = !strcmp(arg, "right") ? 1 : (!strcmp(arg, "left") ? 0 : -1);
     if (how && !strcmp(how, "hold")) s_ui.key_hold(i, now);
     else s_ui.key_click(i, now);
   } else if (!strcmp(cmd, "knobs")) {
@@ -237,10 +237,8 @@ static void handle_line(char *line) {
     const bool left = cmd[0] == 'l';
     if (!strcmp(arg, "click")) left ? s_ui.left_click(now) : s_ui.right_click(now);
     else if (!strcmp(arg, "hold")) left ? s_ui.left_hold(now) : s_ui.right_hold(now);
-    else if (!strcmp(arg, "ringl") || !strcmp(arg, "ringr")) {
-      const int dir = arg[4] == 'r' ? 1 : -1;
-      left ? s_ui.left_ring(dir, now) : s_ui.right_ring(dir, now);
-    } else {
+    else if (left && (!strcmp(arg, "ringl") || !strcmp(arg, "ringr"))) s_ui.left_ring(arg[4] == 'r' ? 1 : -1, now);
+    else {
       const int n = (int)strtol(arg, nullptr, 10);
       left ? s_ui.left_turn(n, now) : s_ui.right_turn(n, now);
     }
@@ -276,16 +274,7 @@ void setup() {
   s_ui.restore(s_prefs.getBool("trip_set", false), s_prefs.getUInt("trip_base", 0),
                (ConsoleContrast)(s_prefs.getUChar("contrast", 0) % 3));
   console_input_begin();
-  // Bench: the top key held at power-up starts the demo (a pretend center, sensors and phone); a normal start leaves it
-  // off.
-  delay(30);
-  if (digitalRead(CONSOLE_KEY1_PIN) == LOW) {
-    s_demo = true;
-    Serial.println("demo on (top key held at start)");
-  }
   oled_begin();
-  ledcAttach(CONSOLE_LED_PIN, 5000, 10);
-  ledcWrite(CONSOLE_LED_PIN, 0);
   s_can.onFrame(on_frame, nullptr);
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_CONSOLE, ElcCanNodeType::Console);
   Serial.printf("console: node 0x%02X, CAN %s (TX=%d RX=%d). Type help.\n", ELC_CAN_NODE_CONSOLE, ok ? "up" : "off",
@@ -318,8 +307,7 @@ void loop() {
   if (ev.right_steps) s_ui.right_turn(ev.right_steps, now);
   if (ev.right_click) s_ui.right_click(now);
   if (ev.right_hold) s_ui.right_hold(now);
-  if (ev.right_ring) s_ui.right_ring(ev.right_ring, now);
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 2; i++) {
     if (ev.key_click[i]) s_ui.key_click(i, now);
     if (ev.key_hold[i]) s_ui.key_hold(i, now);
   }
@@ -336,7 +324,6 @@ void loop() {
     s_frame_ms = now;
     s_ui.render(s_gfx, now);
     oled_flush(s_gfx, s_ui.level_scale());
-    ledcWrite(CONSOLE_LED_PIN, (uint32_t)(s_ui.led_level(now) * 1023));
   }
   delay(1);
 }
