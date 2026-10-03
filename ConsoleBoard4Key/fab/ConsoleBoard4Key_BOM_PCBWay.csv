@@ -1,0 +1,24 @@
+Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,Side,Your Instructions / Notes
+1,U1,1,Espressif,ESP32-S3-WROOM-1-N8,"ESP32-S3-WROOM-1-N8: ESP32-S3 module, 8 MB flash, no PSRAM, PCB antenna",RF_Module:ESP32-S3-WROOM-1,SMD,bottom,"Antenna on the board edge, keep-out as placed"
+2,U2,1,Microchip,MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V (from the cable, ahead of the OR diode), VIO 3.3 V",SOIC-8,SMD,bottom,
+3,U3,1,Diodes Incorporated,AP7361C-33E-13,"AP7361C-33E: LDO 3.3 V 1 A, 0.36 V dropout",SOT-223 (tab = GND),SMD,bottom,"SOT-223 for the heat: ESP32 + OLED + key LEDs; pinout 1 IN, 2 GND, 3 OUT"
+4,U4,1,STMicroelectronics,USBLC6-2SC6,"USBLC6-2SC6: USB ESD protection, 2 lines + VBUS",SOT-23-6,SMD,bottom,
+5,D5,1,onsemi,NUP2105LT1G,NUP2105L: CAN bus ESD clamp,SOT-23,SMD,bottom,
+6,Q1,1,onsemi,2N7002LT1G,"2N7002: N-MOSFET, key LED low-side switch",SOT-23,SMD,bottom,Fine at 32 mA with a 3.3 V gate
+7,D1 D2,2,,B5819W SOD-123 Schottky 40 V 1 A (power OR: USB VBUS and cable 5 V),B5819W: Schottky 40 V 1 A (power OR: USB VBUS and cable 5 V),SOD-123,SMD,bottom,
+8,J1,1,,"2x8 female socket PinSocket_2x08_P2.54mm_Vertical 2.54 mm pin socket, 2 x 8, vertical (OLED module plugs in)","2x8 female socket: 2.54 mm pin socket, 2 x 8, vertical (OLED module plugs in)",PinSocket_2x08_P2.54mm_Vertical,THT,top,"Wired to the measured module pinout (1 GND, 2 VCC, 4 CLK, 5 DIN, 14 DC, 15 RES, 16 CS)"
+9,J2,1,GCT,USB4105-GF-A,"USB-C: USB-C receptacle, USB 2.0, 16 pin, top mount",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,SMD,bottom,
+10,J3 J4 J5,3,JST,S4B-PH-K-S(LF)(SN),"JST PH 4-pin: JST PH 2.0 mm, 4 pin, side entry, through hole (J3 CAN cable, J4 Select encoder, J5 Volume encoder)",JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal,THT,bottom,Mating housing PHR-4 + SPH-002T-P0.5S crimps (per cable)
+11,J6,0,,"1x3 header PinHeader_1x03_P2.54mm_Vertical 2.54 mm pin header, 1 x 3, vertical (optional IR receiver)","1x3 header: 2.54 mm pin header, 1 x 3, vertical (optional IR receiver)",PinHeader_1x03_P2.54mm_Vertical,THT,bottom,DO NOT PLACE (optional IR header). Optional: fit only if the IR receiver is used
+12,SW3 SW4 SW5 SW6,4,E-Switch,TL1240YQ,"TL1240YQ: illuminated tact switch 6 x 6 mm, through hole, yellow LED 10 mA / 2.5 V (soft keys 1-4)",SW_TL1240YQ (6.5 x 4.5 mm switch pins; LED + / - on the centre line 5.4 mm apart),THT,top,"Square pad = LED anode (+). Plunger top 7.2 mm above the board"
+13,SW1 SW2,2,C&K,PTS810 SJM 250 SMTR LFS,"PTS810: Tact switch 4.2 x 3.2 mm SMT (RESET, BOOT)",SW_SPST_PTS810,SMD,bottom,
+14,C3,1,,22u 0805 Ceramic X5R 10 V,22u: Ceramic X5R 10 V,0805,SMD,bottom,ESP32 bulk
+15,C1 C5 C7 C8,4,,10u 0805 Ceramic X5R 16 V (on +5V / +3V3),10u: Ceramic X5R 16 V (on +5V / +3V3),0805,SMD,bottom,16 V or 25 V rating keeps capacitance at 5 V (DC bias)
+16,C4,1,,1u 0603 Ceramic X7R 16 V,1u: Ceramic X7R 16 V,0603,SMD,bottom,EN reset delay (with R2 10k)
+17,C2 C6 C9 C10 C11,5,,100n 0603 Ceramic X7R 50 V,100n: Ceramic X7R 50 V,0603,SMD,bottom,
+18,C12 C13 C14 C15 C16 C17 C18 C19 C20 C21,10,,10n 0603 Ceramic X7R 50 V,10n: Ceramic X7R 50 V,0603,SMD,bottom,Key / encoder debounce
+19,R2 R11 R12 R13 R14 R15 R16 R17 R18 R19 R20 R21,12,,10k 0603 Resistor 1 % 1/10 W,10k: Resistor 1 % 1/10 W,0603,SMD,bottom,R2 EN pull-up; R11-R21 key / encoder / IR pull-ups
+20,R1 R10,2,,100k 0603 Resistor 1 % 1/10 W,100k: Resistor 1 % 1/10 W,0603,SMD,bottom,R1 OLED CS pull-up; R10 key LED gate pull-down
+21,R3 R4,2,,5.1k 0603 Resistor 1 % 1/10 W,5.1k: Resistor 1 % 1/10 W,0603,SMD,bottom,USB-C CC1 / CC2 (device)
+22,R6 R7 R8 R9,4,,100 0603 Resistor 1 % 1/10 W,100: Resistor 1 % 1/10 W,0603,SMD,bottom,Key LED current (about 8 mA; the LED is rated 10 mA)
+23,R5,1,,1k 0603 Resistor 1 % 1/10 W,1k: Resistor 1 % 1/10 W,0603,SMD,bottom,CAN RXD series
