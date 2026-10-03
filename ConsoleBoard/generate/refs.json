@@ -175,17 +175,17 @@
   "value": "USB-C"
  },
  "J3": {
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "can",
   "value": "CAN to DigiDash"
  },
  "J4": {
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "ui",
   "value": "Encoder 1 (Select)"
  },
  "J5": {
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "ui",
   "value": "Encoder 2 (Volume)"
  },

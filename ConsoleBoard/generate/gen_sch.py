@@ -247,7 +247,7 @@ FP_C10 = 'Capacitor_SMD:C_0805_2012Metric'
 FP_SOIC = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_SOT23 = 'Package_TO_SOT_SMD:SOT-23'
 FP_SOD123 = 'Diode_SMD:D_SOD-123'
-FP_PH = 'Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal'
+FP_PH = 'Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical'
 FP_TACT = 'Button_Switch_SMD:SW_SPST_PTS645Sx43SMTR92'
 FP_SW = 'Button_Switch_SMD:SW_SPST_PTS810'
 FP_LED = 'LED_SMD:LED_0603_1608Metric'
@@ -274,7 +274,7 @@ def c_(v, a, b, x, y, fp=None, d=None):
 
 text(15, 12, 'CONSOLE BOARD  -  ESP32-S3-WROOM-1 + SSD1322 256x64 OLED (16-pin, SPI) + Back / View keys + two encoders + CAN node 0x13', 3)
 text(15, 20, 'Screen sits on standoffs above the board, soldered to J1. CAN cable J3 (5 V, CANH, CANL, GND) to a DigiDash cable port. '
-     'Encoders are pigtailed to J4 / J5. USB-C is for programming (and bench power); in the car the board is powered from J3.', 1.6)
+     'Encoders are cabled to J4 / J5. J3-J6 are top entry, so the cables plug straight into the back of the board. USB-C is for programming (and bench power); in the car the board is powered from J3.', 1.6)
 
 # --- OLED header
 G('oled')
@@ -366,7 +366,7 @@ c_('100n', 'CAB_5V', 'GND', 115, 305, d='MCP2562 VDD')
 c_('100n', '+3V3', 'GND', 130, 305)
 place(NUP, 'D5', 'NUP2105L', FP_SOT23, 100, 335, {'1': 'CANH', '2': 'CANL', '3': 'GND'}, descr='CAN ESD clamp at the cable')
 place(HDR4, 'J3', 'CAN to DigiDash', FP_PH, 20, 335, {'1': 'CAB_5V', '2': 'CANH', '3': 'CANL', '4': 'GND'},
-      descr='JST PH 4-pin side entry: 1 +5 V, 2 CANH, 3 CANL, 4 GND (cable port order, docs/hardware/accessory_ports.md)')
+      descr='JST PH 4-pin top entry: 1 +5 V, 2 CANH, 3 CANL, 4 GND (cable port order, docs/hardware/accessory_ports.md)')
 
 # --- backlight LEDs
 G('led')
@@ -380,14 +380,14 @@ r_('100k', 'LED_PWM', 'GND', 330, 205, 'Keeps the LEDs off while the ESP32 boots
 
 # --- keys and encoders
 G('ui')
-text(220, 215, 'BACK and VIEW: PTS645 tact switches to GND, 10k pull-up + 10 nF at the pin. Encoders: pigtailed to J4 (Select) / J5 (Volume), '
+text(220, 215, 'BACK and VIEW: PTS645 tact switches to GND, 10k pull-up + 10 nF at the pin. Encoders: cabled to J4 (Select) / J5 (Volume), top entry, '
      'pins 1 GND (common + switch), 2 A, 3 B, 4 SW; the same 10k / 10 nF on each line.', 1.4)
 place(SW, 'SW3', 'BACK', FP_TACT, 240, 250, {'1': 'BTN_BACK', '2': 'GND'})
 place(SW, 'SW4', 'VIEW', FP_TACT, 280, 250, {'1': 'BTN_VIEW', '2': 'GND'})
 place(HDR4, 'J4', 'Encoder 1 (Select)', FP_PH, 240, 300, {'1': 'GND', '2': 'ENC1_A', '3': 'ENC1_B', '4': 'ENC1_SW'},
-      descr='JST PH 4-pin, pigtail to the Select encoder: GND, A, B, push')
+      descr='JST PH 4-pin top entry, cable to the Select encoder: GND, A, B, push')
 place(HDR4, 'J5', 'Encoder 2 (Volume)', FP_PH, 290, 300, {'1': 'GND', '2': 'ENC2_A', '3': 'ENC2_B', '4': 'ENC2_SW'},
-      descr='JST PH 4-pin, pigtail to the Volume encoder: GND, A, B, push')
+      descr='JST PH 4-pin top entry, cable to the Volume encoder: GND, A, B, push')
 place(HDR3, 'J6', 'IR receiver', 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical', 340, 300,
       {'1': 'GND', '2': '+3V3', '3': 'IR_IN'}, descr='Optional IR demodulator (as on the encoder_controller firmware): GND, 3.3 V, OUT')
 for i, n in enumerate(['BTN_BACK', 'BTN_VIEW', 'ENC1_A', 'ENC1_B', 'ENC1_SW', 'ENC2_A', 'ENC2_B', 'ENC2_SW', 'IR_IN']):

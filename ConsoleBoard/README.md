@@ -1,7 +1,7 @@
 # Console board
 
 The console's own board (CAN node `0x13`): a bare **ESP32-S3-WROOM-1-N8** (no dev board) with the parts it needs, a
-female 2 × 8 socket the 100 × 33.5 mm **SSD1322 256 × 64 OLED** module plugs into, **Back** and **View** keys, four yellow LEDs (to match the yellow OLED), and pigtail
+female 2 × 8 socket the 100 × 33.5 mm **SSD1322 256 × 64 OLED** module plugs into, **Back** and **View** keys, four yellow LEDs (to match the yellow OLED), and top-entry
 connectors for the **Select** and **Volume** encoders. One 4-wire cable goes to a DigiDash cable port.
 
 | Files | |
@@ -20,7 +20,7 @@ connectors for the **Select** and **Volume** encoders. One 4-wire cable goes to 
    +--o------------------------o--+  ---   <- module's bottom edge
    |   *[ BACK ]*        *[ VIEW ]*  |  |   * = LED
    |     x=25            x=75      |  16.5   the board reaches 16.5 mm past the module (15 to 18 mm wanted)
-   | J3 J4     USB      J5  J6     |  |     connectors along the bottom edge on the back
+   | J3 J4     USB      J5  J6     |  |     connectors along the bottom edge on the back (top entry, USB side entry)
    +-------------------------------+  ---
 ```
 
@@ -29,7 +29,8 @@ connectors for the **Select** and **Volume** encoders. One 4-wire cable goes to 
 - **Front** (module side): J1, the four M2 holes, the two keys and the four LEDs with their resistors and MOSFET. Everything
   else is on the back, so the standoff height is set by the socket: J1 is a female socket (about 8.5 mm tall), so the module's pins plug into it and the standoffs should hold the module about that far above the board (check the length of the module's pins).
 - **Back:** the ESP32 module (antenna on the top edge), USB-C, the CAN cable, both encoder connectors, the IR header,
-  RESET / BOOT and all the passives.
+  RESET / BOOT and all the passives. J3-J6 are top entry (vertical), so their cables plug straight into the back of the
+  board inside the housing; only the USB-C opens past the bottom edge.
 - **Module dimensions are parameters** at the top of `generate/gen_pcb.py`: the 100 × 33.5 mm outline and the four M2
   holes, 94 × 28 mm centre to centre (measured), centred on the module (3 mm in from the sides, 2.75 mm from the top
   and bottom). J1's centre line, between its two pin columns, is on the right-hand holes' line, shifted 0.5 mm toward
@@ -44,7 +45,7 @@ connectors for the **Select** and **Volume** encoders. One 4-wire cable goes to 
 | CAN | U2 MCP2562-E/SN (VDD 5 V straight from J3, ahead of the OR diode, so it stays above its 4.5 V minimum; VIO 3.3 V, STBY low), 1k on RXD, D5 NUP2105L on the pair | Never terminated: the DigiDash board owns both 120 Ω |
 | OLED | J1, 2 × 8, SPI on the ESP32's FSPI pins | See the pin table below |
 | LEDs | D3, D4, D6, D7 yellow 0603 (about 590 nm, to match the OLED) (two per key), 100 Ω each from `+3V3` (about 13 mA each), Q1 2N7002 on the low side, 100k gate pull-down | Same 3.3 V rail as the OLED. GPIO 38 PWM (LEDC) dims all four |
-| Keys, encoders | SW3 BACK, SW4 VIEW, J4 Select and J5 Volume (JST PH 4-pin, GND / A / B / SW), 10k pull-up + 10 nF on every line | Pigtail the encoders: the board has no encoder footprints |
+| Keys, encoders | SW3 BACK, SW4 VIEW, J4 Select and J5 Volume (JST PH 4-pin top entry, B4B-PH-K, GND / A / B / SW), 10k pull-up + 10 nF on every line | The encoders are cabled to J4 / J5: the board has no encoder footprints |
 | Extras | J6 IR receiver header (GND, 3.3 V, OUT), M2 holes H1-H4 tied to GND | The IR header is for the existing `encoder_controller` IR feature |
 
 ### Pins
@@ -75,7 +76,7 @@ at the bottom (toward the keys), so module pin *n* sits on socket pad 17 − *n*
 
 The module must be set for 4-wire SPI (its BS resistors), as it is in the firmware today.
 
-J3 (cable to the DigiDash board): 1 +5 V, 2 CANH, 3 CANL, 4 GND (the cable-port order, see
+J3 (cable to the DigiDash board, JST PH 4-pin top entry, B4B-PH-K): 1 +5 V, 2 CANH, 3 CANL, 4 GND (the cable-port order, see
 `docs/hardware/accessory_ports.md`).
 
 ## Firmware notes

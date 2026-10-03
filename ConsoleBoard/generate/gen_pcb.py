@@ -97,10 +97,10 @@ FIXED = {
     'D4': (LED_X[1], KEY_Y, 90, 'F'),
     'D6': (LED_X[2], KEY_Y, 90, 'F'),
     'D7': (LED_X[3], KEY_Y, 90, 'F'),
-    'J3': (13.0, BOT - 4.8, 0, 'B'),       # CAN cable, side entry, opening past the bottom edge
-    'J4': (29.0, BOT - 4.8, 0, 'B'),       # encoder 1 (Select)
+    'J3': (13.0, BOT - 4.0, 0, 'B'),       # CAN cable, top entry: plugs straight into the back, body clear of the edge
+    'J4': (29.0, BOT - 4.0, 0, 'B'),       # encoder 1 (Select), top entry
     'J2': (W / 2, BOT - 3.7, 0, 'B'),      # USB-C, centred
-    'J5': (77.0, BOT - 4.8, 0, 'B'),       # encoder 2 (Volume)
+    'J5': (77.0, BOT - 4.0, 0, 'B'),       # encoder 2 (Volume), top entry
     'J6': (88.0, BOT - 2.5, 90, 'B'),      # IR header
     'SW1': (52.0, 5.5, 0, 'B'),            # RESET
     'SW2': (52.0, 11.0, 0, 'B'),           # BOOT
