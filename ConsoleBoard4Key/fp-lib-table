@@ -1,4 +1,0 @@
-(fp_lib_table
-  (version 7)
-  (lib (name "ConsoleBoard4Key")(type "KiCad")(uri "${KIPRJMOD}/ConsoleBoard4Key.pretty")(options "")(descr "Console board (4 keys) footprints"))
-)
