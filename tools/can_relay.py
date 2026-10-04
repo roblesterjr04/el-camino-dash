@@ -77,7 +77,7 @@ DEFAULT_BAUD = 115200
 KEEPALIVE_S = 1.0
 TIMEOUT_S = 3.0
 VERSION = 1
-NODE_NAMES = {0x01: "center", 0x02: "left", 0x03: "right", 0x13: "console"}
+NODE_NAMES = {0x01: "center", 0x02: "left", 0x03: "right", 0x04: "sensor", 0x13: "console"}
 TYPE_BRIDGE = 1
 CHANNEL_NAMES = {0x020: "alert", 0x040: "input", 0x060: "system", 0x120: "sensor", 0x240: "audio-cmd", 0x260: "ui",
                  0x320: "bulk", 0x360: "online", 0x3C0: "net", 0x3E0: "log"}

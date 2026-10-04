@@ -2,8 +2,9 @@
 
 How the sensor card (`SensorCard/`, CAN node `0x04`) turns raw ADC counts into fuel, temperature, pressure, voltage and
 speed; where that calibration is stored; how it is set from the center screen's menu or a bench serial console; and
-how it is backed up. **Status: specification. Nothing here is implemented yet**; it is the plan for the sensor card's
-firmware and the matching center / screen changes.
+how it is backed up. **Status: the card's side is implemented** in [`firmware/sensor_card`](../../firmware/sensor_card/README.md)
+(host-tested, not yet run on a card); the center and screen changes below are not. Where the firmware differs from this
+text is listed under [Implementation notes](#implementation-notes).
 
 ## Why the card owns it
 
@@ -328,3 +329,29 @@ Values are in US units on the console (gal, °F, psi, mph) unless suffixed (`L`,
 | Center firmware | The generic accessory UI renderer and settings backup (already planned in `can_channels.md`), relaying `0x124` into `0x121` |
 | Screens and console | Gauges from SENSOR values with the legacy fallback; frame v5 parsing |
 | Docs | `can_channels.md`: product `0x0008` (done with this spec); `sensor_uart.md`: frame v5 when it is implemented |
+
+## Implementation notes
+
+What `firmware/sensor_card` does differently from, or beyond, the text above:
+
+- **Bias is a u32 in the stored payload** (ohms ×10), not u16: the bank's 10 kΩ and 100 kΩ values do not fit 16 bits. The
+  block is private to the card, so nothing else changes.
+- **Menu text is ASCII** ("100 ohm (JP6)"): the screens' fonts cover ASCII and `°` only, and "Ω" would show as `?`. Units
+  (gal / L, °F / °C, psi / kPa) follow SYSTEM PREFS; when they change the card bumps its description generation and sends
+  its ITEMs again. After a menu SET it answers with VALUE then RESULT, then refreshes the readouts and the table text of
+  that page.
+- **Legacy fields carry calibrated values.** Frames `0x100`–`0x104` and the J8 serial frame send the counts the screens'
+  fixed formulas (`elc_sensor_units.h`) turn into the calibrated value, and 0 for a channel that is not calibrated (the
+  formulas' "out of range"), so unmodified screens show the right numbers until they read SENSOR. The wheel rpm is in the
+  screens' 2.1 m wheel, so their speed is the true speed.
+- **Sensors 0–10 on `0x124` carry no gauge or log flags** (the center relays them on its own core sensors, so they would be
+  listed twice); 11 (battery voltage) has both.
+- **Captures** average the channel for 5 s at 20 Hz; steadiness is judged on a lightly smoothed copy (fuel ±3 counts, the
+  others ±2). A capture refused for being unsteady or out of order says so in the page's Table text.
+- **GPS speed calibration** (item 91) takes the GPS card's motion frame `0x223`: 3D fix, 20 s with the speed varying under
+  1 % (it restarts the window when it does not, and when the car is under about 25 mph), pulses counted over the distance
+  the GPS speed integrates to. Within ±20 % of the current setting it is applied; outside, the result shows in Speed status
+  and nothing changes (it does not ask to confirm yet).
+- **Instant economy** uses the lighter fuel filter (the old firmware's), because the 20 s damped level moves too slowly for
+  a one-second window; level, trip economy and distance to empty use the damped one.
+- **Not implemented:** `cal export` / `cal import`, frame v5 on the serial link, LOG lines.

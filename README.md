@@ -45,7 +45,8 @@ See `docs/protocols/can_bus.md`.
 | `firmware/esp32_p4_ui` | Shared LVGL layer: gauge faces, the menu (on any round screen), media over CAN, touch |
 | `firmware/esp32_classic_bt_audio` | PlatformIO wrapper that builds `arduino/sketches/esp32_audio_bridge` |
 | `firmware/esp32_p4_display_litmus` | Panel bring-up test |
-| `arduino/sketches/sensor_pack` | ATmega328P sensor + odometer firmware |
+| `firmware/sensor_card` | ATmega2560 sensor card firmware for the rev 2 board (`SensorCard/`): CAN node `0x04`, calibration, odometer. Host tests in `test/host/` |
+| `arduino/sketches/sensor_pack` | ATmega328P sensor + odometer firmware (rev 1) |
 | `arduino/sketches/encoder_controller` | RP2040 knobs / IR / OLED |
 | `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |
 | `scripts/export_*_rgb565_assets.py` | Regenerate the `*_gen.h` image headers from `assets/` |

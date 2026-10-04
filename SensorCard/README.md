@@ -176,19 +176,17 @@ placement left open); `--from-ses` repeats the import and finishing steps from t
 - **J1 pin 1** against the main board's slot socket in the 3D viewer, and that J2 / J3 / J4 face off the top edge.
 - The card outline (80 × 60 mm) and the connector positions against the case panel.
 
-## Firmware to follow
+## Firmware
 
-`arduino/sketches/sensor_pack` runs on the 328P today. For this card:
-- the pin map above (ICP4 / ICP5 input capture for tach / speed, USART1 for the frames, USART0 for the log);
-- the MCP2515 sending `0x100`–`0x104` at 20 Hz and heartbeat `0x704` as **node `0x04`** (see
-  `docs/hardware/digidash_rev2_plan.md`, "Sensor pack on CAN");
-- **ignition from the slot's switched 12 V** (PA1), battery voltage from ADC8 (scale 122 / 22), and PWR_HOLD driving
-  WAKE after key-off until the FRAM work is done;
-- **calibration** per [`docs/protocols/sensor_calibration.md`](../docs/protocols/sensor_calibration.md): presets,
-  captured points in FRAM, the menu items on the UI channel, the bench console, SENSOR values on `0x124` (the
-  delivered pull-ups invert the old pull-down wiring, so the old thermistor maths and `*_INVERT_ADC` go away);
-- the odometer: a blank FRAM is seeded with `ODO_INITIAL_TENTHS`; set the car's mileage there (or add a command) when
-  a card is replaced.
+[`firmware/sensor_card`](../firmware/sensor_card/README.md) (PlatformIO, ATmega2560). Written and host-tested, **not yet run on a
+card**. It uses the pin map above; because those are an Arduino Mega's pins it also runs on a Mega 2560 with a CAN shield
+on the bench (that README says how). What it does of the plan that used to be listed here:
+
+- the pin map above (ICP4 / ICP5 input capture for tach / speed, USART1 for the frames, USART0 for the console and the USB link): done;
+- the MCP2515 sending `0x100`–`0x104` at 20 Hz and heartbeat `0x704` as **node `0x04`**: done;
+- **ignition from the slot's switched 12 V** (PA1), battery voltage from ADC8 (scale 122 / 22), and PWR_HOLD driving WAKE after key-off until the FRAM work is done: done;
+- **calibration** per [`docs/protocols/sensor_calibration.md`](../docs/protocols/sensor_calibration.md): presets, captured points in FRAM, the menu items on the UI channel, the bench console, SENSOR values: done (the old thermistor maths and `*_INVERT_ADC` are gone); not done: frame v5 on the serial link, `cal export` / `cal import`;
+- the odometer: a blank FRAM is seeded with `ODO_INITIAL_TENTHS` (`main.cpp`); set the car's mileage there, or with `odo set` on the console, when a card is replaced: done.
 
 ## Regenerating
 

@@ -3,9 +3,9 @@
 **Rev A · ATmega2560 sensor pack on a DigiDash rev 2 slot card · CAN node `0x04`**
 
 > **Status: design, not yet built.** Every figure below is calculated from the schematic and the parts' datasheets,
-> not measured on a board. Values that depend on the senders in the car are marked as such. The card's firmware (a
-> port of `arduino/sketches/sensor_pack`) is not written yet; the firmware interface section describes what the
-> hardware provides and what the firmware is planned to send. Calibration: [`sensor_calibration.md`](../docs/protocols/sensor_calibration.md).
+> not measured on a board. Values that depend on the senders in the car are marked as such. The card's firmware is
+> [`firmware/sensor_card`](../firmware/sensor_card/README.md): written and host-tested, not yet run on a card. The
+> firmware interface section describes what the hardware provides and what the firmware sends. Calibration: [`sensor_calibration.md`](../docs/protocols/sensor_calibration.md).
 
 ![Sensor card, parts side](doc/sensorcard_top.png)
 
@@ -384,7 +384,7 @@ The ATmega2560 arrives blank (internal 1 MHz clock). Program it through J6 with 
 
 With the bootloader on, J7 (FTDI) takes uploads like an Arduino Mega.
 
-### CAN (planned, per `docs/hardware/digidash_rev2_plan.md`)
+### CAN (as `firmware/sensor_card` sends it; plan in `docs/hardware/digidash_rev2_plan.md`)
 
 | ID | Rate | Content |
 | --- | --- | --- |

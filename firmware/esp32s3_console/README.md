@@ -25,11 +25,11 @@ Each knob has a turn (in clicks), a push and an outer ring that pushes left or r
 
 - **The left knob is the audio, on every screen** (the menu too): it never moves a selection.
 - **The right knob moves through what is on the screen**: it tunes or skips at rest, moves the highlight in a list or
-  changes a value. Its push is **OK**, its hold the **menu**.
+  changes a value. Its push is **OK** (at rest: the **menu**), its hold the **voice assistant**.
 - **The right ring is two soft keys.** Their labels sit in the screen's bottom corners and change with what is on the
   screen: push the ring toward a label to use it. The **right one is yes / the main action / forward** (Answer, Pair,
   Done, Yes, OK, the next page), the **left one is no / back / the second action** (Decline, Reject, Undo, No, Back,
-  Band, Redial). The labels light up for a couple of seconds after any control is touched, and stay lit while something
+  Presets, Redial). The labels light up for a couple of seconds after any control is touched, and stay lit while something
   waits for an answer (a call, a pairing code, a warning).
 
 Every push and the right ring have a click (on release) and a hold (`CONSOLE_HOLD_MS`, 650 ms); a soft key with no
@@ -40,15 +40,15 @@ hold of its own does its click when held. The left ring acts once per flick.
 | | Left knob (Volume) | Right knob (Select) |
 | --- | --- | --- |
 | Turn | volume (the call's volume in a call) | at rest: tune one grid step (radio) / next or previous track (Bluetooth). In a list: the highlight. In an editor: the value |
-| Push | mute (radio) / play-pause (Bluetooth); audio on when it is off; the microphone in a call | **OK**: in a list pick the row; in an editor done; in the preset list tune to the one highlighted. At rest: the preset list (radio) / the voice assistant (Bluetooth). A ringing call: answer; in a call: its audio to the phone / back to the car |
-| Hold | the next source, round Bluetooth → Radio (when heard) → Off → Bluetooth | **the menu** (in the menu: leave it) |
+| Push | mute (radio) / play-pause (Bluetooth); audio on when it is off; the microphone in a call | **OK**: at rest the menu; in a list pick the row; in an editor done; in the preset list tune to the one highlighted. A ringing call: answer; in a call: its audio to the phone / back to the car |
+| Hold | the next source, round Bluetooth → Radio (when heard) → Off → Bluetooth | **the voice assistant** (radio or Bluetooth); in the menu: leave it |
 | Ring left / right | seek down / up (radio), previous / next track (Bluetooth), on every screen | the soft keys, below |
 
 ### The soft keys (the right ring)
 
 | Screen | Left | Right |
 | --- | --- | --- |
-| Drive page, radio | Band (FM ↔ AM, the radio's Band item 1) | the next page's name: Trip → Engine → Clock → Radio / Media (hold: next center-screen view) |
+| Drive page, radio | Presets (the preset list; hold: store in the next free slot) | the next page's name: Trip → Engine → Clock → Radio / Media (hold: next center-screen view) |
 | Drive page, a phone connected for calls | Redial (play / pause is the left knob's push) | next page |
 | Drive page, no phone for calls | Phone (the phone page: pair, connect) | next page |
 | Drive page, audio off | Audio on | next page |
@@ -70,12 +70,12 @@ In reverse both keys are blank and only the volume works. Bluetooth commands go 
 before) and, when an audio card is heard, to it too (AUDIO_CMD MEDIA / VOLUME); radio commands go to the audio card,
 which forwards them to the radio (`docs/protocols/can_channels.md`, AUDIO_CMD). The rest lives in the menu.
 
-**The preset list** (right knob push with the radio playing): the twelve presets, four by three, with their
+**The preset list** (Presets, the right ring left, with the radio playing): the twelve presets, four by three, with their
 frequencies; the one playing is outlined. Turning moves the highlight only; the push tunes to the preset highlighted
 and closes the list (AUDIO_CMD MEDIA 13, recall). Close shuts it without changing the station; left alone for 4 s it
 closes by itself.
 
-**The menu** (right knob held) is drawn on the OLED itself; the touch screens' menu is not mirrored here.
+**The menu** (right knob push at rest) is drawn on the OLED itself; the touch screens' menu is not mirrored here.
 
 | Page | What it holds |
 | --- | --- |

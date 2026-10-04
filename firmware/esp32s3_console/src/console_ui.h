@@ -3,7 +3,7 @@
 // The console is the car's radio head unit (decided 2026-10-02; the El Camino Cluster prototype's drive pages and
 // warnings stay). The only controls are two RetroSound knobs (ConsoleBoardRS), each a turn, a push and an outer ring
 // that pushes left or right: the left knob is the audio (volume, mute, source, seek / skip) everywhere; the right knob tunes
-// at rest and moves through lists, its push is OK and its hold the menu, and its ring is two soft keys whose labels
+// at rest and moves through lists, its push is OK (the menu at rest) and its hold the voice assistant, and its ring is two soft keys whose labels
 // sit in the screen's bottom corners and change with what is on the screen. Its own menu on the OLED holds Source,
 // Radio and the other accessory pages (UI channel), Phone, Display, Trip and Service. No Arduino dependency: it takes
 // CAN frames, channel transfers and knob input with a clock, and queues the frames to send, so it runs in the host
@@ -150,7 +150,6 @@ class ConsoleUi {
   static constexpr uint32_t kPresetsIdleMs = 4000;  // the preset list closes after this long untouched
   static constexpr int kPresets = 12;
   static constexpr uint8_t kRadioPresetItem0 = 15;  // the radio's preset frequency items 15..26 (radio_card.md)
-  static constexpr uint8_t kRadioBandItem = 1;      // the radio's Band choice: 0 FM, 1 AM
   static constexpr uint32_t kHintMs = 2600;        // soft-key labels stay lit this long after a control is touched
 
   // Menu pages.
@@ -174,7 +173,7 @@ class ConsoleUi {
     kKPair, kKReject,                                                        // a pairing code
     kKAlertOk,                                                               // a warning
     kKBack, kKExit, kKDone, kKUndo, kKYes, kKNo,                             // the menu
-    kKSeekUp, kKSeekDown, kKStore, kKBand, kKRedial, kKVoice, kKPhone,      // the source
+    kKSeekUp, kKSeekDown, kKPresets, kKStore, kKRedial, kKVoice, kKPhone,   // the source
     kKAudioOn, kKPage, kKView, kKTripReset, kKClose,                         // the drive pages, the preset list
   };
 

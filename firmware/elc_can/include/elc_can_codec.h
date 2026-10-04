@@ -372,7 +372,7 @@ enum ElcCanArtVariant : uint8_t {
 static const size_t ELC_CAN_ART_GRAY48_BYTES = 48 * 48 / 2;
 
 static const size_t ELC_CAN_ART_CHUNK = 5;             // JPEG bytes per ART_DATA frame
-static const size_t ELC_CAN_ART_MAX_BYTES = 48 * 1024;  // largest image a receiver accepts
+static const size_t ELC_CAN_ART_MAX_BYTES = 48UL * 1024UL;  // largest image a receiver accepts
 
 struct ElcCanArtRequest {
   uint8_t slot = 0;

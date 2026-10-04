@@ -32,8 +32,20 @@ static inline uint32_t elc_ch_bit(uint16_t base) { return 1u << (base >> 5); }
 uint16_t elc_ch_base(uint16_t id);
 static inline uint8_t elc_ch_src(uint16_t id) { return (uint8_t)(id & 0x1F); }
 
-static const size_t ELC_CH_MAX_PAYLOAD = 256;
-static const size_t ELC_CH_MAX_FRAMES = (ELC_CH_MAX_PAYLOAD + 2 + 6) / 7;  // 38
+// A board short of RAM (the sensor card's ATmega2560) shrinks these with build flags: transfers longer than the payload
+// limit are dropped on receive and cannot be sent, and fewer reassembly buffers means fewer transfers in flight at once.
+// Every other board keeps the protocol's maximum.
+#ifndef ELC_CH_PAYLOAD_LIMIT
+#define ELC_CH_PAYLOAD_LIMIT 256
+#endif
+#ifndef ELC_CH_RX_BUFFERS
+#define ELC_CH_RX_BUFFERS 6
+#endif
+#ifndef ELC_CH_RX_DUPS
+#define ELC_CH_RX_DUPS 48
+#endif
+static const size_t ELC_CH_MAX_PAYLOAD = ELC_CH_PAYLOAD_LIMIT;
+static const size_t ELC_CH_MAX_FRAMES = (ELC_CH_MAX_PAYLOAD + 2 + 6) / 7;  // 38 at the protocol's 256
 
 uint16_t elc_ch_crc16(const uint8_t *p, size_t n);
 
@@ -56,8 +68,8 @@ struct ElcChTransfer {
  *  ID per sender and channel for the 1 s duplicate rule. */
 class ElcChRx {
  public:
-  static const int kBuffers = 6;
-  static const int kDups = 48;
+  static const int kBuffers = ELC_CH_RX_BUFFERS;
+  static const int kDups = ELC_CH_RX_DUPS;
   /** True when f completed a transfer (in out). */
   bool feed(const ElcCanFrame &f, uint32_t now_ms, ElcChTransfer &out);
   uint32_t dropped() const { return _dropped; }

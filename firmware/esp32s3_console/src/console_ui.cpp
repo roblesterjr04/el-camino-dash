@@ -1087,9 +1087,8 @@ void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
   }
 }
 
-/** Right knob push: OK. Picks in a list, ends an edit, tunes to the preset highlighted; at rest the preset list
- *  (radio) or the voice assistant (Bluetooth); answers a ringing call, and in a call moves its audio between the car
- *  and the phone. */
+/** Right knob push: OK. Picks in a list, ends an edit, tunes to the preset highlighted; at rest the menu; answers a
+ *  ringing call, and in a call moves its audio between the car and the phone. */
 void ConsoleUi::right_click(uint32_t now_ms) {
   if (!idle_input(now_ms) || pair_shown(now_ms) || reverse_shown()) return;
   if (call_shown(now_ms)) {
@@ -1109,17 +1108,15 @@ void ConsoleUi::right_click(uint32_t now_ms) {
     presets_choose("right click");
     return;
   }
-  if (audio_off(now_ms)) return;
-  if (radio_is_source(now_ms)) presets_open(now_ms);
-  else do_key(kKVoice, now_ms);
+  open_menu(now_ms);
 }
 
-/** Right knob held: the menu (leaves it when open). */
+/** Right knob held: the voice assistant at rest (any source); leaves the menu when open. */
 void ConsoleUi::right_hold(uint32_t now_ms) {
   if (!idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms) || reverse_shown()) return;
   if (_mode == ConsoleMode::Drive) {
-    presets_close("menu");
-    open_menu(now_ms);
+    presets_close("voice");
+    do_key(kKVoice, now_ms);
     return;
   }
   if (_mode == ConsoleMode::Edit) edit_cancel(now_ms);
@@ -1201,7 +1198,7 @@ void ConsoleUi::keys(ConsoleKey out[kKeys], uint32_t now_ms) {
   } else if (audio_off(now_ms)) {
     set(L, kKAudioOn, "Audio on");
   } else if (radio_is_source(now_ms)) {
-    set(L, kKBand, "Band");
+    set(L, kKPresets, "Presets", kKStore);
   } else if (phone_fresh(now_ms) && (_ph.flags & ELC_CAN_PHONE_CONNECTED) && (_ph.flags & ELC_CAN_PHONE_HFP)) {
     set(L, kKRedial, "Redial");  // play / pause is the left knob's push
   } else if (phone_fresh(now_ms) || bridge_heard(now_ms)) {
@@ -1275,14 +1272,18 @@ void ConsoleUi::do_key(uint8_t act, uint32_t now_ms) {
     case kKNo: confirm_answer(false, now_ms); break;
     // the source
     case kKClose: presets_close("close key"); break;
-    case kKStore:  // into the slot highlighted, over whatever it held
-      if (!radio_is_source(now_ms) || !_pre_open) break;
-      _pre_ms = now_ms;
-      media(ELC_MEDIA_PRESET_STORE, (uint8_t)(_pre_sel + 1), "MEDIA store preset");
-      {
+    case kKPresets: presets_open(now_ms); break;
+    case kKStore:
+      if (!radio_is_source(now_ms)) break;
+      if (_pre_open) {  // into the slot highlighted, over whatever it held
+        _pre_ms = now_ms;
+        media(ELC_MEDIA_PRESET_STORE, (uint8_t)(_pre_sel + 1), "MEDIA store preset");
         char v[16];
         snprintf(v, sizeof(v), "Stored in %d", _pre_sel + 1);
         toast("PRESET", v, now_ms);
+      } else {
+        media(ELC_MEDIA_PRESET_STORE, 0, "MEDIA store preset");  // the next free slot (else the oldest)
+        toast("PRESET", "Stored", now_ms);
       }
       break;
     case kKSeekUp:
@@ -1309,18 +1310,6 @@ void ConsoleUi::do_key(uint8_t act, uint32_t now_ms) {
       push(kMPhone);
       break;
     case kKAudioOn: audio_on(now_ms); break;
-    case kKBand: {
-      const uint8_t r = radio();
-      const AccItem *it = r ? accessory_can_item(r, kRadioBandItem) : nullptr;
-      if (!it) {
-        toast("RADIO", "Band not heard yet", now_ms);
-        break;
-      }
-      const int32_t v = it->has_value && it->value ? 0 : 1;  // FM <-> AM
-      accessory_can_set(r, kRadioBandItem, v);
-      toast("BAND", v ? "AM" : "FM", now_ms);
-      break;
-    }
     // the drive pages
     case kKPage: page_step(1, now_ms); break;
     case kKView: {

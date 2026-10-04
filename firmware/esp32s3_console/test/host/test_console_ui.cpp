@@ -240,11 +240,11 @@ static void test_drive_pages_and_menu() {
   CHECK(press(ui, "Engine") && press(ui, "Clock") && press(ui, "Media"));
   CHECK(ui.page() == kPageMedia);  // wraps
 
-  ui.right_hold(T);  // the right knob held at rest: the menu
+  ui.right_click(T);  // the right knob push at rest: the menu
   CHECK(ui.mode() == ConsoleMode::Menu && ui.menu_page() == ConsoleUi::kMHome);
   CHECK(key(ui, "Exit") == 0 && key(ui, "Back") < 0);  // on the top page the left key leaves
   CHECK(press(ui, "Exit") && ui.mode() == ConsoleMode::Drive);
-  ui.right_hold(T);
+  ui.right_click(T);
   CHECK(row(ui, "Source") && row(ui, "Phone") && row(ui, "Display") && row(ui, "Service"));
   CHECK(!row(ui, "Radio"));  // no radio card heard
   CHECK(pick(ui, "Display") && ui.menu_page() == ConsoleUi::kMDisplay);
@@ -265,16 +265,16 @@ static void test_drive_pages_and_menu() {
   CHECK(press(ui, "Back") && ui.menu_page() == ConsoleUi::kMHome);
   CHECK(pick(ui, "Display"));
   CHECK(press(ui, "Exit") && ui.mode() == ConsoleMode::Drive);  // straight out from any depth
-  ui.right_hold(T);
+  ui.right_click(T);
   CHECK(pick(ui, "Display"));
   CHECK(press(ui, "Back", true) && ui.mode() == ConsoleMode::Drive);  // Back held: out
-  ui.right_hold(T);
+  ui.right_click(T);
   CHECK(pick(ui, "Display"));
   ui.right_hold(T);  // the right knob held again: out
   CHECK(ui.mode() == ConsoleMode::Drive);
 
   // the left knob is the volume in the menu too, never the selection
-  ui.right_hold(T);
+  ui.right_click(T);
   const int sel = ui.menu_sel();
   ui.left_turn(2, T);
   CHECK(ui.menu_sel() == sel && ui.volume() == 2);
@@ -297,7 +297,7 @@ static void test_sources_and_radio() {
   CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][1] == 0x14 && m[0][2] == ELC_SRC_RADIO);
   r.status(ELC_SRC_RADIO);
   CHECK(ui.radio_is_source(T));
-  CHECK(key(ui, "Band") == 0 && key(ui, "Trip") == 1);
+  CHECK(key(ui, "Presets") == 0 && key(ui, "Trip") == 1);
   ui.left_hold(T);  // then off ...
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][2] == ELC_SRC_REQ_OFF);
@@ -329,7 +329,7 @@ static void test_sources_and_radio() {
   r.deliver(r.radio_out);
   uint32_t khz = 0;
   CHECK(ui.preset_khz(0, &khz) && khz == 94700 && !ui.preset_khz(1, nullptr) && ui.preset_khz(2, &khz) && khz == 1070);
-  ui.right_click(T);  // the right knob push with the radio playing: the preset list, on slot 1
+  CHECK(press(ui, "Presets"));  // the preset list, on slot 1
   CHECK(ui.presets_shown() && ui.preset_sel() == 0 && r.sent(ELC_CH_AUDIO_CMD).empty());
   CHECK(key(ui, "Close") == 0 && key(ui, "Store") == 1);
   ui.right_turn(1, T);  // slot 2 is empty: nothing to tune
@@ -348,10 +348,10 @@ static void test_sources_and_radio() {
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(!ui.presets_shown() && m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_RECALL && m[0][3] == 3);
   CHECK(ui.mode() == ConsoleMode::Drive);
-  ui.right_click(T);
+  CHECK(press(ui, "Presets"));
   CHECK(ui.presets_shown() && ui.preset_sel() == 0);  // reopens on slot 1 (no preset reported playing)
   CHECK(press(ui, "Close") && !ui.presets_shown() && r.sent(ELC_CH_AUDIO_CMD).empty());  // Close does not tune
-  ui.right_click(T + 5);  // an input stamped just after the clock of the next pass (the serial console) ...
+  ui.key_click(0, T + 5);  // an input stamped just after the clock of the next pass (the serial console) ...
   ui.tick(T);
   CHECK(ui.presets_shown());  // ... does not count as long untouched
   T += ConsoleUi::kPresetsIdleMs + 100;
@@ -370,6 +370,11 @@ static void test_sources_and_radio() {
   ui.left_click(T);  // the left knob push: mute
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_TOGGLE);
+  CHECK(press(ui, "Presets", true));  // Presets held: store in the next free slot (0)
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_STORE && m[0][3] == 0 && !ui.presets_shown());
+  ui.right_hold(T);  // held with the radio playing: the voice assistant, not the list or the menu
+  CHECK(!ui.presets_shown() && ui.mode() == ConsoleMode::Drive && r.sent(ELC_CH_AUDIO_CMD).empty());
   drain(ui);
   ElcCanFrame f;
   CHECK(!pop(ui, f));  // nothing went to the Bluetooth bridge while the radio plays
@@ -394,7 +399,7 @@ static void test_sources_and_radio() {
   r.sent(ELC_CH_AUDIO_CMD);
   ui.right_turn(1, T);
   ui.left_ring(1, T);
-  ui.right_click(T);
+  ui.right_hold(T);  // (the voice assistant: no phone here)
   CHECK(r.sent(ELC_CH_AUDIO_CMD).empty() && !ui.presets_shown());
   ui.left_click(T);
   m = r.sent(ELC_CH_AUDIO_CMD);
@@ -403,7 +408,7 @@ static void test_sources_and_radio() {
   r.deliver(r.radio_out);
 
   // the Source page picks one directly
-  ui.right_hold(T);
+  ui.right_click(T);
   CHECK(row(ui, "Radio") && pick(ui, "Source") && ui.menu_page() == ConsoleUi::kMSource);
   CHECK(row(ui, "Radio") && !std::strcmp(row(ui, "Radio")->value, "Playing"));
   CHECK(row(ui, "Off") != nullptr);
@@ -492,7 +497,7 @@ static void test_bluetooth_controls() {
   phone(ui, ELC_CAN_PHONE_CONNECTED);  // audio only (no hands-free): the phone page instead
   CHECK(key(ui, "Phone") == 0 && key(ui, "Redial") < 0);
   phone(ui, ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP);
-  ui.right_click(T);  // the right knob push with Bluetooth playing: the voice assistant
+  ui.right_hold(T);  // the right knob held: the voice assistant
   c = next_phone(ui);
   CHECK(c.command == ELC_CAN_PHONE_CMD_VOICE && c.arg == 1 && !ui.presets_shown());
   CHECK(press(ui, "Trip", true));  // the page key held: the next center view
@@ -512,7 +517,7 @@ static void test_phone_menu_and_pairing() {
   for (auto &x : tf) ui.feed(x, T);
   CHECK(!std::strcmp(ui.phone_paired_name(1), "Rob's iPad"));
   drain(ui);
-  ui.right_hold(T);
+  ui.right_click(T);
   CHECK(pick(ui, "Phone") && ui.menu_page() == ConsoleUi::kMPhone);
   CHECK(pick(ui, "Pair new phone"));
   ElcCanPhoneCommandMsg c = next_phone(ui);
@@ -589,7 +594,7 @@ static void test_accessory_pages() {
   r.deliver(r.radio_out);
   r.sent(ELC_CH_UI);
 
-  ui.right_hold(T);
+  ui.right_click(T);
   CHECK(pick(ui, "Radio") && ui.menu_page() == ConsoleUi::kMAccPage);
   CHECK(row(ui, "Frequency") && !std::strcmp(row(ui, "Frequency")->value, "94.7 MHz"));
   CHECK(row(ui, "Radio on") && !std::strcmp(row(ui, "Radio on")->value, "On"));
