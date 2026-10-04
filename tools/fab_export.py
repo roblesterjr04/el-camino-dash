@@ -34,7 +34,7 @@ def export(board_dir):
     os.makedirs(gbr, exist_ok=True)
     for f in glob.glob(os.path.join(gbr, '*')):
         os.remove(f)
-    layers = LAYERS if '(4 "In1.Cu"' in open(pcb).read() else LAYERS.replace('In1.Cu,In2.Cu,', '')
+    layers = LAYERS if re.search(r'\(\d+ "In1\.Cu"', open(pcb).read()) else LAYERS.replace('In1.Cu,In2.Cu,', '')   # any KiCad's layer numbering
     run('pcb', 'export', 'gerbers', '--use-drill-file-origin', '--subtract-soldermask', '-l', layers, '-o', gbr, pcb)
     run('pcb', 'export', 'drill', '--drill-origin', 'plot', '--excellon-separate-th', '--generate-map',
         '--map-format', 'gerberx2', '-o', gbr + '/', pcb)
@@ -43,8 +43,12 @@ def export(board_dir):
             z.write(f, os.path.basename(f))
 
     place = os.path.join(fab, name + '_placement.csv')
-    run('pcb', 'export', 'pos', '--format', 'csv', '--units', 'mm', '--side', 'both', '--use-drill-file-origin', '--exclude-dnp',
-        '-o', place, pcb)
+    try:
+        run('pcb', 'export', 'pos', '--format', 'csv', '--units', 'mm', '--side', 'both', '--use-drill-file-origin', '--exclude-dnp',
+            '-o', place, pcb)
+    except subprocess.CalledProcessError:       # KiCad 7's CLI has no --exclude-dnp: fine for a board with no DNP parts
+        run('pcb', 'export', 'pos', '--format', 'csv', '--units', 'mm', '--side', 'both', '--use-drill-file-origin',
+            '-o', place, pcb)
     rows = list(csv.DictReader(open(place)))
     with open(os.path.join(fab, name + '_centroid.csv'), 'w', newline='') as f:
         w = csv.writer(f)

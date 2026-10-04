@@ -46,6 +46,8 @@ See `docs/protocols/can_bus.md`.
 | `firmware/esp32_classic_bt_audio` | PlatformIO wrapper that builds `arduino/sketches/esp32_audio_bridge` |
 | `firmware/esp32_p4_display_litmus` | Panel bring-up test |
 | `firmware/sensor_card` | ATmega2560 sensor card firmware for the rev 2 board (`SensorCard/`): CAN node `0x04`, calibration, odometer. Host tests in `test/host/` |
+| `firmware/ai_card` | AI voice card front end (ESP32-S3): CAN node, rail audio, wake word, compute-module power, the assistant's allow-list. Host tests in `test/host/` |
+| `firmware/ai_agent` | The assistant on the AI card's compute module: speech to text, intents, on-board and online models, speech. Host tests: `run_tests.sh` |
 | `arduino/sketches/sensor_pack` | ATmega328P sensor + odometer firmware (rev 1) |
 | `arduino/sketches/encoder_controller` | RP2040 knobs / IR / OLED |
 | `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |

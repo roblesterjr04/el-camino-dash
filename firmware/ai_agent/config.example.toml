@@ -1,0 +1,44 @@
+# elc-ai configuration. Copy to /etc/elc-ai/config.toml. Everything here has a default.
+
+[link]
+port = "/dev/ttyS3"        # the module's header UART (pins 8 / 10). Check the module's pin map.
+baud = 1500000
+
+[vehicle]
+description = "a 1964 Chevrolet El Camino"
+
+[stt]                       # whisper.cpp's whisper-server, on this module
+url = "http://127.0.0.1:8081"
+prompt = "El Camino, oil pressure, volume, next song, radio, Bluetooth."
+
+[local]                     # llama.cpp's llama-server, on this module (the on-board model)
+url = "http://127.0.0.1:8080"
+model = "local"
+max_tokens = 160
+
+[online]                    # off unless you turn it on. The key is the service's ANTHROPIC_API_KEY, never in this file.
+enabled = false
+model = "claude-opus-5-5"
+effort = "low"              # voice answers want the quick end of the scale
+web_search = true
+probe_url = "https://api.anthropic.com"
+first_token_s = 4.0         # no first word in this time: the on-board model answers instead
+
+[tts]
+model = ""                  # path to a piper .onnx voice; empty = a test tone (bench only)
+rate = 22050                # the voice's sample rate: 16000, 22050, 24000, 44100 or 48000
+binary = "piper"
+
+[manual]
+dir = ""                    # a folder of .txt / .md (the owner's or shop manual) for the on-board model to search
+
+[gpio]                      # ALIVE (header pin 29): the card's sequencer waits for it to go high. Use your module's GPIO number.
+alive_on_cmd = ""           # e.g. "gpioset -c gpiochip0 5=1" (libgpiod 2.x; the service keeps the line only if you use --toggle / a holder)
+alive_off_cmd = ""
+
+[system]
+shutdown_cmd = "systemctl poweroff"
+
+[dialog]
+history_turns = 6
+silence_ms = 800
