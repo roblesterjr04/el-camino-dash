@@ -850,6 +850,9 @@ def finish(b):
                                 vx, vy = float(s0[0] + r * np.cos(ang)), float(s0[1] + r * np.sin(ang))
                                 if not all(seg_ok(items, l, net, vx, vy, vx, vy, 0.3) for l in CU):
                                     continue
+                                if any(kind == 'r' and g[0] - 0.45 < vx < g[2] + 0.45 and g[1] - 0.45 < vy < g[3] + 0.45
+                                       for _, kind, g, _ in items):
+                                    continue            # never a via in a pad, not even one of its own net
                                 l0 = next((l for l in CU if l in s0[2] and seg_ok(items, l, net, s0[0], s0[1], vx, vy, hw)), None)
                                 if l0 is None:
                                     continue

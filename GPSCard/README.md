@@ -15,7 +15,7 @@ No radio and no RF parts. CAN node from its slot (`0x14 + (slot − 1)`), 5 V fr
 
 | Files | |
 | --- | --- |
-| `GPSCard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, all parts on the parts side (F). KiCad 10 |
+| `GPSCard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 2 layers, all parts on the parts side (F). KiCad 10 |
 | `GPSCard_BOM.csv` | Parts list |
 | `generate/` | Scripts that produced the files (`gen_sch.py`, `gen_pcb.py`, `drc.py`, `sexp.py`; `refs.json` is written by `gen_sch.py`). Copied from `AudioCarrier/generate/` and adapted. Every symbol and footprint is stock KiCad 10, so there is no `gen_footprints.py` and no project library |
 
@@ -79,12 +79,14 @@ are also ROM bootloader ports.
   (fixed in `FIXED`: placed by the passive placer, R2 ended up beside the pin and Freerouting could not reach it).
 - **Parts side (F):** everything. Tallest part: J2 (about 6 mm) and the right-angle headers (about 2.5 mm), well under
   the 20 mm limit. **Back (B):** no parts, only copper and the card name.
-- **Layers:** 4, the audio card's stack and rules: F signal, In1 solid GND, In2 signal / GND fill, B signal / GND fill.
-  0.2 mm tracks, 0.3 mm on the supplies (+5V, +3V3, puck power), 0.13 mm clearance, 0.6 / 0.3 mm vias: standard
-  4-layer rules at JLCPCB / PCBWay. The spec says 2 layers are enough; 4 was used because the audio card's generator
-  (router set-up, In1 plane, stitching) works unchanged, and so the card can share a panel with the others. A 2-layer
-  version would need `gen_pcb.py`'s plane and stitching steps reworked.
-- Ground stitching on a 4 mm grid (the audio card uses 2 mm; this board is nearly empty).
+- **Layers:** 2 (from 2026-10-05; rev A was drawn on 4), for the price: a 2-layer 80 × 60 mm prototype costs a
+  fraction of a 4-layer one. F carries the routing and a GND pour; B is the ground reference: a GND pour with as
+  little routing as the router needs (about 94 mm of track, against 587 mm on F), and it fills as one piece over
+  about 95 % of the board. GND is not routed: `rules()` gives it its own net class (`Ground`) and Freerouting runs
+  with `-inc Ground`; every GND pin gets its own via to B before routing, and the pours join the rest. 0.2 mm tracks,
+  0.3 mm on the supplies (+5V, +3V3, puck power), 0.13 mm clearance, 0.6 / 0.3 mm vias: standard 2-layer rules at
+  JLCPCB / PCBWay.
+- Ground stitching F to B on a 4 mm grid (the audio card uses 2 mm; this board is nearly empty).
 
 ## Status
 
@@ -107,7 +109,7 @@ symbol nickname not being in a library table: the derived stock symbols are flat
   leaves a wider gap to the exposed pad. Either is fine for assembly; no change.
 - **No via in any pad: checked.** The pre-routing GND fan-out had put 4 GND vias in pads (2 in U1's exposed pad,
   2 on Y1 pad 2); they and their stubs were removed. U1's EP still reaches GND through pin 5's track, Y1's GND pads
-  through the F.Cu pour; every GND pad still reaches the In1 plane. `gen_pcb.py`'s `stitch()` no longer treats big GND
+  through the F.Cu pour; every GND pad still reaches the ground plane. `gen_pcb.py`'s `stitch()` no longer treats big GND
   pads as free space and no longer falls back to a via in the pad. Closest via to a pad of another net: 0.139 mm.
 - **Other parts' pinouts: checked** against the netlist: MCP2562 (1 TXD, 2 VSS, 3 VDD 5 V, 4 RXD, 5 VIO 3.3 V,
   6 CANL, 7 CANH, 8 STBY low), AP2112K (1 VIN, 2 GND, 3 EN, 5 VOUT), USBLC6-2SC6 (1 / 6 TX, 3 / 4 RX, 5 VBUS = puck

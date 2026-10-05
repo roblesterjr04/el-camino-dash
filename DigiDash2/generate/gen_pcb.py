@@ -6,7 +6,8 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 
 Rev 1's outline (309.2 x 103.7 mm) and its three screen headers (J5 / J1 / J4, copied from DigiDash/DigiDash.kicad_pcb:
 provisional until the bezel is drawn). Four layers: F signal, In1 solid GND, In2 solid +5 V, B signal. Every SMD part
-is on the back (single-sided assembly); only the screen headers are on the front. Six card slots in a row at the left
+is on the back (single-sided assembly); only the screen headers are on the front. Through-hole parts are left out of
+the placement files: they are soldered by hand after assembly. Six card slots in a row at the left
 (cards stand on edge) with the AUX 12 V feed along the top edge (the sensor pack is a card), and the screen transceivers,
 video decoder, power supply and harness connectors in the lower band. ICs and connectors are placed by hand below; every
 passive then goes to the free spot closest to the pins it connects to. With --route: GND / +5 V fan-out vias, one
@@ -100,54 +101,55 @@ FIXED = {
     # sensor serial in (a jumper wire from the sensor card's J8): above the slot row (over slot 4), clear of the card
     # envelopes, within reach of a card's left edge (which is at this end of the row) in any slot
     'J27': (96.0, 6.0, 90, 'B'),
-    # video, next to the center header (J1), on the front between slot 5's socket pins (J35, x 119.8 / 122.4) and slot
-    # 6's (J36, x 145.2 / 147.8); the RCA jack (tall) east of slot 6's envelope
-    'U8': (132.0, 64.0, 0, 'F'), 'J11': (162.0, 91.0, 0, 'B'),
-    'U11': (160.0, 60.0, 0, 'B'), 'U12': (139.0, 70.0, 0, 'B'),
+    # video, next to the center header (J1), between slot 5's socket pins (J35, x 119.8 / 122.4) and slot 6's (J36,
+    # x 145.2 / 147.8). On the back it is mirrored: the analog side (AIP1A, XTAL1 / XTAL2, pins 1-8) faces east, the data
+    # pins (9-16) face J1. The RCA jack (tall) east of slot 6's envelope
+    'U8': (132.0, 64.0, 180, 'B'), 'J11': (162.0, 91.0, 0, 'B'),
+    'U11': (160.0, 60.0, 0, 'B'), 'U12': (141.0, 71.6, 0, 'B'),
     # power, beside J7
     'U2': (224.0, 78.0, 0, 'B'), 'Q2': (188.0, 84.0, 0, 'B'), 'Q5': (244.0, 66.0, 0, 'B'),
     # CAN transceivers beside their screen headers
-    'U5': (64.0, 84.0, 0, 'F'), 'U9': (104.0, 74.0, 0, 'F'), 'U10': (244.0, 84.0, 0, 'F'),
+    'U5': (64.0, 84.0, 0, 'B'), 'U9': (104.0, 74.0, 0, 'B'), 'U10': (244.0, 84.0, 0, 'B'),
     'J16': (176.0, 76.0, 90, 'B'), 'D2': (172.0, 82.0, 0, 'B'),
 }
-# video support parts, fixed by their exact description (so renumbering cannot move them): the ESD clamp and the 75 R
-# termination at the RCA jack (only the low-impedance, terminated signal runs across to the decoder), the coupling
-# cap at AIP1A, the crystal and its load caps on the back right under XTAL1 / XTAL2 (pins 5 / 6), and the pixel-clock
-# damping resistor right under SCLK (pin 9)
+# video support parts, fixed by their exact description (so renumbering cannot move them). The input chain sits in the
+# free spot between J1's east end and the RCA jack (J11 pin 1 at x 162, y 91), from the jack up: the ESD clamp and the
+# anti-alias filter's C1, the filter's L (0 R as delivered) and C2, then the 75 R termination and 1/2 attenuation, so
+# only the low-impedance, terminated signal runs across to the decoder. Beside U8's east side (pins 1-8): the coupling
+# cap at AIP1A, the resistor across the crystal, the crystal and its load caps. The pixel-clock damping resistor right
+# under SCLK (pin 9)
 FIXED_DESCR = {
-    'Video input ESD': (162.0, 86.4, 90, 'F'),
-    '75 R termination and 1/2 attenuation (R1)': (159.8, 86.4, 90, 'F'),
-    # the anti-alias filter's footprints (C1 not fitted, the 0 R / 2.7 uH, C2 not fitted) between the clamp and R1
-    'Anti-alias filter C1 (fit with C2 and a 2.7 uH in place of the 0 R)': (164.3, 86.4, 90, 'F'),
-    'Anti-alias filter L: 0 R as delivered, 2.7 uH 0805 inductor to fit the filter': (164.3, 82.9, 90, 'F'),
-    'Anti-alias filter C2 (fit with C1 and a 2.7 uH in place of the 0 R)': (161.6, 82.9, 90, 'F'),
-    '75 R termination and 1/2 attenuation (R2)': (157.8, 86.4, 90, 'F'),
-    'Input coupling (C4)': (125.9, 61.85, 0, 'F'),
-    '14.31818 MHz, +/-50 ppm, fundamental': (126.9, 64.5, 90, 'B'),
-    'Y3 load (2 CL - Cstray)': (126.9, 61.4, 0, 'B'),
-    'Y3 load': (126.9, 67.6, 0, 'B'),
-    'Across the crystal (TI note E)': (129.4, 64.5, 90, 'B'),
-    'Pixel clock series (edge damping)': (130.25, 69.6, 270, 'B'),
-    # the RESETB pull-up on the back beside the crystal: left to the placer it lands on the front right under the data
-    # pins (YOUT0-7, pins 11-18) and boxes in their escape
-    'RESETB pull-up': (127.4, 69.6, 0, 'B'),
+    'Video input ESD': (164.0, 83.6, 90, 'B'),
+    'Anti-alias filter C1 (fit with C2 and a 2.7 uH in place of the 0 R)': (166.2, 83.6, 90, 'B'),
+    'Anti-alias filter L: 0 R as delivered, 2.7 uH 0805 inductor to fit the filter': (164.0, 79.5, 90, 'B'),
+    'Anti-alias filter C2 (fit with C1 and a 2.7 uH in place of the 0 R)': (166.2, 79.6, 90, 'B'),
+    '75 R termination and 1/2 attenuation (R1)': (164.0, 75.6, 90, 'B'),
+    '75 R termination and 1/2 attenuation (R2)': (166.2, 75.6, 90, 'B'),
+    'Input coupling (C4)': (137.6, 58.8, 180, 'B'),
+    'Across the crystal (TI note E)': (137.4, 64.5, 270, 'B'),
+    '14.31818 MHz, +/-50 ppm, fundamental': (140.0, 64.5, 270, 'B'),
+    'Y3 load (2 CL - Cstray)': (140.6, 61.0, 0, 'B'),
+    'Y3 load': (140.0, 68.0, 0, 'B'),
+    'Pixel clock series (edge damping)': (133.75, 70.0, 270, 'B'),
+    # the center screen's sensor-serial divider right under its RX pin (J1 pin 15): left to the placer the top resistor
+    # lands by J27, walled in by the slot buses between slots 4 and 5, and the link to J1 cannot be routed
+    'Divider top, C screen': (127.4, 81.3, 0, 'B'),
+    'Divider bottom, C screen': (131.4, 81.3, 0, 'B'),
 }
-# the video input and the pixel clock's first 2 mm, drawn by hand and locked before Freerouting runs (left to itself it detours round J1, 80-150 mm with
-# up to 8 vias): VID_ATT from the termination (R32) down to B.Cu, along under J1's pin rows (y 80.1, clear of F29),
-# up the gap between J1's and slot 5's pins (x 124.34) to the coupling cap C27, and C27 straight into AIP1A (pin 1).
-# (net, layer, width, points in board mm); a via wherever consecutive pieces change layer. Placement is fixed above,
-# so these points follow the parts; re-check them if R32, C27 or U8 move
+# the video input and the pixel clock's first 2 mm, drawn by hand and locked before Freerouting runs (left to itself it
+# detours round J1, 80-150 mm with up to 8 vias). VID_ATT leaves the termination (R32) through a via onto F.Cu, which is
+# empty (every part is on the back) and lies right over the In1 ground plane: west along the gap between slot 6's socket
+# pins and J1's (y 73.4), north up the gap between the crystal and slot 6's pins (x 143), back down to B.Cu beside the
+# coupling cap C27, and C27 straight into AIP1A (pin 1). (net, layer, width, points in board mm); a via wherever
+# consecutive pieces change layer. Placement is fixed above, so these points follow the parts; re-check them if R32, C27,
+# R34 or U8 move
 PREROUTE = [
-    ('/VID_ATT', 'F', 0.25, [(159.8, 85.575), (159.8, 84.2)]),
-    ('/VID_ATT', 'B', 0.25, [(159.8, 84.2), (159.8, 80.1), (124.34, 80.1), (124.34, 61.85)]),
-    ('/VID_ATT', 'F', 0.25, [(124.34, 61.85), (125.125, 61.85)]),
-    ('/VID_AIP1A', 'F', 0.2, [(126.675, 61.85), (127.2, 61.85), (127.6, 62.25), (128.84, 62.25)]),
-    # SCLK (pin 9) straight down through a via into the 22 R's pad on the back
-    ('/VID_SCLK', 'F', 0.2, [(130.25, 67.16), (130.25, 68.2)]),
-    ('/VID_SCLK', 'B', 0.2, [(130.25, 68.2), (130.25, 68.775)]),
-    # YOUT4 / YOUT5 (pins 14 / 13) out of the pin row as a pair, so neither boxes the other in
-    ('/V_D4', 'F', 0.2, [(132.75, 67.16), (132.75, 68.18), (136.0, 68.18)]),
-    ('/V_D5', 'F', 0.2, [(132.25, 67.16), (132.25, 68.2), (132.69, 68.64), (136.0, 68.64)]),
+    ('/VID_ATT', 'B', 0.25, [(164.0, 74.78), (164.0, 73.4)]),
+    ('/VID_ATT', 'F', 0.25, [(164.0, 73.4), (143.0, 73.4), (143.0, 58.8), (139.9, 58.8)]),
+    ('/VID_ATT', 'B', 0.25, [(139.9, 58.8), (138.38, 58.8)]),
+    ('/VID_AIP1A', 'B', 0.2, [(136.82, 58.8), (136.82, 61.4), (135.97, 62.25), (135.16, 62.25)]),
+    # SCLK (pin 9) straight down into the 22 R's pad
+    ('/VID_SCLK', 'B', 0.2, [(133.75, 67.16), (133.75, 69.17)]),
 ]
 SIDE_DEFAULT = 'B'
 ANCHOR = {'power': ['U2', 'Q2', 'Q5', 'U11', 'U12'], 'aux': ['Q6', 'J13', 'F1', 'NT1'],
@@ -158,9 +160,6 @@ POWER_NETS = {'+5V', '+3V3', '/+1V8', '/+1V8A', '/12V_BATT', '/SW12', '/AUX12'}
 PLANES = {'GND': pcbnew.In1_Cu, '+5V': pcbnew.In2_Cu}
 KEEP_SILK = {'J1', 'J4', 'J5', 'J6', 'J7', 'J9', 'J11', 'J13', 'J16', 'J17',
              'J22', 'J23', 'J24', 'J25', 'J27', 'SW1', 'U8'} | set(SLOTS)
-# parts that must stay on the back: the two resistors under the video decoder's data-pin row on the front box its pins in
-# (matched by description, so renumbering cannot move them), and the TERM switch
-BACK_ONLY_DESCR = ('Pixel clock series', 'YOUT7 / I2CSEL low')
 HOLE_KEEP = 3.3
 HOLES = []                 # filled with every M3 hole (the board mounting holes)
 
@@ -249,6 +248,9 @@ def main():
         fp.SetAttributes(fp.GetAttributes() & ~pcbnew.FP_EXCLUDE_FROM_BOM)
         if groups.get(ref, {}).get('dnp'):
             fp.SetDNP(True)             # not fitted as delivered (the schematic's DNP flag)
+        if fp.GetAttributes() & pcbnew.FP_THROUGH_HOLE:
+            # soldered by hand after assembly: kept in the BOM, left out of the placement files
+            fp.SetAttributes(fp.GetAttributes() | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
         b.Add(fp)
         for pad in fp.Pads():
             n = nets.get((ref, pad.GetNumber()))
@@ -385,11 +387,9 @@ def main():
                     out.setdefault(n, []).append((r, p.x / 1e6 - OX, p.y / 1e6 - OY))
         return out
 
-    back_only = {'SW1'} | {r for r in comps if comps[r][3].startswith(BACK_ONLY_DESCR)}
     rest = [r for r in fps if r not in placed]
     for r in rest:
         side_of[r] = SIDE_DEFAULT
-    FRONT_PENALTY = 5.0                 # mm of extra wire the placer accepts to put a part on the other side from its chip
 
     def prio(r):
         g = groups.get(r, {}).get('group', 'misc')
@@ -407,27 +407,9 @@ def main():
         anchors = set(ANCHOR.get(g, []))
         pads_by_net = placed_pads()
         best = None
-        # SMD parts may go on either side (the screens stand well off the front); tall parts stay on the back
+        # every part on the back (single-sided assembly); tall parts stay out from under the cards
         tall = TALL_RE.search(fp.GetFPIDAsString()) is not None
-        either = (not (fp.GetAttributes() & pcbnew.FP_THROUGH_HOLE) and not tall and g not in ('power', 'aux')
-                  and ref not in back_only)
-        # its home side: that of the placed part it connects to most closely (a filter cap sits with its MCU pin)
-        home, hd = None, None
-        fx, fy = fp.GetPosition().x / 1e6 - OX, fp.GetPosition().y / 1e6 - OY
-        for pad in fp.Pads():
-            n = pad.GetNetname()
-            if not n or n in PLANES or n.startswith('unconnected'):
-                continue
-            for r_, tx, ty in pads_by_net.get(n, []):
-                if fps[r_].GetAttributes() & pcbnew.FP_THROUGH_HOLE:
-                    continue            # a connector pin is on both sides
-                if r_ in anchors or hd is None:
-                    d_ = 0 if r_ in anchors else 1
-                    if hd is None or d_ < hd:
-                        home, hd = side_of[r_], d_
-        if home is None:
-            home = next((side_of[a] for a in ANCHOR.get(g, []) if a in side_of and a in placed), 'B')
-        for rot, side in [(r_, s_) for s_ in (('B', 'F') if either else ('B',)) for r_ in (0, 90, 180, 270)]:
+        for rot, side in [(r_, 'B') for r_ in (0, 90, 180, 270)]:
             put(ref, 0, 0, rot, side)
             x1, y1, x2, y2 = courtyard(fp, side)
             x1, y1, x2, y2 = x1 - 0.1, y1 - 0.1, x2 + 0.1, y2 + 0.1
@@ -464,8 +446,6 @@ def main():
                     dd = np.hypot(cx + px - tx, cy + py - ty)
                     d = dd if d is None else np.minimum(d, dd)
                 cost += wgt * d
-            if side != home:
-                cost = cost + FRONT_PENALTY     # the other side from its block's chip
             cost = np.where(free, cost, np.inf)
             j, i = np.unravel_index(np.argmin(cost), cost.shape)
             if np.isfinite(cost[j, i]) and (best is None or cost[j, i] < best[0]):
@@ -1353,6 +1333,7 @@ def freeroute(jar):
     """Freerouting 1.9.0 (Java 17+; opens its window while it works): one run from an unrouted board, after locked
     fan-out vias for every SMD GND and +5 V pad, so the router never has to reach the planes itself."""
     dsn, ses = os.path.join(TMP, 'digidash2.dsn'), os.path.join(TMP, 'digidash2.ses')
+    jar = os.path.abspath(jar)          # Freerouting runs in TMP
     b = pcbnew.LoadBoard(PCB)
     rules(b)
     smd = sorted({f.GetReference() for f in b.GetFootprints()

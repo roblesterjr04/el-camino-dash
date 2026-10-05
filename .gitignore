@@ -30,3 +30,6 @@ temp-freerouting.dsn
 
 # KiCad autosave files
 _autosave-*
+
+# Freerouting (downloaded from its GitHub releases; see each board README)
+freerouting-*.jar

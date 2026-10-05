@@ -14,9 +14,9 @@ CAN node from its slot (`0x14 + (slot − 1)`), product `0x0009`, node type 9. 5
 
 | Files | |
 | --- | --- |
-| `RadioCard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, all parts on the parts side (F). KiCad 10 |
-| `RadioCard_BOM.csv` | Parts list with manufacturer parts |
-| `fab/` | Gerbers, drill, placement and centroid (`python3 tools/fab_export.py RadioCard`) |
+| `RadioCard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 2 layers, all parts on the parts side (F). KiCad 10 |
+| `RadioCard_BOM.csv` | Parts list, every part with maker and part number (plus the PCB jumpers and the not-fitted R13) |
+| `fab/` | Gerbers, drill, placement and centroid (`python3 tools/fab_export.py RadioCard`), and the assembler's BOM `RadioCard_BOM_PCBWay.csv` (the 48 placed parts) |
 | `generate/` | Scripts that produced the files (`gen_sch.py`, `gen_pcb.py`, `drc.py`, `sexp.py`; `refs.json` / `netlist.json` are written by `gen_sch.py`). Copied from `GPSCard/generate/`. Every symbol and footprint is stock KiCad 10 |
 
 ## Signal paths
@@ -39,7 +39,7 @@ Slot +5 V ── U3 AP2112K-3.3 ── +3V3 (MCU, VIO, tuner VD) ── FB1 ─�
 
 | Pin | Port | Function | AF | To |
 | --- | --- | --- | --- | --- |
-| 2 / 3 | PC14 / PC15 | OSC_IN / OSC_OUT (HSE) | — | Y1 8 MHz, 12 pF |
+| 2 / 3 | PC14 / PC15 | OSC_IN / OSC_OUT (HSE) | — | Y1 8 MHz (YXC X32258MOB4SI, CL 12 pF), 12 pF caps |
 | 4 | VDD / VDDA | 3.3 V | — | 100 nF + 4.7 µF |
 | 5, 33 (pad) | VSS | GND | — | |
 | 6 | PF2 | NRST | — | J3 pin 4, 100 nF |
@@ -64,11 +64,17 @@ Slot +5 V ── U3 AP2112K-3.3 ── +3V3 (MCU, VIO, tuner VD) ── FB1 ─�
 
 ## Board
 
-- **80 × 60 mm, 4 layers** (F signal, In1 solid GND, In2 signal / GND fill, B signal / GND fill), 0.2 mm tracks,
-  0.3 mm supplies, 0.13 mm clearance, 0.6 / 0.3 mm vias: the audio card's rules.
+- **80 × 60 mm, 2 layers** (from 2026-10-05; rev A was drawn on 4), for the price. F carries most of the routing and
+  a GND pour; B is the ground reference: a GND pour that fills as one piece over about 91 % of the board, with the
+  rest of the routing (about 340 mm, against 660 mm on F). GND is not routed: it has its own net class (`Ground`),
+  Freerouting runs with `-inc Ground`, every GND pin gets its own via to B first, and the pours join the rest.
+  0.2 mm tracks, 0.3 mm supplies, 0.13 mm clearance, 0.6 / 0.3 mm vias: standard 2-layer rules.
+- **The one 2-layer compromise:** a bundle of 4–5 digital lines (the tuner's I2S / I2C / clock to the MCU) crosses the
+  middle of B diagonally. The B pour joins around it and stitching vias run beside it, but it is a slot in the ground
+  reference there. Fine for these signals; if FM reception on the bench picks up digital noise, look here first.
 - **RF end at the top:** J2 at x 45, J5 at x 33, the tuner (U4) below them turned so FMI / AMI face the SMA. A rule
-  area on In2 and B (x 28–62, y 0–21) keeps tracks out from under the front end; only ground and stitching vias go
-  there, and In1 is solid under all of it.
+  area on B (`RF_KEEP`: x 28–62, y 0–12.5) keeps tracks out from under the front end; only the GND pour and stitching
+  vias go there, so the ground under the antenna path is solid.
 - **Bottom:** the MCU, the CAN transceiver over the header's CAN pins, the regulator over the 5 V pins, the RET buffer
   over the RET pin.
 - No parts on the back; no mounting holes (the slot and the case hold it).
@@ -76,7 +82,7 @@ Slot +5 V ── U3 AP2112K-3.3 ── +3V3 (MCU, VIO, tuner VD) ── FB1 ─�
 ## Status
 
 **Schematic and board done** (2026-10-02). ERC: no errors (the endpoint-off-grid and project-library warnings
-every generated card has). PCB placed and routed (Freerouting 1.9.0, 60 passes, complete; 207 ground stitching vias).
+every generated card has). PCB placed and routed (Freerouting 1.9.0, complete). Re-routed on 2 layers 2026-10-05: one Freerouting round, complete; 35 GND fan-out vias and 201 stitching vias, none in a pad.
 DRC with the schematic parity check: **no errors, nothing unconnected**; J2's five edge-clearance hits are expected
 (edge-launch SMA, reported apart by `drc.py`); 32 silkscreen warnings. Fab outputs in `fab/` (48 placed parts; R13 is
 not fitted).

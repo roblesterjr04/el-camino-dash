@@ -7,12 +7,13 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 Same pattern as AudioCarrier/generate/gen_pcb.py. The board is an 80 x 60 mm slot card
 (docs/hardware/accessory_ports.md, docs/hardware/radio_card.md): it stands on edge in a DigiDash slot, its right-angle
 2x15 header centred on the bottom edge, the SMA antenna jack (J2, edge mount) and the AM loopstick header (J5) on the
-top edge, the SWD (J3) and debug serial (J4) headers right angle on the left edge. Four layers (F signal, In1 GND
-plane, In2 signal / GND fill, B signal), the audio card's rules. Every part is on F (the parts side); B is empty.
-The RF end (SMA, ESD clamp, coupling caps, tuner) is at the top, under a keep-out on In2 and B (no tracks or vias but
-ground), with the solid In1 plane under it; the MCU, CAN and the slot header are at the bottom. ICs and connectors are placed by
-hand below; every passive is then put at the free spot closest to the pins it connects to. With --route it runs
-Freerouting on a Specctra export and imports the result, then fills the ground planes and stitches them.
+top edge, the SWD (J3) and debug serial (J4) headers right angle on the left edge. Two layers (F and B: signals plus
+a GND pour on each; B is kept as clear as the router allows, so its pour is the ground reference), the audio card's
+rules otherwise. Every part is on F (the parts side). The RF end (SMA, ESD clamp, coupling caps, tuner) is at the top,
+over a keep-out on B (no tracks there: only the GND pour and stitching vias); the MCU, CAN and the slot header are at
+the bottom. ICs and connectors are placed by hand below; every passive is then put at the free spot closest to the
+pins it connects to. With --route it runs Freerouting on a Specctra export (GND is not routed: every GND pin gets its
+own via first, and the pours join them) and imports the result, then fills the pours and stitches them.
 """
 import json
 import os
@@ -42,7 +43,7 @@ W, H = 80.0, 60.0          # a slot card: the bottom edge (y = H) goes into the 
 J2_X = 45.0                # the SMA's centre pin on the top edge (its board-edge line is 2.54 mm from pad 1)
 U4_X, U4_Y = 48.0, 13.0    # the tuner, rotated so FMI / AMI (pins 8 / 12) face the SMA and VD / VA the bottom
 J5_X = 33.0                # AM loopstick header (right angle, top edge), pin 1 (the AM node) on the right
-RF_KEEP = (28.0, 0.0, 62.0, 12.5)   # x1, y1, x2, y2: no tracks on In2 / B over the front end (the tuner's antenna-side pins and up)
+RF_KEEP = (28.0, 0.0, 62.0, 12.5)   # x1, y1, x2, y2: no tracks on B under the front end (the tuner's antenna-side pins and up)
 J3_Y = 26.0                # SWD header pin 1 (left edge; its pins count upward)
 J4_Y = 36.0                # debug serial header pin 1 (left edge, below J3)
 HDR_X = 4.04               # right-angle 2.54 mm headers: pad row 4.04 mm in, so the body's outer face is on the edge
@@ -163,8 +164,7 @@ def main():
     comps, nets = netlist()
     groups = json.load(open(os.path.join(HERE, 'refs.json')))
     b = pcbnew.BOARD()
-    b.SetCopperLayerCount(4)
-    b.SetLayerType(pcbnew.In1_Cu, pcbnew.LT_POWER)      # solid GND plane: the router only drops vias into it
+    b.SetCopperLayerCount(2)
     ds = b.GetDesignSettings()
     ds.m_CopperEdgeClearance = mm(0.2)
     netobj = {}
@@ -389,7 +389,7 @@ def main():
         sh.SetStart(P(*a_))
         sh.SetEnd(P(*e_))
         b.Add(sh)
-    for lay in (pcbnew.In1_Cu, pcbnew.F_Cu, pcbnew.B_Cu, pcbnew.In2_Cu):
+    for lay in (pcbnew.B_Cu, pcbnew.F_Cu):
         z = pcbnew.ZONE(b)
         z.SetLayer(lay)
         z.SetNet(net('GND'))
@@ -414,7 +414,7 @@ def main():
     k.SetDoNotAllowZoneFills(False)
     k.SetDoNotAllowPads(False)
     k.SetDoNotAllowFootprints(False)
-    k.SetLayerSet(pcbnew.LSET.AllCuMask(4))
+    k.SetLayerSet(pcbnew.LSET.AllCuMask(2))
     o = k.Outline()
     o.NewOutline()
     for (x, y) in corners:
@@ -425,7 +425,7 @@ def main():
         o.Append(mm(OX + x), mm(OY + y), 0, 0)
     b.Add(k)
 
-    # the tuner's front end: nothing but ground on In2 and B under it (the In1 plane stays solid)
+    # the tuner's front end: nothing but ground on B under it, so its pour stays solid there
     rf = pcbnew.ZONE(b)
     rf.SetIsRuleArea(True)
     rf.SetDoNotAllowTracks(True)
@@ -434,7 +434,6 @@ def main():
     rf.SetDoNotAllowPads(False)
     rf.SetDoNotAllowFootprints(False)
     ls = pcbnew.LSET()
-    ls.AddLayer(pcbnew.In2_Cu)
     ls.AddLayer(pcbnew.B_Cu)
     rf.SetLayerSet(ls)
     rf.SetZoneName('RF front end')
@@ -465,26 +464,30 @@ def rules(b):
     ds.m_MinClearance = mm(0.13)
     ds.m_TrackMinWidth = mm(0.15)
     ds.m_MinSilkTextHeight = mm(0.7)
-    ds.m_MinResolvedSpokes = 1          # header pins also reach the In1 plane through their holes
+    ds.m_MinResolvedSpokes = 1          # header pins also reach the B pour through their holes
     ns = ds.m_NetSettings
     d = ns.GetDefaultNetclass()
     pwr = pcbnew.NETCLASS('Power')
-    for nc, w in ((d, 0.2), (pwr, 0.3)):
+    gnd = pcbnew.NETCLASS('Ground')     # its own class so Freerouting can leave it to the pours (-inc Ground)
+    for nc, w in ((d, 0.2), (pwr, 0.3), (gnd, 0.3)):
         nc.SetClearance(mm(0.13))
         nc.SetTrackWidth(mm(w))
         nc.SetViaDiameter(mm(0.6))
         nc.SetViaDrill(mm(0.3))
     pwr.SetPriority(0)
+    gnd.SetPriority(0)
     ns.SetNetclass('Power', pwr)
+    ns.SetNetclass('Ground', gnd)
     ns.ClearNetclassPatternAssignments()
-    for n in sorted(POWER_NETS | {'GND'}):
+    ns.SetNetclassPatternAssignment('GND', 'Ground')
+    for n in sorted(POWER_NETS):
         ns.SetNetclassPatternAssignment(n, 'Power')
     ns.RecomputeEffectiveNetclasses()
     b.SynchronizeNetsAndNetClasses(True)
 
 
 def stitch(b, pitch=2.0, fanout=None):
-    """GND vias so every GND pad and every piece of the F / B / In2 pours reaches the In1 plane: a grid of vias
+    """GND vias so every GND pad and every piece of the F pour reaches the B pour (the ground reference): a grid of vias
     wherever they clear everything (not under the antenna, the screw heads or a part), then, for each GND pad the
     filled pours still leave off the plane, a via beside it with a short track.
     With fanout=[refs] (before routing) it only gives every GND pin of those parts its own via, escaping inward under
@@ -523,8 +526,8 @@ def stitch(b, pitch=2.0, fanout=None):
             if it is skip or (gnd_ok and it[2] == 'GND'):
                 continue
             kind, g, n = it
-            if n == 'GND' and (kind == 's' or (kind == 'r' and (g[2] - g[0]) * (g[3] - g[1]) > 1.0)):
-                continue                # GND on GND: tracks, and the big pads (the module's ground field)
+            if n == 'GND' and kind == 's':
+                continue                # GND on GND tracks. Never a pad, GND or not: no via in any pad (U1's EP, Y1's)
             if kind == 'c':
                 if np.hypot(x - g[0], y - g[1]) < r + g[2] + gap:
                     return False
@@ -573,12 +576,16 @@ def stitch(b, pitch=2.0, fanout=None):
                    for k in range(1, steps + 1))
 
     def off_plane():
-        """GND pads not reachable from the In1 plane through copper (after a fill)."""
+        """GND pads not reachable from the B pour's largest piece through copper (after a fill)."""
         pcbnew.ZONE_FILLER(b).Fill(b.Zones())
         b.BuildConnectivity()
         c = b.GetConnectivity()
-        plane = [z for z in b.Zones() if not z.GetIsRuleArea() and z.GetLayer() == pcbnew.In1_Cu][0]
-        seen, todo, pads = {plane.m_Uuid.AsString()}, [plane], set()
+        plane = [z for z in b.Zones() if not z.GetIsRuleArea() and z.GetLayer() == pcbnew.B_Cu][0]
+        ps = plane.GetFilledPolysList(pcbnew.B_Cu)
+        big = max(range(ps.OutlineCount()), key=lambda i: ps.Outline(i).Area())
+        seed = [o for o in c.GetConnectedItems(plane) if o.GetClass() == 'PCB_VIA'
+                and ps.Outline(big).PointInside(o.GetPosition())][:1] or [plane]
+        seen, todo, pads = {s.m_Uuid.AsString() for s in seed}, list(seed), set()
         while todo:
             for o in c.GetConnectedItems(todo.pop()):
                 k = o.m_Uuid.AsString()
@@ -605,7 +612,7 @@ def stitch(b, pitch=2.0, fanout=None):
             for z in b.Zones():
                 if z.GetIsRuleArea():
                     continue
-                for L in (pcbnew.F_Cu, pcbnew.B_Cu, pcbnew.In2_Cu):
+                for L in (pcbnew.F_Cu, pcbnew.B_Cu):
                     if not z.IsOnLayer(L):
                         continue
                     ps = z.GetFilledPolysList(L)
@@ -676,7 +683,7 @@ def stitch(b, pitch=2.0, fanout=None):
               for r in np.arange(0.8, 3.5, 0.2):
                   for ang in np.arange(0, 2 * np.pi, np.pi / 12):
                       x, y = float(px + r * np.cos(ang)), float(py + r * np.sin(ang))
-                      if spot_ok(x, y) and all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
+                      if spot_ok(x, y) and clear(x, y) and all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
                               all(np.hypot(x - g[0], y - g[1]) > 0.9 for kind, g, nn in items if kind == 'c'):
                           cand.append((r + 0.5, x, y, True))
               for w in (tw, 0.15):       # a narrower track squeezes between fine-pitch pins
@@ -691,12 +698,7 @@ def stitch(b, pitch=2.0, fanout=None):
                           break
                   if best:
                       break
-          if not best and all(seg_ok(geo(b), l, 'GND', px, py, px, py, rv, gap) for l in CU):
-              via(px, py)               # last resort: via in the pad (hand-solderable; plug it if paste-reflowing)
-              print('  via in pad for GND pad %s-%s' % (fp.GetReference(), pad.GetNumber()))
-              m += 1
-              continue
-          if not best:
+          if not best:                  # no via in the pad: the pours or another GND pin's track must reach it
               print('  no via spot for GND pad %s-%s' % (fp.GetReference(), pad.GetNumber()))
               continue
           if new_via:
@@ -723,7 +725,7 @@ def stitch(b, pitch=2.0, fanout=None):
     for z in b.Zones():
         if z.GetIsRuleArea():
             continue
-        for L in (pcbnew.F_Cu, pcbnew.B_Cu, pcbnew.In2_Cu):
+        for L in (pcbnew.F_Cu, pcbnew.B_Cu):
             if not z.IsOnLayer(L):
                 continue
             ps = z.GetFilledPolysList(L)
@@ -737,7 +739,7 @@ def stitch(b, pitch=2.0, fanout=None):
                 for yy in np.arange(bb.GetTop() / 1e6 + 0.3, bb.GetBottom() / 1e6 - 0.3, 0.1):
                     for xx in np.arange(bb.GetLeft() / 1e6 + 0.3, bb.GetRight() / 1e6 - 0.3, 0.1):
                         x, y = float(xx), float(yy)
-                        if o.PointInside(VECTOR2I(mm(x), mm(y))) and spot_ok(x, y) and \
+                        if o.PointInside(VECTOR2I(mm(x), mm(y))) and spot_ok(x, y) and clear(x, y) and \
                                 all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
                                 all(np.hypot(x - t.GetPosition().x / 1e6, y - t.GetPosition().y / 1e6) > 0.9
                                     for t in b.GetTracks() if t.GetClass() == 'PCB_VIA'):
@@ -754,7 +756,7 @@ def stitch(b, pitch=2.0, fanout=None):
     print('stitching vias: %d on the grid, %d with a track to a GND pad; %d GND pads off the plane' % (n, m, len(left)))
 
 
-CU = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+CU = [pcbnew.F_Cu, pcbnew.B_Cu]
 
 
 def geo(b):
@@ -887,6 +889,9 @@ def finish(b):
                                 vx, vy = float(s0[0] + r * np.cos(ang)), float(s0[1] + r * np.sin(ang))
                                 if not all(seg_ok(items, l, net, vx, vy, vx, vy, 0.3) for l in CU):
                                     continue
+                                if any(kind == 'r' and g[0] - 0.45 < vx < g[2] + 0.45 and g[1] - 0.45 < vy < g[3] + 0.45
+                                       for _, kind, g, _ in items):
+                                    continue            # never a via in a pad, not even one of its own net
                                 l0 = next((l for l in CU if l in s0[2] and seg_ok(items, l, net, s0[0], s0[1], vx, vy, hw)), None)
                                 if l0 is None:
                                     continue
@@ -952,13 +957,13 @@ def freeroute(jar):
                sorted(f.GetReference() for f in b.GetFootprints() if re.match(r'(C|R|JP|D|F)\d', f.GetReference())))
         pcbnew.SaveBoard(PCB, b)
         for z in list(b.Zones()):
-            if not z.GetIsRuleArea() and z.GetLayer() != pcbnew.In1_Cu:
-                b.Remove(z)             # the In1 GND plane stays: Freerouting reaches it with vias
+            if not z.GetIsRuleArea():
+                b.Remove(z)             # the pours come back after routing; GND is left to them (-inc Ground)
         pcbnew.ExportSpecctraDSN(b, dsn)
         if os.path.exists(ses):
             os.remove(ses)
         java = os.environ.get('JAVA', 'java')
-        subprocess.check_call([java, '-jar', jar, '-de', dsn, '-do', ses, '-mp', str(passes[rnd % len(passes)]), '-mt', '1'], cwd=TMP,
+        subprocess.check_call([java, '-jar', jar, '-de', dsn, '-do', ses, '-mp', str(passes[rnd % len(passes)]), '-mt', '1', '-inc', 'Ground'], cwd=TMP,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         b = pcbnew.LoadBoard(PCB)
         rules(b)

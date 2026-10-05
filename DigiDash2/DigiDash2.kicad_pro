@@ -41,7 +41,7 @@
         "pads": {
           "drill": 0.8,
           "height": 1.27,
-          "width": 1.27
+          "width": 2.54
         },
         "silk_line_width": 0.1,
         "silk_text_italic": false,
@@ -443,27 +443,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S5_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S3_BATT"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S2_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S6_BATT"
-      },
-      {
-        "netclass": "Power",
         "pattern": "/C2_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S3_5V"
       },
       {
         "netclass": "Power",
@@ -471,47 +451,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S2_BATT"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S3_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/C4_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S6_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/C3_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S4_3V3"
-      },
-      {
-        "netclass": "Power",
         "pattern": "/S1_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S4_5V"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S5_3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S1_BATT"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "/S2_5V"
       },
       {
         "netclass": "Power",
@@ -519,7 +459,67 @@
       },
       {
         "netclass": "Power",
+        "pattern": "/S3_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S2_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S4_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C3_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S6_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S4_5V"
+      },
+      {
+        "netclass": "Power",
         "pattern": "/S4_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/C4_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S2_3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S3_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S5_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S6_5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S1_BATT"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/S3_5V"
       },
       {
         "netclass": "Power",
@@ -527,7 +527,7 @@
       },
       {
         "netclass": "Power",
-        "pattern": "/S5_BATT"
+        "pattern": "/S2_BATT"
       },
       {
         "netclass": "Power12",
@@ -547,7 +547,11 @@
       },
       {
         "netclass": "Power12",
-        "pattern": "/S2_12V"
+        "pattern": "/S1_12V"
+      },
+      {
+        "netclass": "Power12",
+        "pattern": "/S6_12V"
       },
       {
         "netclass": "Power12",
@@ -555,15 +559,11 @@
       },
       {
         "netclass": "Power12",
+        "pattern": "/S2_12V"
+      },
+      {
+        "netclass": "Power12",
         "pattern": "/S3_12V"
-      },
-      {
-        "netclass": "Power12",
-        "pattern": "/S1_12V"
-      },
-      {
-        "netclass": "Power12",
-        "pattern": "/S6_12V"
       },
       {
         "netclass": "Power12",
@@ -609,7 +609,6 @@
       "netlist": "",
       "plot": "",
       "specctra_dsn": "",
-      "step": "",
       "vrml": ""
     },
     "page_layout_descr_file": ""
@@ -618,13 +617,7 @@
     "bus_aliases": {},
     "legacy_lib_dir": "",
     "legacy_lib_list": [],
-    "top_level_sheets": [
-      {
-        "filename": "DigiDash2.kicad_sch",
-        "name": "DigiDash2",
-        "uuid": "00000000-0000-0000-0000-000000000000"
-      }
-    ]
+    "top_level_sheets": []
   },
   "sheets": [],
   "text_variables": {},

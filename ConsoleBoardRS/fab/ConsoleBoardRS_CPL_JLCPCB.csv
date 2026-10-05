@@ -1,0 +1,41 @@
+Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
+C1,10u,C_0805_2012Metric,37.250mm,23.870mm,0,Bottom
+C2,100n,C_0603_1608Metric,36.280mm,26.770mm,90,Bottom
+C3,22u,C_0805_2012Metric,38.530mm,27.150mm,90,Bottom
+C4,1u,C_0603_1608Metric,41.230mm,32.520mm,180,Bottom
+C5,10u,C_0805_2012Metric,11.850mm,31.870mm,0,Bottom
+C6,100n,C_0603_1608Metric,11.430mm,29.520mm,0,Bottom
+C7,10u,C_0805_2012Metric,7.530mm,27.350mm,90,Bottom
+C8,10u,C_0805_2012Metric,37.650mm,30.470mm,0,Bottom
+C9,100n,C_0603_1608Metric,46.630mm,9.720mm,0,Bottom
+C10,100n,C_0603_1608Metric,27.830mm,2.320mm,0,Bottom
+C11,100n,C_0603_1608Metric,37.230mm,21.720mm,0,Bottom
+C12,10n,C_0603_1608Metric,64.620mm,19.120mm,0,Bottom
+C13,10n,C_0603_1608Metric,58.430mm,21.720mm,0,Bottom
+C14,10n,C_0603_1608Metric,82.480mm,14.170mm,90,Bottom
+C15,10n,C_0603_1608Metric,68.080mm,19.970mm,90,Bottom
+D1,B5819W,D_SOD-123,39.890mm,15.710mm,0,Bottom
+D2,B5819W,D_SOD-123,37.890mm,18.510mm,180,Bottom
+D5,NUP2105L,SOT-23,12.670mm,4.950mm,180,Bottom
+J2,USB-C,USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,42.000mm,3.700mm,180,Bottom
+J3,CAN to DigiDash,JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal,23.500mm,4.800mm,180,Bottom
+J4,Select knob (RJ11),RJ11_Wayconn_MJBA-640_Vertical,58.000mm,15.630mm,180,Bottom
+J5,Volume knob (RJ11),RJ11_Wayconn_MJBA-640_Vertical,74.000mm,15.630mm,180,Bottom
+J6,IR receiver,PinHeader_1x03_P2.54mm_Vertical,90.000mm,2.500mm,270,Bottom
+R1,100k,R_0603_1608Metric,105.080mm,18.170mm,270,Bottom
+R2,10k,R_0603_1608Metric,37.630mm,32.720mm,0,Bottom
+R3,5.1k,R_0603_1608Metric,46.230mm,11.720mm,0,Bottom
+R4,5.1k,R_0603_1608Metric,38.080mm,10.570mm,90,Bottom
+R5,1k,R_0603_1608Metric,36.280mm,15.170mm,90,Bottom
+R6,33k,R_0603_1608Metric,86.230mm,4.320mm,180,Bottom
+R7,33k,R_0603_1608Metric,83.230mm,6.320mm,180,Bottom
+R8,33k,R_0603_1608Metric,83.230mm,8.320mm,180,Bottom
+R9,33k,R_0603_1608Metric,86.630mm,6.320mm,180,Bottom
+R10,10k,R_0603_1608Metric,93.830mm,7.120mm,0,Bottom
+SW1,RESET,SW_SPST_PTS810,44.000mm,29.500mm,180,Bottom
+SW2,BOOT,SW_SPST_PTS810,44.000mm,24.000mm,180,Bottom
+U1,ESP32-S3-WROOM-1-N8,ESP32-S3-WROOM-1,26.000mm,22.200mm,180,Bottom
+U2,MCP2562-E/SN,SOIC-8_3.9x4.9mm_P1.27mm,30.850mm,6.150mm,180,Bottom
+U3,AP7361C-33E,SOT-223-3_TabPin2,12.740mm,23.860mm,270,Bottom
+U4,USBLC6-2SC6,SOT-23-6,42.200mm,12.350mm,0,Bottom
+J1,OLED 2x8 socket,PinSocket_2x08_P2.54mm_Vertical,102.770mm,27.140mm,0,Top

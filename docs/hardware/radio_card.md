@@ -1,6 +1,6 @@
 # AM/FM radio card
 
-**Status: schematic and board done in [`RadioCard/`](../../RadioCard/README.md)** (80 × 60 mm, 4 layers, placed and
+**Status: schematic and board done in [`RadioCard/`](../../RadioCard/README.md)** (80 × 60 mm, 2 layers, placed and
 routed). It follows the audio card's generator pattern (`AudioCarrier/generate/`, `GPSCard/`, `LTECard/`), and the GPS
 card's MCU and programming header. Until the card is built, `tools/can_relay.py` stands in for it on the bench
 (`tools/radio_sim.py`, see [Simulated card](#simulated-card)).
@@ -131,12 +131,12 @@ round Bluetooth → Radio (once the radio's ANNOUNCE is heard) → Off, and its 
 
 ## Board
 
-- **80 × 60 mm**, 4 layers, any slot. Slot header at the bottom edge as on the audio card
+- **80 × 60 mm**, 2 layers (4 until 2026-10-05; 2 for the price), any slot. Slot header at the bottom edge as on the audio card
   (`AudioCarrier/generate/gen_pcb.py` has the orientation check).
 - **Top edge** (the case panel): the SMA jack J2 (x 45) and the AM loopstick header J5 (x 33, right angle). The RF
-  part (ESD clamp, L1, the coupling caps, the tuner) sits close under them on the **parts side**, with the **solid In1
-  ground plane under it** and a keep-out on In2 and B (no tracks; ground stitching vias only) from x 28 to 62, y 0 to
-  21. The tuner is turned so FMI / AMI face the SMA. The MCU, CAN transceiver, RET buffer and the slot header are at
+  part (ESD clamp, L1, the coupling caps, the tuner) sits close under them on the **parts side**, with a **solid
+  ground pour on B under it**: a keep-out on B (no tracks; the pour and ground stitching vias only) from x 28 to 62,
+  y 0 to 12.5. The tuner is turned so FMI / AMI face the SMA. The MCU, CAN transceiver, RET buffer and the slot header are at
   the bottom.
 - **Left edge:** J3 (SWD) and J4 (debug serial), right angle.
 - **Back side:** empty: every part is on the parts side.
