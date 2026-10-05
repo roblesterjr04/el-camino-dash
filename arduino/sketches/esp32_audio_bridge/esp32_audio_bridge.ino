@@ -7,6 +7,8 @@
  * - HFP hands-free: calls through the same DACs, microphone from the carrier's ADC (call_audio.*); pairing with
  *   numeric comparison and the paired-phone list (phone.*). The console drives it over CAN (0x215); the serial
  *   console has the same commands for the bench (`help`).
+ * - Alert chimes (chimes.*): AUDIO_CMD PLAY / STOP of the built-in sounds 2-4 (soft, caution, warning), mixed over the
+ *   music or the call, or played alone; DONE when one ends. The bench plays them with `chime`.
  *
  * HARDWARE: Bluetooth Classic (A2DP) exists on the original ESP32 only — not ESP32-S3 / C3 / S2.
  * Use a module such as ESP32-WROOM-32 and set FQBN to esp32:esp32:esp32 when building.
@@ -32,6 +34,7 @@
 #include "BluetoothA2DPSink.h"
 #include "art_variants.h"
 #include "call_audio.h"
+#include "chimes.h"
 #include "esp_avrc_api.h"
 #include "esp_bt.h"
 #include "phone.h"
@@ -42,6 +45,7 @@
 // arduino-cli build (arduino/scripts) has no CAN and behaves as before.
 #if __has_include(<elc_can.h>)
 #include <elc_can.h>
+#include <elc_chan_msg.h>
 #define AUDIO_BRIDGE_CAN 1
 #else
 #define AUDIO_BRIDGE_CAN 0
@@ -138,34 +142,39 @@ static char s_meta_artist[kMaxTrackLen + 1];
 static char s_meta_title[kMaxTrackLen + 1];
 static portMUX_TYPE s_track_mux = portMUX_INITIALIZER_UNLOCKED;
 
-/* Elapsed estimate when the phone sends play-position notifications rarely (common): count only
- * time spent playing, starting from the last known position (s_pos_base_s at s_pos_anchor_ms). */
+/* Elapsed estimate when the phone sends play-position notifications rarely (common: an iPhone only on a seek or a
+ * pause): count only time spent playing, starting from the last known position (s_pos_base_ms at s_pos_anchor_ms).
+ * Kept in milliseconds: re-anchoring at whole seconds lost up to a second at every pause, resume and report. */
 static uint32_t s_pos_anchor_ms;
-static uint16_t s_pos_base_s;
-static uint32_t s_last_play_pos_wall_ms;
+static uint32_t s_pos_base_ms;
 static bool s_playing;
 static char s_prev_track_for_elapsed[kMaxTrackLen + 1];
 
-static void apply_elapsed_estimate_unlocked() {
-  if (!s_playing || s_duration_s == 0) {
-    return;
-  }
-  const uint32_t now = millis();
-  if (now - s_last_play_pos_wall_ms < 2000u) {
-    return;
-  }
-  uint32_t est = (uint32_t)s_pos_base_s + (now - s_pos_anchor_ms) / 1000u;
-  if (est > (uint32_t)s_duration_s) {
-    est = s_duration_s;
-  }
-  s_elapsed_s = (est > 65535u) ? 65535 : (uint16_t)est;
+static uint32_t position_ms_unlocked() {
+  uint32_t ms = s_pos_base_ms;
+  if (s_playing) ms += millis() - s_pos_anchor_ms;
+  if (s_duration_s && ms > (uint32_t)s_duration_s * 1000u) ms = (uint32_t)s_duration_s * 1000u;
+  return ms;
 }
 
-/** Re-anchor the estimate at the current elapsed value (on play/pause, position, track change). */
-static void anchor_position_unlocked(uint16_t pos_s) {
-  s_pos_base_s = pos_s;
+static void apply_elapsed_estimate_unlocked() {
+  const uint32_t sec = position_ms_unlocked() / 1000u;
+  s_elapsed_s = (sec > 65535u) ? 65535 : (uint16_t)sec;
+}
+
+/** Re-anchor the estimate at a known position (position report, track change). */
+static void anchor_position_unlocked(uint32_t pos_ms) {
+  s_pos_base_ms = pos_ms;
   s_pos_anchor_ms = millis();
-  s_elapsed_s = pos_s;
+  apply_elapsed_estimate_unlocked();
+}
+
+/** Play state changed: freeze (or restart) the count at the current position. */
+static void set_playing_unlocked(bool playing) {
+  if (playing == s_playing) return;
+  anchor_position_unlocked(position_ms_unlocked());
+  s_playing = playing;
+  s_pos_anchor_ms = millis();
 }
 
 /* The I2S stream and the sink are created in setup(), not as globals: their constructors allocate
@@ -197,6 +206,9 @@ static MasterVolume s_master;
 static Preferences s_bridge_prefs;
 static volatile bool s_relock_phone = false;  // set from Bluetooth callbacks, acted on in loop()
 static uint32_t s_master_changed_ms = 0;      // saved to NVS 2 s after the last change
+// The chime volume (1..15, NVS "chvol"): its own setting on the card's menu page, not the music's volume.
+static constexpr uint8_t kChimeVolDefault = 8;
+static uint8_t s_chime_vol = kChimeVolDefault;
 
 /** Cover art data arrives in pieces on the BT task; copy it out before the callback returns. */
 static void on_cover_art_data(const esp_avrc_ct_cb_param_t *p) {
@@ -412,9 +424,7 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
 
 static void avrc_play_pos_cb(uint32_t play_pos_ms) {
   portENTER_CRITICAL(&s_track_mux);
-  s_last_play_pos_wall_ms = millis();
-  const uint32_t sec = play_pos_ms / 1000u;
-  anchor_position_unlocked((sec > 65535u) ? 65535 : (uint16_t)sec);
+  anchor_position_unlocked(play_pos_ms);
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -428,10 +438,8 @@ static constexpr uint32_t kTrustCmdMs = 2000;
 static void avrc_play_status_cb(esp_avrc_playback_stat_t st) {
   Serial.printf("phone play status: %s\n", st == ESP_AVRC_PLAYBACK_PLAYING ? "playing" : (st == ESP_AVRC_PLAYBACK_PAUSED ? "paused" : (st == ESP_AVRC_PLAYBACK_STOPPED ? "stopped" : "other")));
   portENTER_CRITICAL(&s_track_mux);
-  apply_elapsed_estimate_unlocked();  // settle elapsed before the state flips
   s_have_play_status = true;
-  s_playing = (st == ESP_AVRC_PLAYBACK_PLAYING);
-  anchor_position_unlocked(s_elapsed_s);
+  set_playing_unlocked(st == ESP_AVRC_PLAYBACK_PLAYING);
   portEXIT_CRITICAL(&s_track_mux);
 }
 
@@ -451,7 +459,7 @@ static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
   s_meta_title[0] = '\0';
   s_prev_track_for_elapsed[0] = '\0';
   rebuild_track_line();
-  s_playing = false;
+  set_playing_unlocked(false);
   s_have_play_status = false;
   s_duration_s = 0;
   anchor_position_unlocked(0);
@@ -481,6 +489,11 @@ static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, boo
       }
       if (play) a2dp_sink->play();
       else a2dp_sink->pause();
+      // An iPhone reports its play status late, or not at all, after a remote command: follow the command now so the
+      // elapsed time stops on pause. A later report from the phone still wins.
+      portENTER_CRITICAL(&s_track_mux);
+      set_playing_unlocked(play);
+      portEXIT_CRITICAL(&s_track_mux);
       s_cmd_play = play;
       s_cmd_ms = millis() ? millis() : 1;
       Serial.printf("media: %s (%s)\n", play ? "play" : "pause", why);
@@ -519,6 +532,7 @@ static_assert(kPhoneMaxPaired == (int)ELC_CAN_PHONE_MAX_PAIRED && kPhoneTextMax 
 
 static ElcCan s_can;
 static uint8_t s_can_slot = 0;  // range index: node - 0x10 (the "slot" in the audio messages)
+static ElcChannels s_chan;      // the channel protocol: NET, and AUDIO_CMD PLAY / STOP for the chimes
 static uint8_t s_can_text_serial = 0;
 static char s_can_text_sent[kMaxTrackLen + 1];
 static uint32_t s_can_text_ms = 0;
@@ -609,6 +623,96 @@ static void can_on_frame(const ElcCanFrame &f, void *) {
   st.info = true;  // a variant we do not have is answered with size 0
 }
 
+static void can_on_ui(const ElcChTransfer &t);
+
+/** AUDIO_CMD PLAY / STOP addressed to this node or to everyone: the chimes (other sounds are not here yet); UI SET /
+ *  VIEW for the card's page. */
+static void can_on_transfer(const ElcChTransfer &t, void *) {
+  if (!t.for_me(s_chan.node())) return;
+  if (t.base == ELC_CH_UI) {
+    can_on_ui(t);
+    return;
+  }
+  if (t.base != ELC_CH_AUDIO_CMD) return;
+  ElcAudioPlay play;
+  ElcAudioStop stop;
+  if (elc_audio_decode(t, play)) {
+    const uint8_t prio = play.zones_prio & 0x0F;  // zones (high nibble): one output, front left and right
+    const bool ok = chime_play(t.src, play.sound, prio, play.level, play.repeat);
+    Serial.printf("chime %u for node 0x%02X (priority %u, level %u %%, %s): %s\n", (unsigned)play.sound,
+                  (unsigned)t.src, (unsigned)prio, (unsigned)play.level, play.repeat ? "repeat" : "until STOP",
+                  ok ? "playing" : "no such sound");
+  } else if (elc_audio_decode(t, stop)) {
+    chime_stop(t.src, stop.sound);
+  }
+}
+
+// ---- the card's menu page (UI channel): Menu > Accessories > Audio card / Audio bridge ----
+static const uint8_t kUiChimeVolume = 0;
+
+static void ui_send_chime_volume() {
+  ElcChWriter w;
+  elc_ui_encode(ElcUiValue{kUiChimeVolume, s_chime_vol}, w);
+  s_chan.send(ELC_CH_UI, w);
+}
+
+/** Boot and QUERY bit3: the item, then its value. */
+static void can_on_describe(uint8_t what, void *) {
+  if (!(what & ELC_NET_Q_UI)) return;
+  ElcUiItem it;
+  it.item = kUiChimeVolume;
+  it.kind = ELC_UI_NUMBER;
+  it.flags = ELC_UI_F_SETTING;
+  it.min = 1;
+  it.max = 15;
+  it.step = 1;
+  snprintf(it.label, sizeof(it.label), "Chime volume");
+  ElcChWriter w;
+  elc_ui_encode(it, w);
+  s_chan.send(ELC_CH_UI, w);
+  ui_send_chime_volume();
+}
+
+/** SET Chime volume: applied, saved, and the soft chime plays at the new level as a preview. Answered with VALUE and
+ *  RESULT even when nothing changed; VIEW is answered with VALUE (the page has no live items). */
+static void can_on_ui(const ElcChTransfer &t) {
+  ElcUiSet set;
+  ElcUiView view;
+  if (elc_ui_decode(t, set)) {
+    uint8_t r = ELC_UI_OK;
+    if (set.item != kUiChimeVolume) {
+      r = ELC_UI_UNKNOWN;
+    } else if (set.value < 1 || set.value > 15) {
+      r = ELC_UI_RANGE;
+    } else {
+      if (s_chime_vol != (uint8_t)set.value) {
+        s_chime_vol = (uint8_t)set.value;
+        s_bridge_prefs.putUChar("chvol", s_chime_vol);
+      }
+      chime_set_volume(s_chime_vol);
+      chime_play(s_chan.node(), kChimeSoft, 1, 100, 1);
+    }
+    ElcChWriter w;
+    elc_ui_encode(ElcUiResult{set.item, r, t.src}, w);
+    s_chan.send(ELC_CH_UI, w);
+    if (r != ELC_UI_UNKNOWN) ui_send_chime_volume();
+  } else if (elc_ui_decode(t, view) && view.item != ELC_UI_VIEW_CLOSED) {
+    ui_send_chime_volume();
+  }
+}
+
+/** NET IDENTIFY: the soft chime for the seconds asked (0 = stop), so a person can find the card. */
+static void can_on_net_command(uint8_t op, const uint8_t *p, size_t n, uint8_t, void *) {
+  if (op != ELC_NET_IDENTIFY || n < 3) return;
+  const uint8_t seconds = p[2];
+  if (!seconds) {
+    chime_stop(s_chan.node(), kChimeSoft);
+    return;
+  }
+  const uint32_t plays = (seconds * 1000u + ChimeSynth::length_ms(kChimeSoft) - 1) / ChimeSynth::length_ms(kChimeSoft);
+  chime_play(s_chan.node(), kChimeSoft, 1, 100, (uint8_t)(plays > 255 ? 255 : plays));
+}
+
 static void can_serve_art() {
   static uint32_t s_last_us = 0;
   const uint32_t now_us = micros();
@@ -659,10 +763,10 @@ static void can_serve_art() {
 }
 
 static void can_begin() {
-  uint8_t node = 0;
+  uint8_t node = 0, slot = 0;
   if (ELC_CAN_CARD_SLOT_PIN >= 0) {
     // Rev 2 audio card: the node follows the slot (docs/hardware/accessory_ports.md, "Node numbers").
-    const uint8_t slot = elc_can_read_card_slot(ELC_CAN_CARD_SLOT_PIN);
+    slot = elc_can_read_card_slot(ELC_CAN_CARD_SLOT_PIN);
     node = elc_can_node_for_card_slot(slot);
     if (node) {
       Serial.printf("CAN: card slot %u -> node 0x%02X\n", (unsigned)slot, (unsigned)node);
@@ -679,6 +783,33 @@ static void can_begin() {
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, node, ElcCanNodeType::AudioBridge);
   Serial.printf("CAN: %s, node 0x%02X (TX=%d RX=%d)\n", ok ? "up" : "off", (unsigned)node, ELC_CAN_TX_PIN,
                 ELC_CAN_RX_PIN);
+  // The channel protocol, for the chimes: it consumes AUDIO_CMD (PLAY / STOP) and produces it (DONE). It keeps the
+  // audio bridge's node type: the console takes a node type 5 for the audio card's sources (STATUS, SOURCE), which
+  // this firmware does not do yet.
+  ElcNetAnnounce me;
+  me.type = ELC_TYPE_AUDIO_BRIDGE;
+  me.product = ELC_CAN_CARD_SLOT_PIN >= 0 ? ELC_PRODUCT_AUDIO_CARD : ELC_PRODUCT_AUDIO_BRIDGE;
+  me.fw = ELC_CAN_FW_VERSION;
+  me.uid = (uint32_t)(ESP.getEfuseMac() >> 16) ^ (uint32_t)ESP.getEfuseMac();
+  me.produces = elc_ch_bit(ELC_CH_AUDIO_CMD) | elc_ch_bit(ELC_CH_UI);  // DONE; the Chime volume page
+  me.consumes = elc_ch_bit(ELC_CH_AUDIO_CMD) | elc_ch_bit(ELC_CH_UI);  // PLAY / STOP; SET / VIEW
+  snprintf(me.name, sizeof(me.name), ELC_CAN_CARD_SLOT_PIN >= 0 ? "Audio card" : "Audio bridge");
+  s_can.attachChannels(&s_chan, me);
+  if (slot) s_chan.setSlot(slot);
+  s_chan.onTransfer(can_on_transfer, nullptr);
+  s_chan.onNetCommand(can_on_net_command, nullptr);
+  s_chan.onDescribe(can_on_describe, nullptr);
+}
+
+/** AUDIO_CMD DONE for each chime that ended (played out, stopped or replaced), to the node that started it. */
+static void can_send_chimes_done() {
+  uint8_t node;
+  uint16_t sound;
+  while (s_can.txFree() > 2 && chime_pop_done(node, sound)) {
+    ElcChWriter w;
+    w.u8(ELC_AUDIO_DONE).u8(node).u16(sound);
+    s_chan.send(ELC_CH_AUDIO_CMD, w);
+  }
 }
 
 /** Now-playing text (on change and every second, so a late listener fills in) and transport (every call). */
@@ -798,6 +929,8 @@ static void can_publish_phone() {
 }
 #endif
 
+static const uint8_t kChimeBenchNode = 0x1F;  // `chime` plays as a service tool (as tools/cards_sim.py does)
+
 /** Bench console: phone commands and status without the console board (`help`). */
 static void serial_poll() {
   static char line[64];
@@ -846,12 +979,22 @@ static void serial_poll() {
       ok = run_phone_command(kPhoneCmdCallWaiting, (uint8_t)num, 0, false);
     } else if (!strcmp(word, "route")) {
       ok = run_phone_command(kPhoneCmdAudioRoute, strcmp(rest, "phone") != 0, 0, false);
+    } else if (!strcmp(word, "chime")) {
+      // chime 2|3|4 [repeat, 0 = until `chime stop`] | chime stop: as AUDIO_CMD PLAY at the alert's priority
+      unsigned snd = 0, rep = 1;
+      if (!strcmp(rest, "stop")) {
+        chime_stop(kChimeBenchNode, kChimeAllOfNode);
+      } else if (sscanf(line, "%*s %u %u", &snd, &rep) >= 1 && ChimeSynth::known((uint16_t)snd)) {
+        ok = chime_play(kChimeBenchNode, (uint16_t)snd, (uint8_t)snd, 100, (uint8_t)rep);  // 2-4: advisory..warning
+      } else {
+        ok = false;
+      }
     } else if (!strcmp(word, "play") || !strcmp(word, "next") || !strcmp(word, "prev")) {
       ok = run_phone_command(kPhoneCmdMedia, word[0] == 'n' ? 1 : (word[1] == 'r' ? 2 : 0), 0, false);
     } else {
       Serial.println("Commands: phone | pair [on|off] | confirm yes|no | answer | end | mute [on|off] | vol 0-15 |");
       Serial.println("  connect <n> | disconnect | forget <n> | redial | voice [on|off] | waiting 0|1|2 | route car|phone |");
-      Serial.println("  play | next | prev      (<n> = the index in `phone`)");
+      Serial.println("  play | next | prev | chime 2|3|4 [repeat] | chime stop   (<n> = the index in `phone`)");
       continue;
     }
     Serial.println(ok ? "ok" : "not done (no phone, no call, or a bad index)");
@@ -873,7 +1016,6 @@ void setup() {
   s_elapsed_s = 0;
   s_duration_s = 0;
   s_vol_0_15 = 0;
-  s_last_play_pos_wall_ms = 0;
   s_playing = false;
   anchor_position_unlocked(0);
 
@@ -907,6 +1049,9 @@ void setup() {
   s_vol_0_15 = s_bridge_prefs.getUChar("mvol", kMasterDefault);
   if (s_vol_0_15 > 15) s_vol_0_15 = kMasterDefault;
   s_master.set_master(s_vol_0_15);
+  s_chime_vol = s_bridge_prefs.getUChar("chvol", kChimeVolDefault);
+  if (s_chime_vol < 1 || s_chime_vol > 15) s_chime_vol = kChimeVolDefault;
+  chime_set_volume(s_chime_vol);
   a2dp_sink->set_volume_control(&s_master);
   a2dp_sink->set_avrc_metadata_attribute_mask(
       ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM |
@@ -956,6 +1101,7 @@ void loop() {
   // every 250 ms.
   s_can.poll();
   can_publish_phone();
+  can_send_chimes_done();
   can_serve_art();
   static uint32_t s_phone_ms = 0;
   if (millis() - s_phone_ms >= 50u) {
@@ -963,8 +1109,14 @@ void loop() {
     phone_loop();
     serial_poll();
   }
+  // A new elapsed second goes out as it ticks, not up to 250 ms later, so the screens show it on time.
+  portENTER_CRITICAL(&s_track_mux);
+  const uint16_t el_before = s_elapsed_s;
+  apply_elapsed_estimate_unlocked();
+  const bool ticked = s_elapsed_s != el_before;
+  portEXIT_CRITICAL(&s_track_mux);
   static uint32_t s_last_tick_ms = 0;
-  if (millis() - s_last_tick_ms < 250u) {
+  if (millis() - s_last_tick_ms < 250u && !ticked) {
     delay(2);
     return;
   }
@@ -973,17 +1125,15 @@ void loop() {
   // The AVRCP play-status notification only fires on a change, so after a reboot mid-song it never comes: until the
   // phone has reported once, the A2DP stream stands in (audio flowing = playing). Once it has, its report wins: an
   // iPhone keeps the stream started for a while after a pause (longer when locked), so the stream would say
-  // "playing" and the play / pause toggle would pause again instead of playing.
+  // "playing" and the play / pause toggle would pause again instead of playing. The stream counts only when it starts
+  // or stops, so a play / pause sent from the console isn't undone by a stream the phone keeps open.
   const bool streaming = a2dp_sink && a2dp_sink->get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED;
-  // Keep the elapsed estimate moving between AVRCP events.
+  static bool s_was_streaming = false;
   portENTER_CRITICAL(&s_track_mux);
-  if (!s_have_play_status && streaming != s_playing) {
-    apply_elapsed_estimate_unlocked();
-    s_playing = streaming;
-    anchor_position_unlocked(s_elapsed_s);
-  }
+  if (!s_have_play_status && streaming != s_was_streaming) set_playing_unlocked(streaming);
   apply_elapsed_estimate_unlocked();
   portEXIT_CRITICAL(&s_track_mux);
+  s_was_streaming = streaming;
   cover_art_poll();
 #if AUDIO_BRIDGE_CAN
   art_make_small();

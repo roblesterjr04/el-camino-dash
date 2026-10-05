@@ -109,20 +109,25 @@ QUERY / IDENTIFY) and these channels:
 The radio keeps its own state (band, frequency, presets, region) in the MCU's flash and works without the center.
 A SET from the menu is applied, saved and answered with VALUE and RESULT, as for every UI item.
 
-### Now playing on the media screen
+### Now playing
 
-The center shows what the **audio bridge** plays (`0x400`–`0x403`, node `0x10`; the slot-card audio card's number is
-`0x14`, slot 1). The radio needs one of two things, a decision for when firmware starts: the center learns to show a
-second source (radio) from the radio's UI texts, or the radio sends the same transport / text frames in its private range
-(`0x400 + 0x40·(node − 0x10)`) and the center is taught to read them when the radio is the active source. Neither exists. Until then the radio's station and radio text are on its own menu page and the
-console's Accessory page, which already show UI items.
+The radio sends AUDIO_CMD **NOW PLAYING** while it is the source (`can_channels.md`, AUDIO_CMD): line 1 the frequency
+and station name, line 2 the radio text, with the preset, stereo and signal. The **console** shows it: its Media page
+turns into the radio page (frequency and station, radio text, preset, ST, signal bars) while the radio is the source,
+and its menu's Radio row names what plays. The round **media screen** does not read it yet: it still shows only what
+the audio bridge plays (`0x400`–`0x403`). The radio's station and radio text are also on its own UI page (the round
+screens' Menu > Accessories, the console's Radio and Accessories pages).
 
 ### Source selection
 
-There is no spec yet for choosing which source the audio card plays (phone via Bluetooth, the radio, the voice
-card). **The audio card's firmware must grow a source select**, and the radio must request RET only when it is the
-selected source. A suggested first form: a UI choice on the audio card, `Source: Bluetooth / Radio`, and the
-console's View or a long-press of play / pause cycling it. Not specified here.
+The audio card owns which source plays; AUDIO_CMD **SOURCE** chooses it (`can_channels.md`, AUDIO_CMD, *Sources*:
+a source code, 1 Bluetooth, 2 radio, 3 aux in; `0xFF` off; 0 the next one) and STATUS names the source. The radio asks for RET only while
+STATUS names it, and mutes and releases RET when it does not. The **console** sends SOURCE: its left knob held steps
+round Bluetooth → Radio (once the radio's ANNOUNCE is heard) → Off, and its menu's Source page picks one
+(`firmware/esp32s3_console`, `console_ui.cpp`).
+
+**The radio card's own firmware is not written yet.** Everything above is exercised on the bench with
+`tools/radio_sim.py` (and `tools/cards_sim.py` for the audio card), see [Simulated card](#simulated-card).
 
 ## Board
 
@@ -232,8 +237,9 @@ after the DFS edge: matches the rail.** DFS low = left.
 5. LOG: tune and seek results at info level.
 
 Host-testable parts (CAN codecs, RDS group assembly, preset storage) go in `firmware/elc_can` and a new
-`firmware/radio_card` directory with `test/host/` like the others. `firmware/elc_can` has no NET, UI or SENSOR codecs
-yet (`can_channels.md` is spec only), so this card's firmware waits on step 1 of the channel protocol's order of work.
+`firmware/radio_card` directory with `test/host/` like the others. `firmware/elc_can` already has the channel
+transport and the NET, UI, SENSOR, LOG and AUDIO_CMD codecs (`elc_chan`, `elc_chan_msg`), so nothing in the bus layer
+holds this firmware up.
 
 ## Simulated card
 

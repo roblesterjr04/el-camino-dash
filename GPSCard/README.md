@@ -34,8 +34,8 @@ Slot +5 V (1 / 2) ── U3 AP2112K-3.3 ── +3V3 (MCU, MCP2562 VIO, a 3.3 V p
 
 | Pin | Port | Function | AF | To |
 | --- | --- | --- | --- | --- |
-| 2 | PC14 | OSC_IN (HSE) | — | Y1 8 MHz, 12 pF |
-| 3 | PC15 | OSC_OUT (HSE) | — | Y1, 12 pF |
+| 2 | PC14 | OSC_IN (HSE) | — | Y1 8 MHz, 15 pF |
+| 3 | PC15 | OSC_OUT (HSE) | — | Y1, 15 pF |
 | 4 | VDD / VDDA | 3.3 V | — | 100 nF + 4.7 µF |
 | 5, 33 (pad) | VSS / VSSA | GND | — | |
 | 6 | PF2 | NRST | — | J3 pin 4, 100 nF |
@@ -45,8 +45,8 @@ Slot +5 V (1 / 2) ── U3 AP2112K-3.3 ── +3V3 (MCU, MCP2562 VIO, a 3.3 V p
 | 12 | PA5 | GPIO | — | LED D1 (high = on, 1k) |
 | 19 | PA9 | USART1_TX | AF1 | J4 pin 2 |
 | 21 | PA10 | USART1_RX | AF1 | J4 pin 3 |
-| 22 | PA11 | FDCAN1_RX | AF9 | MCP2562 RXD (through 1k) |
-| 23 | PA12 | FDCAN1_TX | AF9 | MCP2562 TXD |
+| 22 | PA11 | FDCAN1_RX | AF3 | MCP2562 RXD (through 1k) |
+| 23 | PA12 | FDCAN1_TX | AF3 | MCP2562 TXD |
 | 24 | PA13 | SWDIO | AF0 | J3 pin 2 |
 | 25 | PA14 | SWCLK (and BOOT0) | AF0 | J3 pin 3 |
 
@@ -95,15 +95,37 @@ symbol nickname not being in a library table: the derived stock symbols are flat
 
 ### Check before ordering
 
-- **MCU pin functions** against ST's datasheet (DS13560, STM32G0B1xB/xC/xE, the UFQFPN32 pinout and the
-  alternate-function tables): FDCAN1 on PA11 / PA12 (AF9), USART2 on PA2 / PA3 (AF1), USART1 on PA9 / PA10 (AF1),
-  HSE on PC14 / PC15 (the 32-pin package has no PF0 / PF1, so OSC_IN / OSC_OUT share PC14 / PC15), PA0 = ADC1_IN0.
-  KiCad's symbol gives only the port names, not the AFs; these were taken from the datasheet as I know it and should
-  be confirmed in STM32CubeMX (open a G0B1KBUx project and assign the same pins) before ordering.
-- **Crystal load caps:** C7 / C8 are 12 pF for a CL 10 pF crystal. Change them with the crystal you buy.
-- **J2 orientation:** the plug opening must face off the top edge. Check in KiCad's 3D viewer and against the case
-  panel cut-out (J2 is centred at x 40). Also check J1 pin 1 against the main board's slot (3D viewer, as for the audio
-  card), and that J3 / J4 clear the neighbouring card and the case.
+- **MCU pin functions: verified** against ST's CubeMX pin database (`STM32_open_pin_data`: `STM32G0B1K(B-C-E)Ux.xml`
+  and `GPIO-STM32G0Bx_gpio_v1_0_Modes.xml`) and the schematic netlist: FDCAN1 on PA11 / PA12 (pins 22 / 23, **AF3**;
+  an earlier note said AF9, which was wrong), USART2 on PA2 / PA3 (AF1), USART1 on PA9 / PA10 (pins 19 / 21, AF1),
+  HSE on PC14 / PC15 (pins 2 / 3), NRST on PF2 (pin 6), PA0 = ADC1_IN0, PA13 / PA14 SWD (AF0), VDD / VSS pins 4 / 5.
+  **Order the plain KBU6, not KBU6N:** the N variant has a different pinout (pin 20 is VDDIO2, pins 26–29 are PD0–PD3).
+  Confirmed again against DS13560 Rev 6 (Figure 4 pinout, Tables 13 / 14 port A AFs).
+- **U1 footprint: checked** against DS13560 section 6.3 (A0B8). Package exposed pad 3.50 mm nominal (3.40–3.60); the
+  KiCad land is 3.45 × 3.45 with 9 paste windows (about 65 % coverage), pads 0.25 × 0.875 at 0.5 mm pitch. KiCad's pad
+  row sits 0.125 mm further out than ST's example land (5.75 / 4.00 mm outer / inner span vs ST's 5.50 / 3.75), which
+  leaves a wider gap to the exposed pad. Either is fine for assembly; no change.
+- **No via in any pad: checked.** The pre-routing GND fan-out had put 4 GND vias in pads (2 in U1's exposed pad,
+  2 on Y1 pad 2); they and their stubs were removed. U1's EP still reaches GND through pin 5's track, Y1's GND pads
+  through the F.Cu pour; every GND pad still reaches the In1 plane. `gen_pcb.py`'s `stitch()` no longer treats big GND
+  pads as free space and no longer falls back to a via in the pad. Closest via to a pad of another net: 0.139 mm.
+- **Other parts' pinouts: checked** against the netlist: MCP2562 (1 TXD, 2 VSS, 3 VDD 5 V, 4 RXD, 5 VIO 3.3 V,
+  6 CANL, 7 CANH, 8 STBY low), AP2112K (1 VIN, 2 GND, 3 EN, 5 VOUT), USBLC6-2SC6 (1 / 6 TX, 3 / 4 RX, 5 VBUS = puck
+  power, 2 GND), crystal (1 / 3 signal, 2 / 4 GND), LED cathode to GND, JP1 1 = 3V3, 3 = 5 V.
+- **J1 vs the main board: checked.** Pins 1 / 2 +5 V, 3 / 4 / 7 / 19 / 20 GND, 5 CANH, 6 CANL, 11 slot ID match
+  DigiDash2's J31–J36 slot nets. Placement matches `accessory_ports.md` (pin 1 at x + 17.78 mm, pad 2 below, pad 3
+  to the left) and is identical to the audio and sensor cards' J1.
+- **J2: checked.** Pinout matches DigiDash2's J6 (1 3V3, 2 TX out, 3 RX in, 4 GND); rotated 180° so the body runs to
+  the top edge and the plug opening faces off the board; pad 1 on the right.
+- **Crystal: YXC X32258MOB4SI** (LCSC C2682775, a stocked part): 8 MHz, 3225 4-pad, CL 12 pF, ESR ≤ 180 Ω, ±10 ppm,
+  ±20 ppm, -40 to +85 °C. C7 / C8 = **15 pF** C0G (2 × (12 − ~4 pF stray)). gm_crit about 0.4–0.5 mA/V (C0 3–5 pF)
+  against the G0B1's 1.5 mA/V Gmcritmax (DS13560 Table 42): about 3× margin. It replaces the earlier Abracon
+  ABM8-8.000MHZ-10-D1G-T (CL 10 pF, ESR up to 400 Ω, probably made to order). Do not swap in a common 18–20 pF 8 MHz
+  crystal with ESR 400 Ω: its gm_crit (about 1.8 mA/V) is over the limit, and it may not start.
+- **BOM: complete.** `fab/GPSCard_BOM_PCBWay.csv` (PCBWay format, every line with maker and part number, matches the
+  27 placed parts; `tools/fab_export.py` warns if it drifts) and `GPSCard_BOM.csv` (same parts, plus JP1).
+- **Still by eye:** J2 against the case panel cut-out (J2 is centred at x 40); J3 / J4 (their right-angle pins stand
+  about 6.5 mm past the left edge) against the neighbouring card and the case. KiCad's 3D viewer.
 - **JP1:** delivered bridged 1-2 (3.3 V puck). Most NEO-6M / M8 boards are fine on 3.3 V; drone-style pucks often want
   5 V. USBLC6-2SC6's VBUS (puck supply) is rated to 5.5 V.
 - **Puck RX with no puck:** PA3 floats when nothing is plugged in; enable its internal pull-up in firmware.

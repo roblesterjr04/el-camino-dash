@@ -1,8 +1,12 @@
 #include "call_audio.h"
 
+#include "chimes.h"
+
 #include <Arduino.h>
 #include <math.h>
 #include <string.h>
+
+#include <algorithm>
 
 #include "driver/i2s_std.h"
 #include "freertos/FreeRTOS.h"
@@ -49,6 +53,24 @@ constexpr size_t kMicMaxLag = 480;  // samples kept waiting at most (30 ms at 16
 int16_t s_mic[kMicRing];
 size_t s_mic_w = 0, s_mic_r = 0;  // under s_mic_mux
 portMUX_TYPE s_mic_mux = portMUX_INITIALIZER_UNLOCKED;
+
+// Chimes: the synth under its own mutex (taken inside s_gate_mu where both are held). s_chimes_busy lets the audio
+// paths skip the mutex when nothing plays; it is only ever set under it.
+ChimeSynth s_chimes;
+SemaphoreHandle_t s_chime_mu = nullptr;
+TaskHandle_t s_chime_task = nullptr;
+volatile bool s_chimes_busy = false;
+bool s_chime_open = false;              // the chime task opened I2S0 itself (under s_gate_mu)
+volatile uint32_t s_a2dp_write_ms = 0;  // A2DP's last write through the gate
+constexpr uint32_t kA2dpIdleMs = 100;   // no A2DP write for this long: the chime task plays the chimes itself
+constexpr size_t kChimeFrames = 256;    // per pass (A2DP mixing and the chime task)
+
+void chimes_mix(int16_t *pcm, size_t frames, uint8_t channels, uint32_t rate, bool duck) {
+  xSemaphoreTake(s_chime_mu, portMAX_DELAY);
+  s_chimes.mix(pcm, frames, channels, rate, duck);
+  s_chimes_busy = s_chimes.busy();
+  xSemaphoreGive(s_chime_mu);
+}
 
 size_t ring_level() { return (s_ring_w - s_ring_r) % kRing; }
 size_t mic_level() { return (s_mic_w - s_mic_r) % kMicRing; }
@@ -133,6 +155,7 @@ void close_i2s() {
 void take_i2s() {
   xSemaphoreTake(s_gate_mu, portMAX_DELAY);
   s_call_owned = true;
+  s_chime_open = false;
   s_i2s->end();
   xSemaphoreGive(s_gate_mu);
 }
@@ -215,6 +238,16 @@ void run_call(const Msg &m) {
       }
       prev = (int16_t)s;
     }
+    if (s_chimes_busy) {  // the chimes over the phone's voice, at the I2S rate
+      static int16_t chime[kBlock];
+      memset(chime, 0, sizeof(chime));
+      chimes_mix(chime, kBlock, 1, kI2sRate, false);
+      for (size_t k = 0; k < kBlock; k++) {
+        int32_t v = (io[2 * k] >> 16) + chime[k];
+        v = v > 32767 ? 32767 : (v < -32768 ? -32768 : v);
+        io[2 * k] = io[2 * k + 1] = v << 16;
+      }
+    }
     size_t wrote = 0;
     i2s_channel_write(s_tx, io, sizeof(io), &wrote, pdMS_TO_TICKS(50));  // paces the loop without an ADC
   }
@@ -242,6 +275,50 @@ void call_task(void *) {
   }
 }
 
+/** Plays the chimes when nothing else writes I2S0: no call, and A2DP stopped or silent (a paused phone). Opens I2S0
+ *  in A2DP's last format if it is closed, and closes it again when the chimes are over and A2DP does not want it. */
+void chime_task(void *) {
+  static int16_t buf[kChimeFrames * 2];
+  for (;;) {
+    if (!s_chimes_busy) {
+      xSemaphoreTake(s_gate_mu, portMAX_DELAY);
+      if (s_chime_open && !s_a2dp_wants && !s_call_owned) s_i2s->end();
+      s_chime_open = false;
+      xSemaphoreGive(s_gate_mu);
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // chime_play wakes it
+      continue;
+    }
+    if (millis() - s_a2dp_write_ms < kA2dpIdleMs) {
+      vTaskDelay(pdMS_TO_TICKS(10));  // A2DP is writing: its writes carry the chimes
+      continue;
+    }
+    xSemaphoreTake(s_gate_mu, portMAX_DELAY);
+    if (s_call_owned) {  // the call task mixes them
+      xSemaphoreGive(s_gate_mu);
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+    if (!s_i2s->isActive()) {
+      s_chime_open = s_i2s->begin();
+      if (!s_chime_open) Serial.println("chimes: I2S setup failed");
+    }
+    const audio_tools::AudioInfo info = s_i2s->audioInfo();
+    const uint8_t ch = info.channels == 1 ? 1 : 2;
+    if (s_i2s->isActive() && info.bits_per_sample == 16) {
+      memset(buf, 0, sizeof(buf));
+      chimes_mix(buf, kChimeFrames, ch, info.sample_rate, false);
+      s_i2s->write(reinterpret_cast<const uint8_t *>(buf), kChimeFrames * ch * sizeof(int16_t));  // paces the task
+      xSemaphoreGive(s_gate_mu);
+    } else {
+      xSemaphoreGive(s_gate_mu);
+      xSemaphoreTake(s_chime_mu, portMAX_DELAY);
+      s_chimes.stop_all();  // nowhere to play them
+      s_chimes_busy = s_chimes.busy();
+      xSemaphoreGive(s_chime_mu);
+    }
+  }
+}
+
 }  // namespace
 
 // ---- gate ----
@@ -249,6 +326,7 @@ void call_task(void *) {
 bool CallGateStream::begin() {
   xSemaphoreTake(s_gate_mu, portMAX_DELAY);
   s_a2dp_wants = true;
+  s_chime_open = false;  // A2DP's stream from here on, if the chime task had opened it
   const bool ok = s_call_owned ? true : _i2s.begin();
   xSemaphoreGive(s_gate_mu);
   return ok;
@@ -257,7 +335,11 @@ bool CallGateStream::begin() {
 void CallGateStream::end() {
   xSemaphoreTake(s_gate_mu, portMAX_DELAY);
   s_a2dp_wants = false;
-  if (!s_call_owned) _i2s.end();
+  if (s_chimes_busy && !s_call_owned) {
+    s_chime_open = true;  // a chime is playing: the chime task finishes it and closes I2S0
+  } else if (!s_call_owned) {
+    _i2s.end();
+  }
   xSemaphoreGive(s_gate_mu);
 }
 
@@ -269,7 +351,26 @@ void CallGateStream::setAudioInfo(audio_tools::AudioInfo info) {
 
 size_t CallGateStream::write(const uint8_t *data, size_t len) {
   xSemaphoreTake(s_gate_mu, portMAX_DELAY);
-  const size_t n = s_call_owned ? len : _i2s.write(data, len);
+  size_t n = len;
+  if (!s_call_owned) {
+    s_a2dp_write_ms = millis();
+    const audio_tools::AudioInfo info = _i2s.audioInfo();
+    if (!s_chimes_busy || info.bits_per_sample != 16 || info.channels != 2) {
+      n = _i2s.write(data, len);
+    } else {
+      // Mix the chimes in (and duck the music under an alert) a block at a time; A2DP's own buffer is const.
+      static int16_t buf[kChimeFrames * 2];
+      n = 0;
+      while (n + 4 <= len) {
+        const size_t bytes = std::min(len - n, sizeof(buf)) & ~(size_t)3;
+        memcpy(buf, data + n, bytes);
+        chimes_mix(buf, bytes / 4, 2, info.sample_rate, true);
+        const size_t w = _i2s.write(reinterpret_cast<const uint8_t *>(buf), bytes);
+        n += w;
+        if (w < bytes) break;
+      }
+    }
+  }
   xSemaphoreGive(s_gate_mu);
   return n;
 }
@@ -281,8 +382,10 @@ void call_audio_begin(audio_tools::I2SStream *i2s, const CallAudioPins &pins) {
   s_pins = pins;
   s_gate_mu = xSemaphoreCreateMutex();
   s_q = xQueueCreate(4, sizeof(Msg));
+  s_chime_mu = xSemaphoreCreateMutex();
   // Above the A2DP decoder so the call's I2S keeps flowing; on the core Bluetooth's controller does not use.
   xTaskCreatePinnedToCore(call_task, "call_audio", 3072, nullptr, configMAX_PRIORITIES - 5, nullptr, 1);
+  xTaskCreatePinnedToCore(chime_task, "chimes", 3072, nullptr, configMAX_PRIORITIES - 6, &s_chime_task, 1);
 }
 
 void call_audio_start(uint32_t rate) {
@@ -350,4 +453,46 @@ void call_audio_status(char *out, size_t n) {
            s_running ? "on" : "off", (unsigned long)s_rate, (unsigned long)s_tx_frames, (unsigned long)s_tx_fail,
            (unsigned long)s_rx_frames, (unsigned long)s_rx_bad, (unsigned long)s_underruns, (unsigned long)s_overruns,
            s_pins.din >= 0 ? "on" : "none", s_muted ? " (muted)" : "");
+}
+
+// ---- chimes ----
+
+bool chime_play(uint8_t node, uint16_t sound, uint8_t priority, uint8_t level_pct, uint8_t repeat) {
+  if (!s_chime_mu) return false;
+  xSemaphoreTake(s_chime_mu, portMAX_DELAY);
+  const bool ok = s_chimes.play(node, sound, priority, level_pct, repeat);
+  s_chimes_busy = s_chimes.busy();
+  xSemaphoreGive(s_chime_mu);
+  if (ok && s_chime_task) xTaskNotifyGive(s_chime_task);
+  return ok;
+}
+
+void chime_stop(uint8_t node, uint16_t sound) {
+  if (!s_chime_mu) return;
+  xSemaphoreTake(s_chime_mu, portMAX_DELAY);
+  s_chimes.stop(node, sound);
+  xSemaphoreGive(s_chime_mu);
+}
+
+void chime_set_volume(uint8_t v_1_15) {
+  if (!s_chime_mu) return;
+  xSemaphoreTake(s_chime_mu, portMAX_DELAY);
+  s_chimes.set_volume(v_1_15);
+  xSemaphoreGive(s_chime_mu);
+}
+
+bool chime_pop_done(uint8_t &node, uint16_t &sound) {
+  if (!s_chime_mu) return false;
+  xSemaphoreTake(s_chime_mu, portMAX_DELAY);
+  const bool ok = s_chimes.pop_done(node, sound);
+  xSemaphoreGive(s_chime_mu);
+  return ok;
+}
+
+uint8_t chime_count() {
+  if (!s_chime_mu) return 0;
+  xSemaphoreTake(s_chime_mu, portMAX_DELAY);
+  const uint8_t n = s_chimes.count();
+  xSemaphoreGive(s_chime_mu);
+  return n;
 }

@@ -313,7 +313,7 @@ def c_(v, a, b, x, y, fp=None, d=None):
 
 text(15, 12, 'AUDIO CARD  -  ESP32-PICO-MINI-02 + 2 x PCM5102A (4 line outputs) + PCM1808 (microphone input)', 3)
 text(15, 20, 'Card for a DigiDash slot, 80 x 60 mm, standing on edge (docs/hardware/accessory_ports.md); its place is slot 1 '
-     '(the RCA block is 28.5 mm tall). CAN node 0x10 (both straps open). 5 V from the slot only; 3.3 V on board.', 1.6)
+     '(the RCA block is 28.5 mm tall). CAN node 0x14 + (slot - 1), from the slot ID on GPIO36. 5 V from the slot only; 3.3 V on board.', 1.6)
 
 # --- port
 G('port')
@@ -364,7 +364,7 @@ c_('10u', '+3V3', 'GND', 230, 290, d='Module supply, at pin 3')
 c_('100n', '+3V3', 'GND', 245, 290, d='Module supply, at pin 3')
 text(215, 150, 'I2S0 master: BCK GPIO14, WS GPIO25, DOUT GPIO27 (front DAC), DIN GPIO35 (PCM1808), MCLK GPIO0 (12.288 MHz for the ADC).\n'
      'I2S1 slave on the same BCK / WS pins: DOUT GPIO26 (rear DAC). GPIO4 = DAC mute (XSMT), pulled low. '
-     'GPIO32 / 33 CAN, GPIO13 / 22 node straps (the module has no GPIO23). GPIO12 / 2 / 15 / 5 left open (boot straps).\n'
+     'GPIO32 / 33 CAN, GPIO13 / 22 rev 1 node straps, unused on rev 2 (the module has no GPIO23). GPIO12 / 2 / 15 / 5 left open (boot straps).\n'
      'Slot: GPIO36 slot ID (ADC1), GPIO34 I2S1 data in from the I2S rail (LINK3 = RET), GPIO21 low enables the rail buffer.', 1.4)
 
 G('boot')
@@ -387,8 +387,8 @@ place(CAN, 'U2', 'MCP2562-E/SN', FP_SOIC, 55, 285, {'1': 'CAN_TXD', '2': 'GND', 
 r_('1k', 'CAN_RXD', 'CAN_RX', 95, 275, 'Series R on the receive line, as on the DigiDash board')
 c_('100n', '+5V', 'GND', 115, 275)
 c_('100n', '+3V3', 'GND', 130, 275)
-place(SJ, 'JP1', 'Node bit 0', FP_SJ, 100, 310, {'1': 'NODE0', '2': 'GND'}, descr='Close = GPIO13 low: node 0x11 (JP2 open)')
-place(SJ, 'JP2', 'Node bit 1', FP_SJ, 140, 310, {'1': 'NODE1', '2': 'GND'}, descr='Close = GPIO22 low: node 0x12 (JP1 open)')
+place(SJ, 'JP1', 'Node bit 0', FP_SJ, 100, 310, {'1': 'NODE0', '2': 'GND'}, descr='Rev 1 carrier only (node strap, GPIO13); unused on rev 2: leave open')
+place(SJ, 'JP2', 'Node bit 1', FP_SJ, 140, 310, {'1': 'NODE1', '2': 'GND'}, descr='Rev 1 carrier only (node strap, GPIO22); unused on rev 2: leave open')
 text(15, 322, 'Node: both open = 0x10 (audio bridge), JP1 = 0x11, JP2 = 0x12.', 1.4)
 
 # --- DACs

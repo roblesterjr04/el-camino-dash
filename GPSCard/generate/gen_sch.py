@@ -246,7 +246,7 @@ def c_(v, a, b, x, y, d=None):
 
 text(15, 12, 'GPS CARD  -  STM32G0B1KBU6 + MCP2562: reads a remote GPS puck (UART) and sends position / motion / time on CAN', 3)
 text(15, 20, 'Card for a DigiDash slot, 80 x 60 mm, standing on edge (docs/hardware/accessory_ports.md), any slot. '
-     'CAN node 0x05, IDs 0x222-0x226 (docs/hardware/gps_card.md). 5 V from the slot only; 3.3 V on board. No radio, no RF parts.', 1.6)
+     'CAN node 0x14 + (slot - 1), product 0x0005, IDs 0x222-0x226 (docs/hardware/gps_card.md). 5 V from the slot only; 3.3 V on board. No radio, no RF parts.', 1.6)
 
 # --- slot
 G('port')
@@ -277,7 +277,7 @@ c_('100n', '+3V3', 'GND', 105, 125)
 # --- MCU
 G('mcu')
 text(170, 30, 'MCU: STM32G0B1KBU6 (UFQFPN-32). Pin use (datasheet DS13560 alternate-function tables):\n'
-     'PA11 (pin 22) FDCAN1_RX AF9, PA12 (pin 23) FDCAN1_TX AF9 (leave the PA11/PA12 -> PA9/PA10 remap off).\n'
+     'PA11 (pin 22) FDCAN1_RX AF3, PA12 (pin 23) FDCAN1_TX AF3 (leave the PA11/PA12 -> PA9/PA10 remap off).\n'
      'PA2 (pin 9) USART2_TX AF1, PA3 (pin 10) USART2_RX AF1: the puck.  PA9 (pin 19) USART1_TX AF1, PA10 (pin 21) USART1_RX AF1: debug (J4, also the ROM bootloader UART).\n'
      'PA0 (pin 7) ADC1_IN0: slot ID.  PA5 (pin 12): LED.  PC14 / PC15 (pins 2 / 3) OSC_IN / OSC_OUT: 8 MHz HSE.  PA13 SWDIO, PA14 SWCLK (BOOT0 shares it), PF2 = NRST.', 1.4)
 mcu = {'1': None, '2': 'HSE_IN', '3': 'HSE_OUT', '4': '+3V3', '5': 'GND', '6': 'NRST', '7': 'SLOT_ID', '8': None,
@@ -292,9 +292,9 @@ c_('4.7u', '+3V3', 'GND', 190, 165, d='VDD / VDDA bulk')
 c_('100n', 'NRST', 'GND', 260, 165, d='NRST filter (the pin has its own pull-up)')
 place(XTAL, 'Y1', '8MHz', 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm', 150, 120,
       {'1': 'HSE_IN', '3': 'HSE_OUT', '2': 'GND', '4': 'GND'},
-      descr='8 MHz crystal, 3.2 x 2.5 mm, CL 10 pF, +-20 ppm or better (HSE, for CAN bit timing)')
-c_('12p', 'HSE_IN', 'GND', 135, 135, d='Crystal load (CL 10 pF crystal; 2 x (CL - stray))')
-c_('12p', 'HSE_OUT', 'GND', 165, 135, d='Crystal load (CL 10 pF crystal; 2 x (CL - stray))')
+      descr='8 MHz crystal, 3.2 x 2.5 mm, CL 12 pF, ESR <= 180 R (YXC X32258MOB4SI; HSE, for CAN bit timing)')
+c_('15p', 'HSE_IN', 'GND', 135, 135, d='Crystal load (CL 12 pF crystal; 2 x (CL - ~4 pF stray))')
+c_('15p', 'HSE_OUT', 'GND', 165, 135, d='Crystal load (CL 12 pF crystal; 2 x (CL - ~4 pF stray))')
 r_('1k', 'LED', 'LED_A', 260, 100, 'LED current, about 1 mA')
 place(LED, 'D1', 'GPS', 'LED_SMD:LED_0603_1608Metric', 280, 100, {'2': 'LED_A', '1': 'GND'},
       descr='Status LED: off = nothing from the puck, blinking = searching, steady = 3D fix')

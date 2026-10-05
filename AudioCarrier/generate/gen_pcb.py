@@ -491,8 +491,8 @@ def stitch(b, pitch=2.0, fanout=None):
             if it is skip or (gnd_ok and it[2] == 'GND'):
                 continue
             kind, g, n = it
-            if n == 'GND' and (kind == 's' or (kind == 'r' and (g[2] - g[0]) * (g[3] - g[1]) > 1.0)):
-                continue                # GND on GND: tracks, and the big pads (the module's ground field)
+            if n == 'GND' and kind == 's':
+                continue                # GND on GND tracks. Never a pad, GND or not: no via in any pad (the module's too)
             if kind == 'c':
                 if np.hypot(x - g[0], y - g[1]) < r + g[2] + gap:
                     return False
@@ -644,7 +644,7 @@ def stitch(b, pitch=2.0, fanout=None):
               for r in np.arange(0.8, 3.5, 0.2):
                   for ang in np.arange(0, 2 * np.pi, np.pi / 12):
                       x, y = float(px + r * np.cos(ang)), float(py + r * np.sin(ang))
-                      if spot_ok(x, y) and all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
+                      if spot_ok(x, y) and clear(x, y) and all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
                               all(np.hypot(x - g[0], y - g[1]) > 0.9 for kind, g, nn in items if kind == 'c'):
                           cand.append((r + 0.5, x, y, True))
               for w in (tw, 0.15):       # a narrower track squeezes between fine-pitch pins
@@ -659,12 +659,7 @@ def stitch(b, pitch=2.0, fanout=None):
                           break
                   if best:
                       break
-          if not best and all(seg_ok(geo(b), l, 'GND', px, py, px, py, rv, gap) for l in CU):
-              via(px, py)               # last resort: via in the pad (hand-solderable; plug it if paste-reflowing)
-              print('  via in pad for GND pad %s-%s' % (fp.GetReference(), pad.GetNumber()))
-              m += 1
-              continue
-          if not best:
+          if not best:                  # no via in the pad: the pours or another GND pin's track must reach it
               print('  no via spot for GND pad %s-%s' % (fp.GetReference(), pad.GetNumber()))
               continue
           if new_via:
@@ -705,7 +700,7 @@ def stitch(b, pitch=2.0, fanout=None):
                 for yy in np.arange(bb.GetTop() / 1e6 + 0.3, bb.GetBottom() / 1e6 - 0.3, 0.1):
                     for xx in np.arange(bb.GetLeft() / 1e6 + 0.3, bb.GetRight() / 1e6 - 0.3, 0.1):
                         x, y = float(xx), float(yy)
-                        if o.PointInside(VECTOR2I(mm(x), mm(y))) and spot_ok(x, y) and \
+                        if o.PointInside(VECTOR2I(mm(x), mm(y))) and spot_ok(x, y) and clear(x, y) and \
                                 all(seg_ok(lg, l, 'GND', x, y, x, y, rv, gap) for l in CU) and \
                                 all(np.hypot(x - t.GetPosition().x / 1e6, y - t.GetPosition().y / 1e6) > 0.9
                                     for t in b.GetTracks() if t.GetClass() == 'PCB_VIA'):

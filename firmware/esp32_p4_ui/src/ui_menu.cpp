@@ -219,7 +219,8 @@ const char *item_sub(int i) {
   static char buf[48];
   if (it.act == Act::View) {
     if (item_showing(it)) {
-      return "Showing now";
+      // media on a side screen covers that screen's gauge: the same item puts the gauge back
+      return it.arg == kUiViewMedia && media_screen() != kUiScreenCenter ? "Showing now \xC2\xB7 tap to hide" : "Showing now";
     }
     switch (it.arg) {
       case kUiViewTach: return "Engine RPM";
@@ -257,7 +258,7 @@ void activate(int i) {
   const Item &it = kItems[i];
   if (it.act == Act::View) {
     if (it.arg == kUiViewMedia && media_screen() != kUiScreenCenter) {
-      if (H->show_media) H->show_media(true);
+      if (H->show_media) H->show_media(!item_showing(it));  // a toggle there: show it, or back to the gauge
     } else if (H->set_center_view) {
       H->set_center_view(it.arg);
     }
@@ -518,7 +519,7 @@ void build_theme(lv_obj_t *page) {
     lv_obj_t *nm = label(page, opts[i].name, T.body, on ? T.text : T.dim);
     lv_obj_align(nm, LV_ALIGN_TOP_MID, cx - kW / 2, 494);
   }
-  lv_obj_t *cap = label(page, "Applies to all three displays.\nHold a screen 10 s to switch anywhere.", T.sub, T.faint);
+  lv_obj_t *cap = label(page, "Applies to all three displays.\nOr hold the center screen 10 s.", T.sub, T.faint);
   lv_obj_set_style_text_align(cap, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 560);
   add_back(page);
@@ -1471,10 +1472,9 @@ void ac_build_body() {
         ac_row(y, items[i]->d.label, note, c, kAcItem, items[i]->d.item, ro);
         y += kPhRowH + kPhGap;
       }
-      // advanced items: a switch at the end of the accessory's top page, when it has any
-      const AccItem *all[kAcMaxRows];
-      const int na = s_ac_group == ELC_UI_TOP ? accessory_can_items(s_ac_node, s_ac_group, true, all, kAcMaxRows) : 0;
-      if (na > n || s_ac_adv) {
+      // advanced items: a switch at the end of the accessory's top page when it has any, in any group (the switch
+      // then holds for its groups too)
+      if (s_ac_group == ELC_UI_TOP && (s_ac_adv || accessory_can_has_advanced(s_ac_node))) {
         ac_row(y, "Show advanced", s_ac_adv ? "On" : "Off", s_ac_adv ? T.accent : T.dim, kAcAdvanced, 0);
         y += kPhRowH + kPhGap;
       }

@@ -1,21 +1,21 @@
 Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
-1,U1,STMicroelectronics STM32G0B1KBU6,"STM32G0B1KBU6: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN",UFQFPN-32 5 x 5 mm (exposed pad),SMD,Top,"Arrives blank: flash over J3 (SWD). Exposed pad = VSS"
-1,U2,Microchip MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,STBY tied low; no termination on the card
-1,U3,Diodes AP2112K-3.3TRG1,"AP2112K-3.3: LDO 3.3 V 600 mA, EN tied to VIN",SOT-23-5,SMD,Top,
-1,U4,STMicroelectronics USBLC6-2SC6,"USBLC6-2SC6: low-capacitance ESD array (puck TX, RX, supply)",SOT-23-6,SMD,Top,
-1,Y1,"8 MHz crystal, 3.2 x 2.5 mm, CL 10 pF, +-20 ppm (e.g. Abracon ABM8-8.000MHZ-10-D1G-T or equal)",8MHz: HSE crystal,3225 4-pad,SMD,Top,C7 / C8 assume CL 10 pF: change them with the crystal (2 x (CL - ~4 pF))
+2,C1 C2,Samsung CL21A106KPFNNNE,10u: Capacitor 10u X5R 10 V (5 V in / 3.3 V out of U3),0805,SMD,Top,
+5,C3 C4 C6 C9 C10,Samsung CL10B104KB8NNNC,100n: Capacitor 100n X7R 50 V,0603,SMD,Top,
+1,C5,Samsung CL10A475KP8NNNC,4.7u: Capacitor 4.7u X5R 10 V (MCU VDD),0603,SMD,Top,
+2,C7 C8,Samsung CL10C150JB8NNNC,15p: Capacitor 15p C0G 50 V (crystal load),0603,SMD,Top,C0G / NP0 only. Matches Y1 (CL 12 pF)
+1,C11,Samsung CL10B105KO8NNNC,1u: Capacitor 1u X7R 16 V (puck supply),0603,SMD,Top,
+1,D1,Lite-On LTST-C191KGKT,"GPS: status LED, green",0603,SMD,Top,Cathode = pad 1 (to GND)
 1,F1,Bourns MF-NSMF020-2,"0.2A: PTC resettable fuse, 0.2 A hold (puck supply)",1206,SMD,Top,
-1,D1,"LED 0603, green (e.g. Lite-On LTST-C191KGKT)",GPS: status LED,0603,SMD,Top,
-1,JP1,Solder jumper (PCB),"Puck 3V3 / 5V: 3-pad solder jumper, 1-2 bridged by a copper trace as delivered (3.3 V)",PCB,PCB,Top,"For 5 V: cut the 1-2 trace, bridge 2-3"
-1,J1,"2.54 mm pin header 2 x 15, right angle (e.g. Sullins PBC15DBAN or equal, 6 mm mating pins)",DigiDash slot: right-angle 2 x 15 male header on the bottom edge,THT,THT,Top,Body on the bottom edge; pins stand 6 mm past it into the main board's slot socket
-1,J2,JST S4B-PH-K-S,"GPS puck: JST PH 4-pin, side entry (1 power, 2 TX, 3 RX, 4 GND)",THT,THT,Top,Same part and pinout as J6 on the main board
-1,J3,"2.54 mm pin header 1 x 5, right angle","SWD: 3V3 (sense), SWDIO, SWCLK, NRST, GND",THT,THT,Top,Left edge; ST-Link
-1,J4,"2.54 mm pin header 1 x 3, right angle","Debug serial: GND, TX, RX (USART1, 3.3 V)",THT,THT,Top,Left edge; USB-serial adapter
-2,C1 C2,10u 0805 ceramic X5R 10 V,10u: Capacitor 10u X5R 10 V,0805,SMD,Top,
-1,C5,4.7u 0603 ceramic X5R 10 V,4.7u: Capacitor 4.7u X5R 10 V,0603,SMD,Top,
-1,C11,1u 0603 ceramic X7R 16 V,1u: Capacitor 1u X7R 16 V,0603,SMD,Top,
-5,C3 C4 C6 C9 C10,100n 0603 ceramic X7R 50 V,100n: Capacitor 100n X7R 50 V,0603,SMD,Top,
-2,C7 C8,12p 0603 ceramic C0G 50 V,12p: Capacitor 12p C0G 50 V,0603,SMD,Top,Crystal load caps (see Y1)
-1,R1,10k 0603 1% 1/10 W,10k: Resistor 10k 1% (slot ID pull-up),0603,SMD,Top,
-2,R2 R3,1k 0603 1% 1/10 W,1k: Resistor 1k 1% (LED; CAN RXD series),0603,SMD,Top,
-2,R4 R5,100 0603 1% 1/10 W,100: Resistor 100 1% (puck TX / RX series),0603,SMD,Top,
+1,J1,Sullins PRPC015DBAN-M71RC,"DigiDash slot: pin header 2 x 15, 2.54 mm, right angle",THT,THT,Top,"Same part as the audio card. Any 2 x 15 2.54 mm right-angle male header; on the bottom edge, pins pointing off the board"
+1,J2,JST S4B-PH-K-S,"GPS puck: JST PH 4-pin, side entry (1 power, 2 TX, 3 RX, 4 GND)",THT,THT,Top,Plug opening faces off the top edge
+1,J3,Sullins PRPC005SBAN-M71RC,"SWD: pin header 1 x 5, 2.54 mm, right angle (3V3 sense, SWDIO, SWCLK, NRST, GND)",THT,THT,Top,"Left edge, pins pointing off the board. Any 1 x 5 2.54 mm right-angle header"
+1,J4,Sullins PREC003SBAN-M71RC,"Debug serial: pin header 1 x 3, 2.54 mm, right angle (GND, TX, RX)",THT,THT,Top,"Left edge, pins pointing off the board. Any 1 x 3 2.54 mm right-angle header"
+1,R1,Yageo RC0603FR-0710KL,10k: Resistor 10k 1% (slot ID pull-up),0603,SMD,Top,
+2,R2 R3,Yageo RC0603FR-071KL,1k: Resistor 1k 1% (LED; CAN RXD series),0603,SMD,Top,
+2,R4 R5,Yageo RC0603FR-07100RL,100: Resistor 100 1% (puck TX / RX series),0603,SMD,Top,
+1,U1,STMicroelectronics STM32G0B1KBU6,"MCU: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN",UFQFPN-32 5 x 5 mm (exposed pad),SMD,Top,Not the KBU6N (different pinout). Arrives blank: flashed over J3 after assembly. Exposed pad = GND
+1,U2,Microchip MCP2562-E/SN,"CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
+1,U3,Diodes Inc AP2112K-3.3TRG1,LDO 3.3 V 600 mA,SOT-23-5,SMD,Top,
+1,U4,STMicroelectronics USBLC6-2SC6,"ESD array (puck TX, RX, supply)",SOT-23-6,SMD,Top,
+1,Y1,YXC (Yangxing) X32258MOB4SI,"8 MHz crystal, CL 12 pF, ESR <= 180 R, +-10 ppm, +-20 ppm, -40 to +85 C",SMD3225-4P (3.2 x 2.5 mm),SMD,Top,"LCSC C2682775. Substitute only with 8 MHz 3225 4-pad, CL 12 pF, ESR <= 180 R (else C7 / C8 change)"
+1,JP1,Solder jumper (PCB),"Puck 3V3 / 5V: 3-pad solder jumper, 1-2 bridged by a copper trace as delivered (3.3 V)",PCB,PCB,Top,"Not placed. For 5 V: cut the 1-2 trace, bridge 2-3"

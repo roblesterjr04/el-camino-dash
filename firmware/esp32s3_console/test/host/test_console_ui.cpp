@@ -719,6 +719,58 @@ static void test_trip_reset() {
   CHECK(press(ui, "Reset", true) && ui.trip_set() && ui.trip_base() == 1000 && ui.take_persist_dirty());
 }
 
+static void test_sensor_card_page() {
+  std::printf("sensor card: Show advanced reaches advanced items inside groups; its tank size sets the gallons\n");
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  boot(ui);
+  ElcChannels card;
+  Bus card_out;
+  ElcNetAnnounce a;
+  a.type = ELC_TYPE_SENSOR;
+  a.product = ELC_PRODUCT_SENSOR_CARD;
+  a.produces = elc_ch_bit(ELC_CH_UI);
+  std::strcpy(a.name, "Sensors");
+  card.begin(0x12, a, capture, &card_out);
+  card.poll(0);
+  ElcUiItem fuel;  // a group on the top page, with a plain item and an advanced one inside
+  fuel.item = 0;
+  fuel.kind = ELC_UI_GROUP;
+  std::strcpy(fuel.label, "Fuel");
+  ElcUiItem tank;
+  tank.item = 12;
+  tank.parent = 0;
+  tank.kind = ELC_UI_NUMBER;
+  tank.exponent = -1;
+  tank.min = 50;
+  tank.max = 400;
+  std::strcpy(tank.label, "Tank capacity");
+  ElcUiItem raw;
+  raw.item = 11;
+  raw.parent = 0;
+  raw.kind = ELC_UI_READOUT;
+  raw.flags = ELC_UI_F_RO | ELC_UI_F_ADVANCED;
+  std::strcpy(raw.label, "Fuel raw");
+  for (const ElcUiItem *it : {&fuel, &tank, &raw}) {
+    ElcChWriter w;
+    elc_ui_encode(*it, w);
+    card.send(ELC_CH_UI, w);
+  }
+  CHECK(ConsoleUi::tank_gal() == 20.0f);  // no value yet: the default
+  ElcChWriter v;
+  elc_ui_encode(ElcUiValue{12, 155}, v);
+  card.send(ELC_CH_UI, v);
+  r.deliver(card_out);
+  CHECK(ConsoleUi::tank_gal() > 15.49f && ConsoleUi::tank_gal() < 15.51f);
+
+  ui.right_click(T);
+  CHECK(pick(ui, "Accessories") && pick(ui, "Sensors") && ui.menu_page() == ConsoleUi::kMAccPage);
+  CHECK(row(ui, "Fuel") && row(ui, "Show advanced"));  // offered on the top page though only a group holds them
+  CHECK(pick(ui, "Fuel") && row(ui, "Tank capacity") && !row(ui, "Fuel raw"));
+  CHECK(press(ui, "Back") && pick(ui, "Show advanced"));
+  CHECK(pick(ui, "Fuel") && row(ui, "Fuel raw"));  // and it holds inside the group
+}
+
 static void test_no_center() {
   std::printf("no center: the controls do nothing\n");
   Rig r;
@@ -750,6 +802,7 @@ int main() {
   test_calls();
   test_call_keeps_source();
   test_trip_reset();
+  test_sensor_card_page();
   test_no_center();
   if (g_failures) {
     std::printf("%d FAILED\n", g_failures);

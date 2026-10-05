@@ -11,6 +11,7 @@
 #include <elc_chan_msg.h>
 #include <sensor_link.h>
 
+#include "center_alerts.h"
 #include "center_camera.h"
 #include "center_menu.h"
 #include "center_time.h"
@@ -75,6 +76,7 @@ void send_defines() {
 
 void on_describe(uint8_t what, void *) {
   if (what & ELC_NET_Q_SENSORS) send_defines();
+  center_alerts_describe(what);
 }
 
 int32_t r(float v) { return (int32_t)lroundf(v); }
@@ -187,7 +189,10 @@ void send_prefs(ElcChannels *ch, bool force) {
 
 }  // namespace
 
-void center_chan_begin() { chan_screen_on_describe(on_describe, nullptr); }
+void center_chan_begin() {
+  chan_screen_on_describe(on_describe, nullptr);
+  center_alerts_begin();
+}
 
 void center_chan_loop(uint32_t now) {
   ElcChannels *ch = chan_screen();
@@ -214,4 +219,5 @@ void center_chan_loop(uint32_t now) {
   const bool periodic = now - s_prefs_ms >= 5000u;
   if (periodic) s_prefs_ms = now;
   send_prefs(ch, periodic);
+  center_alerts_loop(now);
 }

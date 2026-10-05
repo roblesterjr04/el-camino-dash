@@ -41,5 +41,8 @@ void media_art_clear();
 /** One line describing the CAN art transfer, for the `audio` console command. */
 void media_can_art_status(char *out, size_t n);
 
+/** Track position to show, in seconds: the bridge's elapsed second, advanced between its ticks only while it plays. */
+float media_can_elapsed(uint32_t now_ms);
+
 /** Fill the media fields of GaugeData from the CAN bridge (position interpolated between transport frames). */
 void media_can_fill(GaugeData &d, uint32_t now_ms);

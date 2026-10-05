@@ -1,6 +1,19 @@
 # CAN channels: the accessory protocol
 
-**Status: specification, version 1 (draft). No firmware implements it yet.** The bus itself, the legacy messages
+**Status: specification, version 1 (draft), partly implemented.** The transport, NET, SYSTEM, SENSOR, LOG and UI
+are in use: `firmware/elc_can` (`elc_chan`, and `accessory_can` for accessory UI pages) runs on the three round
+screens, the console and the sensor card. The center sends SYSTEM and the core readings on SENSOR and logs LOG lines;
+the sensor card publishes SENSOR readings, ALERTs and a UI page; the round screens' menu (Accessories) and the
+console's menu (Accessories, Radio) show every accessory's UI page and send SET / VIEW; the console sends
+AUDIO_CMD (SOURCE, MEDIA, VOLUME) and reads NOW PLAYING. The center runs the ALERT manager (`elc_alerts`,
+`center_alerts.cpp`): it collects every node's alerts, raises its own, plays the chimes and sends ACK and SUMMARY.
+**Not implemented yet:** the alert banner and list on the menu screen (the bench acknowledges with the center's
+`alerts ack`), the center raising alerts from other nodes' SENSOR thresholds (flag bit2), the accessory settings backup and restore on the center's SD
+card, INPUT (no node sends or acts on it), BULK and AUDIO_STREAM users, and most of the AUDIO_CMD sink: the audio
+card's firmware (the audio bridge, `arduino/sketches/esp32_audio_bridge`) plays the alert chimes (PLAY / STOP of
+sounds 2-4, DONE) and has a UI page (Chime volume), but does not announce as node type 5 or do STATUS, SOURCE, VOLUME or MEDIA yet, and the radio card
+has no firmware (`tools/cards_sim.py` and `tools/radio_sim.py` simulate them for the bench).
+The bus itself, the legacy messages
 and the node numbers are in [`can_bus.md`](can_bus.md); the ports carriers plug into are in
 [`../hardware/accessory_ports.md`](../hardware/accessory_ports.md).
 
@@ -249,6 +262,11 @@ the tire size, the gear or the sensor ADC maths: the center does those and sends
 
 ## ALERT (`0x020 + node`)
 
+**Implemented on the center** (`firmware/elc_can/src/elc_alerts.cpp`, host-tested; `center_alerts.cpp`): the alert
+manager (collecting, chimes, acknowledgement, source lost, SUMMARY) and the center's own warnings below. **Not yet:**
+the banner and list on the menu screen, acknowledging from the menu screen (Select or a tap; the bench uses the
+center's `alerts ack`), and alerts from other nodes' SENSOR thresholds (flag bit2).
+
 The dash has one alert system. The center's own warnings (oil pressure, temperature, sensor faults) are published
 on this channel from node `0x01` exactly like an accessory's, so a buzzer or lamp carrier sees all of them.
 
@@ -285,6 +303,31 @@ wherever the menu has been put. The gauges on the other two screens are never co
 
 Accessories may not suppress another node's alert. The driver acknowledges with Select, a tap on the banner, or
 the alert list in the menu.
+
+**Chimes.** The center plays them on the sink, as node `0x01`. An advisory or a caution plays its sound once when it
+becomes active (or its severity rises), at priority 2 / 3. A warning's sound repeats (PLAY repeat 0, priority 4)
+while any warning is active and unacknowledged, and stops (STOP) once all are acknowledged or clear; if the sink
+reports DONE for it while it should still ring, it is played again. An acknowledged alert never chimes again in the
+same activation; one that clears and comes back is new.
+
+### Center alerts (node `0x01`)
+
+The center raises these from the sensor pack, with the console's thresholds. Numbers are stable.
+
+| Alert | Severity | Text | Raised | Cleared |
+| --- | --- | --- | --- | --- |
+| 0 | advisory | Sensor data lost | no sensor frames for 2 s after frames with the ignition on | frames again |
+| 1 | warning, ack | Low oil pressure | under 8 psi for 2 s with the engine running (ignition on, over 400 rpm) | 10 psi, or not running |
+| 2 | caution | Engine hot | over 230 °F for 3 s | under 225 °F for 3 s |
+| 3 | warning, ack | Engine overheating | over 245 °F for 3 s | under 240 °F for 3 s |
+| 4 | caution | Not charging | running and the alternator not charging for 5 s | charging for 2 s |
+| 5 | advisory | Low fuel | under 12 % for 10 s | over 15 % for 10 s |
+| 6 | advisory | Odometer not stored | ODO_STORE fault | the fault clears |
+| 7 | advisory | Sensor fault: … | a sender open or short (the text names it) | the fault clears |
+| 8 | advisory | … not responding | a node's ALERT STATE stopped for 3 s (named from its ANNOUNCE; "N modules" for several) | STATE again |
+
+A sender with an open or short fault never raises its reading's alert (1-3, 5). With no fresh sensor data, alerts
+1-7 hold their state until data returns.
 
 ## SENSOR (`0x120 + node`)
 
@@ -375,6 +418,8 @@ Service), bit3 live (VALUE streams while viewed), bit4 a setting (the center bac
   page of live readouts off the bus when nobody looks at it.
 ### Settings backup
 
+**Not implemented yet:** the center keeps no copy and restores nothing so far. This section is the design.
+
 The accessory is the owner of its settings: it saves them itself and works without the center. The **center keeps
 a copy on its SD card** so a replaced or re-flashed carrier gets them back.
 
@@ -402,7 +447,8 @@ a copy on its SD card** so a replaced or re-flashed carrier gets them back.
 
 ## INPUT (`0x040 + node`)
 
-Keys and knobs from any node: the console today, a steering-wheel button carrier or an IR receiver later. The source
+Keys and knobs from any node: a steering-wheel button carrier or an IR receiver (not implemented yet; the console
+drives its own OLED menu and sends AUDIO_CMD directly, so it does not send INPUT). The source
 resolves timing (click vs long press), so receivers need no timers.
 
 | Op | Name | Rate | Payload after the opcode |
@@ -430,8 +476,8 @@ Who acts on what (every consumer listens and acts on its own keys; nobody routes
 
 ## AUDIO_CMD (`0x240 + node`)
 
-The sink is the node that announces it consumes AUDIO_CMD: today the audio bridge (`0x10`), later the four-channel
-audio carrier. Commands may be sent to it by number or to `0x00` (the sink is the only one that acts on them).
+The sink is the node that announces it consumes AUDIO_CMD (node type 5): the audio card (slot 1, node `0x14`), whose
+firmware so far only plays the chimes, sounds 2-4 (`tools/cards_sim.py` simulates the rest). Commands may be sent to it by number or to `0x00` (the sink is the only one that acts on them).
 
 | Op | Name | Sender | Payload after the opcode |
 | --- | --- | --- | --- |
@@ -458,7 +504,8 @@ audio carrier. Commands may be sent to it by number or to `0x00` (the sink is th
   with RET released) while the sink stays up: its sounds and the alerts' chimes still play.
   A source learns it was chosen from STATUS: the radio powers on and asks for RET when STATUS names it, and mutes and
   releases RET when it does not. Bluetooth pauses when the sink leaves it and plays again when it comes back (if it was
-  playing): the sink does that for its own A2DP, the console for the audio bridge (`can_bus.md`, phone command 14). The console's left knob click sends SOURCE 0.
+  playing): the sink does that for its own A2DP, the console for the audio bridge (`can_bus.md`, phone command 14). The console's left knob **hold** sends SOURCE with an explicit code, stepping round Bluetooth, radio (when heard) and
+off (`0xFF`); its click is play / pause (Bluetooth), mute (radio), or audio back on when the source is off.
 - **MEDIA actions:** 1 play/pause, 2 play, 3 pause, 4 next, 5 previous, 6 tune up, 7 tune down (one grid step),
   8 next preset, 9 previous preset, 10 store preset (value = slot 1–12, 0 = the next free one, else the oldest),
   11 seek up, 12 seek down, 13 recall preset (value = slot 1–12); value is 0 where an action takes none. The sink acts on them for its own source and
@@ -633,6 +680,21 @@ Built into every sink, `0x0001`–`0x00FF`:
 | 3 | caution chime | | 8 | parking tick, medium |
 | 4 | warning chime | | 9 | parking tick, fast |
 | 5 | key-on / welcome | | 10 | continuous tone |
+
+The audio card has 2-4 so far (`chimes.cpp` in the audio bridge sketch), synthesised as struck bells so they play at
+whatever rate the output runs. Each length is one play including its trailing silence, so a repeated sound keeps its
+rhythm:
+
+| # | Sound | Length |
+| --- | --- | --- |
+| 2 | soft chime: one mellow strike on A5 (880 Hz) | 1.2 s |
+| 3 | caution chime: ding-dong, E6 then C6 320 ms later | 1.5 s |
+| 4 | warning chime: two triplets of bright A6 (1760 Hz) strikes, a second apart; repeat 0 until acknowledged | 2.0 s |
+
+They play at the card's own **Chime volume** setting (1-15, default 8; Menu → Accessories → Audio card, a UI number
+item, saved on the card), not at the music's volume, so turning the music down never quietens an alert. Changing it
+plays the soft chime at the new level. PLAY's level % scales from there. They mix over the music (ducked about 10 dB under an alert) or the
+phone call, or play alone when neither is running.
 
 `0x0100`–`0x01FF`: uploaded clips (BULK kind 1, object = low byte). An uploaded clip belongs to the sink, not the
 uploader; the uploader checks the slot's CRC (BULK READ) before uploading again.

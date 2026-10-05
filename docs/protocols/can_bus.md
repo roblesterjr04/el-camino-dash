@@ -51,8 +51,8 @@ node `0x10`).
 
 ### Console cable (J17)
 
-The console is its own board: an ESP32-S3 dev board (its TWAI controller drives one MCP2562), the SSD1322 256×64
-OLED on SPI, the Select and Volume encoders and the Back and View keys. One cable runs from it to **cable port J17**
+The console is its own board ([`ConsoleBoardRS/`](../../ConsoleBoardRS/)): an ESP32-S3 (its TWAI controller drives one
+MCP2562), the SSD1322 256×64 OLED on SPI and two RetroSound knobs on RJ11 jacks; no keys. One cable runs from it to **cable port J17**
 on the DigiDash board, a through-hole JST PH 4-pin (S4B-PH-K) with the DroneCAN pin order (J22 is a second,
 spare cable port):
 
@@ -72,8 +72,8 @@ spare cable port):
   (`ELC_CAN_BITRATE_KBPS=250` on every node), which about doubles the branch length it tolerates.
 - **Power:** from the DigiDash +5 V rail (LM2576T-5, 3 A, shared with the three displays and the accessories). Budget about
   300 mA for the console (ESP32-S3 with Wi-Fi off + OLED at full white); the console makes its own 3.3 V.
-- Node `0x13`, node type 2, message range `0x4C0`–`0x4FF` (the fourth accessory range). Its messages are defined when its
-  firmware is written.
+- Node `0x13`, node type 2, message range `0x4C0`–`0x4FF` (the fourth accessory range). The firmware sends
+  nothing there yet: it uses the shared IDs (`0x211`, `0x212`, `0x215`) and the channels.
 - The console takes its readings (speed, rpm, fuel, temperature, oil, …) from the SENSOR channel of
   [`can_channels.md`](can_channels.md) (center, node `0x01`), not from `0x100`–`0x104`.
 
@@ -102,14 +102,14 @@ All multi-byte fields are little-endian.
 | `0x213` | center | 1 Hz | center status: flags u8, reserved u8 (was Wi-Fi RSSI), reserved u8 (was the `0x214` serial); reserved bytes are sent as 0 |
 | `0x214` | — | — | reserved (was the Wi-Fi network name); nothing sends it |
 | `0x215` | console (or any node) | on demand | phone command to an audio bridge: slot u8, command u8, arg u8, from node u8, list serial u8 (see *Phone*) |
-| `0x216` | console | on input | menu input for the interface screen: event u8, value s8, from node u8 (see *Console*) |
-| `0x217` | interface screen | on change + 1 s while open | menu state: open u8, screen u8, page u8 (0 home, 2 brightness, 3 theme, 4 screens, 5 service, 6 phone; 1 reserved, was Wi-Fi, and ignored), opened by u8 (0 touch, 1 console), text serial u8 |
-| `0x218` / `0x219` | interface screen | with `0x217` | menu texts for the console: the focused item or page / its value or state, 5 frames of `[serial << 4 \| chunk]` + 7 bytes each |
+| `0x216` | any node | on input | menu input for the interface screen: event u8 (1 rotate, 2 press, 3 back, 4 open a page), value s8, from node u8. The screens act on it; the console has its own menu and does not send it |
+| `0x217` | interface screen | on change + 1 s while open | menu state: open u8, screen u8, page u8 (0 home, 2 brightness, 3 theme, 4 screens, 5 service, 6 phone, 7 accessories; 1 reserved, was Wi-Fi, and ignored), opened by u8 (0 touch, 1 console), text serial u8 |
+| `0x218` / `0x219` | interface screen | with `0x217` | menu texts for a node that drives the menu with `0x216`: the focused item or page / its value or state, 5 frames of `[serial << 4 \| chunk]` + 7 bytes each |
 | `0x220` | center | 1 Hz | time: UTC s u32, local offset min s16, flags u8 (bit0 valid, bit1 GPS fix, bit2 reserved, was network time), reserved u8 (was the `0x221` serial, sent as 0) |
 | `0x221` | — | — | reserved (was the street name); nothing sends it |
 | `0x222`–`0x226` | GPS card (node from its slot) | 5 Hz / 1 Hz | position, motion, quality, time (sent on the PPS edge), status: layouts in [`gps_card.md`](../hardware/gps_card.md#can-messages) |
 | `0x400 + 0x40·slot + msg` | accessory (slot = node − `0x10`) | accessory-specific | see below |
-| `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`; 0 today) |
+| `0x700 + node` | every node | 1 Hz | node type u8, firmware version u16, uptime s u32, flags u8 (bit0 = speaks the channel protocol, `can_channels.md`: set by the round screens, the console and the sensor card; 0 on the audio bridge) |
 
 Sensor fields have the same meaning as in `sensor_uart.md`. `0x100`–`0x104` are for the three screens; other nodes read the converted readings on the SENSOR channel (`can_channels.md`). Node types: 0 display, 1 audio bridge, 2 console.
 
@@ -118,8 +118,8 @@ Sensor fields have the same meaning as in `sensor_uart.md`. `0x100`–`0x104` ar
 The center owns the cluster settings (NVS, copied to `settings.json` on the SD card) and sends them in `0x210`.
 Screens are 0 left (speedometer), 1 center, 2 right.
 
-- **Interface screen**: the one with the on-screen menu. A tap there opens it (the console's knob will drive it
-  too); on the other screens a tap does nothing, and a menu left open closes when the setting moves away.
+- **Interface screen**: the one with the on-screen menu. A tap there opens it (`0x216` can drive it too; the console
+  has its own menu on the OLED instead); on the other screens a tap does nothing, and a menu left open closes when the setting moves away.
 - **Media screen**: the one with the media view. On the center, media is one of its views (menu or 3 s hold).
   On a side screen it is an extra view next to that screen's gauge, which stays the default: a 3 s hold toggles
   it, and `0x210` flag bit1 says it is showing. Only the screen showing media fetches album art.
@@ -200,8 +200,9 @@ picture stays. The **console** asks only for the 48×48 grey image, which its OL
 
 The bridge is also the car's hands-free unit (HFP 1.7 hands-free role, wideband speech): call audio plays through
 its DACs and the microphone comes in through its ADC. It keeps up to 8 paired phones (most recently used first) and
-connects one at a time. Calls are answered and ended on **the console** (soft keys, see *Console* below);
-pairing and the paired list are on the round-screen menu's **Phone** page. Codecs: `elc_can_codec.h`, `ElcCanPhone*`.
+connects one at a time. Calls are answered and ended on **the console** (its right knob and soft keys, see
+*Console* below) or on the media screen's **call card** (its two keys, by touch). Pairing and the paired list are on
+the console menu's **Phone** page and on the round-screen menu's **Phone** page. Codecs: `elc_can_codec.h`, `ElcCanPhone*`.
 
 **Phone status (`0x04`).** Flags byte:
 
@@ -236,11 +237,13 @@ paired name only when its serial matches the list serial (so a name from before 
 
 **Phone pairing (`0x06`).** Sent twice a second while the window is open or a code waits. Phones pair with
 **numeric comparison**: the phone shows a six-digit code, the console and the displays show the same code, and the
-user confirms on the menu's Phone page (interface screen, by touch or with the console's knob). The window opens on command for 2 minutes, and with no time limit (seconds left = 255)
+user confirms with the console's soft keys (Pair / Reject), on the media screen's call card, or on the round-screen
+menu's Phone page (interface screen, by touch). The window opens on command for 2 minutes, and with no time limit (seconds left = 255)
 while nothing is paired: from boot, or after the last phone is forgotten. It closes when a phone pairs, on command
 (Stop), or when the time runs out. A phone that is not paired cannot pair outside the window; a paired phone can.
 
-**Phone command (`0x215`).** Any node can send it: the console for calls and media, the interface screen's Phone page for pairing and the paired list. Slot = the bridge's message-range index (node − `0x10`: 4 for the audio card in card slot 1), learned from its heartbeat and frames; a receiver accepts a range's audio frames only while that node's heartbeat says audio bridge (node type 1),
+**Phone command (`0x215`).** Any node can send it: the console for calls, media, pairing and the paired list; the media screen's call card
+for calls and the pairing code; the interface screen's Phone page for pairing and the paired list. Slot = the bridge's message-range index (node − `0x10`: 4 for the audio card in card slot 1), learned from its heartbeat and frames; a receiver accepts a range's audio frames only while that node's heartbeat says audio bridge (node type 1),
 from node = the sender. Commands that name a paired index carry the list serial they were read with, and the bridge
 ignores them if the list changed since. The bridge answers every command with a fresh `0x04`.
 
@@ -264,37 +267,50 @@ ignores them if the list changed since. The bridge answers every command with a 
 
 **Displays.** The media screen (`0x210`) shows a call card over its face while a call exists or a pairing code
 waits: the caller and the state (incoming, calling, the call time, on hold, muted), or "Pair with …" and the code.
-The card names what the console's two keys do; calls are answered and ended there. Pairing and the
-paired list are on the menu's **Phone** page (interface screen).
+The card's two keys are the console's two soft keys, by touch: Decline / Answer, Ignore / Answer, End / Mute (or
+Unmute), End / Swap, End, Reject / Pair, sent as `0x215` from the screen's own node. Pairing and the paired list are on
+the menu's **Phone** page (interface screen) and the console menu's Phone page; while the interface screen shows its
+Phone page, a pairing code shows there instead of on the card.
 
 ### Console
 
-The console (node `0x13`, `firmware/esp32s3_console`) is a 256×64 amber OLED in 16 grey levels with two knobs
-(**Select**, **Volume**, each turns and pushes) and two keys under the OLED (**Back** left, **View** right). Its type
-follows the cluster theme (Barlow / Saira / VT323). Design reference: the *El Camino Cluster* prototype artifact.
+The console (node `0x13`, `firmware/esp32s3_console`, board `ConsoleBoardRS/`) is the car's radio head unit: a
+256×64 amber OLED in 16 grey levels and two **RetroSound knobs**, its only controls (no keys). Each knob turns,
+pushes, and has an outer ring that pushes left or right. Every push and the right ring have a click and a hold
+(650 ms). Its type follows the cluster theme (Barlow / Saira / VT323). The full control map is in
+[`firmware/esp32s3_console/README.md`](../../firmware/esp32s3_console/README.md).
 
-| Input | Drive pages | OLED menu | Round-screen menu open |
-| --- | --- | --- | --- |
-| Select turn | next / previous page | move, or change the value being edited (live) | moves it (`0x216` rotate) |
-| Select push | open the OLED menu | edit / confirm / open | opens the item (`0x216` press) |
-| Back | Now Playing | cancel the edit (the old value comes back), close | back a page, then close (`0x216` back) |
-| Volume turn | media volume (call volume in a call), with a bar over whatever shows | | |
-| Volume push | play / pause · hold: next track | | |
-| View | next center view (`0x212` setting 2) | | |
+| Input | Left knob (Volume) | Right knob (Select) |
+| --- | --- | --- |
+| Turn | media volume (call volume in a call), on every screen, the menu too | at rest: tune (radio) / next or previous track (Bluetooth); in the menu: the highlight; in an editor: the value (live) |
+| Push | mute (radio) / play-pause (Bluetooth); audio back on when it is off; the microphone mute in a call | **OK**: at rest the OLED menu; in the menu pick the row or end the edit. A ringing call: answer; an active call: its audio to the phone / back to the car |
+| Hold | the next source, round Bluetooth → Radio (when a radio is heard) → Off, sent as AUDIO_CMD SOURCE | the voice assistant; in the menu: leave it |
+| Ring left / right | seek down / up (radio), previous / next track (Bluetooth) | the two soft keys, labelled in the OLED's bottom corners |
 
-- **Drive pages** (dots on the right edge): *Media* (48 px grey cover, title, artist, progress, play/pause), *Trip*
-  (Trip A, average MPG, range), *Engine* (oil, coolant, fuel, charge with bars, warnings blink), *Clock* (time, date,
-  GPS fix or boot clock). Trip A is kept on the console (odometer at reset, in NVS).
-- **OLED menu**: Center view, Theme, Brightness, Dim with lights, Menu on, Media on, Right layout, Trip A (reset,
-  push again to confirm), OLED contrast (console only), Service (opens that page on the interface screen).
-  Settings go to the center with `0x212`.
-- **Warnings take over** until acknowledged (push or Back), then blink as a badge: no sensor data, low oil pressure,
-  engine hot, not charging, low fuel, odometer not stored. **Reverse** (`0x213` bit7) shows R and the speed.
-- **Calls take over** like a warning, and only here do the keys become soft keys, labelled at the bottom of the OLED:
-  ringing = **Decline** (Back) / **Answer** (View); call waiting = **Ignore** / **Answer** (holds the active call);
-  calling = **End**; active = **End** / **Mute**; on hold = **End** / **Swap**. Everything else about phones
-  (pairing, the paired list) is on the menu's Phone page.
-- A change made elsewhere shows as a toast (theme, view, menu on, media on). Without CAN for 1 s it shows the bowtie.
+- **Soft keys** (the right ring) change with the screen; the right one is yes / the main action / forward, the left
+  one no / back / the second action. Calls: ringing = **Decline** / **Answer**; call waiting = **Ignore** /
+  **Answer** (holds the active call); calling = **End**; active = **End** / **Mute**; on hold = **End** / **Swap**.
+  A pairing code = **Reject** / **Pair**. Drive pages: a source action on the left (Presets, Redial, Phone, Audio
+  on, or Reset on the Trip page) and the next page on the right (hold: next center view, `0x212` setting 2). Menu:
+  **Back** / **Exit**; editor: **Undo** / **Done**; confirmation: **No** / **Yes**; warning: **OK**.
+- **Drive pages** (dots on the right edge): *Media* (the radio's NOW PLAYING while the radio is the source, else the
+  48 px grey cover, title, artist, progress), *Trip* (Trip A, average MPG, range), *Engine* (oil, coolant, fuel,
+  charge with bars, warnings blink), *Clock* (time, date, GPS fix or boot clock). Trip A is kept on the console
+  (odometer at reset, in NVS).
+- **OLED menu** (its own, not a mirror of the round-screen menu): **Source** (Bluetooth, Radio when heard, Off),
+  **Radio** (the radio card's page from the UI channel), **Phone** (pair a new phone, voice assistant, redial, the
+  paired phones: Connect / Disconnect, Forget), **Accessories** (every accessory's page from the UI channel),
+  **Display** (center view, theme, brightness, dim with lights, menu on, media on, right layout, OLED contrast),
+  **Trip A** (reset, with a confirmation), **Service** (read-only status: center, sensors, audio bridge, audio card
+  and its source, radio, channel nodes). Display settings go to the center with `0x212`; nothing in the menu opens
+  a page on the interface screen.
+- **Warnings take over** until acknowledged (OK), then blink as a badge: no sensor data, low oil pressure, engine
+  hot, not charging, low fuel, odometer not stored. **Reverse** (`0x213` bit7) shows REVERSE and the speed; only
+  the volume works.
+- **Calls and pairing codes take over** the OLED, with the soft keys above; the media screen's call card shows the
+  same two keys.
+- A change made elsewhere shows as a toast (theme, view, menu on, media on, source). Without the center's heartbeat for
+  2.5 s it shows the bowtie.
 
 ## Reserved
 

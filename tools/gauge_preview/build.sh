@@ -19,6 +19,7 @@ for f in $FW/esp32_p4_ui/src/fonts/*.c; do
 done
 wait
 clang++ -std=c++17 $CF -I$FW/esp32_p4_ui/src/gauges $FW/esp32_p4_ui/src/gauges/*.cpp \
-  $FW/esp32_p4_ui/src/phone_can.cpp $FW/esp32_p4_ui/src/ui_menu.cpp $FW/esp32_p4_ui/src/ui_theme.cpp $FW/elc_can/src/elc_can_codec.cpp $H/stubs.cpp $H/render.cpp \
+  $FW/esp32_p4_ui/src/phone_can.cpp $FW/esp32_p4_ui/src/ui_menu.cpp $FW/esp32_p4_ui/src/ui_theme.cpp $FW/elc_can/src/elc_can_codec.cpp \
+  $FW/elc_can/src/elc_chan.cpp $FW/elc_can/src/elc_chan_msg.cpp $FW/elc_can/src/accessory_can.cpp $H/stubs.cpp $H/render.cpp \
   $O/lvgl/*.o $O/fonts/*.o -o $O/render
 echo "built $O/render"

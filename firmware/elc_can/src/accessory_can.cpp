@@ -214,6 +214,33 @@ int accessory_can_items(uint8_t node, uint8_t parent, bool advanced, const AccIt
   return k;
 }
 
+bool accessory_can_number(uint8_t node, uint8_t item, float *out) {
+  const AccItem *it = accessory_can_item(node, item);
+  if (!it || !it->defined || !it->has_value || it->d.kind != ELC_UI_NUMBER) return false;
+  float v = (float)it->value;
+  for (int8_t e = it->d.exponent; e > 0; e--) v *= 10.0f;
+  for (int8_t e = it->d.exponent; e < 0; e++) v /= 10.0f;
+  *out = v;
+  return true;
+}
+
+float accessory_can_tank_gal(float fallback) {
+  static const uint8_t kTankItem = 12;  // sensor card, Fuel › Tank capacity (firmware/sensor_card/src/card_ui.cpp)
+  const uint8_t node = s_ch ? s_ch->findNode(ELC_TYPE_SENSOR, ELC_PRODUCT_SENSOR_CARD) : 0;
+  float gal = 0;
+  if (!node || !accessory_can_number(node, kTankItem, &gal) || gal < 1.0f || gal > 100.0f) return fallback;
+  return gal;
+}
+
+bool accessory_can_has_advanced(uint8_t node) {
+  const AccNode *n = find(node);
+  if (!n) return false;
+  for (int i = 0; i < n->n; i++) {
+    if (n->items[i].defined && (n->items[i].d.flags & ELC_UI_F_ADVANCED)) return true;
+  }
+  return false;
+}
+
 const AccItem *accessory_can_item(uint8_t node, uint8_t item) {
   AccNode *n = find(node);
   return n ? item_of(n, item, false) : nullptr;

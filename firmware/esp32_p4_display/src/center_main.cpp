@@ -12,6 +12,7 @@
 #include <gauge_link.h>
 #include <p4_screen.h>
 #include <p4_touch.h>
+#include <media_can.h>
 #include <phone_can.h>
 #include <elc_watchdog.h>
 #include <sensor_link.h>
@@ -219,17 +220,10 @@ static void fill_media(GaugeData &d, uint32_t now) {
     d.art_id = art_id;
   }
 
-  static uint16_t s_el = 0xFFFF;
-  static uint32_t s_el_ms = 0;
   uint16_t el = 0, dur = 0;
   uint8_t vol = 0;
   if (center_audio_link_transport(&el, &dur, &vol) && dur > 0) {
-    if (el != s_el) {
-      s_el = el;
-      s_el_ms = now;
-    }
-    const float since = (float)(now - s_el_ms) / 1000.0f;
-    d.media_elapsed = (float)el + (since < 1.0f ? since : 1.0f);
+    d.media_elapsed = media_can_elapsed(now);
     d.media_duration = (float)dur;
   }
 }
@@ -276,7 +270,10 @@ void center_loop() {
   } else {
     s_inject_until_ms = 0;
   }
-  p4_screen_touch(tx, ty, finger_down);
+  // The rear camera owns the screen in reverse: no touch reaches the menu (LVGL) or the gestures below, so a tap
+  // can't open the menu over the picture or a hold change the view behind it.
+  const bool camera = center_camera_showing();
+  p4_screen_touch(tx, ty, finger_down && !camera);
 
   static bool s_was_down = false;
   static uint32_t s_down_ms = 0;
@@ -287,15 +284,15 @@ void center_loop() {
   const int16_t sh = gfx->height();
 
   // A touch that starts on the call card (or while it shows) is the card's: no menu tap, view or theme hold here,
-  // even when the card closes before the finger lifts (End).
+  // even when the card closes before the finger lifts (End). The same for one made while the camera shows.
   static bool s_on_card = false;
   if (finger_down && !s_was_down) {
     s_down_ms = now;
     s_lx = tx;
     s_ly = ty;
-    s_on_card = phone_can_card_showing();
+    s_on_card = phone_can_card_showing() || camera;
   }
-  if (finger_down && phone_can_card_showing()) s_on_card = true;
+  if (finger_down && (phone_can_card_showing() || camera)) s_on_card = true;
 
   if (!finger_down && s_was_down && !s_on_card) {
     const uint32_t dur = now - s_down_ms;

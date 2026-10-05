@@ -35,6 +35,7 @@ ElcCanBridgeSeen s_bridges;
 ElcCanAudioTextDecoder s_text;
 ElcCanAudioTransport s_tr;
 uint32_t s_tr_ms = 0;
+uint32_t s_el_ms = 0;  // when s_tr.elapsed_s last changed
 bool s_have = false;
 uint8_t s_slot = 0;
 
@@ -96,6 +97,7 @@ bool media_can_frame(const ElcCanFrame &f) {
   uint8_t slot = 0;
   ElcCanAudioTransport t;
   if (elc_can_decode_audio_transport(f, &slot, t)) {
+    if (!s_have || t.elapsed_s != s_tr.elapsed_s) s_el_ms = millis();
     s_tr = t;
     s_slot = slot;
     s_tr_ms = millis();
@@ -314,15 +316,16 @@ void media_can_fill(GaugeData &d, uint32_t now_ms) {
   if (media_art(&d.art_px, &d.art_w, &d.art_h, &d.art_stride, &serial)) {
     d.art_id = serial;
   }
-  static uint16_t s_el = 0xFFFF;
-  static uint32_t s_el_ms = 0;
   if (dur > 0) {
-    if (el != s_el) {
-      s_el = el;
-      s_el_ms = now_ms;
-    }
-    const float since = (float)(now_ms - s_el_ms) / 1000.0f;
-    d.media_elapsed = (float)el + (since < 1.0f ? since : 1.0f);
+    d.media_elapsed = media_can_elapsed(now_ms);
     d.media_duration = (float)dur;
   }
+}
+
+float media_can_elapsed(uint32_t now_ms) {
+  if (!s_tr.playing) return (float)s_tr.elapsed_s;
+  // The bridge sends the second as it ticks: fill in the fraction for a smooth progress bar, but never reach the next
+  // second before the bridge says so (a pause or a late frame would show a time the track never got to).
+  const float since = (float)(now_ms - s_el_ms) / 1000.0f;
+  return (float)s_tr.elapsed_s + (since < 0.99f ? since : 0.99f);
 }

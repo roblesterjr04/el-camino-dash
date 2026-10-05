@@ -43,6 +43,13 @@ int accessory_can_nodes(uint8_t *out, int max);
 const char *accessory_can_name(uint8_t node);
 /** The node's items under `parent` (ELC_UI_TOP = its top page), in item order; advanced ones only when asked. */
 int accessory_can_items(uint8_t node, uint8_t parent, bool advanced, const AccItem **out, int max);
+/** A number item's value in its own units (value × 10^exponent); false when not heard yet. */
+bool accessory_can_number(uint8_t node, uint8_t item, float *out);
+/** The fuel tank's size in gallons from the sensor card's Tank capacity item (the screens are always in US units),
+ *  or `fallback` while no sensor card has sent it. Gallons on the gauges and the console come from this. */
+float accessory_can_tank_gal(float fallback);
+/** True when the node has advanced items anywhere (in any group): the menus offer "Show advanced" on its top page. */
+bool accessory_can_has_advanced(uint8_t node);
 const AccItem *accessory_can_item(uint8_t node, uint8_t item);
 /** The value as the menu shows it: "94.7 MHz", "On", the chosen option, the text, "--" before any value. */
 void accessory_can_value_text(const AccItem &it, char *out, size_t n);

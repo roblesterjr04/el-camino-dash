@@ -842,7 +842,7 @@
 				)
 			)
 		)
-		(property "Value" "12p"
+		(property "Value" "15p"
 			(at 0 1.43 180)
 			(layer "F.Fab")
 			(hide yes)
@@ -865,7 +865,7 @@
 				)
 			)
 		)
-		(property "Description" "Crystal load (CL 10 pF crystal; 2 x (CL - stray))"
+		(property "Description" "Crystal load (CL 12 pF crystal; 2 x (CL - ~4 pF stray))"
 			(at 0 0 180)
 			(layer "F.Fab")
 			(hide yes)
@@ -5570,7 +5570,7 @@
 				)
 			)
 		)
-		(property "Description" "8 MHz crystal, 3.2 x 2.5 mm, CL 10 pF, +-20 ppm or better (HSE, for CAN bit timing)"
+		(property "Description" "8 MHz crystal, 3.2 x 2.5 mm, CL 12 pF, ESR <= 180 R (YXC X32258MOB4SI; HSE, for CAN bit timing)"
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -6047,7 +6047,7 @@
 				)
 			)
 		)
-		(property "Description" "Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, slot ID. Not used: switched / constant 12 V, 3.3 V, WAKE, LAMP, REV, LINK0-4, the audio bus, AUX 12 V"
+		(property "Description" "Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, slot ID. Not used: switched / constant 12 V, 3.3 V, WAKE, LAMP, REV, the I2S rail, the audio bus, AUX 12 V"
 			(at 0 0 270)
 			(layer "F.Fab")
 			(hide yes)
@@ -8889,7 +8889,7 @@
 				)
 			)
 		)
-		(property "Value" "12p"
+		(property "Value" "15p"
 			(at 0 1.43 180)
 			(layer "F.Fab")
 			(hide yes)
@@ -8912,7 +8912,7 @@
 				)
 			)
 		)
-		(property "Description" "Crystal load (CL 10 pF crystal; 2 x (CL - stray))"
+		(property "Description" "Crystal load (CL 12 pF crystal; 2 x (CL - ~4 pF stray))"
 			(at 0 0 180)
 			(layer "F.Fab")
 			(hide yes)
@@ -9472,7 +9472,7 @@
 			(justify left)
 		)
 	)
-	(gr_text "DigiDash slot card  node 0x05"
+	(gr_text "DigiDash slot card  any slot"
 		(at 103 85.8 0)
 		(layer "F.SilkS")
 		(uuid "d870d8ee-5ebb-40c9-9df5-52192d9a99bc")
@@ -9885,24 +9885,6 @@
 		(uuid "f4f2cbbc-cdf7-4774-9b0f-8429303bb3fe")
 	)
 	(segment
-		(start 130.311329 104.755118)
-		(end 131.180662 104.988055)
-		(width 0.25)
-		(locked yes)
-		(layer "F.Cu")
-		(net "GND")
-		(uuid "03f89dee-0843-415a-8190-4d6f8c6af367")
-	)
-	(segment
-		(start 130 110)
-		(end 129.434314 109.434314)
-		(width 0.25)
-		(locked yes)
-		(layer "F.Cu")
-		(net "GND")
-		(uuid "08f04f0f-21f9-4b88-94ce-3c3547d5ad5a")
-	)
-	(segment
 		(start 150.784215 125.688071)
 		(end 151.684215 125.688071)
 		(width 0.25)
@@ -9928,15 +9910,6 @@
 		(layer "F.Cu")
 		(net "GND")
 		(uuid "101ac835-3039-444c-9822-1045267c9e02")
-	)
-	(segment
-		(start 130.16867 104.644881)
-		(end 130.513085 105.476373)
-		(width 0.25)
-		(locked yes)
-		(layer "F.Cu")
-		(net "GND")
-		(uuid "10c3559e-f52e-4eb2-ab56-7b77bfe6fbc7")
 	)
 	(segment
 		(start 156.005 129.88)
@@ -10054,15 +10027,6 @@
 		(layer "F.Cu")
 		(net "GND")
 		(uuid "be895779-7ee8-4e79-84e9-6822f4fbc0a5")
-	)
-	(segment
-		(start 128.528425 110.25)
-		(end 128.528425 109.99118)
-		(width 0.25)
-		(locked yes)
-		(layer "F.Cu")
-		(net "GND")
-		(uuid "c008bf1f-1292-4b55-8fd9-fc53e9d5dd84")
 	)
 	(segment
 		(start 139.455 95.28)
@@ -10304,15 +10268,6 @@
 		(layers "F.Cu" "B.Cu")
 		(net "GND")
 		(uuid "0ec95e69-ec9c-4e2f-9279-b584880b0e91")
-	)
-	(via
-		(at 131.180662 104.988055)
-		(size 0.6)
-		(drill 0.3)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(net "GND")
-		(uuid "10089846-74d7-452b-a8cb-5daf21861b5d")
 	)
 	(via
 		(at 130.75 119.3875)
@@ -11565,15 +11520,6 @@
 		(uuid "b812e873-4ab5-47ca-aa7d-502bb7a5d62b")
 	)
 	(via
-		(at 130.513085 105.476373)
-		(size 0.6)
-		(drill 0.3)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(net "GND")
-		(uuid "b96318d9-284e-4ab5-b64f-1aaf412be0a1")
-	)
-	(via
 		(at 125 85)
 		(size 0.6)
 		(drill 0.3)
@@ -11735,15 +11681,6 @@
 		(locked yes)
 		(net "GND")
 		(uuid "cdfe0d23-d8d8-419d-bf19-75093abea60d")
-	)
-	(via
-		(at 128.528425 109.99118)
-		(size 0.6)
-		(drill 0.3)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(net "GND")
-		(uuid "cee4d5e9-5b06-40da-b80f-e6296d168d8c")
 	)
 	(via
 		(at 133 105)
@@ -12091,15 +12028,6 @@
 		(layers "F.Cu" "B.Cu")
 		(net "GND")
 		(uuid "f84e3a96-730c-4f52-8fb3-0527bc0f1519")
-	)
-	(via
-		(at 129.434314 109.434314)
-		(size 0.6)
-		(drill 0.3)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(net "GND")
-		(uuid "fa7567dd-0044-4bad-8020-deac85343bc2")
 	)
 	(via
 		(at 145 89)

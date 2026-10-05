@@ -1,5 +1,6 @@
 #include "gauge_link.h"
 
+#include <accessory_can.h>
 #include <el_camino_speed.h>
 
 namespace {
@@ -27,4 +28,5 @@ void gauge_fill_sensors(GaugeData &d, const SensorLink &link, float wheel_circum
   d.mpg_avg = d.econ_valid ? (float)p.mpg_average_x10 * 0.1f : 0.0f;
   d.mpg_inst = d.econ_valid ? (float)p.mpg_instant_x10 * 0.1f : 0.0f;
   d.dte_mi = d.econ_valid ? (float)p.dte_tenths_mile * 0.1f : 0.0f;
+  d.tank_gal = accessory_can_tank_gal(d.tank_gal);  // the sensor card's Tank capacity, else the default
 }

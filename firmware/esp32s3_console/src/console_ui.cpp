@@ -378,7 +378,7 @@ void ConsoleUi::build_alerts(uint32_t now_ms) {
         snprintf(add(3, "gen", "NOT CHARGING").line, 64, "Running on battery \xC2\xB7 check alternator");
       }
       if (_s.fuel < 12) {
-        snprintf(add(4, "fuel", "LOW FUEL").line, 64, "%.1f gal \xC2\xB7 about %d mi left", _s.fuel / 100 * _s.tank,
+        snprintf(add(4, "fuel", "LOW FUEL").line, 64, "%.1f gal \xC2\xB7 about %d mi left", _s.fuel / 100 * tank_gal(),
                  (int)(_s.dte + 0.5f));
       }
       if (!_s.odo_valid) {
@@ -701,9 +701,9 @@ void ConsoleUi::build_rows() {
         const uint8_t kind = it.d.kind == ELC_UI_GROUP ? ConsoleRow::Sub : (ro ? ConsoleRow::Info : ConsoleRow::Action);
         row_add(kind, kRAccItem, it.d.item, it.d.label, it.d.kind == ELC_UI_GROUP ? "" : val);
       }
+      // advanced items anywhere on the card (in any group): the switch on its top page, holding for its groups too
       if (L.arg == ELC_UI_TOP) {
-        const AccItem *all[32];
-        if (accessory_can_items(L.node, L.arg, true, all, 31) > n || _advanced) {
+        if (_advanced || accessory_can_has_advanced(L.node)) {
           row_add(ConsoleRow::Action, kRAdvanced, 0, "Show advanced", _advanced ? "On" : "Off");
         }
       }

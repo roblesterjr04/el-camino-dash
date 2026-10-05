@@ -29,8 +29,8 @@ slot's switched 12 V and constant 12 V are used for sensing and the speed sensor
 | --- | --- |
 | `SensorCard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, all parts on the parts side (F). KiCad 10 |
 | `DATASHEET.md` | The card's datasheet: ratings, electrical characteristics, pinouts, jumper configuration, sender selection, firmware interface, mechanical. Images in `doc/` |
-| `SensorCard_BOM.csv` | Parts list |
-| `fab/` | Gerbers, drill, placement and centroid (`python3 ../tools/fab_export.py SensorCard`) |
+| `SensorCard_BOM.csv` | Parts list, every part with maker and part number, plus the PCB solder jumpers (`python3 generate/gen_bom.py`, which also writes `fab/SensorCard_BOM_PCBWay.csv`) |
+| `fab/` | Gerbers, drill, placement and centroid (`python3 ../tools/fab_export.py SensorCard`), and the assembler's BOM `SensorCard_BOM_PCBWay.csv` (placed parts only) |
 | `generate/` | `gen_sch.py`, `gen_pcb.py`, `drc.py`, `sexp.py` (`refs.json` is written by `gen_sch.py`). The schematic generator is the main board's (`DigiDash2/generate/gen_sch.py`) helpers plus not-fitted parts (none at present); the PCB generator is the GPS card's, adapted. Every symbol and footprint is stock KiCad 10 |
 
 ## Connectors

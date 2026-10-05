@@ -173,14 +173,15 @@ void menu_can_describe(char *out, size_t n) {
   ElcCanMenuState st;
   char m[64], sb[64];
   current(st, m, sizeof(m), sb, sizeof(sb));
-  static const char *const kPages[] = {"home", "reserved", "brightness", "theme", "screens", "service", "phone"};
+  static const char *const kPages[kUiMenuPages] = {"home",    "reserved", "brightness", "theme",
+                                                    "screens", "service",  "phone",      "accessories"};
   snprintf(out, n,
            "menu: %s on the %s screen (%s the interface screen), page %u %s, opened by %s\n"
            "  main \"%s\"\n"
            "  sub  \"%s\"\n"
            "  last sent: %s, text serial %u, %lu ms ago%s",
            st.open ? "open" : "closed", ui_screen_name(st.screen), interface_here() ? "is" : "not",
-           (unsigned)st.page, st.page < 7 ? kPages[st.page] : "?",
+           (unsigned)st.page, st.page < kUiMenuPages ? kPages[st.page] : "?",
            st.opened_by == ELC_CAN_MENU_BY_CONSOLE ? "console" : "touch", m, sb,
            s_sent_valid ? (s_sent.open ? "open" : "closed") : "nothing", (unsigned)s_serial,
            (unsigned long)(s_sent_valid ? millis() - s_sent_ms : 0), C.send ? "" : " (no CAN)");

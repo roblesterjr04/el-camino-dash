@@ -12,7 +12,12 @@
  * gives the 64 fS bit clock and 256 fS master clock the PCM1808 needs (it does not run below 16 kHz, so 8 kHz calls
  * are resampled). When the call audio ends, the gate reopens the I2SStream in A2DP's format if A2DP wants it.
  *
- * Threading: call_audio_start/stop/rx/tx are called from Bluetooth tasks; the call task does all I2S work.
+ * The alert chimes (chimes.h) share I2S0 the same way: A2DP's writes have them mixed in (and the music ducked under an
+ * alert), the call task mixes them into the phone's voice, and when neither is writing a chime task opens I2S0 in
+ * A2DP's last format, plays them out and closes it again.
+ *
+ * Threading: call_audio_start/stop/rx/tx are called from Bluetooth tasks; the call task does all I2S work. The chime_*
+ * calls come from the loop.
  */
 
 #include <stddef.h>
@@ -61,3 +66,14 @@ bool call_audio_active();
 
 /** One line for the serial console: rate, frames each way, underruns. */
 void call_audio_status(char *out, size_t n);
+
+// ---- chimes (AUDIO_CMD built-in sounds 2-4) ----
+/** Starts a chime for `node` (priority 0-4, level %, repeat 0 = until stopped). False for a sound there is none of. */
+bool chime_play(uint8_t node, uint16_t sound, uint8_t priority, uint8_t level_pct, uint8_t repeat);
+/** Stops a node's chime (0xFFFF = all of that node's). */
+void chime_stop(uint8_t node, uint16_t sound);
+/** The chime volume, 1..15 (the audio card's setting; not the music's volume). */
+void chime_set_volume(uint8_t v_1_15);
+/** A chime that ended (for AUDIO_CMD DONE); false when there is none. */
+bool chime_pop_done(uint8_t &node, uint16_t &sound);
+uint8_t chime_count();

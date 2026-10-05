@@ -9,6 +9,7 @@
 #include <phone_can.h>
 #include <ui_menu.h>
 
+#include "center_alerts.h"
 #include "center_audio_link.h"
 #include "center_camera.h"
 #include "center_can.h"
@@ -59,7 +60,8 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     char reply[1024];
     if (phone_can_command(line.c_str(), reply, sizeof(reply)) ||  // phone, phone demo …
         menu_can_command(line.c_str(), reply, sizeof(reply)) ||   // menu, menu rotate|press|back|open … (not "menu on")
-        chan_screen_command(line.c_str(), reply, sizeof(reply))) {  // chan, chan query
+        chan_screen_command(line.c_str(), reply, sizeof(reply)) ||  // chan, chan query
+        center_alerts_command(line.c_str(), reply, sizeof(reply))) {  // alerts, alerts ack [all]
       Serial.println(reply);
       return;
     }
@@ -190,7 +192,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | phone [demo idle|discover|incoming|active|waiting|held|pair|off] | menu [rotate <n>|press|back|open <0..6>] | can | tap <x> <y> [ms] | knob left|right|press|back | role [left|center|right|auto] | menu on left|center|right | media on left|center|right | tz [<posix>|<hours>]");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | phone [demo idle|discover|incoming|active|waiting|held|pair|off] | menu [rotate <n>|press|back|open <0..6>] | can | alerts [ack [all]] | tap <x> <y> [ms] | knob left|right|press|back | role [left|center|right|auto] | menu on left|center|right | media on left|center|right | tz [<posix>|<hours>]");
     Serial.println("Time: UTC from GPS RMC/ZDA; local zone from tz (POSIX rules keep DST without a network).");
     return;
   }

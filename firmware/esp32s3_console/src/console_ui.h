@@ -12,6 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <accessory_can.h>
 #include <elc_can_codec.h>
 #include <elc_chan.h>
 #include <elc_chan_msg.h>
@@ -39,7 +40,6 @@ struct ConsoleSensors {
   uint32_t odo_tenths = 0;
   bool econ = false;
   float avg = 0, inst = 0, dte = 0;
-  float tank = 20;
 };
 
 struct ConsoleAlert {
@@ -142,6 +142,8 @@ class ConsoleUi {
   int menu_rows(const ConsoleRow **rows);
   int menu_sel() const { return _stack[_depth].sel; }
   const char *phone_paired_name(uint8_t i) const;
+  /** Gallons in a full tank: the sensor card's Tank capacity, else 20. */
+  static float tank_gal() { return accessory_can_tank_gal(20.0f); }
 
   static constexpr uint32_t kCenterGoneMs = 2500;  // the center's heartbeat is 1 Hz: a couple missed before the bowtie
   static constexpr uint32_t kBootMs = 1700;        // bowtie at power-up: fade in, then a sheen

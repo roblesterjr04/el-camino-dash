@@ -38,8 +38,10 @@ python3 tools/gauge_preview/preview.py phone.png 0,1,0,0,idle,6 2,1,0,0,pair,6 1
 
 **Call card.** While a call exists or a pairing code waits, the media screen covers its face (and the menu, if open)
 with a card in the theme's colours: the state (incoming, calling, call time, on hold, call waiting), the caller,
-Muted / Audio on phone, or "Pair with …?" and the six-digit code, and at the bottom what the console's two soft keys do
-now. The displays take no phone input: the card swallows touches. On the center it never covers the reversing camera.
+Muted / Audio on phone, or "Pair with …?" and the six-digit code, and at the bottom two keys that do what the
+console's two soft keys do now (Decline / Answer, Ignore / Answer, End / Mute, End / Swap, End, Reject / Pair): a tap
+sends the phone command (`0x215`) from this screen's node. Other touches on the card stop there. On the center it never
+covers the reversing camera.
 `esp32_p4_ui/src/phone_can.cpp`; protocol in `docs/protocols/can_bus.md` (Phone).
 
 ## Cluster I2C (center master)
@@ -76,7 +78,7 @@ the firmware that ships, and the bench reaches the bus through the USB CAN link 
 | `esp32_p4_display/` | **All three round displays**, one image. At boot each board reads its position strap (header pin 17 = GPIO4 on the DigiDash board: J5 left → 1 kΩ to GND, J4 right → 1 kΩ to its 3V3, J1 center → open) and runs as **LEFT** speedometer, **CENTER** (tach / clock / media / efficiency, GPS, SD, BLE, camera, the cluster settings; I2C cluster master) or **RIGHT** fuel / oil / coolant / charge (Classic has two layouts). `src/main.cpp` picks `center_*` or `side_*`; see `src/display_role.h`. |
 | `esp32_classic_bt_audio/` | PlatformIO wrapper; builds `arduino/sketches/esp32_audio_bridge` (A2DP + CAN accessory: now-playing, transport, album art; node 0x14 + slot − 1 on the rev 2 audio card (`audiocarrier`; with no main board it reads no slot and takes 0x14), 0x10 + straps on a rev 1 carrier). `esp32wrover` (DevKitC-VE, PSRAM; the default) or `esp32dev` (WROOM DevKitC-32). |
 | `sensor_card/` | **Sensor card** (`SensorCard/`, ATmega2560, CAN node 0x04; PlatformIO `atmelavr`): senders, speed, tach, ignition, battery; calibration and odometer in the FRAM; frames `0x100`–`0x104`, the SENSOR / UI / ALERT channels, the J8 serial fallback, the USB CAN link and a bench console on USART0. Pins are an Arduino Mega's, so it runs on a Mega with a CAN shield. Logic host-tested: `test/host/run_tests.sh`. |
-| `esp32s3_console/` | **Console board** (`ConsoleBoard/`, ESP32-S3, CAN node 0x13): SSD1322 OLED with two soft keys, Select / Volume knobs; the phone's only control (calls, pairing, paired phones), media keys, center view. UI state machine host-tested: `test/host/run_tests.sh`. |
+| `esp32s3_console/` | **Console board** (`ConsoleBoardRS/`, ESP32-S3, CAN node 0x13): the car's radio head unit. SSD1322 OLED and two RetroSound knobs (left Volume, right Select; each turns, pushes and has a ring that pushes left / right), no keys; the right ring is two soft keys labelled on the OLED. Its own OLED menu: Source, Radio, Phone (calls, pairing, paired phones), Accessories, Display, Trip A, Service. See its `README.md`. UI state machine host-tested: `test/host/run_tests.sh`. |
 | `esp32_p4_display_litmus/` | Panel bring-up (solid color / HELLO). |
 
 ## Panel targets
@@ -118,7 +120,7 @@ buffer by DMA, so nothing tears. Layers, bottom to top: the optional legacy Ardu
 its older full-screen pages), the gauge faces (`p4_screen_gauge_parent()`), and UI (`p4_screen_ui_parent()`).
 
 The menu (`esp32_p4_ui/ui_menu.cpp`) is pure LVGL: a wheel on the home page, and Brightness, Theme, Screens,
-Service and Phone pages, rebuilt in the active theme's colors and fonts each time it opens. It runs on any round screen:
+Service, Phone and Accessories (every accessory's UI page, `accessory_can`) pages, rebuilt in the active theme's colors and fonts each time it opens. It runs on any round screen:
 the center backs it with its own state (`center_menu.cpp`), the speedo and TSPS with CAN (`cluster_peer.cpp`: setting
 requests to the center, state from `0x210` / `0x213`, see `docs/protocols/can_bus.md`). The Screens page
 picks the **interface screen** (menu) and the **media screen**. The sensor log and GPS data pages are still the
@@ -131,24 +133,26 @@ connected. A phone asking to pair takes over the page ("Pair with …?", the cod
 the interface screen by itself (not over the reversing camera); while the page is open there, the call card leaves
 the pairing request to it. Commands go to the bridge on `0x215` from this board's node.
 
-**Console** (`menu_can`, every screen): the interface screen applies the console's `0x216` (turn moves the wheel,
-brightness or the Phone page's focus; push opens / presses; Back goes back a page, then closes; Open opens a page)
-and sends `0x217` + texts `0x218` / `0x219` (`ui_menu_describe()`: the focused item or the page's key fact, and its
-value or hint) on change, every second while open and once on close. The center also sends the time (`0x220`, 1 Hz:
+**Remote menu input** (`menu_can`, every screen): the interface screen applies `0x216` from any node (turn moves
+the wheel, brightness or the Phone page's focus; push opens / presses; Back goes back a page, then closes; Open opens
+a page) and sends `0x217` + texts `0x218` / `0x219` (`ui_menu_describe()`: the focused item or the page's key fact, and its
+value or hint) on change, every second while open and once on close. The console has its own OLED menu and does
+not send `0x216`; `menu …` on a screen's serial console (below) does the same locally. The center also sends the time (`0x220`, 1 Hz:
 UTC from GPS, local offset from the `tz` setting, GPS fix flag), and sets `0x213` bit7 while reversing (camera shown or reverse input on).
 
 Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
 
 - center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
   `drag <x> <y1> <y2> <ms>`, `knob left|right|press|back`, `menu on left|center|right`, `media on left|center|right`,
-  `can`, `tz [<posix>|<hours>]` (local zone: a POSIX string such as `CST6CDT,M3.2.0,M11.1.0` keeps DST without a
+  `can`, `alerts` (every node's alerts; `alerts ack` acknowledges the top one, `alerts ack all` all of them),
+  `tz [<posix>|<hours>]` (local zone: a POSIX string such as `CST6CDT,M3.2.0,M11.1.0` keeps DST without a
   network; a bare hour offset such as `-6` is fixed, no DST; `tz` alone shows it);
 - left / right: `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`, `variant 0|1` (right), `can`;
 - every screen: `role [left|center|right|auto]` (position; see above), `phone` (phone state from the audio bridge,
   with the paired list and the pairing window) and `phone demo idle|discover|incoming|active [muted] [onphone]|waiting|held|pair|off`
   (synthetic bridge frames fed locally, to see the call card and the Phone page without a phone; the page's commands
   act on the demo; `off` hands back to the bridge); `menu` (the `0x217` state and texts this board would send) and
-  `menu rotate <n>|press|back|open <0..6>` (as if from the console).
+  `menu rotate <n>|press|back|open <0..7>` (as `0x216` from node `0x13`).
 
 Grab a screenshot from the Mac with:
 

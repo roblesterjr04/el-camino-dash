@@ -102,8 +102,24 @@ AudioCarrier`); both BOMs were rebuilt from the schematic.
   thing the drawing does not say: which line is the PCB edge. I took the dashed line (the plate's rear face) as the
   edge. If the plate should sit flush with the case panel instead, the board edge moves 1.5 mm (the plate thickness).
   Check with the block in hand and against the case panel cut-out.
-- Check before ordering: the ESP32-PICO-MINI-02 land pattern against the module you buy, pin 1 of J1 against the main
-  board's slot in KiCad's 3D viewer, and the card's 80 × 60 mm outline against the case.
+- **Pre-order pass (2026-10-05):**
+  - **No via in any pad.** 6 GND vias touched GND pads (C6 / C44, C7, JP2, U1 pad 14, J6 pins 3 / 5); removed, and
+    `gen_pcb.py --stitch` re-run with the fixed `stitch()` (it no longer treats big GND pads as free space, its island
+    and fallback vias check pads too, and it no longer falls back to a via in a pad). 658 vias, every GND pad still
+    reaches the In1 plane, DRC unchanged.
+  - **Pins against the datasheets:** ESP32-PICO-MINI-02 pins 1–53 against Espressif's pin table (datasheet v1.7,
+    Figure 3) and the footprint against its recommended land pattern (Figure 14: 0.8 mm pitch, 12.6 / 11.0 and
+    10.6 / 9.0 mm pad spans, corner pads, 3 × 3 1.45 mm centre pads over 5.4 mm, 13.2 × 16.6 mm outline, 5.4 mm antenna
+    keep-out); PCM1808 (TI SLES177B pin table; MD0 / MD1 low = slave, FMT low = I2S; VREF 100n + 10u); PCM5102A (TI pin
+    table; SCK low = internal PLL, FMT low = I2S, LDOO 100n as TI asks); MCP2562; OPA2376 (standard dual pinout, B as a
+    buffer); AMS1117 (1 GND, 2 / tab out, 3 in); 74LVC125 (1 / 4 / 10 / 13 OE, BCK / WS / ADC data / MCLK onto LINK0 /
+    1 / 2 / 4); J1 against the slot pinout and DigiDash2's J31–J36; the RCA block against Switchcraft's PC board layout
+    (tips ±3.25 / ±10.75 mm at 12.5 mm, sleeves -3.25 / +10.75 at 5.25 mm, plate slots ±13.15 at 8.75 mm, 1.3 / 1.5 mm
+    holes). All match.
+  - **BOM complete:** every line of `fab/AudioCarrier_BOM_PCBWay.csv` has a maker and part number (Samsung MLCCs, Yageo
+    RC0603FR resistors, Murata BLM18KG601SN1D beads, Sullins PRPC005SAAN-RC for J10).
+  - **Still open:** J6's pin functions (below; a meter on the real jack), the RCA plate edge line (above), and the
+    card's 80 × 60 mm outline against the case.
 
 ## Things to know
 

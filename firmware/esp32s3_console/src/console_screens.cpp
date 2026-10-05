@@ -161,7 +161,7 @@ void ConsoleUi::draw_trip(OledGfx &g) {
   snprintf(c[2][0], 24, "RANGE");
   if (fresh && _s.econ) snprintf(c[2][1], 24, "%d", (int)(_s.dte + 0.5f));
   else snprintf(c[2][1], 24, "---");
-  if (fresh) snprintf(c[2][2], 24, "MI \xC2\xB7 %.1f GAL", _s.fuel / 100 * _s.tank);
+  if (fresh) snprintf(c[2][2], 24, "MI \xC2\xB7 %.1f GAL", _s.fuel / 100 * tank_gal());
   else snprintf(c[2][2], 24, "MI \xC2\xB7 -- GAL");
   for (int i = 0; i < 3; i++) {
     const int x = 6 + i * 80;

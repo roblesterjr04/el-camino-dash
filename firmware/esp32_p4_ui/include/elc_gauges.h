@@ -46,7 +46,7 @@ struct GaugeData {
   bool econ_valid = false;
   float mpg_avg = 0, mpg_inst = 0;
   float dte_mi = 0;
-  float tank_gal = 20;
+  float tank_gal = 20;    // gallons; the sensor card's Tank capacity when it has sent one (gauge_fill_sensors)
 
   /** Wall time from GPS; when false the clock shows time since boot. */
   bool time_valid = false;
