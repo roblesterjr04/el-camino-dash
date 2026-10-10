@@ -52,7 +52,7 @@ node `0x10`).
 ### Console cable (J17)
 
 The console is its own board ([`ConsoleBoardRS/`](../../ConsoleBoardRS/)): an ESP32-S3 (its TWAI controller drives one
-MCP2562), the SSD1322 256×64 OLED on SPI and two RetroSound knobs on RJ11 jacks; no keys. One cable runs from it to **cable port J17**
+MCP2562), the SSD1322 256×64 OLED on SPI and two RetroSound knobs on RJ9 jacks; no keys. One cable runs from it to **cable port J17**
 on the DigiDash board, a through-hole JST PH 4-pin (S4B-PH-K) with the DroneCAN pin order (J22 is a second,
 spare cable port):
 

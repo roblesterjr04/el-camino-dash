@@ -140,14 +140,14 @@
   "value": "CAN to DigiDash"
  },
  "J4": {
-  "fp": "ConsoleBoardRS:RJ11_Wayconn_MJBA-640_Vertical",
+  "fp": "ConsoleBoardRS:RJ9_Molex_95522-2447_Vertical",
   "group": "ui",
-  "value": "Select knob (RJ11)"
+  "value": "Select knob (RJ9)"
  },
  "J5": {
-  "fp": "ConsoleBoardRS:RJ11_Wayconn_MJBA-640_Vertical",
+  "fp": "ConsoleBoardRS:RJ9_Molex_95522-2447_Vertical",
   "group": "ui",
-  "value": "Volume knob (RJ11)"
+  "value": "Volume knob (RJ9)"
  },
  "J6": {
   "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",

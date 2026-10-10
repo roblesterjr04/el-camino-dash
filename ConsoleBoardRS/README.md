@@ -2,13 +2,13 @@
 
 A variant of the [console board](../ConsoleBoard/) (CAN node `0x13`) for a housing **111.5 × 38.5 mm outside**, with
 the controls on two **RetroSound 258A-style knobs** (each an encoder with push, inside a ring that pushes left or
-right) on RJ11 cables instead of keys on the board. Same ESP32-S3, the same **SSD1322 256 × 64 OLED** module
+right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the same **SSD1322 256 × 64 OLED** module
 (100 × 33.5 mm) on the same 2 × 8 socket, CAN, USB-C and IR header; no keys and no key LEDs.
 
 | Files | |
 | --- | --- |
 | `ConsoleBoardRS.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 108.0 × 35.0 mm, 4 layers, parts on both sides. KiCad 10 |
-| `ConsoleBoardRS.pretty` | The MJBA-640 RJ11 footprint (Wayconn drawing MJBA-XXXXXX rev A). Everything else is stock KiCad |
+| `ConsoleBoardRS.pretty` | The Molex 95522-2447 RJ9 footprint (hole pattern not yet checked against the Molex drawing, see [Mechanics](#mechanics)). Everything else is stock KiCad |
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
 | `ConsoleBoardRS_BOM.csv`, `fab/` | BOM, Gerbers / drill, placement and centroid, PCBWay BOM |
 
@@ -32,16 +32,19 @@ right) on RJ11 cables instead of keys on the board. Same ESP32-S3, the same **SS
   centre, J1 a female 2 × 8 socket on the right-hand holes' line shifted 0.5 mm toward the edge, module pin *n* on
   socket pad 17 − *n*. Everything is moved 4 mm right (`MX`); `MY` = 0.
 - **Front** (module side): J1 and the four M2 holes, nothing else. **Back:** the ESP32 module (antenna on the top
-  edge), RESET / BOOT, USB-C, the CAN cable, the two RJ11 jacks, the IR header and all the passives. CAN (J3, under
+  edge), RESET / BOOT, USB-C, the CAN cable, the two RJ9 jacks, the IR header and all the passives. CAN (J3, under
   the ESP32), USB-C (J2) and the IR header (J6) are on the bottom edge; the two knob jacks (J4 Select, J5 Volume)
   face out of the back.
 - **CAN connector:** fit a **vertical** JST PH (B4B-PH-K) on J3's footprint: it has the same four holes and pads as the
   side-entry S4B-PH-K the footprint is named for, so the plug goes in from behind the board like the knob plugs.
-- **RJ11 jacks:** Wayconn MJBA-640 (6P4C, top entry), 13.46 × 16.38 mm on the board and 16.5 mm tall, on the back with
-  their openings facing away from the board: the plugs go in from behind, straight toward the board. Centre lines at
-  x = 58.0 and 74.0 mm (seen from the front); the bodies end 1 mm above the bottom edge. The drawing does not tie the
-  body to the holes, so the footprint takes it to start 1.75 mm before the first contact row and run back over the
-  pegs (courtyard 0.5 mm bigger all round): check this against a jack in hand.
+- **RJ9 jacks:** Molex 95522-2447 (4P4C, vertical / top entry, 16.25 mm tall, PCB locators), on the back with their
+  openings facing away from the board: the plugs go in from behind, straight toward the board. Centre lines at
+  x = 57.0 and 75.0 mm (seen from the front); the bodies end 1 mm above the bottom edge. **The footprint is not yet
+  checked against the Molex drawing** (955222447_sd): the 1.27 mm stagger is Molex's, but the rest is the usual
+  vertical modular-jack pattern (contacts in two rows 2.54 apart, 0.90 mm holes, two 3.25 mm pegs 10.16 apart and
+  6.35 beyond the second row), and the body is a 15.24 × 16.64 mm envelope (the series' 8P8C body; the 4P4C one is
+  narrower) taken to start 1.75 mm before the first contact row. Check the holes against the drawing or a jack in
+  hand before ordering boards, then fix `gen_footprints.py` (and `RJ_BODY` in `gen_pcb.py`) and regenerate.
 
 ## Schematic blocks
 
@@ -49,15 +52,15 @@ As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, 
 
 | Block | Parts | Notes |
 | --- | --- | --- |
-| Knobs | J4 Select, J5 Volume: RJ11 6P4C top-entry jacks; contacts 2 and 5 to GND, 3 and 4 to ADC1 with a 33k pull-up + 10 nF each | See [Knobs](#knobs-rj11) |
+| Knobs | J4 Select, J5 Volume: RJ9 4P4C top-entry jacks; contacts 1 and 4 to GND, 2 and 3 to ADC1 with a 33k pull-up + 10 nF each | See [Knobs](#knobs-rj9) |
 | Keys, LEDs | None | Back / View, the four key LEDs, Q1 and their resistors are gone |
 
 ### Pins
 
 | ESP32 GPIO | Signal | ESP32 GPIO | Signal |
 | --- | --- | --- | --- |
-| 12 / 11 / 10 | OLED SCK / MOSI / CS | 1 / 2 | Select knob, jack contacts 3 / 4 (ADC1) |
-| 9 / 8 | OLED D/C / RST | 4 / 7 | Volume knob, jack contacts 3 / 4 (ADC1) |
+| 12 / 11 / 10 | OLED SCK / MOSI / CS | 1 / 2 | Select knob, jack contacts 2 / 3 (ADC1) |
+| 9 / 8 | OLED D/C / RST | 4 / 7 | Volume knob, jack contacts 2 / 3 (ADC1) |
 | 5 / 6 | CAN TX / RX | 39 | IR in |
 | 19 / 20 | USB D- / D+ | | |
 
@@ -65,19 +68,19 @@ GPIO 13-18, 21, 38, 47 and 48 are free. The console firmware
 ([`firmware/esp32s3_console/`](../firmware/esp32s3_console/README.md)) reads the knobs on the ADC and draws two
 soft-key labels in the screen's bottom corners, used with the right knob's ring (left / right).
 
-## Knobs (RJ11)
+## Knobs (RJ9)
 
 The knobs are RetroSound 258A-style dual controls (inner encoder with push, outer three-position ring), measured in
-[gpiozero discussion #1119](https://github.com/gpiozero/gpiozero/discussions/1119). Each has a 4-wire RJ11 lead:
+[gpiozero discussion #1119](https://github.com/gpiozero/gpiozero/discussions/1119). Each has a 4-wire RJ9 (4P4C) lead:
 
 | Jack contact | Wire | Inside the knob |
 | --- | --- | --- |
-| 2 | Black | Ground |
-| 3 | Red | Encoder: to ground through open, 82k, 30k (82k ∥ 47k), 47k, open as it turns one way (the reverse the other way). Open and 30k are the detents, so it is a 2-bit Gray code with two steps per detent |
-| 4 | Green | Switches: open (none), 6.8k (outer ring left), 22k (outer ring right), 0 Ω (inner push) |
-| 5 | Yellow | Ground (0 Ω to black inside the knob, so never power it) |
+| 1 | Black | Ground |
+| 2 | Red | Encoder: to ground through open, 82k, 30k (82k ∥ 47k), 47k, open as it turns one way (the reverse the other way). Open and 30k are the detents, so it is a 2-bit Gray code with two steps per detent |
+| 3 | Green | Switches: open (none), 6.8k (outer ring left), 22k (outer ring right), 0 Ω (inner push) |
+| 4 | Yellow | Ground (0 Ω to black inside the knob, so never power it) |
 
-Contacts 3 and 4 each have a 33k pull-up to 3.3 V and 10 nF to ground, and go to ADC1 (12 dB attenuation). The
+Contacts 2 and 3 each have a 33k pull-up to 3.3 V and 10 nF to ground, and go to ADC1 (12 dB attenuation). The
 levels:
 
 | Green | Volts | Red | Volts |
