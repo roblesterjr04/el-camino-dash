@@ -2,8 +2,8 @@
 
 The dash's main board, redrawn per [`docs/hardware/digidash_rev2_plan.md`](../docs/hardware/digidash_rev2_plan.md):
 
-- all SMD except connectors, on both sides: the video decoder and screen transceivers on the front (under the
-  screens), power, AUX 12 V and every connector on the back
+- all SMD except connectors, every SMD part on the back (single-sided assembly); only the three screen headers are on
+  the front
 - the sensor pack is **a slot card** ([`SensorCard/`](../SensorCard)), not part of this board: it talks to the screens on
   CAN, and its serial line can reach them through **J27** on a jumper wire (the old UART fan-out, kept as a fallback)
 - the TVP5150AM1 video decoder on the board
@@ -18,6 +18,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | `DigiDash2.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 309.2 × 103.7 mm (rev 1's outline), 4 layers. KiCad 10 |
 | `DigiDash2.pretty` | The RCA jack footprint (video input). Everything else is stock KiCad or `DigiDash_Accessory` |
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
+| `fab/DigiDash2_BOM_PCBWay.csv` | The assembler's BOM: the 154 placed parts with maker and part number (`$KIPY generate/gen_bom.py`) |
 
 ## What is on it
 
@@ -63,9 +64,8 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
 
 - **Layers:** F signal, In1 solid GND, In2 solid +5 V, B signal. Every SMD GND and +5 V pad has its own via to its plane.
   The F and B ground pours are stitched to In1.
-- **Sides:** the buck and its loop, the AUX path, tall parts and all connectors stay on the back. The video decoder
-  and the screen transceivers are on the front. Each passive goes on the side of
-  the chip pin it connects to.
+- **Sides:** every SMD part is on the back, so the board is assembled from one side. Only the three screen headers
+  (J1, J4, J5) are on the front.
 - **Rules:** 0.2 mm tracks and 0.13 mm clearance by default. 0.4 mm for 3.3 / 1.8 V, 0.8 mm for the 12 V nets, 1.5 mm
   for the buck's switch node, 2.0 mm with 0.3 mm clearance for the AUX 12 V path, 0.25 mm with 0.2 mm clearance for the video input. Vias 0.6 / 0.3 mm (0.8 / 0.4 on the
   wide nets). These are standard 4-layer rules at JLCPCB / PCBWay.
@@ -80,13 +80,19 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
 
 ## Status
 
-**Placed and fully routed** (2026-10-02, with the anti-alias filter footprints). One Freerouting run (120 passes) plus
-the finisher, with no hand joins. DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing
-unconnected, parity clean.** What is left is 52 silkscreen warnings (reference text at the edge, over pads, one
-overlap). 1951 track segments and 1546 vias (1392 of them GND). 69 parts on the front, 115 on the back. Fab outputs are
-in `fab/` (`python3 ../tools/fab_export.py DigiDash2`); the not-fitted parts (C42, C43) are left out of the placement
-files. (Run in a container without KiCad's global library table, DRC also lists 177 "library not in the configuration"
-notes; they are about the environment, not the board.)
+**Placed and fully routed, single-sided assembly** (2026-10-05). Every SMD part is on the back; only the three screen
+headers (J1, J4, J5) are on the front. One Freerouting run (120 passes) left one `+1V8` link open at U8; the finisher
+with rip-up (`DIGIDASH_RIPUP=1 $KIPY generate/gen_pcb.py --finish`) closed it. Then a 3 mm dead-end stub on `CL_SDA`
+(left by the rip-up, near x 149, y 85) was trimmed by hand. DRC (`generate/drc.py`, with the schematic parity
+check): **no errors, nothing unconnected, parity clean.** What is left: 56 silkscreen warnings (reference text at the
+edge, over pads, overlaps), and one 7 µm dangling sliver where the pre-drawn `VID_AIP1A` route meets the routed track
+(physically nothing; trimming it exposes the pre-drawn route, so it stays). 1872 track segments and 1491 vias (1352 of
+them GND). 3 parts on the front, 181 on the back. Fab outputs are in `fab/` (`python3 ../tools/fab_export.py
+DigiDash2`); the not-fitted parts (C42, C43) and the through-hole parts are left out of the placement files. (Run in a
+container without KiCad's global library table, DRC also lists 177 "library not in the configuration" notes; they
+are about the environment, not the board.)
+
+The two-sided version (69 parts on the front), routed and DRC-clean, is at commit `af4628e`.
 
 How it got there, in case a re-run differs:
 - **Sensor pack removed, slots widened.** The first route after the sensor pack left (slots still at 20.32 mm) left
@@ -97,7 +103,10 @@ How it got there, in case a re-run differs:
   itself, Freerouting took `VID_ATT` 80–150 mm round J1. The post-route checks now keep each net class's own clearance.
   YOUT4 / YOUT5 also leave the pin row as a pre-drawn pair, and the RESETB pull-up (R39) is fixed on the back. In one
   run the two data lines boxed each other in, with R39 on the front right under the pins.
-- **U8 (TVP5150) is at x 132,** on the front between slot 5's and slot 6's socket pins. A fixed part's spot is not
+- **Single-sided (2026-10-05).** Every SMD part moved to the back. U8 (TVP5150) is mirrored there (analog side east, data
+  pins toward J1), and the video input chain sits between J1's east end and the RCA jack. The center screen's
+  sensor-serial divider is fixed under J1 pin 15: left to the placer it was walled in between slots 4 and 5.
+- **U8 (TVP5150) is at x 132,** on the back between slot 5's and slot 6's socket pins. A fixed part's spot is not
   checked against the other side's through-hole pins, so keep that in mind when moving anything near the slots.
 
 ## Provisional (move with the bezel)
@@ -111,7 +120,7 @@ How it got there, in case a re-run differs:
 The TVP5150AM1 circuit was checked line by line against TI SLES209E (2026-10-02):
 
 - **Matches the datasheet:** the pinout; the I2C address strap (YOUT7 10k down: 0xB8 / 7-bit 0x5C); the INTREQ 10k pull-down that TI
-  requires when the pin is disabled; the 14.31818 MHz crystal with 18 pF loads and 100k across it; the 1 µF REFP / REFM / REFP–REFM caps;
+  requires when the pin is disabled; the 14.31818 MHz crystal and 100k across it (load caps 27 pF since 2026-10-05, for the Abracon ABM8's 18 pF CL); the 1 µF REFP / REFM / REFP–REFM caps;
   the 37.4 Ω + 37.4 Ω termination with 0.1 µF coupling (and AIP1B to ground through 0.1 µF); PDN held high; the supplies
   (3.3 V I/O, 1.8 V core through a ferrite for the analog side) with a 0.1 µF at every supply pin. The center firmware's
   register writes (composite on AIP1A, auto standard, BT.656 8-bit with embedded syncs, outputs on) and its chip-ID check

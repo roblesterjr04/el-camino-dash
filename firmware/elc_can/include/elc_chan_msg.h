@@ -108,7 +108,8 @@ bool elc_input_decode(const ElcChTransfer &t, ElcInputEncoder &v);
 static const uint8_t ELC_AUDIO_STATUS = 0x01, ELC_AUDIO_DONE = 0x02, ELC_AUDIO_GRANT = 0x03, ELC_AUDIO_NOW = 0x04,
                      ELC_AUDIO_PLAY = 0x81, ELC_AUDIO_STOP = 0x82, ELC_AUDIO_VOLUME = 0x83, ELC_AUDIO_MEDIA = 0x84,
                      ELC_AUDIO_SOURCE = 0x87;
-static const uint8_t ELC_AUDIO_F_MUTED = 1, ELC_AUDIO_F_PLAYING = 2, ELC_AUDIO_F_DUCKED = 4;
+static const uint8_t ELC_AUDIO_F_MUTED = 1, ELC_AUDIO_F_PLAYING = 2, ELC_AUDIO_F_DUCKED = 4,
+                     ELC_AUDIO_F_AUX = 8;  // the sink has an aux input (source 3 can be chosen)
 static const uint8_t ELC_MEDIA_TOGGLE = 1, ELC_MEDIA_PLAY = 2, ELC_MEDIA_PAUSE = 3, ELC_MEDIA_NEXT = 4, ELC_MEDIA_PREV = 5,
                      ELC_MEDIA_TUNE_UP = 6, ELC_MEDIA_TUNE_DOWN = 7, ELC_MEDIA_PRESET_NEXT = 8, ELC_MEDIA_PRESET_PREV = 9,
                      ELC_MEDIA_PRESET_STORE = 10, ELC_MEDIA_SEEK_UP = 11, ELC_MEDIA_SEEK_DOWN = 12,
@@ -144,6 +145,18 @@ bool elc_audio_decode(const ElcChTransfer &t, ElcAudioPlay &v);
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioStop &v);
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioVolume &v);
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioMedia &v);
+
+// The audio sink's UI page has fixed item numbers (can_channels.md, AUDIO_CMD, "The sink's page"), so the console's
+// Sound page and Equalizer screen can find them, as it finds the radio's presets. Fader and balance -10..10; the
+// bands -12..+12 dB at the ISO octave centres (elc_eq_band_label); the preset a choice of ELC_EQ_PRESETS.
+static const uint8_t ELC_SINK_ITEM_CHIME_VOL = 0, ELC_SINK_ITEM_FADER = 1, ELC_SINK_ITEM_BALANCE = 2,
+                     ELC_SINK_ITEM_EQ = 3, ELC_SINK_ITEM_EQ_PRESET = 4, ELC_SINK_ITEM_EQ_BAND0 = 5;
+static const int ELC_EQ_BANDS = 10, ELC_EQ_MAX_DB = 12;
+/** The presets in choice order; Custom (the last) is the user's own curve. */
+#define ELC_EQ_PRESETS "Flat\nBass\nTreble\nVocal\nRock\nJazz\nCustom"
+static const uint8_t ELC_EQ_PRESET_FLAT = 0, ELC_EQ_PRESET_CUSTOM = 6;
+/** "31", "62", "125", ... "16k": band i's centre, short enough for a label under a bar. */
+const char *elc_eq_band_label(int i);
 
 // ---- UI (0x260 + node) ----
 static const uint8_t ELC_UI_ITEM = 0x01, ELC_UI_VALUE = 0x02, ELC_UI_TEXT = 0x03, ELC_UI_RESULT = 0x04,

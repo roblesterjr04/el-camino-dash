@@ -1,7 +1,7 @@
 // Host render of the console OLED: feeds the console's UI the CAN frames of a bench scenario and writes the
 // 256×64 grey frame as a PGM (levels 0..15 scaled to 0..255). Usage: render <scenario> <theme 0|1|2> <out.pgm>
 // Scenarios: media media-low radio hints presets trip engine clock menu menu-phone menu-display edit menu-radio source alert
-// call-in call-active pair volume toast nophone waiting reverse boot
+// call-in call-active pair volume toast nophone waiting reverse boot sound eq eq-edit aux
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -109,6 +109,63 @@ static void channels(bool radio_source) {
   }
   deliver(s_sink_out);
   deliver(s_radio_out);
+}
+
+/** The audio card's page (sink.cpp): chime volume, fader, balance, and the Equalizer on a Custom curve. */
+static void sink_page(uint8_t source) {
+  std::vector<ElcUiItem> items;
+  auto add = [&](uint8_t n, uint8_t parent, uint8_t kind, int lo, int hi, const char *label, const char *unit, const char *opt) {
+    ElcUiItem it;
+    it.item = n;
+    it.parent = parent;
+    it.kind = kind;
+    it.flags = kind == ELC_UI_GROUP ? 0 : ELC_UI_F_SETTING;
+    it.min = lo;
+    it.max = hi;
+    it.step = 1;
+    snprintf(it.label, 33, "%s", label);
+    snprintf(it.unit, 9, "%s", unit);
+    snprintf(it.options, 160, "%s", opt);
+    items.push_back(it);
+  };
+  add(ELC_SINK_ITEM_CHIME_VOL, ELC_UI_TOP, ELC_UI_NUMBER, 1, 15, "Chime volume", "", "");
+  add(ELC_SINK_ITEM_FADER, ELC_UI_TOP, ELC_UI_NUMBER, -10, 10, "Fader", "R-F", "");
+  add(ELC_SINK_ITEM_BALANCE, ELC_UI_TOP, ELC_UI_NUMBER, -10, 10, "Balance", "L-R", "");
+  add(ELC_SINK_ITEM_EQ, ELC_UI_TOP, ELC_UI_GROUP, 0, 0, "Equalizer", "", "");
+  add(ELC_SINK_ITEM_EQ_PRESET, ELC_SINK_ITEM_EQ, ELC_UI_CHOICE, 0, 6, "Preset", "", ELC_EQ_PRESETS);
+  for (int b = 0; b < ELC_EQ_BANDS; b++) add((uint8_t)(ELC_SINK_ITEM_EQ_BAND0 + b), ELC_SINK_ITEM_EQ, ELC_UI_NUMBER, -12, 12,
+                                             elc_eq_band_label(b), "dB", "");
+  for (auto &it : items) {
+    ElcChWriter w;
+    elc_ui_encode(it, w);
+    s_sink.send(ELC_CH_UI, w);
+  }
+  const int curve[10] = {6, 5, 3, 0, -2, -3, -1, 2, 4, 5};
+  std::vector<ElcUiValue> vals = {{ELC_SINK_ITEM_CHIME_VOL, 8}, {ELC_SINK_ITEM_FADER, 2}, {ELC_SINK_ITEM_BALANCE, 0},
+                                  {ELC_SINK_ITEM_EQ_PRESET, ELC_EQ_PRESET_CUSTOM}};
+  for (int b = 0; b < ELC_EQ_BANDS; b++) vals.push_back({(uint8_t)(ELC_SINK_ITEM_EQ_BAND0 + b), curve[b]});
+  for (auto &v : vals) {
+    ElcChWriter w;
+    elc_ui_encode(v, w);
+    s_sink.send(ELC_CH_UI, w);
+  }
+  ElcChWriter w;
+  elc_audio_encode(ElcAudioStatus{60, (uint8_t)(2 | ELC_AUDIO_F_AUX), 0, 0, 15, source, 0x14}, w);
+  s_sink.send(ELC_CH_AUDIO_CMD, w);
+  deliver(s_sink_out);
+}
+
+/** The menu row labelled `label`: the right knob turns to it and pushes. */
+static void pick(const char *label) {
+  const ConsoleRow *rows = nullptr;
+  const int n = ui.menu_rows(&rows);
+  for (int i = 0; i < n; i++) {
+    if (!strcmp(rows[i].label, label)) {
+      ui.right_turn(i - ui.menu_sel(), T);
+      ui.right_click(T);
+      return;
+    }
+  }
 }
 
 static void center(uint8_t theme) {
@@ -228,7 +285,9 @@ int main(int argc, char **argv) {
   if (!strcmp(sc, "media-low")) phone_idle(1, 1);
   const bool radio_src = !strcmp(sc, "radio") || !strcmp(sc, "hints") || !strcmp(sc, "menu-radio") || !strcmp(sc, "presets") ||
                          !strcmp(sc, "menu") || !strcmp(sc, "source");
-  if (radio_src || !strcmp(sc, "menu-phone")) channels(radio_src);
+  const bool sound = !strcmp(sc, "sound") || !strcmp(sc, "eq") || !strcmp(sc, "eq-edit") || !strcmp(sc, "aux");
+  if (radio_src || !strcmp(sc, "menu-phone") || sound) channels(radio_src);
+  if (sound) sink_page(!strcmp(sc, "aux") ? ELC_SRC_AUX : ELC_SRC_BLUETOOTH);
   ui.tick(T);
   const auto step = [&](uint32_t ms) {
     T += ms;
@@ -270,6 +329,12 @@ int main(int argc, char **argv) {
     feed(f);
   }
   if (!strcmp(sc, "source")) { ui.left_hold(T); T += 300; }
+  if (!strcmp(sc, "sound")) { ui.right_click(T); pick("Sound"); step(100); }
+  if (!strcmp(sc, "eq") || !strcmp(sc, "eq-edit")) {
+    ui.right_click(T); pick("Sound"); pick("Equalizer"); ui.right_turn(7, T);
+    if (!strcmp(sc, "eq-edit")) { ui.right_click(T); ui.right_turn(3, T); }
+    step(100);
+  }
   if (!strcmp(sc, "pair")) {
     ElcCanPhoneStatus ps;
     ps.flags = (uint8_t)(ELC_CAN_PHONE_PAIRING | ELC_CAN_PHONE_CONFIRM);

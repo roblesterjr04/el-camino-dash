@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -296,6 +297,70 @@ void ConsoleUi::draw_presets(OledGfx &g, uint32_t t) {
   }
 }
 
+/** The media page while aux in is the source: nothing to show but that it plays (and whether it is muted). */
+void ConsoleUi::draw_aux(OledGfx &g, uint32_t t) {
+  const bool muted = _st_ms && (_st.flags & ELC_AUDIO_F_MUTED);
+  g.rrect(4, 4, 48, 48, 4, 5);
+  g.text("AUX", 28, 33, font('m'), muted ? 6 : 12, TextAlign::Center);
+  g.text("Aux in", 62, 24, font('m'), 15);
+  g.text(muted ? "Muted \xC2\xB7 push the volume knob" : "The audio card's line input", 62, 40, font('s'), muted && blink(t, 600) ? 15 : 7,
+         TextAlign::Left, 186);
+}
+
+/** The audio card's Equalizer: ten bars on a 0 dB line, the band highlighted by the right knob, its gain at the top
+ *  right. Push edits it (heard as it turns); Presets (the ring right) opens the preset list. */
+void ConsoleUi::draw_eq(OledGfx &g, uint32_t t) {
+  const Level &L = _stack[_depth];
+  const bool edit = _mode == ConsoleMode::Edit && _edit_id == kREqBand;
+  char title[48] = "EQUALIZER";
+  if (const AccItem *pr = accessory_can_item(L.node, ELC_SINK_ITEM_EQ_PRESET)) {
+    if (pr->has_value) {
+      char p[24];
+      accessory_can_value_text(*pr, p, sizeof(p));
+      snprintf(title, sizeof(title), "EQUALIZER \xC2\xB7 %s", p);
+      for (char *c = title; *c; c++) *c = (char)(*c >= 'a' && *c <= 'z' ? *c - 32 : *c);
+    }
+  }
+  g.text(edit ? "TURN TO CHANGE \xC2\xB7 PUSH OK" : title, 4, 8, TINY, edit ? 10 : 6, TextAlign::Left, 170);
+  const int sel = L.sel;
+  int sel_db = 0;
+  const bool sel_have = edit ? true : eq_band(sel, &sel_db);
+  if (edit) sel_db = _edit_val;
+  char v[24];
+  const char *f = elc_eq_band_label(sel);
+  const int fl = (int)strlen(f);
+  if (sel_have && f[fl - 1] == 'k') snprintf(v, sizeof(v), "%.*s kHz  %+d dB", fl - 1, f, sel_db);
+  else if (sel_have) snprintf(v, sizeof(v), "%s Hz  %+d dB", f, sel_db);
+  else snprintf(v, sizeof(v), "--");
+  g.text(v, 252, 8, TINY, edit ? 15 : 11, TextAlign::Right);
+  // the bars: 0 dB at y 30, 12 dB = 17 px; grid lines at +-6 and +-12
+  const int zero = 30, span = 17, x0 = 6;
+  const float step = 244.0f / ELC_EQ_BANDS;
+  static const int kGrid[4] = {-12, -6, 6, 12};
+  for (int d : kGrid) {
+    const int y = zero - d * span / ELC_EQ_MAX_DB;
+    for (int x = x0; x < x0 + 244; x += 4) g.box(x, y, 1, 1, 2);
+  }
+  g.box(x0, zero, 244, 1, 4);
+  for (int b = 0; b < ELC_EQ_BANDS; b++) {
+    const int cx = x0 + (int)lroundf(step * b + step / 2);
+    const bool on = b == sel;
+    int db = 0;
+    const bool have = (on && edit) ? true : eq_band(b, &db);
+    if (on && edit) db = _edit_val;
+    if (on) g.rbox(cx - 11, 11, 22, 38, 3, edit ? 2 : 3);
+    if (have && db) {
+      const int h = abs(db) * span / ELC_EQ_MAX_DB;
+      const int top = db > 0 ? zero - h : zero + 1;
+      g.box(cx - 6, top, 13, h ? h : 1, on ? 15 : 9);
+    } else if (have) {
+      g.box(cx - 6, zero - 1, 13, 3, on ? 15 : 9);  // flat: a small cap on the line
+    }
+    if (on && edit && blink(t, 350)) g.rrect(cx - 11, 11, 22, 38, 3, 15);
+    g.text(elc_eq_band_label(b), cx, 54, TINY, on ? 15 : 6, TextAlign::Center);
+  }
+}
+
 void ConsoleUi::draw_page(OledGfx &g, int page, uint32_t t) {
   switch (page) {
     case kPageMedia:
@@ -306,6 +371,8 @@ void ConsoleUi::draw_page(OledGfx &g, int page, uint32_t t) {
         g.text("Push the volume knob", 62, 40, font('s'), 6, TextAlign::Left, 180);
       } else if (radio_is_source(t)) {
         draw_radio(g, t);
+      } else if (aux_is_source(t)) {
+        draw_aux(g, t);
       } else {
         draw_media(g, t);
       }
@@ -323,6 +390,10 @@ void ConsoleUi::draw_menu(OledGfx &g, uint32_t t) {
                                          "ACCESSORIES", "", "", "CONFIRM"};
   build_rows();
   Level &L = _stack[_depth];
+  if (L.page == kMEq) {
+    draw_eq(g, t);
+    return;
+  }
   const int rowH = 15, y0 = 10;
   if (L.sel < L.top) L.top = L.sel;
   if (L.sel > L.top + 2) L.top = L.sel - 2;

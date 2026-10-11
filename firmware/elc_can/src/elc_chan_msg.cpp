@@ -246,6 +246,11 @@ bool elc_audio_decode(const ElcChTransfer &t, ElcAudioMedia &v) {
   v.value = r.left() ? r.u8() : 0;
   return true;
 }
+const char *elc_eq_band_label(int i) {
+  static const char *const kLabel[ELC_EQ_BANDS] = {"31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"};
+  return i >= 0 && i < ELC_EQ_BANDS ? kLabel[i] : "";
+}
+
 bool elc_audio_decode(const ElcChTransfer &t, ElcAudioNow &v) {
   ElcChReader r(nullptr, 0);
   if (!open(t, ELC_CH_AUDIO_CMD, ELC_AUDIO_NOW, r)) return false;

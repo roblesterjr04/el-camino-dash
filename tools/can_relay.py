@@ -20,7 +20,8 @@ will (docs/protocols/can_channels.md): heartbeat, NET ANNOUNCE / QUERY / IDENTIF
 
     radio   AM/FM radio card, slot 2, node 0x15 (tools/radio_sim.py): its UI page, signal and SNR, RAIL, MEDIA
     audio   audio card, slot 1, node 0x14 (tools/cards_sim.py, the rest too): AUDIO_CMD STATUS, sounds, volume,
-            media keys, RET arbitration, Source / Volume / Fader / Balance page
+            media keys, sources (aux in too), RET arbitration, its page (chime volume, fader, balance, the Equalizer).
+            It goes quiet by itself when a real audio sink announces (the audio card's firmware, or a DevKit bridge)
     gps     GPS card, slot 3, node 0x16: speed (following the simulated drive), heading, altitude, satellites
     lte     LTE gateway, slot 4, node 0x17: GATEWAY STATUS, ONLINE place, weather, time zone, a message
     voice   AI voice card, slot 5, node 0x18: asks for RET and speaks on ':voice say'
@@ -37,8 +38,8 @@ Typing:
     :sensors on|off      the simulated drive;  :time on|off   the clock
     :sim list            the simulated cards;  :sim on|off CARD  (off: the card goes silent; on: it boots again)
     :radio               status | on | off | source on|off | tune 98.3 | seek up|down
-    :audio               status | source bt|radio | volume 0-100 | mute | play SOUND [PRIORITY] [REPEAT] | stop |
-                         media play|next|prev
+    :audio               status | source bt|radio|aux|off | volume 0-100 | mute | play SOUND [PRIORITY] [REPEAT] |
+                         stop | media play|next|prev | eq PRESET | band N DB
     :gps                 status | fix on|off
     :lte                 status | message [text] | refresh | offline | online
     :voice               status | say [text]
@@ -748,10 +749,10 @@ def _test() -> None:
     wait(lambda: voice.state == "speaking" and audio.holder == 0x18 and radio.rail == 0, 1.0, "the voice card speaks")
     wait(lambda: voice.state == "idle" and audio.holder == 0x15 and radio.rail == 2, 6.5, "RET back to the radio")
     # a SET from the center reaches the audio card; RESULT and VALUE go to the board
-    for f in transfer_frames(struct.pack("<BBBi", 0x81, 0x14, 1, 64), 9):
+    for f in transfer_frames(struct.pack("<BBBi", 0x81, 0x14, 1, 4), 9):  # item 1: Fader
         relay.frame(board, CH_UI + 0x01, f)  # type: ignore
     wait(lambda: any(r == bytes([0x04, 1, 0, 0x01]) for r in board.transfers(CH_UI, 0x14, 0x04)), 1.0, "RESULT")
-    assert audio.volume == 64
+    assert audio.fader == 4
     # next on the console with Source = Radio: the audio card forwards MEDIA, the radio seeks
     for f in transfer_frames(bytes([0x01, 17, 1, 1]), 1):
         relay.frame(board, 0x040 + 0x13, f)  # type: ignore

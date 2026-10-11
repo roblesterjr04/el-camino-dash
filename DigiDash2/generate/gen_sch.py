@@ -506,7 +506,7 @@ cur[0] = Block('video', 3, 'VIDEO: composite (J11) -> TVP5150AM1 -> 8-bit BT.656
                'same J1 pins as rev 1\'s module. I2C on the cluster bus, address 0x5C (YOUT7 pulled down). TI SLES209E figure 6-1.')
 place(COAX, 'J11', 'Video in', 'DigiDash2:RCA_RCJ-02x_FaceMount', {'1': 'VIDEO_IN', '2': 'GND'},
       descr='Composite video from the backup camera (RCA, Same Sky RCJ-02x)')
-place(DZ, nid('D'), 'PESD5V0S1BL', 'Diode_SMD:D_SOD-323', {'1': 'VIDEO_IN', '2': 'GND'}, descr='Video input ESD')
+place(DZ, nid('D'), 'PESD5V0S1BA', 'Diode_SMD:D_SOD-323', {'1': 'VIDEO_IN', '2': 'GND'}, descr='Video input ESD')
 # anti-aliasing filter (TI note F: "highly recommended for best video quality"), not fitted as delivered: a 3rd-order
 # Butterworth C-L-C at 75 R (the camera's source and the 37.4 + 37.4 termination), cutoff 9 MHz: about 0.1 dB down at
 # 5 MHz, about 24 dB at 22.5 MHz (what folds back into the picture at the 27 MHz sample rate). C = 1 / (2 pi f 75) =
@@ -529,9 +529,9 @@ place(TVP, 'U8', 'TVP5150AM1IPBS', 'Package_QFP:TQFP-32_5x5mm_P0.5mm', {
     '21': 'CL_SCL', '22': 'CL_SDA'}, descr='Video decoder')
 r_('22', 'VID_SCLK', 'V_PCLK', 'Pixel clock series (edge damping)')
 place(XTAL, 'Y3', '14.31818MHz', FP_XTAL, {'1': 'VID_XTAL1', '2': 'GND', '3': 'VID_XTAL2', '4': 'GND'},
-      descr='14.31818 MHz, +/-50 ppm, fundamental')
-c_('18p', 'VID_XTAL1', 'GND', 'Y3 load (2 CL - Cstray)')
-c_('18p', 'VID_XTAL2', 'GND', 'Y3 load')
+      descr='14.31818 MHz, +/-50 ppm, fundamental')   # Abracon ABM8-14.31818MHZ-B2-T: CL 18 pF, so 27p load caps
+c_('27p', 'VID_XTAL1', 'GND', 'Y3 load (2 CL - Cstray)')
+c_('27p', 'VID_XTAL2', 'GND', 'Y3 load')
 r_('100k', 'VID_XTAL1', 'VID_XTAL2', 'Across the crystal (TI note E)')
 c_('1u', 'VID_REFP', 'GND', 'REFP (C1)')
 c_('1u', 'VID_REFM', 'GND', 'REFM (C2)')

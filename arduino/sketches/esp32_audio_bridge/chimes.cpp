@@ -1,5 +1,7 @@
 #include "chimes.h"
 
+#include "audio_dsp.h"
+
 #include <math.h>
 #include <string.h>
 
@@ -49,13 +51,8 @@ constexpr float kDuckLevel = 0.3f;     // music under an alert chime (about -10 
 constexpr float kDuckRampMs = 80.0f;
 constexpr float kOffLevel = 1e-4f;     // a strike below -80 dB is over
 
-// The chime volume uses the master volume's curve (A2DPDefaultVolumeControl, 0..15 mapped to its 0..127): 1.4^x over
-// 12 bits, so a step sounds the same on both.
-float volume_gain(uint8_t v_0_15) {
-  if (!v_0_15) return 0.0f;
-  const float zero = powf(1.4f, -12.0f);
-  return (powf(1.4f, 12.0f * v_0_15 / 15.0f - 12.0f) - zero) / (1.0f - zero);
-}
+// The chime volume uses the master volume's curve (dsp::volume_gain), so a step sounds the same on both.
+using dsp::volume_gain;
 
 constexpr int kLutBits = 10;
 float s_lut[(1 << kLutBits) + 1];

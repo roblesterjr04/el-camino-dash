@@ -361,7 +361,7 @@ class RadioSim(SimCard):
                 self.muted = False
 
     def heard(self, src: int, ntype: int, product: int) -> None:
-        if ntype == NODE_TYPE_SINK and product == PRODUCT_AUDIO_CARD and self.sink_node != src:
+        if ntype == NODE_TYPE_SINK and self.sink_node != src:  # the audio card (or a DevKit bridge as the sink)
             self.sink_node = src
             self.log(f"audio card heard at 0x{src:02x}")
             self.update_rail()

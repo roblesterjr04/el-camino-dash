@@ -1,10 +1,13 @@
 /*
  * esp32_audio_bridge.ino — in-dash Bluetooth media hub (ESP32 classic BT only)
  *
- * - A2DP sink: phone / portable player streams stereo audio over I2S to an external DAC/amp
- *   (BCK/WS/DOUT per I2S_PIN_*).
+ * - The audio sink (sink.*, audio_engine.*): one 48 kHz output that plays the source the console picks (Bluetooth,
+ *   the radio card's audio on the I2S rail's RET, aux in, or nothing) through the 10-band equaliser and the master
+ *   volume, with fader and balance across the front and rear DACs; AUDIO_CMD STATUS / SOURCE / VOLUME / MEDIA and
+ *   NET RAIL on CAN, and the card's page (chime volume, fader, balance, the Equalizer).
+ * - A2DP sink: phone / portable player streams stereo audio, resampled into the output (BCK/WS/DOUT per I2S_PIN_*).
  * - AVRCP 1.x: title, artist, album, track #, genre, duration (typical car-infotainment metadata).
- * - HFP hands-free: calls through the same DACs, microphone from the carrier's ADC (call_audio.*); pairing with
+ * - HFP hands-free: calls through the same DACs, microphone from the carrier's ADC (audio_engine.*); pairing with
  *   numeric comparison and the paired-phone list (phone.*). The console drives it over CAN (0x215); the serial
  *   console has the same commands for the bench (`help`).
  * - Alert chimes (chimes.*): AUDIO_CMD PLAY / STOP of the built-in sounds 2-4 (soft, caution, warning), mixed over the
@@ -33,7 +36,7 @@
 #include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
 #include "art_variants.h"
-#include "call_audio.h"
+#include "audio_engine.h"
 #include "chimes.h"
 #include "esp_avrc_api.h"
 #include "esp_bt.h"
@@ -49,6 +52,9 @@
 #define AUDIO_BRIDGE_CAN 1
 #else
 #define AUDIO_BRIDGE_CAN 0
+#endif
+#if AUDIO_BRIDGE_CAN
+#include "sink.h"
 #endif
 // Carrier pinout: CAN TX/RX to the carrier's transceiver, node straps (grounded = 1; open = 0 = node 0x10).
 #ifndef ELC_CAN_TX_PIN
@@ -100,6 +106,17 @@
 #endif
 #ifndef MIC_RIGHT_CHANNEL
 #define MIC_RIGHT_CHANNEL 0
+#endif
+// The audio card's rear DAC (I2S1 data out, a slave on BCK / WS), the I2S rail's RET in (I2S1 data in) and the rail
+// buffer's enable (low = on). -1 = not fitted (a DevKit: front only, no rail).
+#ifndef I2S_PIN_REAR_DOUT
+#define I2S_PIN_REAR_DOUT -1
+#endif
+#ifndef I2S_PIN_RET_DIN
+#define I2S_PIN_RET_DIN -1
+#endif
+#ifndef RAIL_ENABLE_PIN
+#define RAIL_ENABLE_PIN -1
 #endif
 #if AUDIO_BRIDGE_CAN && (I2S_PIN_DATA == ELC_CAN_TX_PIN || I2S_PIN_WS == ELC_CAN_TX_PIN || I2S_PIN_BCK == ELC_CAN_TX_PIN || \
                          I2S_PIN_DATA == ELC_CAN_RX_PIN || I2S_PIN_WS == ELC_CAN_RX_PIN || I2S_PIN_BCK == ELC_CAN_RX_PIN)
@@ -177,38 +194,29 @@ static void set_playing_unlocked(bool playing) {
   s_pos_anchor_ms = millis();
 }
 
-/* The I2S stream and the sink are created in setup(), not as globals: their constructors allocate
- * through audio-tools' global allocator, which lives in another file and may not be constructed yet
- * (static init order) — as globals they crashed at boot with LoadProhibited in Allocator::allocate. */
-static I2SStream *audio_output = nullptr;
-static CallGateStream *a2dp_output = nullptr;  // A2DP's way to audio_output, closed while a call owns I2S0
+/* The A2DP input and the sink are created in setup(), not as globals: their constructors allocate through
+ * audio-tools' global allocator, which lives in another file and may not be constructed yet (static init order) — as
+ * globals they crashed at boot with LoadProhibited in Allocator::allocate. */
+static A2dpInStream *a2dp_input = nullptr;  // A2DP's audio into the output engine (audio_engine.h)
 static BluetoothA2DPSink *a2dp_sink = nullptr;
 
 // ---- master volume ----
-// The bridge is the sink: it scales the PCM by its own master volume (0..15 from the console, phone command 15, kept
-// in NVS), so one volume covers every source. The phone's own (AVRCP absolute) volume is held at full: with absolute
-// volume the phone sends full-scale audio and leaves the attenuation to the sink, so its slider would otherwise be the
-// car's volume. When the phone moves it, the bridge puts it back.
+// The card is the sink: the output engine scales everything after mixing by its master volume (0..15 from the
+// console, kept by the sink in NVS), so one volume covers every source. A2DP itself does not scale (A2DPNoVolumeControl).
+// The phone's own (AVRCP absolute) volume is held at full: with absolute volume the phone sends full-scale audio and
+// leaves the attenuation to the sink, so its slider would otherwise be the car's volume. When the phone moves it, the
+// bridge puts it back.
 // Tried on 2026-10-02 and dropped: not advertising absolute volume at all (no volume-change notification, car-audio
 // class of device). An iPhone then scales the audio itself, so its slider became a second, independent volume.
 static constexpr uint8_t kPhoneLockedVolume = 127;
 static constexpr uint8_t kMasterDefault = 8;
-
-class MasterVolume : public A2DPDefaultVolumeControl {
- public:
-  void set_volume(uint8_t) override {}  // the phone's slider and the library's own calls: not the output level
-  void set_master(uint8_t v_0_15) {
-    A2DPDefaultVolumeControl::set_volume((uint8_t)((v_0_15 * 127 + 7) / 15));
-    set_enabled(true);
-  }
-};
-static MasterVolume s_master;
+static A2DPNoVolumeControl s_novol;
 static Preferences s_bridge_prefs;
 static volatile bool s_relock_phone = false;  // set from Bluetooth callbacks, acted on in loop()
-static uint32_t s_master_changed_ms = 0;      // saved to NVS 2 s after the last change
-// The chime volume (1..15, NVS "chvol"): its own setting on the card's menu page, not the music's volume.
+#if !AUDIO_BRIDGE_CAN
+static uint32_t s_master_changed_ms = 0;  // without the sink: the volume saved to NVS 2 s after the last change
+#endif
 static constexpr uint8_t kChimeVolDefault = 8;
-static uint8_t s_chime_vol = kChimeVolDefault;
 
 /** Cover art data arrives in pieces on the BT task; copy it out before the callback returns. */
 static void on_cover_art_data(const esp_avrc_ct_cb_param_t *p) {
@@ -466,6 +474,8 @@ static void a2dp_connection_cb(esp_a2d_connection_state_t state, void *) {
   portEXIT_CRITICAL(&s_track_mux);
 }
 
+static void set_master_volume(uint8_t v_0_15);
+
 /** A phone command from CAN or the serial console. Media transport and volume are the sink's; the rest is phone.cpp. */
 static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, bool check_serial) {
   if (cmd == kPhoneCmdMedia) {
@@ -501,13 +511,8 @@ static bool run_phone_command(uint8_t cmd, uint8_t arg, uint8_t list_serial, boo
     return true;
   }
   if (cmd == kPhoneCmdMediaVolume) {
-    if (!a2dp_sink) return false;
     const uint8_t v = arg > 15 ? 15 : arg;
-    s_master.set_master(v);  // the master volume: the output level, whatever the source
-    portENTER_CRITICAL(&s_track_mux);
-    s_vol_0_15 = v;
-    portEXIT_CRITICAL(&s_track_mux);
-    s_master_changed_ms = millis() ? millis() : 1;
+    set_master_volume(v);  // the master volume: the output level, whatever the source
     return true;
   }
   return phone_command(cmd, arg, list_serial, check_serial);
@@ -623,82 +628,91 @@ static void can_on_frame(const ElcCanFrame &f, void *) {
   st.info = true;  // a variant we do not have is answered with size 0
 }
 
-static void can_on_ui(const ElcChTransfer &t);
+/** The sink's way to the rest of the firmware: CAN, the phone, the engine, NVS. */
+class CardSinkIo : public SinkIo {
+ public:
+  void send(uint16_t base, const ElcChWriter &w) override { s_chan.send(base, w); }
+  void bt_media(uint8_t action) override {
+    uint8_t arg = 0;  // phone command 14: 0 toggle, 1 next, 2 previous, 3 play, 4 pause
+    switch (action) {
+      case ELC_MEDIA_NEXT: arg = 1; break;
+      case ELC_MEDIA_PREV: arg = 2; break;
+      case ELC_MEDIA_PLAY: arg = 3; break;
+      case ELC_MEDIA_PAUSE: arg = 4; break;
+      default: break;
+    }
+    run_phone_command(kPhoneCmdMedia, arg, 0, false);
+  }
+  bool bt_playing() override {
+    if (!a2dp_sink || !a2dp_sink->is_connected()) return false;
+    portENTER_CRITICAL(&s_track_mux);
+    const bool p = s_playing;
+    portEXIT_CRITICAL(&s_track_mux);
+    return p;
+  }
+  bool node_alive(uint8_t node) override { return s_can.nodeAlive(node, 3000); }
+  uint8_t chimes_active() override { return chime_count(); }
+  bool chimes_ducking() override { return chime_ducking(); }
+  void chime_preview(uint8_t volume) override {
+    chime_set_volume(volume);
+    chime_play(s_chan.node(), kChimeSoft, 1, 100, 1);
+  }
+  void apply() override;
+  void save(const SinkSettings &st) override {
+    s_bridge_prefs.putBytes("sink", &st, sizeof(st));
+    Serial.println("sink: settings saved");
+  }
+  void log(const char *line) override { Serial.printf("sink: %s\n", line); }
+};
+static CardSinkIo s_sink_io;
+static AudioSink s_sink;
+static bool s_eq_applied = false;
+static int8_t s_eq_now[ELC_EQ_BANDS];
 
-/** AUDIO_CMD PLAY / STOP addressed to this node or to everyone: the chimes (other sounds are not here yet); UI SET /
- *  VIEW for the card's page. */
+/** The sink's state into the output engine (the EQ only when its curve changed: designing it takes a while). */
+void CardSinkIo::apply() {
+  engine_set_music((Music)s_sink.music());
+  engine_set_rail_voice(s_sink.rail_voice());
+  engine_set_volume(s_sink.volume15());
+  engine_set_mute(s_sink.muted());
+  int8_t db[ELC_EQ_BANDS];
+  s_sink.eq_db(db);
+  if (!s_eq_applied || memcmp(db, s_eq_now, sizeof(db)) != 0) {
+    memcpy(s_eq_now, db, sizeof(db));
+    s_eq_applied = true;
+    engine_set_eq(db);
+  }
+  engine_set_fader_balance(s_sink.settings().fader, s_sink.settings().balance);
+  chime_set_volume(s_sink.settings().chime_volume);
+  portENTER_CRITICAL(&s_track_mux);
+  s_vol_0_15 = s_sink.volume15();  // the old transport frame's volume
+  portEXIT_CRITICAL(&s_track_mux);
+}
+
+static void set_master_volume(uint8_t v_0_15) { s_sink.set_volume15(v_0_15, millis()); }
+
+/** AUDIO_CMD PLAY / STOP addressed to this node or to everyone: the chimes (other sounds are not here yet). The rest
+ *  (VOLUME, MEDIA, SOURCE, NET RAIL, the page's SET / VIEW) is the sink's. */
 static void can_on_transfer(const ElcChTransfer &t, void *) {
   if (!t.for_me(s_chan.node())) return;
-  if (t.base == ELC_CH_UI) {
-    can_on_ui(t);
-    return;
-  }
-  if (t.base != ELC_CH_AUDIO_CMD) return;
   ElcAudioPlay play;
   ElcAudioStop stop;
-  if (elc_audio_decode(t, play)) {
-    const uint8_t prio = play.zones_prio & 0x0F;  // zones (high nibble): one output, front left and right
+  if (t.base == ELC_CH_AUDIO_CMD && elc_audio_decode(t, play)) {
+    const uint8_t prio = play.zones_prio & 0x0F;  // zones (high nibble): every speaker
     const bool ok = chime_play(t.src, play.sound, prio, play.level, play.repeat);
     Serial.printf("chime %u for node 0x%02X (priority %u, level %u %%, %s): %s\n", (unsigned)play.sound,
                   (unsigned)t.src, (unsigned)prio, (unsigned)play.level, play.repeat ? "repeat" : "until STOP",
                   ok ? "playing" : "no such sound");
-  } else if (elc_audio_decode(t, stop)) {
+  } else if (t.base == ELC_CH_AUDIO_CMD && elc_audio_decode(t, stop)) {
     chime_stop(t.src, stop.sound);
+  } else {
+    s_sink.transfer(t, millis());
   }
 }
 
-// ---- the card's menu page (UI channel): Menu > Accessories > Audio card / Audio bridge ----
-static const uint8_t kUiChimeVolume = 0;
-
-static void ui_send_chime_volume() {
-  ElcChWriter w;
-  elc_ui_encode(ElcUiValue{kUiChimeVolume, s_chime_vol}, w);
-  s_chan.send(ELC_CH_UI, w);
-}
-
-/** Boot and QUERY bit3: the item, then its value. */
+/** Boot and QUERY bit3: the page's items and values. */
 static void can_on_describe(uint8_t what, void *) {
-  if (!(what & ELC_NET_Q_UI)) return;
-  ElcUiItem it;
-  it.item = kUiChimeVolume;
-  it.kind = ELC_UI_NUMBER;
-  it.flags = ELC_UI_F_SETTING;
-  it.min = 1;
-  it.max = 15;
-  it.step = 1;
-  snprintf(it.label, sizeof(it.label), "Chime volume");
-  ElcChWriter w;
-  elc_ui_encode(it, w);
-  s_chan.send(ELC_CH_UI, w);
-  ui_send_chime_volume();
-}
-
-/** SET Chime volume: applied, saved, and the soft chime plays at the new level as a preview. Answered with VALUE and
- *  RESULT even when nothing changed; VIEW is answered with VALUE (the page has no live items). */
-static void can_on_ui(const ElcChTransfer &t) {
-  ElcUiSet set;
-  ElcUiView view;
-  if (elc_ui_decode(t, set)) {
-    uint8_t r = ELC_UI_OK;
-    if (set.item != kUiChimeVolume) {
-      r = ELC_UI_UNKNOWN;
-    } else if (set.value < 1 || set.value > 15) {
-      r = ELC_UI_RANGE;
-    } else {
-      if (s_chime_vol != (uint8_t)set.value) {
-        s_chime_vol = (uint8_t)set.value;
-        s_bridge_prefs.putUChar("chvol", s_chime_vol);
-      }
-      chime_set_volume(s_chime_vol);
-      chime_play(s_chan.node(), kChimeSoft, 1, 100, 1);
-    }
-    ElcChWriter w;
-    elc_ui_encode(ElcUiResult{set.item, r, t.src}, w);
-    s_chan.send(ELC_CH_UI, w);
-    if (r != ELC_UI_UNKNOWN) ui_send_chime_volume();
-  } else if (elc_ui_decode(t, view) && view.item != ELC_UI_VIEW_CLOSED) {
-    ui_send_chime_volume();
-  }
+  if (what & ELC_NET_Q_UI) s_sink.describe_ui();
 }
 
 /** NET IDENTIFY: the soft chime for the seconds asked (0 = stop), so a person can find the card. */
@@ -783,22 +797,36 @@ static void can_begin() {
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, node, ElcCanNodeType::AudioBridge);
   Serial.printf("CAN: %s, node 0x%02X (TX=%d RX=%d)\n", ok ? "up" : "off", (unsigned)node, ELC_CAN_TX_PIN,
                 ELC_CAN_RX_PIN);
-  // The channel protocol, for the chimes: it consumes AUDIO_CMD (PLAY / STOP) and produces it (DONE). It keeps the
-  // audio bridge's node type: the console takes a node type 5 for the audio card's sources (STATUS, SOURCE), which
-  // this firmware does not do yet.
+  // The channel protocol: the audio sink (node type 5): it consumes AUDIO_CMD and UI, produces AUDIO_CMD (STATUS,
+  // DONE) and its page. The heartbeat keeps the audio bridge's type, so the old Bluetooth frames (now playing, phone,
+  // album art) are still taken from its range.
   ElcNetAnnounce me;
-  me.type = ELC_TYPE_AUDIO_BRIDGE;
+  me.type = ELC_TYPE_AUDIO_SINK;
   me.product = ELC_CAN_CARD_SLOT_PIN >= 0 ? ELC_PRODUCT_AUDIO_CARD : ELC_PRODUCT_AUDIO_BRIDGE;
   me.fw = ELC_CAN_FW_VERSION;
   me.uid = (uint32_t)(ESP.getEfuseMac() >> 16) ^ (uint32_t)ESP.getEfuseMac();
-  me.produces = elc_ch_bit(ELC_CH_AUDIO_CMD) | elc_ch_bit(ELC_CH_UI);  // DONE; the Chime volume page
-  me.consumes = elc_ch_bit(ELC_CH_AUDIO_CMD) | elc_ch_bit(ELC_CH_UI);  // PLAY / STOP; SET / VIEW
+  me.produces = elc_ch_bit(ELC_CH_AUDIO_CMD) | elc_ch_bit(ELC_CH_UI);  // STATUS, DONE; the page
+  me.consumes = elc_ch_bit(ELC_CH_AUDIO_CMD) | elc_ch_bit(ELC_CH_UI);  // the commands; SET / VIEW
   snprintf(me.name, sizeof(me.name), ELC_CAN_CARD_SLOT_PIN >= 0 ? "Audio card" : "Audio bridge");
   s_can.attachChannels(&s_chan, me);
   if (slot) s_chan.setSlot(slot);
   s_chan.onTransfer(can_on_transfer, nullptr);
   s_chan.onNetCommand(can_on_net_command, nullptr);
   s_chan.onDescribe(can_on_describe, nullptr);
+
+  // The sink's settings: the saved ones, else the defaults (with the volumes the bridge kept before it was a sink).
+  SinkSettings st;
+  if (s_bridge_prefs.getBytesLength("sink") == sizeof(st)) {
+    s_bridge_prefs.getBytes("sink", &st, sizeof(st));
+  } else {
+    st.volume = s_bridge_prefs.getUChar("mvol", kMasterDefault);
+    st.chime_volume = s_bridge_prefs.getUChar("chvol", kChimeVolDefault);
+  }
+  AudioSink::Caps caps;
+  caps.aux = engine_has_aux();
+  caps.rear = engine_has_rear();
+  caps.slot = slot;
+  s_sink.begin(&s_chan, &s_sink_io, caps, st, millis());
 }
 
 /** AUDIO_CMD DONE for each chime that ended (played out, stopped or replaced), to the node that started it. */
@@ -953,6 +981,30 @@ static void serial_poll() {
     if (!strcmp(word, "phone")) {
       phone_print_status();
       continue;
+    } else if (!strcmp(word, "audio")) {
+      char a[320];
+      engine_status(a, sizeof(a));
+      Serial.println(a);
+#if AUDIO_BRIDGE_CAN
+      s_sink.describe(a, sizeof(a));
+      Serial.println(a);
+#endif
+      continue;
+#if AUDIO_BRIDGE_CAN
+    } else if (!strcmp(word, "source")) {
+      // as AUDIO_CMD SOURCE from a service tool
+      const uint8_t code = !strcmp(rest, "radio") ? ELC_SRC_RADIO : !strcmp(rest, "aux") ? ELC_SRC_AUX
+                           : !strcmp(rest, "off") ? ELC_SRC_REQ_OFF : !strcmp(rest, "next") || !rest[0] ? 0
+                                                                                               : ELC_SRC_BLUETOOTH;
+      ElcChWriter w;
+      elc_audio_encode(ElcAudioSource{s_chan.node(), code}, w);
+      ElcChTransfer t;
+      t.base = ELC_CH_AUDIO_CMD;
+      t.src = kChimeBenchNode;
+      t.data = w.data();
+      t.len = w.size();
+      s_sink.transfer(t, millis());
+#endif
     } else if (!strcmp(word, "pair")) {
       ok = run_phone_command(kPhoneCmdPairing, rest[0] ? on : 1, 0, false);
     } else if (!strcmp(word, "confirm")) {
@@ -994,7 +1046,8 @@ static void serial_poll() {
     } else {
       Serial.println("Commands: phone | pair [on|off] | confirm yes|no | answer | end | mute [on|off] | vol 0-15 |");
       Serial.println("  connect <n> | disconnect | forget <n> | redial | voice [on|off] | waiting 0|1|2 | route car|phone |");
-      Serial.println("  play | next | prev | chime 2|3|4 [repeat] | chime stop   (<n> = the index in `phone`)");
+      Serial.println("  play | next | prev | chime 2|3|4 [repeat] | chime stop | audio | source bt|radio|aux|off|next");
+      Serial.println("  (<n> = the index in `phone`)");
       continue;
     }
     Serial.println(ok ? "ok" : "not done (no phone, no call, or a bad index)");
@@ -1020,23 +1073,18 @@ void setup() {
   anchor_position_unlocked(0);
 
   {
-    audio_output = new I2SStream();
-    auto cfg = audio_output->defaultConfig(TX_MODE);
-    cfg.pin_bck = I2S_PIN_BCK;
-    cfg.pin_ws = I2S_PIN_WS;
-    cfg.pin_data = I2S_PIN_DATA;
-    if (!audio_output->begin(cfg)) {
-      Serial.println(F("audio_output.begin (I2S) failed"));
-    }
-    a2dp_output = new CallGateStream(*audio_output);
-    CallAudioPins pins;
+    EnginePins pins;
     pins.bck = I2S_PIN_BCK;
     pins.ws = I2S_PIN_WS;
     pins.dout = I2S_PIN_DATA;
     pins.din = I2S_PIN_DIN;
     pins.mclk = I2S_PIN_MCLK;
+    pins.rear_dout = I2S_PIN_REAR_DOUT;
+    pins.ret_din = I2S_PIN_RET_DIN;
+    pins.rail_en = RAIL_ENABLE_PIN;
     pins.mic_right = MIC_RIGHT_CHANNEL != 0;
-    call_audio_begin(audio_output, pins);
+    engine_begin(pins);
+    a2dp_input = new A2dpInStream();
   }
 #if DAC_UNMUTE_PIN >= 0
   pinMode(DAC_UNMUTE_PIN, OUTPUT);  // the carrier's DACs stay soft-muted until the I2S clocks run
@@ -1044,15 +1092,17 @@ void setup() {
 #endif
 
   s_art = static_cast<uint8_t *>(art_alloc(kArtMax));  // PSRAM when the board has it
-  a2dp_sink = new CoverArtSink(*a2dp_output);
+  a2dp_sink = new CoverArtSink(*a2dp_input);
   s_bridge_prefs.begin("bridge", false);
+#if !AUDIO_BRIDGE_CAN
+  // No sink without CAN: Bluetooth plays at the saved volume.
   s_vol_0_15 = s_bridge_prefs.getUChar("mvol", kMasterDefault);
   if (s_vol_0_15 > 15) s_vol_0_15 = kMasterDefault;
-  s_master.set_master(s_vol_0_15);
-  s_chime_vol = s_bridge_prefs.getUChar("chvol", kChimeVolDefault);
-  if (s_chime_vol < 1 || s_chime_vol > 15) s_chime_vol = kChimeVolDefault;
-  chime_set_volume(s_chime_vol);
-  a2dp_sink->set_volume_control(&s_master);
+  engine_set_volume(s_vol_0_15);
+  engine_set_music(Music::Bluetooth);
+  chime_set_volume(kChimeVolDefault);
+#endif
+  a2dp_sink->set_volume_control(&s_novol);  // the engine applies the master volume
   a2dp_sink->set_avrc_metadata_attribute_mask(
       ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM |
       ESP_AVRC_MD_ATTR_TRACK_NUM | ESP_AVRC_MD_ATTR_NUM_TRACKS | ESP_AVRC_MD_ATTR_GENRE |
@@ -1082,16 +1132,28 @@ void setup() {
                 (unsigned)ESP.getFreeHeap(), (unsigned)(ESP.getFreePsram() / 1024), kArtSmallSide);
 }
 
-/** Hold the phone's volume at full, and save the master volume once it settles. */
+#if !AUDIO_BRIDGE_CAN
+static void set_master_volume(uint8_t v_0_15) {
+  engine_set_volume(v_0_15);
+  portENTER_CRITICAL(&s_track_mux);
+  s_vol_0_15 = v_0_15;
+  portEXIT_CRITICAL(&s_track_mux);
+  s_master_changed_ms = millis() ? millis() : 1;
+}
+#endif
+
+/** Hold the phone's volume at full (and without the sink, save the master volume once it settles). */
 static void volume_loop() {
   if (s_relock_phone && a2dp_sink && a2dp_sink->is_connected()) {
     s_relock_phone = false;
     a2dp_sink->set_volume(kPhoneLockedVolume);  // tells the phone (AVRCP); the output stays at the master volume
   }
+#if !AUDIO_BRIDGE_CAN
   if (s_master_changed_ms && millis() - s_master_changed_ms > 2000u) {
     s_master_changed_ms = 0;
     s_bridge_prefs.putUChar("mvol", s_vol_0_15);
   }
+#endif
 }
 
 void loop() {
@@ -1100,6 +1162,7 @@ void loop() {
   // Drain CAN often (the bus carries ~100 sensor frames/s) and keep album art flowing; the rest runs
   // every 250 ms.
   s_can.poll();
+  s_sink.tick(millis());
   can_publish_phone();
   can_send_chimes_done();
   can_serve_art();

@@ -38,9 +38,9 @@ import time
 from typing import Callable
 
 from chan_sim import (CH_ALERT, CH_AUDIO_CMD, CH_INPUT, CH_NET, CH_ONLINE, CH_SENSOR, CH_SYSTEM, CH_UI, F_LIVE,
-                      F_RO, F_SETTING, G_CLICK, G_REPEAT, HEARTBEAT, K_ACTION, K_CHOICE, K_NUMBER, K_READOUT, K_TEXT,
+                      F_RO, F_SETTING, G_CLICK, G_REPEAT, HEARTBEAT, K_ACTION, K_CHOICE, K_GROUP, K_NUMBER, K_READOUT, K_TEXT,
                       KEY_MUTE, KEY_NEXT, KEY_PLAY, KEY_PREV, KEY_VOL_DOWN, KEY_VOL_UP, MEDIA_NEXT, MEDIA_PAUSE,
-                      MEDIA_PLAY, MEDIA_PREV, MEDIA_TOGGLE, MEDIA_TUNE_DOWN, MEDIA_TUNE_UP, SRC_BLUETOOTH, SRC_NONE,
+                      MEDIA_PLAY, MEDIA_PREV, MEDIA_TOGGLE, MEDIA_TUNE_DOWN, MEDIA_TUNE_UP, SRC_AUX, SRC_BLUETOOTH, SRC_NONE,
                       SRC_RADIO, SRC_REQ_OFF, AUDIO_SOURCE, NET_GATEWAY_CMD, NET_GATEWAY_STATUS, NODE_TYPE_GATEWAY,
                       NODE_TYPE_RADIO, NODE_TYPE_SENSOR, NODE_TYPE_SINK, NODE_TYPE_VOICE, PRODUCT_AUDIO_CARD,
                       PRODUCT_GPS, PRODUCT_LTE, PRODUCT_NONE, PRODUCT_VOICE, RAIL_GRANTED, RAIL_RELEASE,
@@ -69,9 +69,15 @@ SOUNDS = {1: ("UI click", 0.05), 2: ("soft chime", 1.2), 3: ("caution chime", 1.
           8: ("parking tick, medium", 0.5), 9: ("parking tick, fast", 0.25), 10: ("continuous tone", 1.0)}
 TRACKS = ["Highway Song - The Drifters Band", "Summer Nights - The Cruisers", "Two Lane Road - Mesa Creek",
           "Sea Breeze - Coastline"]
-SOURCES = ("Bluetooth", "Radio", "Off")
-S_BT, S_RADIO, S_OFF = 0, 1, 2
-A_SOURCE, A_VOLUME, A_FADER, A_BALANCE = range(4)
+SOURCES = ("Bluetooth", "Radio", "Aux in", "Off")
+S_BT, S_RADIO, S_AUX, S_OFF = range(4)
+# The card's page at the fixed item numbers of the real card (sink.cpp, elc_chan_msg.h ELC_SINK_ITEM_*).
+A_CHIME, A_FADER, A_BALANCE, A_EQ, A_PRESET, A_BAND0 = 0, 1, 2, 3, 4, 5
+EQ_PRESETS = ("Flat", "Bass", "Treble", "Vocal", "Rock", "Jazz", "Custom")
+P_CUSTOM = 6
+EQ_CURVES = ((0,) * 10, (6, 6, 5, 3, 1, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 1, 2, 4, 5, 6), (-3, -3, -2, 0, 2, 4, 4, 3, 1, 0),
+             (5, 4, 2, -1, -2, -1, 1, 3, 4, 4), (3, 2, 1, 2, -1, -1, 0, 1, 2, 3))  # audio_dsp.cpp kPresetDb
+EQ_BANDS = ("31 Hz", "62 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz")
 SERVICE_NODE = 0x1F  # sounds started from the relay's :audio play count as a service tool's
 HOLDER_LOST_S = 3.0
 
@@ -95,13 +101,15 @@ class AudioCard(SimCard):
     PRODUCES = ("AUDIO_CMD", "UI", "LOG")
     CONSUMES = ("AUDIO_CMD", "INPUT")
     LISTENS = (CH_AUDIO_CMD, CH_INPUT, CH_UI)
-    HELP = ("status | source bt|radio | volume 0-100 | mute | play <sound 1-10> [priority 0-4] [repeat] | "
-            "stop [sound] | media play|next|prev")
+    HELP = ("status | source bt|radio|aux|off | volume 0-100 | mute | play <sound 1-10> [priority 0-4] [repeat] | "
+            "stop [sound] | media play|next|prev | eq <preset 0-6> | band <0-9> <dB>")
 
     def __init__(self, send: Send, log: Log, slot: int = 1, seed: int | None = None, clock: Now | None = None) -> None:
         super().__init__(send, log, slot=slot, seed=seed, clock=clock)
         self.volume, self.muted = 30, False
         self.source, self.fader, self.balance = 0, 0, 0
+        self.chime_vol, self.eq_preset, self.eq_custom = 8, 0, [0] * 10
+        self.standby = False                 # a real audio sink is on the bus: this one stays quiet
         self.bt_playing, self.track = False, 0
         self.bt_was_playing = False
         self.sounds: dict[tuple[int, int], Sound] = {}
@@ -125,12 +133,14 @@ class AudioCard(SimCard):
             return False
         if self.source == S_BT:
             return self.bt_playing
+        if self.source == S_AUX:
+            return True
         return bool(self.holder) and self.holder == self.radio_node()
 
     def status_tuple(self) -> tuple[int, ...]:
-        flags = (1 if self.muted else 0) | (2 if self.playing() else 0) | (4 if self.ducked() else 0)
-        code = (SRC_BLUETOOTH, SRC_RADIO, SRC_NONE)[self.source]
-        src_node = (self.node, self.radio_node(), 0)[self.source]
+        flags = (1 if self.muted else 0) | (2 if self.playing() else 0) | (4 if self.ducked() else 0) | 8  # aux fitted
+        code = (SRC_BLUETOOTH, SRC_RADIO, SRC_AUX, SRC_NONE)[self.source]
+        src_node = (self.node, self.radio_node(), self.node, 0)[self.source]
         return self.volume, flags, min(len(self.sounds), 255), 0, 0x0F, code, src_node
 
     def send_status(self) -> None:
@@ -143,29 +153,36 @@ class AudioCard(SimCard):
         return (f"volume {v}{' muted' if f & 1 else ''}{', playing' if f & 2 else ''}{', ducked' if f & 4 else ''}, "
                 f"{n} sound{'s' if n != 1 else ''}")
 
-    # ---- UI page
+    # ---- UI page (sink.cpp's)
+
+    def eq_curve(self) -> list[int]:
+        return list(self.eq_custom if self.eq_preset == P_CUSTOM else EQ_CURVES[self.eq_preset])
 
     def items(self) -> None:
-        self.item(A_SOURCE, TOP, K_CHOICE, F_SETTING, "Source", options="\n".join(SOURCES))
-        self.item(A_VOLUME, TOP, K_NUMBER, 0, "Volume", "%", lo=0, hi=100, step=1)
-        self.item(A_FADER, TOP, K_NUMBER, F_SETTING, "Fader", "rear-front", lo=-10, hi=10, step=1)
-        self.item(A_BALANCE, TOP, K_NUMBER, F_SETTING, "Balance", "left-right", lo=-10, hi=10, step=1)
-        for n in range(4):
+        self.item(A_CHIME, TOP, K_NUMBER, F_SETTING, "Chime volume", lo=1, hi=15, step=1)
+        self.item(A_FADER, TOP, K_NUMBER, F_SETTING, "Fader", "R-F", lo=-10, hi=10, step=1)
+        self.item(A_BALANCE, TOP, K_NUMBER, F_SETTING, "Balance", "L-R", lo=-10, hi=10, step=1)
+        self.item(A_EQ, TOP, K_GROUP, 0, "Equalizer")
+        self.item(A_PRESET, A_EQ, K_CHOICE, F_SETTING, "Preset", options="\n".join(EQ_PRESETS), hi=P_CUSTOM)
+        for b, label in enumerate(EQ_BANDS):
+            self.item(A_BAND0 + b, A_EQ, K_NUMBER, F_SETTING, label, "dB", lo=-12, hi=12, step=1)
+        for n in range(A_BAND0 + 10):
             self.send_value(n)
 
     def send_value(self, n: int) -> None:
-        self.ui_value(n, (self.source, self.volume, self.fader, self.balance)[n])
+        if n == A_EQ:
+            return
+        if n >= A_BAND0:
+            self.ui_value(n, self.eq_curve()[n - A_BAND0])
+        else:
+            self.ui_value(n, (self.chime_vol, self.fader, self.balance, 0, self.eq_preset)[n])
 
     def set(self, n: int, v: int) -> int:
-        if n == A_SOURCE:
-            if v not in (S_BT, S_RADIO, S_OFF):
+        if n == A_CHIME:
+            if not 1 <= v <= 15:
                 return UI_RANGE
-            self.set_source(v)
-        elif n == A_VOLUME:
-            if not 0 <= v <= 100:
-                return UI_RANGE
-            self.set_volume(v)
-            return UI_OK
+            self.chime_vol = v
+            self.log(f"chime volume {v} (the soft chime plays once)")
         elif n in (A_FADER, A_BALANCE):
             if not -10 <= v <= 10:
                 return UI_RANGE
@@ -174,6 +191,18 @@ class AudioCard(SimCard):
             else:
                 self.balance = v
             self.log(f"fader {self.fader:+d}, balance {self.balance:+d}")
+        elif n == A_PRESET:
+            if not 0 <= v <= P_CUSTOM:
+                return UI_RANGE
+            self.eq_preset = v
+            self.log(f"EQ {EQ_PRESETS[v]}: {self.eq_curve()}")
+        elif A_BAND0 <= n < A_BAND0 + 10:
+            if not -12 <= v <= 12:
+                return UI_RANGE
+            if self.eq_preset != P_CUSTOM:  # a band moved on a preset: its curve becomes Custom's
+                self.eq_custom, self.eq_preset = list(EQ_CURVES[self.eq_preset]), P_CUSTOM
+            self.eq_custom[n - A_BAND0] = v
+            self.log(f"EQ Custom: {self.eq_custom}")
         else:
             return UI_UNKNOWN
         self.factory = False
@@ -192,14 +221,12 @@ class AudioCard(SimCard):
         self.source = v
         self.line(f"source {SOURCES[v]}" + (", Bluetooth paused" if v != S_BT and self.bt_was_playing else
                                              ", Bluetooth plays" if v == S_BT and self.bt_playing else ""))
-        self.send_value(A_SOURCE)
         self.send_status()  # the sources learn from STATUS which one plays
 
     def set_volume(self, v: int) -> None:
         v = max(0, min(100, v))
         if v != self.volume or self.muted:
             self.volume, self.muted = v, False
-            self.send_value(A_VOLUME)
 
     def toggle_mute(self) -> None:
         self.muted = not self.muted
@@ -208,8 +235,8 @@ class AudioCard(SimCard):
     # ---- media
 
     def media(self, action: int, value: int = 0) -> None:
-        if self.source == S_OFF:
-            self.log(f"media {action} ignored: the source is off")
+        if self.source in (S_OFF, S_AUX):
+            self.log(f"media {action} ignored: the source is {SOURCES[self.source].lower()}")
             return
         if self.source == S_RADIO:
             radio = self.radio_node()
@@ -275,10 +302,11 @@ class AudioCard(SimCard):
         if base == CH_UI:
             if op == 0x81 and len(p) >= 7:
                 n, v = p[2], struct.unpack_from("<i", p, 3)[0]
-                result = self.set(n, v) if n < 4 else UI_UNKNOWN
-                if n < 4:
-                    self.send_value(n)
+                result = self.set(n, v)
                 self.ui_result(n, result, src)
+                if result != UI_UNKNOWN:
+                    for k in (range(A_PRESET, A_BAND0 + 10) if n >= A_PRESET else (n,)):
+                        self.send_value(k)  # an EQ change: the preset and every band
         elif base == CH_INPUT:
             if op == 0x01 and len(p) >= 4:
                 self.key(src, p[1], p[2], p[3])
@@ -304,16 +332,30 @@ class AudioCard(SimCard):
             elif op == 0x84 and len(p) >= 3:
                 self.media(p[2], p[3] if len(p) > 3 else 0)
             elif op == AUDIO_SOURCE and len(p) >= 3:
-                if p[2] == SRC_NONE:  # the next: Bluetooth, the radio (when heard), off
-                    nxt = {S_BT: S_RADIO if self.radio_node() else S_OFF, S_RADIO: S_OFF, S_OFF: S_BT}[self.source]
-                    self.set_source(nxt)
+                if p[2] == SRC_NONE:  # the next: Bluetooth, the radio (when heard), aux, off
+                    order = [S_BT] + ([S_RADIO] if self.radio_node() else []) + [S_AUX, S_OFF]
+                    self.set_source(order[(order.index(self.source) + 1) % len(order)])
                 elif p[2] == SRC_REQ_OFF:
                     self.set_source(S_OFF)
-                elif p[2] in (SRC_BLUETOOTH, SRC_RADIO):
-                    self.set_source(S_RADIO if p[2] == SRC_RADIO else S_BT)
+                elif p[2] in (SRC_BLUETOOTH, SRC_RADIO, SRC_AUX):
+                    self.set_source({SRC_RADIO: S_RADIO, SRC_AUX: S_AUX}.get(p[2], S_BT))
             elif op == 0x85 and len(p) >= 2:
                 self.transfer(CH_AUDIO_CMD, bytes([0x03, 0, p[2] if len(p) > 2 else 0, p[3] if len(p) > 3 else 0]))
                 self.log(f"STREAM_OPEN from 0x{src:02x} refused (streams are not simulated)")
+
+    def heard(self, src: int, ntype: int, product: int) -> None:
+        if ntype == NODE_TYPE_SINK and src != self.node and not self.standby:
+            self.standby = True  # silent from now, as :sim off audio (the real card's firmware is the sink)
+            self.log(f"a real audio sink announced at 0x{src:02x}: the simulated audio card goes quiet "
+                     f"(:sim off audio, then :sim on audio, brings it back)")
+
+    def on_frame(self, can_id: int, data: bytes) -> None:
+        if not self.standby:
+            super().on_frame(can_id, data)
+
+    def tick(self) -> None:
+        if not self.standby:
+            super().tick()
 
     def on_rail(self, src: int, p: bytes, now: float) -> None:
         if p[1] != self.node:
@@ -363,8 +405,16 @@ class AudioCard(SimCard):
         try:
             if cmd == "status":
                 return self.status()
-            if cmd == "source" and args and args[0] in ("bt", "bluetooth", "radio", "off"):
-                self.set_source({"radio": S_RADIO, "off": S_OFF}.get(args[0], S_BT))
+            if cmd == "source" and args and args[0] in ("bt", "bluetooth", "radio", "aux", "off"):
+                self.set_source({"radio": S_RADIO, "aux": S_AUX, "off": S_OFF}.get(args[0], S_BT))
+            elif cmd == "eq" and args:
+                self.set(A_PRESET, int(args[0]))
+                for k in range(A_PRESET, A_BAND0 + 10):
+                    self.send_value(k)
+            elif cmd == "band" and len(args) > 1:
+                self.set(A_BAND0 + int(args[0]), int(args[1]))
+                for k in range(A_PRESET, A_BAND0 + 10):
+                    self.send_value(k)
             elif cmd == "volume" and args:
                 self.set_volume(int(args[0]))
             elif cmd == "mute":
@@ -387,7 +437,8 @@ class AudioCard(SimCard):
         holder = f"0x{self.holder:02x}" if self.holder else "free"
         sounds = ", ".join(f"{SOUNDS[k[1]][0]} (0x{k[0]:02x})" for k in self.sounds) or "none"
         return (f"node 0x{self.node:02x} slot {self.slot}, source {SOURCES[self.source]}, {self.describe_status()}, "
-                f"fader {self.fader:+d} balance {self.balance:+d}, RET {holder}, sounds: {sounds}, "
+                f"fader {self.fader:+d} balance {self.balance:+d}, EQ {EQ_PRESETS[self.eq_preset]} {self.eq_curve()}, "
+                f"chime volume {self.chime_vol}, RET {holder}, sounds: {sounds}, "
                 f"Bluetooth {'playing' if self.bt_playing else 'paused'} '{TRACKS[self.track]}'")
 
 
@@ -831,7 +882,7 @@ class VoiceCard(SimCard):
         self.until = 0.0
 
     def heard(self, src: int, ntype: int, product: int) -> None:
-        if ntype == NODE_TYPE_SINK and product == PRODUCT_AUDIO_CARD and self.sink_node != src:
+        if ntype == NODE_TYPE_SINK and self.sink_node != src:  # the audio card (or a DevKit bridge as the sink)
             self.sink_node = src
             self.log(f"audio card heard at 0x{src:02x}: listening on MIC for the wake word")
 
@@ -1043,7 +1094,7 @@ def _test_audio() -> None:
     assert ann[2] == 5 and struct.unpack_from("<H", ann, 3)[0] == 4 and ann[20] == 1 | 1 << 1
     assert produces == (1 << 18) | (1 << 19) | (1 << 31) | (1 << 30) and consumes == (1 << 18) | (1 << 2) | (1 << 30)
     st = bus.got(CH_AUDIO_CMD, 0x01)
-    assert st and st[-1] == bytes([0x01, 30, 0, 0, 0, 0x0F, SRC_BLUETOOTH, 0x14])
+    assert st and st[-1] == bytes([0x01, 30, 8, 0, 0, 0x0F, SRC_BLUETOOTH, 0x14])  # flags: aux fitted
     deliver(a, 0x15, CH_NET, _ann(NODE_TYPE_RADIO, 9, "Radio (sim)"), 0)
     deliver(a, 0x18, CH_NET, _ann(NODE_TYPE_VOICE, PRODUCT_VOICE, "Voice (sim)"), 0)
     deliver(a, 0x17, CH_NET, _ann(NODE_TYPE_GATEWAY, PRODUCT_LTE, "LTE (sim)"), 0)
@@ -1085,25 +1136,35 @@ def _test_audio() -> None:
     deliver(a, 0x13, CH_INPUT, bytes([0x01, KEY_NEXT, G_CLICK, 4]), 6)
     assert a.track == 1
     bus.clear()
-    deliver(a, 0x01, CH_UI, struct.pack("<BBBi", 0x81, 0x14, A_SOURCE, 1), 0)
-    assert a.source == 1 and bus.got(CH_UI, 0x04) == [bytes([0x04, 0, 0, 0x01])]
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_RADIO]), 12)
+    assert a.source == S_RADIO
     assert bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_RADIO, 0x15])  # STATUS names the radio
     deliver(a, 0x13, CH_INPUT, bytes([0x01, KEY_PREV, G_CLICK, 5]), 7)
     assert bus.got(CH_AUDIO_CMD, 0x84) == [bytes([0x84, 0x15, MEDIA_PREV, 0])] and a.track == 1
     # SOURCE from the console: 0 steps to the next present source
-    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 7)  # radio -> off
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 7)  # radio -> aux
+    assert a.source == S_AUX and bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_AUX, 0x14])
+    deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 13)  # aux -> off
     assert a.source == S_OFF and bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_NONE, 0])
     deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_NONE]), 8)  # off -> Bluetooth
     assert a.source == S_BT and bus.got(CH_AUDIO_CMD, 0x01)[-1][6:8] == bytes([SRC_BLUETOOTH, 0x14])
     deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_REQ_OFF]), 11)  # straight to off
     assert a.source == S_OFF
     deliver(a, 0x13, CH_AUDIO_CMD, bytes([AUDIO_SOURCE, 0x14, SRC_RADIO]), 9)
-    assert a.source == 1
+    assert a.source == S_RADIO
     bus.clear()
     deliver(a, 0x13, CH_AUDIO_CMD, bytes([0x84, 0x14, MEDIA_TUNE_UP, 0]), 10)
     assert bus.got(CH_AUDIO_CMD, 0x84) == [bytes([0x84, 0x15, MEDIA_TUNE_UP, 0])]
     deliver(a, 0x01, CH_UI, struct.pack("<BBBi", 0x81, 0x14, A_FADER, 11), 1)
     assert bus.got(CH_UI, 0x04)[-1] == bytes([0x04, A_FADER, UI_RANGE, 0x01])
+    # the equaliser: a preset, then a band moved on it becomes Custom (every band's VALUE goes out)
+    bus.clear()
+    deliver(a, 0x13, CH_UI, struct.pack("<BBBi", 0x81, 0x14, A_PRESET, 4), 2)
+    assert a.eq_curve() == list(EQ_CURVES[4]) and len(bus.got(CH_UI, 0x02)) == 11
+    deliver(a, 0x13, CH_UI, struct.pack("<BBBi", 0x81, 0x14, A_BAND0 + 2, -7), 3)
+    assert a.eq_preset == P_CUSTOM and a.eq_curve()[:3] == [5, 4, -7]
+    deliver(a, 0x13, CH_UI, struct.pack("<BBBi", 0x81, 0x14, A_BAND0, 13), 4)
+    assert bus.got(CH_UI, 0x04)[-1] == bytes([0x04, A_BAND0, UI_RANGE, 0x13])
     # RAIL: the radio gets RET, the gateway is denied, the voice card takes it, its heartbeat stops, RET frees
     bus.clear()
     a.on_frame(HEARTBEAT + 0x15, b"\x09\x01\x00\x00\x00\x00\x00\x01")
@@ -1124,6 +1185,12 @@ def _test_audio() -> None:
     deliver(a, 0x15, CH_NET, struct.pack("<BBBBH", 0x84, 0x14, 2, 0, 4800), 2)
     deliver(a, 0x15, CH_NET, struct.pack("<BBBBH", 0x84, 0x14, 2, 2, 4800), 3)
     assert a.holder == 0
+    # a real audio sink announces (the audio card's firmware, a DevKit bridge): the simulated one goes quiet
+    deliver(a, 0x10, CH_NET, _ann(NODE_TYPE_SINK, 2, "Audio bridge"), 5)
+    bus.clear()
+    clock.t += 3
+    a.tick()
+    assert a.standby and not bus.frames
     print("cards_sim: audio card ok")
 
 

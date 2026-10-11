@@ -130,6 +130,12 @@ class ConsoleUi {
   /** The source the audio card plays (ELC_SRC_*), ELC_SRC_NONE with no audio card. */
   uint8_t source(uint32_t now_ms) const;
   bool radio_is_source(uint32_t now_ms) const { return source(now_ms) == ELC_SRC_RADIO; }
+  bool aux_is_source(uint32_t now_ms) const { return source(now_ms) == ELC_SRC_AUX; }
+  /** The audio card is the Bluetooth bridge too (one board, one node): AUDIO_CMD covers Bluetooth, so the old phone
+   *  frames must not repeat a play / pause, a skip or the volume. */
+  bool sink_is_bridge() const;
+  /** A band's gain (ELC_EQ_BANDS) on the audio card's Equalizer as the console last heard it; false before it has. */
+  bool eq_band(int band, int *db) const;
   /** The audio card says no source plays (off). With no audio card heard this is false: the bridge's Bluetooth runs. */
   bool audio_off(uint32_t now_ms) const { return sink() && _st_ms && now_ms - _st_ms <= 3000 && _st.source == ELC_SRC_OFF; }
   /** The radio's preset list is up (right knob click with the radio playing), and the slot highlighted (0..11). */
@@ -156,7 +162,7 @@ class ConsoleUi {
 
   // Menu pages.
   enum MenuPage : uint8_t { kMHome, kMSource, kMPhone, kMPhoneOne, kMDisplay, kMTrip, kMService, kMAccessories,
-                            kMAccPage, kMAccChoice, kMConfirm };
+                            kMAccPage, kMAccChoice, kMConfirm, kMEq };
   // What a row does.
   enum RowId : uint16_t {
     kRNone, kRSource, kRRadio, kRPhone, kRAccessories, kRDisplay, kRTrip, kRService,  // home
@@ -167,6 +173,7 @@ class ConsoleUi {
     kRTripReset,
     kRAccNode, kRAccItem, kRAccOpt, kRAdvanced,                                         // accessories (arg)
     kRYes, kRNo,                                                                        // confirmation
+    kRSound, kREqBand,                                                                  // the sink's page, a band (arg)
   };
   // What a soft key does.
   enum KeyAct : uint8_t {
@@ -177,6 +184,7 @@ class ConsoleUi {
     kKBack, kKExit, kKDone, kKUndo, kKYes, kKNo,                             // the menu
     kKSeekUp, kKSeekDown, kKPresets, kKStore, kKRedial, kKVoice, kKPhone,   // the source
     kKAudioOn, kKPage, kKView, kKTripReset, kKClose,                         // the drive pages, the preset list
+    kKEqPresets,                                                             // the equaliser
   };
 
  private:
@@ -260,6 +268,8 @@ class ConsoleUi {
   void draw_call(OledGfx &g, uint32_t t);
   void draw_pair(OledGfx &g, uint32_t t);
   void draw_presets(OledGfx &g, uint32_t t);
+  void draw_aux(OledGfx &g, uint32_t t);
+  void draw_eq(OledGfx &g, uint32_t t);
   void draw_softkeys(OledGfx &g, uint32_t t);
   void draw_volume(OledGfx &g, uint32_t t);
   void draw_toast(OledGfx &g, uint32_t t);

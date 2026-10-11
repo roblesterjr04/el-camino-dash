@@ -40,8 +40,8 @@ hold of its own does its click when held. The left ring acts once per flick.
 | | Left knob (Volume) | Right knob (Select) |
 | --- | --- | --- |
 | Turn | volume (the call's volume in a call) | at rest: tune one grid step (radio) / next or previous track (Bluetooth). In a list: the highlight. In an editor: the value |
-| Push | mute (radio) / play-pause (Bluetooth); audio on when it is off; the microphone in a call | **OK**: at rest the menu; in a list pick the row; in an editor done; in the preset list tune to the one highlighted. A ringing call: answer; in a call: its audio to the phone / back to the car |
-| Hold | the next source, round Bluetooth → Radio (when heard) → Off → Bluetooth | **the voice assistant** (radio or Bluetooth); in the menu: leave it |
+| Push | mute (radio, aux in) / play-pause (Bluetooth); audio on when it is off; the microphone in a call | **OK**: at rest the menu; in a list pick the row; in an editor done; in the preset list tune to the one highlighted. A ringing call: answer; in a call: its audio to the phone / back to the car |
+| Hold | the next source, round Bluetooth → Radio (when heard) → Aux in (when the audio card has it) → Off → Bluetooth | **the voice assistant** (radio or Bluetooth); in the menu: leave it |
 | Ring left / right | seek down / up (radio), previous / next track (Bluetooth), on every screen | the soft keys, below |
 
 ### The soft keys (the right ring)
@@ -57,6 +57,7 @@ hold of its own does its click when held. The left ring acts once per flick.
 | Warning | | OK (acknowledge) |
 | Menu, top page | Exit | |
 | Menu, deeper | Back (hold: Exit) | Exit |
+| Equalizer | Back (hold: Exit) | Presets (the preset list) |
 | Editor | Undo | Done |
 | Confirmation | No | Yes |
 | Incoming call | Decline | Answer |
@@ -66,9 +67,11 @@ hold of its own does its click when held. The left ring acts once per flick.
 | Dialing | End | |
 | Pairing code | Reject | Pair |
 
-In reverse both keys are blank and only the volume works. Bluetooth commands go to the audio bridge (`0x215`, as
-before) and, when an audio card is heard, to it too (AUDIO_CMD MEDIA / VOLUME); radio commands go to the audio card,
-which forwards them to the radio (`docs/protocols/can_channels.md`, AUDIO_CMD). The rest lives in the menu.
+In reverse both keys are blank and only the volume works. Bluetooth commands go to the audio card as AUDIO_CMD MEDIA /
+VOLUME; a separate audio bridge (one at another node than the audio sink) gets the old phone commands (`0x215`) as
+well, but the audio card, which is both, gets each command once. Radio commands go to the audio card, which forwards
+them to the radio (`docs/protocols/can_channels.md`, AUDIO_CMD). With aux in playing the right knob and the left ring
+do nothing. The rest lives in the menu.
 
 **The preset list** (Presets, the right ring left, with the radio playing): the twelve presets, four by three, with their
 frequencies; the one playing is outlined. Turning moves the highlight only; the push tunes to the preset highlighted
@@ -77,11 +80,19 @@ closes by itself.
 
 **The menu** (right knob push at rest) is drawn on the OLED itself; the touch screens' menu is not mirrored here.
 
+**The Equalizer** (Sound → Equalizer): ten bars, 31 Hz to 16 kHz, on a 0 dB line, -12 to +12 dB. The right knob moves
+along the bands; its push edits the one highlighted, and turning then changes it live (each detent a UI SET, so it is
+heard as it turns); push again or Done keeps it, Undo puts it back. Presets (the right ring right) opens the preset
+list: Flat, Bass, Treble, Vocal, Rock, Jazz, Custom. Moving a band on a preset makes it Custom (the audio card keeps the
+Custom curve while another preset plays). The values are the audio card's own items
+(`docs/protocols/can_channels.md`, *The sink's page*).
+
 | Page | What it holds |
 | --- | --- |
-| Source | Bluetooth, Radio (when a radio card is heard), Off (no source: Bluetooth paused, the radio muted; chimes still sound) |
+| Source | Bluetooth, Radio (when a radio card is heard), Aux in (when the audio card has one), Off (no source: Bluetooth paused, the radio muted; chimes still sound) |
 | Radio | the radio card's own page from the UI channel: on / off, band, frequency, seek, presets, region… |
 | Phone | the connected phone, Pair new phone / Stop pairing, voice assistant, redial, the paired phones (Connect or Disconnect, Forget with a confirmation) |
+| Sound | the audio card's page (its preset shows on the row): chime volume, fader, balance, and the **Equalizer** |
 | Accessories | every accessory's page from the UI channel (the audio card, GPS, the gateway…) |
 | Display | center view, theme, brightness, dim with lights, menu screen, media screen, right layout, OLED contrast (live, undone with Undo) |
 | Trip | Trip A, and resetting it |

@@ -123,14 +123,21 @@ AudioCarrier`); both BOMs were rebuilt from the schematic.
 
 ## Things to know
 
-- **Firmware is not written yet.** This board needs: I2S0 master with MCLK on GPIO0 (12.288 MHz at 48 kHz) and a
-  data-in pin (GPIO35); I2S1 as a slave on the same BCK / WS routed through the GPIO matrix for the rear DAC, with its
-  data **in** on GPIO34 (the audio of whichever card holds RET, LINK3); GPIO4 raised to un-mute; and the HFP client's PCM audio
-  wired to the mic path. A2DP / AVRCP / HFP are all supported by the classic ESP32 stack.
-- **Slot:** read the slot ID on GPIO36 (ADC1) at boot and put it in the NET ANNOUNCE flags. Pull GPIO21 low (rail
-  buffer on) once I2S is running, so the rail has clocks and mic data. Hand out RET over NET RAIL
-  (`docs/protocols/can_channels.md`, one holder at a time) and mix what arrives on GPIO34 into the outputs, ducking the
-  music.
+- **Firmware:** the audio bridge (`arduino/sketches/esp32_audio_bridge`, PlatformIO env `audiocarrier` in
+  `firmware/esp32_classic_bt_audio`). It runs the I2S all the time at 48 kHz with 32-bit slots (`audio_engine.cpp`):
+  I2S0 master with MCLK on GPIO0 (12.288 MHz, from the APLL), the front DAC on GPIO27 and the ADC on GPIO35
+  (microphone left, aux right); I2S1 a slave on the same BCK / WS through the GPIO matrix, the rear DAC on GPIO26 and
+  the rail's RET in on GPIO34. Front and rear start on the same frame and are written in step. GPIO4 un-mutes the
+  DACs and GPIO21 turns the rail buffer on once the clocks run. The music (Bluetooth resampled from the phone's rate,
+  the radio from RET, or aux in) goes through the 10-band equaliser and the master volume; calls, a voice card on RET
+  and the chimes are mixed over it, then fader and balance. As the AUDIO_CMD sink (`sink.cpp`) it picks the source,
+  hands out RET over NET RAIL (`docs/protocols/can_channels.md`, one holder at a time; a voice card ducks the music),
+  and has a page with chime volume, fader, balance and the Equalizer. The serial console's `audio` prints the engine
+  (CPU per 5 ms block, the Bluetooth ring and its drift trim, RET and aux levels) and the sink.
+- **Not yet tried on a built card:** I2S1 as a slave on I2S0's clock pins (the driver makes them inputs; the firmware
+  routes I2S0's BCK / WS back out on the same pins), RET from a radio card, and aux in. Check those first on the bench:
+  `audio` shows RET's and aux's peak levels.
+- **Slot:** the slot ID on GPIO36 (ADC1) at boot goes in the NET ANNOUNCE flags and the RAIL answers.
 - **Node number:** from the slot ID (GPIO36), `0x14 + (slot − 1)`. The node straps JP1 / JP2 (GPIO13, GPIO22) are left
   over from the rev 1 carrier: the firmware ignores them when it reads a valid slot, and the next revision of the card
   can drop them.

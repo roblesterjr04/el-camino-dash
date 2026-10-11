@@ -52,6 +52,8 @@ class ChimeSynth {
   bool active() const;
   /** Still changing the output: a sound plays, or the music is coming back up after a duck. */
   bool busy() const { return _duck < 1.0f || active(); }
+  /** An alert (priority 2 or more) is ducking the music, or it is still coming back up. */
+  bool ducking() const { return _duck < 1.0f; }
   uint8_t count() const;
   /** A sound that finished (played out, stopped or replaced), for AUDIO_CMD DONE. False when there is none. */
   bool pop_done(uint8_t &node, uint16_t &sound);

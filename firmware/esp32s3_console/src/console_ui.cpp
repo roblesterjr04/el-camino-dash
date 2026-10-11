@@ -132,8 +132,14 @@ void ConsoleUi::play_pause(uint32_t now_ms) {
     media(ELC_MEDIA_TOGGLE, 0, "MEDIA mute");
     return;
   }
-  phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 0, "play/pause");  // the Bluetooth bridge (old frames)
-  media(ELC_MEDIA_TOGGLE, 0, "MEDIA play/pause");       // and the audio card's own Bluetooth
+  if (aux_is_source(now_ms)) {  // nothing to pause: the audio card mutes
+    ElcChWriter w;
+    elc_audio_encode(ElcAudioVolume{sink(), 2, 0}, w);
+    chan_send(ELC_CH_AUDIO_CMD, w, "VOLUME mute");
+    return;
+  }
+  if (!sink_is_bridge()) phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 0, "play/pause");  // a separate Bluetooth bridge (old frames)
+  media(ELC_MEDIA_TOGGLE, 0, "MEDIA play/pause");                              // the audio card's own Bluetooth
 }
 
 void ConsoleUi::toast(const char *title, const char *value, uint32_t now_ms) {
@@ -143,6 +149,20 @@ void ConsoleUi::toast(const char *title, const char *value, uint32_t now_ms) {
 }
 
 uint8_t ConsoleUi::sink() const { return _ch ? _ch->findNode(ELC_TYPE_AUDIO_SINK) : 0; }
+
+bool ConsoleUi::sink_is_bridge() const {
+  const uint8_t s = sink();
+  return s && _slot_known && s == (uint8_t)(ELC_CAN_NODE_SLOT0 + _slot);
+}
+
+bool ConsoleUi::eq_band(int band, int *db) const {
+  const uint8_t s = sink();
+  if (!s || band < 0 || band >= ELC_EQ_BANDS) return false;
+  const AccItem *it = accessory_can_item(s, (uint8_t)(ELC_SINK_ITEM_EQ_BAND0 + band));
+  if (!it || !it->has_value) return false;
+  if (db) *db = (int)it->value;
+  return true;
+}
 uint8_t ConsoleUi::radio() const { return _ch ? _ch->findNode(ELC_TYPE_RADIO) : 0; }
 
 uint8_t ConsoleUi::source(uint32_t now_ms) const {
@@ -302,7 +322,7 @@ void ConsoleUi::transfer(const ElcChTransfer &t, uint32_t now_ms) {
     }
     // Bluetooth on the audio bridge (old frames) knows nothing of sources: pause it when the source leaves Bluetooth,
     // play it when it comes back, as the audio card does for its own Bluetooth.
-    if (had && st.source != _st.source) {
+    if (had && st.source != _st.source && !sink_is_bridge()) {
       if (_st.source == ELC_SRC_BLUETOOTH) {
         _bt_was_playing = _tr_ms && now_ms - _tr_ms < 3000 && _tr.playing;  // the phone's own play status
         phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, 4, "pause (source left Bluetooth)");
@@ -571,6 +591,12 @@ void ConsoleUi::build_rows() {
                                                                             ? _ph_connected.text() : "Connected")
                                                                       : "Not connected";
       row_add(ConsoleRow::Sub, kRPhone, 0, "Phone", ph);
+      if (sink()) {
+        const AccItem *pr = accessory_can_item(sink(), ELC_SINK_ITEM_EQ_PRESET);
+        char eq[40] = "";
+        if (pr && pr->has_value) accessory_can_value_text(*pr, eq, sizeof(eq));
+        row_add(ConsoleRow::Sub, kRSound, 0, "Sound", eq);
+      }
       uint8_t nodes[kAccMaxNodes];
       const int na = accessory_can_nodes(nodes, kAccMaxNodes);
       snprintf(v, sizeof(v), "%d", na);
@@ -589,6 +615,7 @@ void ConsoleUi::build_rows() {
       const uint8_t cur = source(now);
       row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_BLUETOOTH, "Bluetooth", cur == ELC_SRC_BLUETOOTH ? "Playing" : "");
       if (radio()) row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_RADIO, "Radio", cur == ELC_SRC_RADIO ? "Playing" : "");
+      if (_st.flags & ELC_AUDIO_F_AUX) row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_AUX, "Aux in", cur == ELC_SRC_AUX ? "Playing" : "");
       row_add(ConsoleRow::Action, kRSrcPick, ELC_SRC_REQ_OFF, "Off", audio_off(now) ? "Now" : "");
       break;
     }
@@ -720,6 +747,18 @@ void ConsoleUi::build_rows() {
       }
       break;
     }
+    case kMEq:  // one row per band (the screen draws them as bars)
+      for (int b = 0; b < ELC_EQ_BANDS; b++) {
+        int db = 0;
+        const bool editing = _mode == ConsoleMode::Edit && _edit_id == kREqBand && _edit_item == ELC_SINK_ITEM_EQ_BAND0 + b;
+        const bool have = editing || eq_band(b, &db);
+        if (editing) db = _edit_val;
+        if (have) snprintf(v, sizeof(v), "%+d dB", db);
+        char lb[12];
+        snprintf(lb, sizeof(lb), "%s", elc_eq_band_label(b));
+        row_add(ConsoleRow::Setting, kREqBand, (uint8_t)b, lb, have ? v : "--", !have);
+      }
+      break;
     case kMConfirm:
       row_add(ConsoleRow::Info, kRNone, 0, _cf_question, "");
       row_add(ConsoleRow::Action, kRNo, 0, "Cancel", "");
@@ -782,6 +821,19 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
   switch (r.id) {
     case kRSource: push(kMSource); return;
     case kRRadio: push(kMAccPage, radio(), ELC_UI_TOP); return;
+    case kRSound: push(kMAccPage, sink(), ELC_UI_TOP); return;
+    case kREqBand: {
+      if (r.dim || !sink()) return;
+      int db = 0;
+      eq_band(r.arg, &db);
+      _mode = ConsoleMode::Edit;
+      _edit_id = kREqBand;
+      _edit_node = sink();
+      _edit_item = (uint8_t)(ELC_SINK_ITEM_EQ_BAND0 + r.arg);
+      _edit_val = _edit_orig = db;
+      build_rows();
+      return;
+    }
     case kRPhone: push(kMPhone); return;
     case kRAccessories: push(kMAccessories); return;
     case kRDisplay: push(kMDisplay); return;
@@ -791,7 +843,8 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
     case kRAccNode: push(kMAccPage, r.arg, ELC_UI_TOP); return;
     case kRSrcPick:
       if (!sink()) return;
-      request_source(r.arg, r.arg == ELC_SRC_RADIO ? "SOURCE radio" : (r.arg == ELC_SRC_REQ_OFF ? "SOURCE off" : "SOURCE bluetooth"),
+      request_source(r.arg, r.arg == ELC_SRC_RADIO ? "SOURCE radio" : r.arg == ELC_SRC_AUX ? "SOURCE aux"
+                            : (r.arg == ELC_SRC_REQ_OFF ? "SOURCE off" : "SOURCE bluetooth"),
                      now_ms);
       close_menu();
       return;
@@ -816,7 +869,9 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
       const AccItem *it = accessory_can_item(L.node, r.arg);
       if (!it) return;
       if (it->d.kind == ELC_UI_GROUP) {
-        push(kMAccPage, L.node, it->d.item);
+        // the audio card's Equalizer: its own screen (bars), not a list
+        if (L.node == sink() && it->d.item == ELC_SINK_ITEM_EQ) push(kMEq, L.node, it->d.item);
+        else push(kMAccPage, L.node, it->d.item);
         return;
       }
       if (it->d.flags & ELC_UI_F_RO) return;
@@ -873,7 +928,10 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
 }
 
 void ConsoleUi::edit_turn(int steps, uint32_t now_ms) {
-  if (_edit_id == kRAccItem) {
+  if (_edit_id == kREqBand) {  // live: heard as it turns
+    const int v = clampi(_edit_val + steps, -ELC_EQ_MAX_DB, ELC_EQ_MAX_DB);
+    if (v != _edit_val) accessory_can_set(_edit_node, _edit_item, _edit_val = v);
+  } else if (_edit_id == kRAccItem) {
     const AccItem *it = accessory_can_item(_edit_node, _edit_item);
     if (!it) return;
     const int32_t step = it->d.step > 0 ? it->d.step : 1;
@@ -899,7 +957,11 @@ void ConsoleUi::edit_done(uint32_t now_ms) {
 }
 
 void ConsoleUi::edit_cancel(uint32_t now_ms) {
-  if (_edit_id != kRAccItem && _edit_val != _edit_orig) setting_set(_edit_id, _edit_orig, now_ms, true);
+  if (_edit_id == kREqBand) {
+    if (_edit_val != _edit_orig) accessory_can_set(_edit_node, _edit_item, _edit_orig);
+  } else if (_edit_id != kRAccItem && _edit_val != _edit_orig) {
+    setting_set(_edit_id, _edit_orig, now_ms, true);
+  }
   _mode = ConsoleMode::Menu;
   _edit_id = 0;
   build_rows();
@@ -948,7 +1010,7 @@ void ConsoleUi::page_step(int dir, uint32_t now_ms) {
 
 const char *ConsoleUi::page_name(int page, uint32_t now_ms) const {
   switch (page) {
-    case kPageMedia: return radio_is_source(now_ms) ? "Radio" : "Media";
+    case kPageMedia: return radio_is_source(now_ms) ? "Radio" : (aux_is_source(now_ms) ? "Aux" : "Media");
     case kPageTrip: return "Trip";
     case kPageEngine: return "Engine";
     default: return "Clock";
@@ -980,12 +1042,13 @@ void ConsoleUi::request_source(uint8_t code, const char *what, uint32_t now_ms) 
   presets_close("source");
 }
 
-/** Left knob held: the next source, round Bluetooth, the radio (when heard) and off. */
+/** Left knob held: the next source, round Bluetooth, the radio (when heard), aux in (when the card has it) and off. */
 void ConsoleUi::source_next(uint32_t now_ms) {
-  uint8_t list[3];
+  uint8_t list[4];
   int n = 0;
   list[n++] = ELC_SRC_BLUETOOTH;
   if (radio()) list[n++] = ELC_SRC_RADIO;
+  if (_st_ms && (_st.flags & ELC_AUDIO_F_AUX)) list[n++] = ELC_SRC_AUX;
   list[n++] = ELC_SRC_OFF;
   const uint8_t cur = _st_ms && now_ms - _st_ms <= kStatusMs ? _st.source : ELC_SRC_OFF;  // not heard: from off
   int i = n - 1;
@@ -998,7 +1061,8 @@ void ConsoleUi::source_next(uint32_t now_ms) {
 
 /** Audio back on, to the source it had before it went off. */
 void ConsoleUi::audio_on(uint32_t now_ms) {
-  request_source(_on_src == ELC_SRC_RADIO && !radio() ? ELC_SRC_BLUETOOTH : _on_src, "SOURCE on", now_ms);
+  const bool gone = (_on_src == ELC_SRC_RADIO && !radio()) || (_on_src == ELC_SRC_AUX && !(_st.flags & ELC_AUDIO_F_AUX));
+  request_source(gone ? ELC_SRC_BLUETOOTH : _on_src, "SOURCE on", now_ms);
 }
 
 /** Left knob turn: the volume (the call's in a call), on every screen, the menu too. */
@@ -1017,8 +1081,8 @@ void ConsoleUi::left_turn(int steps, uint32_t now_ms) {
   _vol = (uint8_t)v;
   _vol_set = true;
   _vol_set_ms = now_ms;
-  phone_cmd(ELC_CAN_PHONE_CMD_MEDIA_VOLUME, (uint8_t)v, "volume");  // the Bluetooth bridge (0..15)
-  if (const uint8_t s = sink()) {                                   // the audio card (0..100)
+  if (!sink_is_bridge()) phone_cmd(ELC_CAN_PHONE_CMD_MEDIA_VOLUME, (uint8_t)v, "volume");  // a separate bridge (0..15)
+  if (const uint8_t s = sink()) {                                                         // the audio card (0..100)
     ElcChWriter w;
     elc_audio_encode(ElcAudioVolume{s, 0, (int8_t)((v * 100 + 7) / 15)}, w);
     chan_send(ELC_CH_AUDIO_CMD, w, "VOLUME");
@@ -1053,8 +1117,8 @@ void ConsoleUi::left_ring(int dir, uint32_t now_ms) {
   if (radio_is_source(now_ms)) {
     presets_close("seek");
     do_key(dir > 0 ? kKSeekUp : kKSeekDown, now_ms);
-  } else {
-    phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, dir > 0 ? 1 : 2, dir > 0 ? "next" : "previous");
+  } else if (!aux_is_source(now_ms)) {
+    if (!sink_is_bridge()) phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, dir > 0 ? 1 : 2, dir > 0 ? "next" : "previous");
     media(dir > 0 ? ELC_MEDIA_NEXT : ELC_MEDIA_PREV, 0, dir > 0 ? "MEDIA next" : "MEDIA previous");
   }
 }
@@ -1075,13 +1139,13 @@ void ConsoleUi::right_turn(int steps, uint32_t now_ms) {
     _pre_sel = ((_pre_sel + steps) % kPresets + kPresets) % kPresets;
     return;
   }
-  if (audio_off(now_ms)) return;  // no source: nothing to tune or skip
+  if (audio_off(now_ms) || aux_is_source(now_ms)) return;  // nothing to tune or skip
   const int n = clampi(steps < 0 ? -steps : steps, 1, 5);
   for (int i = 0; i < n; i++) {
     if (radio_is_source(now_ms)) {
       media(steps > 0 ? ELC_MEDIA_TUNE_UP : ELC_MEDIA_TUNE_DOWN, 0, steps > 0 ? "MEDIA tune up" : "MEDIA tune down");
     } else {
-      phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, steps > 0 ? 1 : 2, steps > 0 ? "next" : "previous");
+      if (!sink_is_bridge()) phone_cmd(ELC_CAN_PHONE_CMD_MEDIA, steps > 0 ? 1 : 2, steps > 0 ? "next" : "previous");
       media(steps > 0 ? ELC_MEDIA_NEXT : ELC_MEDIA_PREV, 0, steps > 0 ? "MEDIA next" : "MEDIA previous");
     }
   }
@@ -1174,6 +1238,9 @@ void ConsoleUi::keys(ConsoleKey out[kKeys], uint32_t now_ms) {
     if (_stack[_depth].page == kMConfirm) {
       set(L, kKNo, "No");
       set(R, kKYes, "Yes");
+    } else if (_stack[_depth].page == kMEq) {
+      set(L, kKBack, "Back", kKExit);
+      set(R, kKEqPresets, "Presets");
     } else if (_depth) {
       set(L, kKBack, "Back", kKExit);
       set(R, kKExit, "Exit");
@@ -1310,6 +1377,9 @@ void ConsoleUi::do_key(uint8_t act, uint32_t now_ms) {
       push(kMPhone);
       break;
     case kKAudioOn: audio_on(now_ms); break;
+    case kKEqPresets:
+      if (sink() && accessory_can_item(sink(), ELC_SINK_ITEM_EQ_PRESET)) push(kMAccChoice, sink(), ELC_SINK_ITEM_EQ_PRESET);
+      break;
     // the drive pages
     case kKPage: page_step(1, now_ms); break;
     case kKView: {
@@ -1412,6 +1482,7 @@ void ConsoleUi::tick(uint32_t now_ms) {
     // keep an accessory page's live items coming while it shows (UI VIEW)
     const Level &L = _stack[_depth];
     if (L.page == kMAccPage || L.page == kMAccChoice) accessory_can_view(L.node, L.page == kMAccPage ? L.arg : ELC_UI_TOP);
+    else if (L.page == kMEq) accessory_can_view(L.node, ELC_SINK_ITEM_EQ);
     else accessory_can_view(0, ELC_UI_TOP);
   }
   art_pump(now_ms);
@@ -1428,8 +1499,8 @@ void ConsoleUi::describe(char *out, size_t n, uint32_t now_ms) const {
   static const char *const kMode[3] = {"drive", "menu", "edit"};
   static const char *const kPage[4] = {"media", "trip", "engine", "clock"};
   static const char *const kCall[7] = {"idle", "incoming", "dialing", "alerting", "active", "waiting", "held"};
-  static const char *const kMenu[11] = {"home", "source", "phone", "phone-one", "display", "trip", "service",
-                                        "accessories", "accessory", "choice", "confirm"};
+  static const char *const kMenu[12] = {"home", "source", "phone", "phone-one", "display", "trip", "service",
+                                        "accessories", "accessory", "choice", "confirm", "equalizer"};
   const Level &L = _stack[_depth];
   char l1[40], l2[72];
   now_text(l1, sizeof(l1), l2, sizeof(l2), now_ms);
@@ -1438,7 +1509,7 @@ void ConsoleUi::describe(char *out, size_t n, uint32_t now_ms) const {
            "audio card %s, source %s, playing '%s' '%s'; radio %s; time %s; art shown %u, rx id %u, starts %lu "
            "requests %lu resets %lu, failed %u",
            kMode[(int)_mode % 3], kPage[_page % 4], _pre_open ? "open" : "closed", _pre_sel + 1,
-           (unsigned long)(now_ms - _pre_ms), _pre_why, kMenu[L.page % 11], L.sel, alive(now_ms) ? "heard" : "not heard",
+           (unsigned long)(now_ms - _pre_ms), _pre_why, kMenu[L.page % 12], L.sel, alive(now_ms) ? "heard" : "not heard",
            _sensor_ms && now_ms - _sensor_ms < kSensorFreshMs ? "fresh" : "none", bridge_heard(now_ms) ? "heard" : "none",
            _slot, phone_fresh(now_ms) ? kCall[_ph.call % 7] : "-", pair_shown(now_ms) ? "code waiting" : "-",
            sink() ? "heard" : "none", source_name(source(now_ms)), l1, l2, radio() ? "heard" : "none",

@@ -195,7 +195,7 @@
   "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "video",
-  "value": "18p"
+  "value": "27p"
  },
  "C3": {
   "dnp": false,
@@ -207,7 +207,7 @@
   "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "video",
-  "value": "18p"
+  "value": "27p"
  },
  "C31": {
   "dnp": false,
@@ -333,7 +333,7 @@
   "dnp": false,
   "fp": "Diode_SMD:D_SOD-323",
   "group": "video",
-  "value": "PESD5V0S1BL"
+  "value": "PESD5V0S1BA"
  },
  "D12": {
   "dnp": false,

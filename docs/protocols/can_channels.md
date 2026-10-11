@@ -9,10 +9,12 @@ AUDIO_CMD (SOURCE, MEDIA, VOLUME) and reads NOW PLAYING. The center runs the ALE
 `center_alerts.cpp`): it collects every node's alerts, raises its own, plays the chimes and sends ACK and SUMMARY.
 **Not implemented yet:** the alert banner and list on the menu screen (the bench acknowledges with the center's
 `alerts ack`), the center raising alerts from other nodes' SENSOR thresholds (flag bit2), the accessory settings backup and restore on the center's SD
-card, INPUT (no node sends or acts on it), BULK and AUDIO_STREAM users, and most of the AUDIO_CMD sink: the audio
-card's firmware (the audio bridge, `arduino/sketches/esp32_audio_bridge`) plays the alert chimes (PLAY / STOP of
-sounds 2-4, DONE) and has a UI page (Chime volume), but does not announce as node type 5 or do STATUS, SOURCE, VOLUME or MEDIA yet, and the radio card
-has no firmware (`tools/cards_sim.py` and `tools/radio_sim.py` simulate them for the bench).
+card, INPUT (no node sends or acts on it), BULK and AUDIO_STREAM users, the sink's sounds other than the chimes (2-4)
+and its zones, and the radio card's firmware (`tools/radio_sim.py` simulates it for the bench). The audio card's
+firmware (`arduino/sketches/esp32_audio_bridge`: `sink.cpp`, `audio_engine.cpp`) is the AUDIO_CMD sink (node type 5):
+STATUS, SOURCE (Bluetooth, the radio on RET, aux in, off), VOLUME, MEDIA (forwarded to the radio), the chimes, NET RAIL,
+and its page with the equaliser ([The sink's page](#the-sinks-page)). Host-tested; the rail and aux paths are not yet
+tried on a built card. `tools/cards_sim.py` simulates the card and goes quiet when a real sink announces.
 The bus itself, the legacy messages
 and the node numbers are in [`can_bus.md`](can_bus.md); the ports carriers plug into are in
 [`../hardware/accessory_ports.md`](../hardware/accessory_ports.md).
@@ -218,7 +220,8 @@ back to the audio card) has one owner at a time, handed out over RAIL:
    card enable its RET driver. The audio card sends the current rate in every answer; a card that cannot follow it
    resamples or declines.
 3. The holder sends state 2 (release) when it is done. The audio card can withdraw a grant (state 2 to the holder,
-   for a higher-priority talker); the holder stops driving within 10 ms. A holder that loses the audio card's
+   for a higher-priority talker: a voice card, node type 8, outranks every other card, and the radio, node type 9, a
+   continuous source, ranks below them all); the holder stops driving within 10 ms. A holder that loses the audio card's
    heartbeat stops at once, and the audio card frees RET when the holder's heartbeat stops.
 
 | state | Meaning |
@@ -476,8 +479,9 @@ Who acts on what (every consumer listens and acts on its own keys; nobody routes
 
 ## AUDIO_CMD (`0x240 + node`)
 
-The sink is the node that announces it consumes AUDIO_CMD (node type 5): the audio card (slot 1, node `0x14`), whose
-firmware so far only plays the chimes, sounds 2-4 (`tools/cards_sim.py` simulates the rest). Commands may be sent to it by number or to `0x00` (the sink is the only one that acts on them).
+The sink is the node that announces it consumes AUDIO_CMD (node type 5): the audio card (slot 1, node `0x14`; on the
+bench a DevKit running the same firmware at its strap node). Of the built-in sounds it plays the chimes, 2-4
+(`tools/cards_sim.py` simulates the rest). Commands may be sent to it by number or to `0x00` (the sink is the only one that acts on them).
 
 | Op | Name | Sender | Payload after the opcode |
 | --- | --- | --- | --- |
@@ -493,19 +497,22 @@ firmware so far only plays the chimes, sounds 2-4 (`tools/cards_sim.py` simulate
 | `0x86` | STREAM_CLOSE | stream owner | dest u8 |
 | `0x87` | SOURCE | any | dest u8 (the sink), source u8 (0 = the next one, `0xFF` = off, else a source code) |
 
-- STATUS at 1 Hz and on change. Flags: bit0 muted, bit1 music playing, bit2 music ducked.
+- STATUS at 1 Hz and on change. Flags: bit0 muted, bit1 music playing, bit2 music ducked, bit3 the sink has an aux
+  input (source 3 can be chosen).
 - **VOLUME is the master volume**: the sink scales its output after mixing, so it covers every source and the
   sounds. Bluetooth's own (AVRCP absolute) volume is held at full by the sink, which puts it back when the phone's
   slider moves; the phone's slider is never the car's volume.
 - **Sources.** The sink owns which source plays. Source codes: 0 none (**off**), 1 Bluetooth (the sink's own A2DP, or
   the audio bridge), 2 radio, 3 aux in. **source node** is the node that provides it (the sink itself for Bluetooth and
   aux; 0 when off). SOURCE with 0 steps to the next one in the order Bluetooth, radio (once its ANNOUNCE is heard, node
-  type 9), off, Bluetooth; `0xFF` turns the source off. **Off** plays no source (Bluetooth paused, the radio muted
+  type 9), aux in (when STATUS flag bit3 says the sink has one), off, Bluetooth; `0xFF` turns the source off. **Off** plays no source (Bluetooth paused, the radio muted
   with RET released) while the sink stays up: its sounds and the alerts' chimes still play.
   A source learns it was chosen from STATUS: the radio powers on and asks for RET when STATUS names it, and mutes and
   releases RET when it does not. Bluetooth pauses when the sink leaves it and plays again when it comes back (if it was
-  playing): the sink does that for its own A2DP, the console for the audio bridge (`can_bus.md`, phone command 14). The console's left knob **hold** sends SOURCE with an explicit code, stepping round Bluetooth, radio (when heard) and
-off (`0xFF`); its click is play / pause (Bluetooth), mute (radio), or audio back on when the source is off.
+  playing): the sink does that for its own A2DP, the console for the audio bridge (`can_bus.md`, phone command 14). The console's left knob **hold** sends SOURCE with an explicit code, stepping round Bluetooth, radio (when heard), aux
+in (when the sink has one) and off (`0xFF`); its click is play / pause (Bluetooth), mute (radio, aux in: VOLUME
+action 2), or audio back on when the source is off. The audio card keeps the source chosen; booted to the radio, it
+waits 6 s for the radio card's ANNOUNCE before it falls back to Bluetooth.
 - **MEDIA actions:** 1 play/pause, 2 play, 3 pause, 4 next, 5 previous, 6 tune up, 7 tune down (one grid step),
   8 next preset, 9 previous preset, 10 store preset (value = slot 1–12, 0 = the next free one, else the oldest),
   11 seek up, 12 seek down, 13 recall preset (value = slot 1–12); value is 0 where an action takes none. The sink acts on them for its own source and
@@ -521,6 +528,33 @@ off (`0xFF`); its click is play / pause (Bluetooth), mute (radio), or audio back
 - A sound is identified by (node, sound number), so STOP from one node never stops another's.
 - **Parking-sensor example:** PLAY the tick with repeat 0, change its rate by sending PLAY again with a different
   sound (fast / medium / slow tick), STOP when clear. No streaming needed.
+- **One board as bridge and sink.** The audio card is also the Bluetooth bridge: its heartbeat keeps node type 1, so
+  the old Bluetooth frames (`can_bus.md`, now playing, phone, album art) still come from its range, while its ANNOUNCE
+  says node type 5. A console that sees the sink at the bridge's node sends AUDIO_CMD only (MEDIA, VOLUME), not the
+  old phone commands 14 / 15 as well, so a play / pause or a skip happens once.
+
+### The sink's page
+
+The audio card's UI page (Menu > Accessories > its name, and the console's **Sound**) has fixed item numbers, so the
+console can draw the equaliser as bars and find the preset, as it finds the radio's presets (`elc_chan_msg.h`,
+`ELC_SINK_ITEM_*`). Every item but the group is a setting (flag bit4: the center backs it up).
+
+| Item | Kind | What |
+| --- | --- | --- |
+| 0 | number 1..15 | Chime volume (the alert chimes' own volume; a SET plays the soft chime once at it) |
+| 1 | number -10..10 | Fader, rear to front (only when the rear DAC is fitted). Each step toward one end is -2 dB at the other; the end silences it |
+| 2 | number -10..10 | Balance, left to right, the same way |
+| 3 | group | Equalizer |
+| 4 | choice, in 3 | Preset: Flat, Bass, Treble, Vocal, Rock, Jazz, Custom |
+| 5..14 | number -12..12 dB, in 3 | The ten bands at 31, 62, 125, 250, 500 Hz, 1, 2, 4, 8, 16 kHz |
+
+- **The equaliser** is ten peaking filters (RBJ cookbook, Q 1.41: one octave), applied to the music only (Bluetooth,
+  the radio, aux in), not to calls, a voice card or the chimes. A pre-gain cancels the curve's highest point above
+  0 dB, so boosting cannot clip; turning a band up makes the rest quieter rather than distorting.
+- **Presets and Custom.** Choosing a preset sends VALUE for the preset and all ten bands (its curve). Moving a band
+  while a fixed preset is chosen turns that preset's curve into Custom with the one band changed, and sends the same
+  eleven VALUEs; Custom keeps the user's curve while another preset is chosen.
+
 
 ## AUDIO_STREAM (`0x300 + node`, raw)
 

@@ -791,6 +791,173 @@ static void test_no_center() {
   CHECK(!pop(ui, f));
 }
 
+/** STATUS from the audio card with its flags (aux fitted, muted). */
+static void card_status(Rig &r, uint8_t source, uint8_t flags) {
+  ElcChWriter w;
+  const uint8_t node = source == ELC_SRC_RADIO ? 0x15 : (source ? 0x14 : 0);
+  elc_audio_encode(ElcAudioStatus{60, flags, 0, 0, 15, source, node}, w);
+  r.sink.send(ELC_CH_AUDIO_CMD, w);
+  r.deliver(r.sink_out);
+}
+
+static void test_card_is_bridge() {
+  std::printf("the audio card is the Bluetooth bridge too: one command each, aux in as a source\n");
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  boot(ui);
+  r.add_sink();
+  // the card's Bluetooth frames come from its own node, 0x14 (index 4 of the old numbering)
+  ElcCanHeartbeat hb;
+  hb.node = 0x14;
+  hb.type = ElcCanNodeType::AudioBridge;
+  ElcCanFrame f;
+  elc_can_encode_heartbeat(hb, f);
+  ui.feed(f, T);
+  ElcCanPhoneStatus ps;
+  ps.flags = ELC_CAN_PHONE_CONNECTED | ELC_CAN_PHONE_HFP;
+  ps.connected_index = 0;
+  elc_can_encode_phone_status(4, ps, f);
+  ui.feed(f, T);
+  card_status(r, ELC_SRC_BLUETOOTH, ELC_AUDIO_F_AUX);
+  CHECK(ui.sink_is_bridge());
+  drain(ui);
+  r.sent(ELC_CH_AUDIO_CMD);
+  auto count = [&](uint8_t op) {
+    int n = 0;
+    for (auto &m : r.sent(ELC_CH_AUDIO_CMD)) n += m[0] == op;
+    return n;
+  };
+  ui.left_turn(1, T);  // the volume: AUDIO_CMD only, not phone command 15 as well
+  CHECK(next_phone(ui).command == 0 && count(ELC_AUDIO_VOLUME) == 1);
+  ui.left_click(T);  // play / pause: once, as MEDIA
+  CHECK(next_phone(ui).command == 0 && count(ELC_AUDIO_MEDIA) == 1);
+  ui.right_turn(1, T);  // a track: once
+  CHECK(next_phone(ui).command == 0 && count(ELC_AUDIO_MEDIA) == 1);
+  ui.left_ring(-1, T);
+  CHECK(next_phone(ui).command == 0 && count(ELC_AUDIO_MEDIA) == 1);
+  card_status(r, ELC_SRC_OFF, ELC_AUDIO_F_AUX);  // the card pauses its own Bluetooth: no old-frame pause
+  CHECK(next_phone(ui).command == 0);
+  card_status(r, ELC_SRC_BLUETOOTH, ELC_AUDIO_F_AUX);
+  CHECK(next_phone(ui).command == 0);
+  ui.left_hold(T);  // no radio: Bluetooth -> aux in
+  auto m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][2] == ELC_SRC_AUX);
+  card_status(r, ELC_SRC_AUX, ELC_AUDIO_F_AUX);
+  CHECK(ui.aux_is_source(T));
+  ui.right_turn(2, T);  // nothing to tune or skip
+  ui.left_ring(1, T);
+  CHECK(r.sent(ELC_CH_AUDIO_CMD).empty() && next_phone(ui).command == 0);
+  ui.left_click(T);  // push: the card mutes
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_VOLUME && m[0][2] == 2);
+  ui.right_click(T);
+  CHECK(pick(ui, "Source"));
+  CHECK(row(ui, "Aux in") && !std::strcmp(row(ui, "Aux in")->value, "Playing"));
+  card_status(r, ELC_SRC_AUX, 0);  // a card with no aux (a DevKit): not offered
+  CHECK(!row(ui, "Aux in"));
+}
+
+static void test_equalizer() {
+  std::printf("the Equalizer: Sound on the menu, the bars, a band edited live and undone, the presets\n");
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  boot(ui);
+  r.add_sink();
+  card_status(r, ELC_SRC_BLUETOOTH, 0);
+  // the card's page, as sink.cpp describes it
+  std::vector<ElcUiItem> items;
+  ElcUiItem chime;
+  chime.item = ELC_SINK_ITEM_CHIME_VOL;
+  chime.kind = ELC_UI_NUMBER;
+  chime.min = 1;
+  chime.max = 15;
+  chime.step = 1;
+  std::strcpy(chime.label, "Chime volume");
+  items.push_back(chime);
+  ElcUiItem grp;
+  grp.item = ELC_SINK_ITEM_EQ;
+  grp.kind = ELC_UI_GROUP;
+  std::strcpy(grp.label, "Equalizer");
+  items.push_back(grp);
+  ElcUiItem pr;
+  pr.item = ELC_SINK_ITEM_EQ_PRESET;
+  pr.parent = ELC_SINK_ITEM_EQ;
+  pr.kind = ELC_UI_CHOICE;
+  pr.max = ELC_EQ_PRESET_CUSTOM;
+  std::strcpy(pr.label, "Preset");
+  std::strcpy(pr.options, ELC_EQ_PRESETS);
+  items.push_back(pr);
+  for (int b = 0; b < ELC_EQ_BANDS; b++) {
+    ElcUiItem band;
+    band.item = (uint8_t)(ELC_SINK_ITEM_EQ_BAND0 + b);
+    band.parent = ELC_SINK_ITEM_EQ;
+    band.kind = ELC_UI_NUMBER;
+    band.min = -12;
+    band.max = 12;
+    band.step = 1;
+    std::snprintf(band.label, sizeof(band.label), "%s Hz", elc_eq_band_label(b));
+    items.push_back(band);
+  }
+  const int rock[10] = {5, 4, 2, -1, -2, -1, 1, 3, 4, 4};
+  for (const ElcUiItem &it : items) {
+    ElcChWriter w;
+    elc_ui_encode(it, w);
+    r.sink.send(ELC_CH_UI, w);
+  }
+  r.deliver(r.sink_out);
+  for (int b = 0; b <= ELC_EQ_BANDS; b++) {
+    ElcChWriter w;
+    if (b == ELC_EQ_BANDS) elc_ui_encode(ElcUiValue{ELC_SINK_ITEM_EQ_PRESET, 4}, w);
+    else elc_ui_encode(ElcUiValue{(uint8_t)(ELC_SINK_ITEM_EQ_BAND0 + b), rock[b]}, w);
+    r.sink.send(ELC_CH_UI, w);
+    r.deliver(r.sink_out);
+  }
+  ui.tick(T);
+  ui.right_click(T);  // the menu: Sound says the preset
+  CHECK(row(ui, "Sound") && !std::strcmp(row(ui, "Sound")->value, "Rock"));
+  CHECK(pick(ui, "Sound") && ui.menu_page() == ConsoleUi::kMAccPage);
+  CHECK(pick(ui, "Equalizer") && ui.menu_page() == ConsoleUi::kMEq);  // its own screen, not a list
+  const ConsoleRow *rows = nullptr;
+  CHECK(ui.menu_rows(&rows) == 10 && !std::strcmp(rows[5].label, "1k") && !std::strcmp(rows[5].value, "-1 dB"));
+  int db = 0;
+  CHECK(ui.eq_band(0, &db) && db == 5);
+  CHECK(key(ui, "Back") == 0 && key(ui, "Presets") == 1);
+  ui.right_turn(5, T);  // the right knob moves along the bands
+  CHECK(ui.menu_sel() == 5);
+  ui.right_turn(20, T);
+  CHECK(ui.menu_sel() == 9);
+  ui.right_turn(-4, T);
+  ui.right_click(T);  // push: edit 1 kHz
+  CHECK(ui.mode() == ConsoleMode::Edit && key(ui, "Undo") == 0 && key(ui, "Done") == 1);
+  r.sent(ELC_CH_UI);
+  ui.right_turn(3, T);  // live: a SET as it turns
+  ui.right_turn(20, T);  // stops at +12
+  int sets = 0, last = 99;
+  for (auto &p : r.sent(ELC_CH_UI)) {
+    if (p[0] == ELC_UI_SET && p[1] == 0x14 && p[2] == ELC_SINK_ITEM_EQ_BAND0 + 5) {
+      sets++;
+      last = (int8_t)p[3];
+    }
+  }
+  CHECK(sets == 2 && last == 12);
+  CHECK(ui.menu_rows(&rows) == 10 && !std::strcmp(rows[5].value, "+12 dB"));
+  CHECK(press(ui, "Undo") && ui.mode() == ConsoleMode::Menu);  // back to where it was
+  sets = 0;
+  for (auto &p : r.sent(ELC_CH_UI)) {
+    if (p[0] == ELC_UI_SET && p[2] == ELC_SINK_ITEM_EQ_BAND0 + 5) {
+      sets++;
+      last = (int8_t)p[3];
+    }
+  }
+  CHECK(sets == 1 && last == -1);
+  CHECK(press(ui, "Presets") && ui.menu_page() == ConsoleUi::kMAccChoice);
+  CHECK(pick(ui, "Flat") && ui.menu_page() == ConsoleUi::kMEq);  // picked: back on the bars
+  bool flat = false;
+  for (auto &p : r.sent(ELC_CH_UI)) flat |= p[0] == ELC_UI_SET && p[2] == ELC_SINK_ITEM_EQ_PRESET && p[3] == 0;
+  CHECK(flat);
+  CHECK(press(ui, "Back") && ui.menu_page() == ConsoleUi::kMAccPage);
+}
+
 int main() {
   test_drive_pages_and_menu();
   test_sources_and_radio();
@@ -804,6 +971,8 @@ int main() {
   test_trip_reset();
   test_sensor_card_page();
   test_no_center();
+  test_card_is_bridge();
+  test_equalizer();
   if (g_failures) {
     std::printf("%d FAILED\n", g_failures);
     return 1;

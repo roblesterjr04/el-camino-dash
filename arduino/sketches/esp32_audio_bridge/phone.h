@@ -4,7 +4,7 @@
  * Phones: hands-free calls (HFP client) and phone management (pairing, the paired list, connect / forget).
  *
  * - HFP: call state from the phone's indicators (+CIND), the caller from +CLIP / +CCWA / +CLCC, answer / end /
- *   call waiting / redial / voice assistant, speaker volume, microphone mute. Call audio: call_audio.h.
+ *   call waiting / redial / voice assistant, speaker volume, microphone mute. Call audio: audio_engine.h.
  * - Pairing: numeric comparison (the phone and the console show the same six-digit code; the user confirms on the
  *   console). The bridge is discoverable only while the pairing window is open: on command for 2 minutes, and with no
  *   time limit while nothing is paired (from boot, or from the last Forget, until a phone pairs or the console says

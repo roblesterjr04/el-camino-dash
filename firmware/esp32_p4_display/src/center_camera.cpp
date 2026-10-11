@@ -38,7 +38,10 @@ constexpr size_t kFieldBytes = kCapW * kCapH * 2;  // 542,592: a multiple of the
 constexpr int kCapBufs = 3;
 constexpr int kActiveBytes = 1440;                 // 720 pixels of Cb Y Cr Y
 constexpr int kMaxLines = 300;
-constexpr int kOutW = 640, kOutH = 480;            // 4:3, fits the round glass
+// The picture fills the 800×800 round glass: full height, the 4:3 picture's sides cropped (the centre 540 of the
+// 720 samples) so nothing is stretched.
+constexpr int kOutW = 800, kOutH = 800;
+constexpr int kCropW = 540, kCropX = (720 - kCropW) / 2;
 constexpr int kOutBufs = 3;
 
 // ---------------------------------------------------------------- state
@@ -187,7 +190,7 @@ bool convert_field(const uint8_t *buf, size_t n) {
   uint16_t *dst = s_out[out];
   int prev = -1;
   for (int r = 0; r < kOutH; r++) {
-    const int sl = r * lines / kOutH;  // 240 → 480 line doubling (PAL 288 → 480)
+    const int sl = r * lines / kOutH;  // 240 → 800 line repeat (PAL 288 → 800)
     uint16_t *row = dst + (size_t)r * kOutW;
     if (sl == prev) {
       memcpy(row, row - kOutW, kOutW * 2);
@@ -237,7 +240,7 @@ void build_tables() {
     s_clamp[i] = (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
   }
   for (int c = 0; c < kOutW; c++) {
-    const int sx = c * 720 / kOutW;              // 720 → 640 (square-ish pixels)
+    const int sx = kCropX + c * kCropW / kOutW;  // centre 540 of 720 → 800 (square-ish pixels)
     s_col_uv[c] = (uint16_t)((sx >> 1) * 4);      // Cb of the pair (Cr is +2)
     s_col_y[c] = (uint16_t)(s_col_uv[c] + ((sx & 1) ? 3 : 1));
   }
@@ -348,11 +351,14 @@ void build_ui() {
   lv_obj_set_pos(s_img, x0, y0);
   lv_obj_add_flag(s_img, LV_OBJ_FLAG_HIDDEN);
 
-  // Parking guides (screen coordinates on the 640×480 picture): red near, yellow mid, green far.
+  // Parking guides, laid out on a 640×480 view of the whole 4:3 picture and mapped onto the cropped, full-screen
+  // one so they stay put on the scene: red near, yellow mid, green far. The near red ends run off the glass.
   static lv_point_t lr[2], ly[2], lg[2], rr[2], ry[2], rg[2], cr[2], cy[2], cg[2];
+  auto gx = [&](int x) { return (lv_coord_t)(x0 + (x * 720 / 640 - kCropX) * kOutW / kCropW); };
+  auto gy = [&](int y) { return (lv_coord_t)(y0 + y * kOutH / 480); };
   auto P = [&](lv_point_t *a, int ax, int ay, int bx, int by) {
-    a[0] = {(lv_coord_t)(x0 + ax), (lv_coord_t)(y0 + ay)};
-    a[1] = {(lv_coord_t)(x0 + bx), (lv_coord_t)(y0 + by)};
+    a[0] = {gx(ax), gy(ay)};
+    a[1] = {gx(bx), gy(by)};
   };
   P(lr, 120, 470, 170, 400); P(ly, 170, 400, 215, 330); P(lg, 215, 330, 250, 270);
   P(rr, 520, 470, 470, 400); P(ry, 470, 400, 425, 330); P(rg, 425, 330, 390, 270);
@@ -367,8 +373,12 @@ void build_ui() {
   lv_obj_set_style_text_font(s_msg, &elc_sm_28, 0);
   lv_obj_set_style_text_color(s_msg, lv_color_hex(0xF3F5F6), 0);
   lv_obj_set_style_text_align(s_msg, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_width(s_msg, 500);
-  lv_obj_align(s_msg, LV_ALIGN_TOP_MID, 0, y0 - 56);
+  lv_obj_set_style_bg_color(s_msg, lv_color_black(), 0);  // over the picture now: a dark pill keeps it legible
+  lv_obj_set_style_bg_opa(s_msg, LV_OPA_50, 0);
+  lv_obj_set_style_radius(s_msg, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_pad_hor(s_msg, 20, 0);
+  lv_obj_set_style_pad_ver(s_msg, 6, 0);
+  lv_obj_align(s_msg, LV_ALIGN_TOP_MID, 0, 56);
   lv_label_set_text(s_msg, "REAR CAMERA");
 }
 

@@ -83,7 +83,7 @@ QUERY / IDENTIFY) and these channels:
 
 | Channel | Role | What it does |
 | --- | --- | --- |
-| NET | both | ANNOUNCE (produces UI, SENSOR, consumes INPUT, AUDIO_CMD, SYSTEM). RAIL: sends state 0 (request) to the audio card (found from its ANNOUNCE: node type 5, product `0x0004`) with the sample rate it can follow (48 kHz); enables the RET buffer only on state 1 (granted); releases (state 2) when it stops being the source, the user turns it off, or on RESTART |
+| NET | both | ANNOUNCE (produces UI, SENSOR, consumes INPUT, AUDIO_CMD, SYSTEM). RAIL: sends state 0 (request) to the audio card (found from its ANNOUNCE: node type 5, the audio sink) with the sample rate it can follow (48 kHz); enables the RET buffer only on state 1 (granted); releases (state 2) when it stops being the source, the user turns it off, or on RESTART |
 | UI | produces | The radio's menu page under **Menu → Accessories → Radio** (below) |
 | SENSOR | produces | Sensor 0 signal strength (dBµV, 1 s period), sensor 1 SNR (dB). Flag bit1 off: they are not gauges, only in the menu and the log |
 | INPUT | consumes | With the radio the active source: key 17 / 18 (next / previous) seek, 16 play / pause = mute the radio, encoder 1 is left to the audio sink. When another source is active the radio ignores them |
@@ -245,7 +245,7 @@ holds this firmware up.
 
 `tools/can_relay.py` runs `tools/radio_sim.py`, which sends what this firmware will send, from slot 2 (node `0x15`)
 unless told otherwise: the heartbeat, ANNOUNCE (product `0x0009`, node type 9), the UI page below, SENSOR 0 / 1, LOG
-lines, and RAIL requests once an audio card (node type 5, product `0x0004`) has announced and the radio is the
+lines, and RAIL requests once an audio sink (node type 5) has announced and the radio is the
 selected source. It answers QUERY, SET, VIEW, RAIL, IDENTIFY, RESTART, the keys and SYSTEM POWER. The stations are made
 up. Its item numbers are the ones the firmware should use:
 
