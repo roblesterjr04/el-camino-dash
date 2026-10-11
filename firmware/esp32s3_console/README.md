@@ -1,7 +1,7 @@
 # Console firmware (ESP32-S3, CAN node 0x13)
 
 Firmware for the RetroSound console board ([`ConsoleBoardRS/`](../../ConsoleBoardRS/)): the SSD1322 256 × 64 OLED
-and two **RetroSound knobs** (left = Volume, right = Select) on RJ11 jacks, its only controls. It is the car's radio
+and two **RetroSound knobs** (left = Volume, right = Select) on RJ9 jacks, its only controls. It is the car's radio
 head unit: sources, the radio, volume, the phone (calls, pairing, the paired phones) and every accessory's settings,
 with no touch screen needed. Spec: [`docs/protocols/can_bus.md`](../../docs/protocols/can_bus.md), *Phone* and
 *Console*.
@@ -100,8 +100,8 @@ Custom curve while another preset plays). The values are the audio card's own it
 
 ## The knobs
 
-Each RetroSound knob has two analog lines on its RJ11 jack (33k pull-ups, ADC1;
-[`ConsoleBoardRS/README.md`](../../ConsoleBoardRS/README.md#knobs-rj11)): the encoder (open → 82k → 30k → 47k →
+Each RetroSound knob has two analog lines on its RJ9 jack (33k pull-ups, ADC1;
+[`ConsoleBoardRS/README.md`](../../ConsoleBoardRS/README.md#knobs-rj9)): the encoder (open → 82k → 30k → 47k →
 open, detents at open and 30k, two steps per click) and the switches (open, 6.8k ring left, 22k ring right, 0 Ω
 push). A task on core 0 reads all four lines every millisecond with `analogReadMilliVolts` and keeps a line's level
 once it has read the same band three times running, so the RC's settling and contact bounce never count. Bands:

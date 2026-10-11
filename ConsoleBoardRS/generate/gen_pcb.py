@@ -7,7 +7,7 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 The console for the RetroSound knobs: the board fits a housing 111.5 x 38.5 mm outside (1.5 mm walls with 0.25 mm
 clearance). The OLED module (100 x 33.5 mm, 2 x 8 header on its right edge) sits on standoffs, centred left to right and
 flush with the board's top edge, so the housing's bezel has its widest band below the screen. Nothing else is on the
-front: the ESP32-S3 module, USB-C, the CAN cable, the two RJ11 knob jacks (top entry) and the passives are on the back. Four layers (F signal, In1 GND plane, In2 signal / power, B signal).
+front: the ESP32-S3 module, USB-C, the CAN cable, the two RJ9 knob jacks (top entry) and the passives are on the back. Four layers (F signal, In1 GND plane, In2 signal / power, B signal).
 ICs and connectors are placed by hand below; every passive is then put at the free spot closest to the pins it
 connects to. With --route it runs Freerouting on a Specctra export and imports the result, then fills the ground planes.
 """
@@ -83,8 +83,9 @@ def load(fpid):
 # (ref: (x, y, rotation, side)); side 'B' parts are flipped to the bottom (mirrored left-right, so a connector's origin
 # is at the right end of its pins).
 BOT = H                             # bottom edge
-RJ_X = (58.0, 74.0)                # the two top-entry RJ11 jacks (plugs go in from behind the board): centre lines
-RJ_BODY = (-1.75, 14.63)           # the MJBA-640 body from its first contact row (see gen_footprints.py)
+RJ_X = (57.0, 75.0)                # the two top-entry RJ9 jacks (plugs go in from behind the board): centre lines,
+                                   # 18 mm apart so the 95522 body envelopes (15.24 wide) keep their courtyards apart
+RJ_BODY = (-1.75, 14.89)           # the 95522-2447 body envelope from its first contact row (see gen_footprints.py)
 RJ_Y = H - 1.0 - RJ_BODY[1]        # first contact row: the bodies end 1 mm above the bottom edge
 U1_X = 26.0                     # the ESP32-S3 module: clear of the left M2 holes
 FIXED = {
@@ -92,7 +93,7 @@ FIXED = {
     'U1': (U1_X, 12.8, 0, 'B'),            # antenna end on the top edge
     'J3': (23.5, BOT - 4.8, 0, 'B'),       # CAN cable, side entry, opening past the bottom edge
     'J2': (42.0, BOT - 3.7, 0, 'B'),       # USB-C
-    'J4': (RJ_X[0], RJ_Y, 0, 'B'),        # Select knob, RJ11 6P4C, top entry
+    'J4': (RJ_X[0], RJ_Y, 0, 'B'),        # Select knob, RJ9 4P4C, top entry
     'J5': (RJ_X[1], RJ_Y, 0, 'B'),        # Volume knob
     'J6': (90.0, BOT - 2.5, 90, 'B'),      # IR header
     'SW1': (44.0, 5.5, 0, 'B'),            # RESET
@@ -260,7 +261,7 @@ def main():
         put(ref, x, y, rot, side)
         mark(ref)
     occ['B'].rect(FIXED['J3'][0] - 9.5, BOT - 8.7, FIXED['J3'][0] + 3.5, BOT - 7.3)   # the CAN caption, between the ESP32 and J3
-    for cx in RJ_X:                       # the knob captions, above the RJ11 jacks
+    for cx in RJ_X:                       # the knob captions, above the RJ9 jacks
         occ['B'].rect(cx - 5.0, RJ_Y + RJ_BODY[0] - 3.4, cx + 5.0, RJ_Y + RJ_BODY[0] - 1.8)
     occ['B'].rect(FIXED['J2'][0] - 3.0, BOT - 10.3, FIXED['J2'][0] + 3.0, BOT - 8.9)
     occ['B'].rect(FIXED['J6'][0] - 1.5, BOT - 6.2, FIXED['J6'][0] + 6.5, BOT - 4.6)   # the IR header's caption

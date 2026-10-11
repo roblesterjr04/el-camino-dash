@@ -21,19 +21,19 @@
 #define CONSOLE_OLED_SPI_HZ 10000000
 #endif
 
-// The knobs' RJ11 jacks: contacts 3 and 4 on ADC1, 33k pull-ups. Which contact carries the encoder and which the
+// The knobs' RJ9 jacks: contacts 2 and 3 on ADC1, 33k pull-ups. Which contact carries the encoder and which the
 // switches is found at run time (a reversed phone cord swaps them).
 #ifndef CONSOLE_SEL_ADC_A_PIN
-#define CONSOLE_SEL_ADC_A_PIN 1  // J4 Select (the right knob), contact 3
+#define CONSOLE_SEL_ADC_A_PIN 1  // J4 Select (the right knob), contact 2
 #endif
 #ifndef CONSOLE_SEL_ADC_B_PIN
-#define CONSOLE_SEL_ADC_B_PIN 2  // contact 4
+#define CONSOLE_SEL_ADC_B_PIN 2  // contact 3
 #endif
 #ifndef CONSOLE_VOL_ADC_A_PIN
-#define CONSOLE_VOL_ADC_A_PIN 4  // J5 Volume (the left knob), contact 3
+#define CONSOLE_VOL_ADC_A_PIN 4  // J5 Volume (the left knob), contact 2
 #endif
 #ifndef CONSOLE_VOL_ADC_B_PIN
-#define CONSOLE_VOL_ADC_B_PIN 7  // contact 4
+#define CONSOLE_VOL_ADC_B_PIN 7  // contact 3
 #endif
 
 // Set to 1 when a knob counts the wrong way.

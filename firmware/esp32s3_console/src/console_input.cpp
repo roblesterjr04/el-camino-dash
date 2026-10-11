@@ -42,8 +42,8 @@ struct Line {
 enum Sw : uint8_t { kSwNone, kSwLeft, kSwRight, kSwPush };
 
 struct Knob {
-  Line line[2];   // contacts 3 and 4
-  bool swapped;   // contact 4 carries the encoder
+  Line line[2];   // contacts 2 and 3
+  bool swapped;   // contact 3 carries the encoder
   bool reverse;
   int8_t pos;     // encoder position 0..3
   int8_t acc;     // steps since the last detent

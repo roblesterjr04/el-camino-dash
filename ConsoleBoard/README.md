@@ -4,7 +4,7 @@ The console's own board (CAN node `0x13`): a bare **ESP32-S3-WROOM-1-N8** (no de
 female 2 × 8 socket the 100 × 33.5 mm **SSD1322 256 × 64 OLED** module plugs into, **Back** and **View** keys, four yellow LEDs (to match the yellow OLED), and top-entry
 connectors for the **Select** and **Volume** encoders. One 4-wire cable goes to a DigiDash cable port.
 
-For the 111.5 × 38.5 mm housing there is a variant with the same OLED and RetroSound knobs on RJ11 jacks instead of
+For the 111.5 × 38.5 mm housing there is a variant with the same OLED and RetroSound knobs on RJ9 jacks instead of
 keys and encoders: [`ConsoleBoardRS/`](../ConsoleBoardRS/).
 
 | Files | |
