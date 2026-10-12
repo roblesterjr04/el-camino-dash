@@ -349,6 +349,12 @@ class AudioCard(SimCard):
             self.log(f"a real audio sink announced at 0x{src:02x}: the simulated audio card goes quiet "
                      f"(:sim off audio, then :sim on audio, brings it back)")
 
+    def boot(self) -> None:
+        if self.standby:  # a real audio bridge linked before this booted: never heard, never shown on a screen
+            self.log("simulated audio card: a real audio bridge is on the bench, staying quiet")
+            return
+        super().boot()
+
     def on_frame(self, can_id: int, data: bytes) -> None:
         if not self.standby:
             super().on_frame(can_id, data)

@@ -65,7 +65,7 @@ import time
 from collections import deque
 
 from cards_sim import AudioCard, GpsCard, LteGateway, TransTempCard, VoiceCard
-from chan_sim import CH_NET, SimCard
+from chan_sim import CH_NET, NET_QUERY, SimCard
 from radio_sim import RadioSim
 
 try:
@@ -348,7 +348,14 @@ class Board:
         if baud and baud != self.baud:
             time.sleep(0.01)  # the board switches after this record has gone out
             self.set_baud(baud)
+        if first and typ == 1 and "audio" in self.relay.cards:  # an audio bridge (ElcCanNodeType::AudioBridge)
+            audio = self.relay.cards["audio"]
+            with audio.lock:
+                if not audio.standby:
+                    audio.standby = True
+                    out(f"[relay] {self.port}: a real audio bridge: the simulated audio card stays quiet")
         if first:
+            self.relay.query_pending = True  # a board that booted before the relay: have it announce again
             out(f"[relay] {self.port}: {self.name} linked ({'gateway' if mode else 'peer'}, "
                 f"{self.baud if baud else 'native USB'}, CAN {'up' if can else 'off'}, fw {fw})")
 
@@ -424,6 +431,7 @@ class Relay:
         self.drive = DemoDrive()
         self.cards: dict[str, SimCard] = {}
         self.sim_queue: deque[tuple[str, int, bytes]] = deque()
+        self.query_pending = False  # a board just linked: NET QUERY (announce) from a simulated card
         off = set(getattr(args, "no_sim", None) or ()) | ({"radio"} if args.no_radio else set())
         for name in SIM_CARDS:
             if name not in off:
@@ -614,12 +622,24 @@ class Relay:
 
     def simulate(self) -> None:
         next_time = 0.0
+        # Let the boards found at the start link first (up to 3 s), so a real audio bridge is known before the simulated
+        # audio card boots: once a screen has its page, it keeps it.
+        until = time.monotonic() + 3.0
+        while self.running and time.monotonic() < until and not all(b.linked for b in self.boards if b.alive):
+            time.sleep(0.05)
         for card in list(self.cards.values()):
             with card.lock:
                 card.boot()
         while self.running:
             now = time.monotonic()
             self.deliver_sim()
+            if self.query_pending and self.cards:
+                # Boards announce only at boot and on QUERY: without this a simulated card never learns of a real one
+                # that booted first (the simulated audio card would keep answering beside a real audio sink).
+                self.query_pending = False
+                card = next(iter(self.cards.values()))
+                with card.lock:
+                    card.transfer(CH_NET, bytes([NET_QUERY, 0x00, 0x01]))
             for card in list(self.cards.values()):
                 card.tick()
             self.deliver_sim()
