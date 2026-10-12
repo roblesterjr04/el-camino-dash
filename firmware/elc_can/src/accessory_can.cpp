@@ -9,6 +9,7 @@ namespace {
 struct AccNode {
   uint8_t node = 0;  // 0 = free
   uint8_t generation = 0;
+  uint32_t ident = 0;  // its ANNOUNCE's type, product, firmware and uid: a different board or firmware when it changes
   AccItem *items = nullptr;  // grows 16, 32, 64 as items arrive (the console has little RAM)
   int n = 0, cap = 0;
   uint32_t sig = 0;
@@ -78,16 +79,20 @@ void accessory_can_transfer(const ElcChTransfer &t, uint32_t now_ms) {
   if (t.base == ELC_CH_NET && t.op() == ELC_NET_ANNOUNCE) {
     ElcNetAnnounce a;
     AccNode *n = find(t.src);
-    if (n && elc_net_decode_announce(t.data, t.len, a) && a.generation != n->generation) {
-      // its descriptions changed: forget them (removed items go) and ask again
+    if (!n || !elc_net_decode_announce(t.data, t.len, a)) return;
+    const uint32_t ident = mix(mix(mix(mix(2166136261u, a.type), a.product), a.fw), a.uid);
+    if (a.generation != n->generation || ident != n->ident) {
+      // its descriptions changed, or it is another board or firmware at this node: forget them (removed items go)
       n->generation = a.generation;
+      n->ident = ident;
       for (int i = 0; i < n->n; i++) n->items[i].defined = false;
       n->sig = mix(n->sig, 0xA11);
-      s_query_ms[t.src & 31] = 0;
-      if (s_ch) {
-        s_ch->query(t.src, ELC_NET_Q_UI);
-        s_query_ms[t.src & 31] = now_ms ? now_ms : 1;
-      }
+    }
+    // A node announces at boot (and on QUERY): ask again every time, so a board re-flashed with the same firmware
+    // number and generation (a new page) still shows its new items. Items it still has are updated in place.
+    if (s_ch) {
+      s_ch->query(t.src, ELC_NET_Q_UI);
+      s_query_ms[t.src & 31] = now_ms ? now_ms : 1;
     }
     return;
   }
@@ -98,7 +103,11 @@ void accessory_can_transfer(const ElcChTransfer &t, uint32_t now_ms) {
     if (!elc_ui_decode(t, d)) return;
     AccNode *n = find_or_add(t.src);
     if (!n) return;
-    if (s_ch && s_ch->nodeInfo(t.src).announced) n->generation = s_ch->nodeInfo(t.src).a.generation;
+    if (s_ch && s_ch->nodeInfo(t.src).announced) {
+      const ElcNetAnnounce &a = s_ch->nodeInfo(t.src).a;
+      n->generation = a.generation;
+      n->ident = mix(mix(mix(mix(2166136261u, a.type), a.product), a.fw), a.uid);
+    }
     AccItem *it = item_of(n, d.item, true);
     if (!it) return;
     it->d = d;

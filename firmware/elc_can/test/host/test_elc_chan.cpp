@@ -1,6 +1,7 @@
 // Host tests for the channel protocol (elc_can/src/elc_chan.cpp). Run: ./run_tests.sh
 
 #include <elc_chan.h>
+#include <accessory_can.h>
 #include <elc_chan_msg.h>
 
 #include <cstdio>
@@ -394,12 +395,71 @@ static void test_messages() {
   }
 }
 
+/** The audio bridge re-flashed: same node, fw number and generation, but a new type and page. */
+static void test_accessory_refresh() {
+  std::printf("accessory pages: asked again on every ANNOUNCE, forgotten when the board or firmware changes\n");
+  Bus bus;
+  ElcChannels ch;
+  ElcNetAnnounce me;
+  me.type = ELC_TYPE_CONSOLE;
+  ch.begin(0x13, me, bus_send, &bus);
+  accessory_can_begin(&ch);
+  auto announce = [&](uint8_t type) {
+    ElcNetAnnounce a;
+    a.type = type;
+    a.product = ELC_PRODUCT_AUDIO_BRIDGE;
+    a.fw = 1;
+    a.uid = 0x1234;
+    a.generation = 1;
+    a.produces = elc_ch_bit(ELC_CH_UI);
+    static uint8_t b[64];
+    const size_t n = elc_net_encode_announce(a, b, sizeof(b));
+    ElcChTransfer t;
+    t.base = ELC_CH_NET;
+    t.src = 0x10;
+    t.data = b;
+    t.len = n;
+    bus.frames.clear();
+    accessory_can_transfer(t, 100);
+  };
+  auto queried = [&]() {
+    for (const ElcCanFrame &f : bus.frames) {
+      if (f.id == ELC_CH_NET + 0x13 && f.len >= 3 && f.data[0] == ELC_NET_QUERY && f.data[1] == 0x10) return true;
+    }
+    return false;
+  };
+  auto item = [&](uint8_t n, const char *label) {
+    ElcUiItem it;
+    it.item = n;
+    it.parent = ELC_UI_TOP;
+    it.kind = ELC_UI_NUMBER;
+    std::snprintf(it.label, sizeof(it.label), "%s", label);
+    ElcChWriter w;
+    elc_ui_encode(it, w);
+    accessory_can_transfer(as_transfer(ELC_CH_UI, 0x10, w), 100);
+  };
+  const AccItem *rows[8];
+  item(1, "Chime volume");  // the old firmware's page (no announce seen yet)
+  CHECK(accessory_can_items(0x10, ELC_UI_TOP, false, rows, 8) == 1);
+  announce(ELC_TYPE_AUDIO_BRIDGE);  // the old firmware announces: asked again
+  CHECK(queried());
+  item(1, "Chime volume");
+  announce(ELC_TYPE_AUDIO_BRIDGE);  // the same board and firmware again (a QUERY): asked again, nothing forgotten
+  CHECK(queried() && accessory_can_items(0x10, ELC_UI_TOP, false, rows, 8) == 1);
+  announce(ELC_TYPE_AUDIO_SINK);  // re-flashed as the audio sink: the old page goes, the new one is asked for
+  CHECK(queried() && accessory_can_items(0x10, ELC_UI_TOP, false, rows, 8) == 0);
+  item(1, "Chime volume");
+  item(3, "Balance");
+  CHECK(accessory_can_items(0x10, ELC_UI_TOP, false, rows, 8) == 2);
+}
+
 int main() {
   test_crc_and_frames();
   test_reassembly();
   test_net_codecs();
   test_service();
   test_messages();
+  test_accessory_refresh();
   if (g_failures) {
     std::printf("%d FAILED\n", g_failures);
     return 1;
