@@ -36,6 +36,16 @@
 #define CONSOLE_VOL_ADC_B_PIN 7  // contact 3
 #endif
 
+// J6: the 38 kHz IR receiver (a TSOP4838 on the board, pins 1 OUT, 2 GND, 3 VS on 3.3 V) for an IR remote. -1 = none.
+#ifndef CONSOLE_IR_PIN
+#define CONSOLE_IR_PIN 39
+#endif
+// An RGB LED (WS2812) that shows the IR receiver working: blue while it hears any IR, green when a known remote button
+// decodes. 48 is the S3 DevKitC's own LED (38 on some revisions) and free on the console board. -1 = none.
+#ifndef CONSOLE_IR_LED_PIN
+#define CONSOLE_IR_LED_PIN 48
+#endif
+
 // Set to 1 when a knob counts the wrong way.
 #ifndef CONSOLE_SEL_REVERSE
 #define CONSOLE_SEL_REVERSE 0

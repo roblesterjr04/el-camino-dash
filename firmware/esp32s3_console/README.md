@@ -113,6 +113,32 @@ of the knob after power-up settles it. `knobs` on the serial console shows each 
 the bands against real knobs on the bench, and set `CONSOLE_SEL_REVERSE` / `CONSOLE_VOL_REVERSE` if one turns the
 wrong way.
 
+## The IR remote
+
+An optional 38 kHz IR receiver on J6 (a TSOP38438 or TSOP4838: OUT to GPIO 39 (`CONSOLE_IR_PIN`, -1 = none), GND,
+VS on **3.3 V**) takes two NEC remotes (`src/ir_remote.cpp`): the classic Apple remote, white or aluminum (Apple's
+0x87EE, any pairing ID), and the old Sirius radio remote (address 0x01). Their buttons do what the knobs do:
+
+| Button (Apple / Sirius) | Click | Hold |
+| --- | --- | --- |
+| Up / Down (▲ / ▼) | the right knob's turn: up the list in the menu and the preset list; at rest and in an editor Up is clockwise (tune up, next track, more). Held: repeats | |
+| Select | the right knob's push (OK) | the right knob's hold (voice assistant; in the menu, leave it) |
+| Left / Right (CATEGORY ◄ / ►) | the left / right soft key | the soft key's hold |
+| Menu / MENU | at rest the menu; in it the left soft key (Back, Undo, No, Exit, Close) | leave the menu |
+| Sirius + / − | the left knob's turn (volume). Held: repeats | |
+| Sirius SEL | in the menu, an editor, the preset list or a call: the right knob's push (OK); otherwise the left knob's push (play / pause, mute) | in the menu: leave it; otherwise the next source |
+| Play (aluminum) / Sirius MUTE | the left knob's push (play / pause, mute) | |
+| Sirius BAND | the left knob's hold (the next source) | |
+| Sirius power | the audio off (as the Source page's Off); off already: the source it had back | |
+| Sirius DISPLAY | the next drive page (Media, Trip, Engine, Clock) | the next center-screen view |
+| Sirius 1-9 | recall that radio preset, on any screen (an empty slot, or the radio not playing, only says so) | |
+
+The Sirius remote's MEMO, PREV and 0 do nothing yet. A remote never says a button is up: it is
+let go 200 ms after its last repeat, so clicks land then. The DevKitC's RGB LED (`CONSOLE_IR_LED_PIN`, 48; free on the
+console board) flashes blue for any IR and green for a known remote's button. On the serial console `ir` shows the
+last code heard and the button down, `ir log on` prints every burst's marks and spaces (us) and what it decoded to,
+and `remote KEY [hold]` presses a button without a remote.
+
 ## Build flags
 
 | Flag | Default | |

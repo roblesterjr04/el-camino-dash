@@ -1,6 +1,8 @@
 #include "console_input.h"
 
 #include <Arduino.h>
+#include <esp_timer.h>
+#include <soc/gpio_reg.h>
 #include <stdio.h>
 
 #include "console_pins.h"
@@ -171,7 +173,149 @@ static int ring_step(Sw now, Sw &last) {
   return r;
 }
 
+// ---- the IR receiver (J6): the Apple or Sirius remote (ir_remote.cpp) ----
+//
+// The TSOP's output is low while it hears the 38 kHz carrier (a mark). An interrupt on every edge stores how long the
+// level that just ended lasted; the loop decodes them (ir_remote.cpp). The ISR runs with the flash cache off too
+// (Arduino installs the GPIO ISR service IRAM-only), so it reads the pin and the clock from IRAM-safe places.
+
+static constexpr uint32_t kIrMark = 0x80000000u;
+static volatile uint32_t s_ir_buf[256];  // the high bit = a mark, the rest its length in us
+static volatile uint8_t s_ir_head = 0;    // the ISR writes here
+static volatile uint8_t s_ir_tail = 0;   // the loop reads from here
+static volatile uint32_t s_ir_last_us = 0;
+static volatile uint32_t s_ir_edges = 0;  // every edge, decoded or not
+static NecDecoder s_nec;
+static IrRemote s_remote(CONSOLE_HOLD_MS);
+static uint32_t s_ir_code = 0, s_ir_frames = 0, s_ir_repeats = 0;
+
+#if CONSOLE_IR_PIN >= 0
+static void IRAM_ATTR ir_isr() {
+  const uint32_t t = (uint32_t)esp_timer_get_time();
+  const uint32_t in = CONSOLE_IR_PIN < 32 ? REG_READ(GPIO_IN_REG) >> CONSOLE_IR_PIN
+                                          : REG_READ(GPIO_IN1_REG) >> (CONSOLE_IR_PIN - 32);
+  const uint32_t d = t - s_ir_last_us;
+  s_ir_last_us = t;
+  s_ir_edges = s_ir_edges + 1;
+  const uint8_t h = s_ir_head;
+  if ((uint8_t)(h + 1) == s_ir_tail) return;  // full: the loop is far behind, drop it (the decoder starts again)
+  s_ir_buf[h] = ((in & 1) ? kIrMark : 0) | (d < kIrMark ? d : kIrMark - 1);  // high now: a mark has just ended
+  s_ir_head = (uint8_t)(h + 1);
+}
+#endif
+
+// the LED: blue for 60 ms after any IR edge, green for 150 ms after a known remote's frame or repeat (green wins)
+static uint32_t s_led_edges = 0, s_led_ir_ms = 0, s_led_known_ms = 0;
+static uint8_t s_led_shown = 0;  // 0 off, 1 blue, 2 green
+
+static void ir_led(uint32_t now_ms) {
+#if CONSOLE_IR_LED_PIN >= 0
+  const uint32_t edges = s_ir_edges;
+  if (edges != s_led_edges) {
+    s_led_edges = edges;
+    s_led_ir_ms = now_ms ? now_ms : 1;
+  }
+  const uint8_t want = s_led_known_ms && now_ms - s_led_known_ms < 150 ? 2 : s_led_ir_ms && now_ms - s_led_ir_ms < 60 ? 1 : 0;
+  if (want == s_led_shown) return;
+  s_led_shown = want;
+  rgbLedWrite(CONSOLE_IR_LED_PIN, 0, want == 2 ? 40 : 0, want == 1 ? 40 : 0);
+#else
+  (void)now_ms;
+#endif
+}
+
+// `ir log on`: every burst the receiver puts out, as M (mark) and S (space) lengths in us, one line per burst (a space
+// over 20 ms ends it), and what it decoded to.
+static bool s_ir_log = false;
+static char s_ir_line[480];
+static size_t s_ir_line_n = 0;
+static uint32_t s_ir_line_edges = 0;
+
+static void ir_log_flush() {
+  if (!s_ir_line_n) return;
+  Serial.printf("ir: %lu edges: %s\n", (unsigned long)s_ir_line_edges, s_ir_line);
+  s_ir_line_n = 0;
+  s_ir_line_edges = 0;
+}
+
+static void ir_log_edge(bool mark, uint32_t us) {
+  if (!mark && us > 20000) {  // the gap between bursts
+    ir_log_flush();
+    return;
+  }
+  s_ir_line_edges++;
+  if (s_ir_line_n + 12 >= sizeof(s_ir_line)) {
+    if (s_ir_line_n + 4 < sizeof(s_ir_line)) s_ir_line_n += snprintf(s_ir_line + s_ir_line_n, sizeof(s_ir_line) - s_ir_line_n, " ...");
+    return;
+  }
+  s_ir_line_n += snprintf(s_ir_line + s_ir_line_n, sizeof(s_ir_line) - s_ir_line_n, "%s%c%lu", s_ir_line_n ? " " : "",
+                          mark ? 'M' : 'S', (unsigned long)us);
+}
+
+void console_input_ir_log(bool on) {
+  s_ir_log = on;
+  s_ir_line_n = 0;
+  s_ir_line_edges = 0;
+}
+
+static void ir_poll(RemoteEvents &ev, uint32_t now_ms) {
+  while (s_ir_tail != s_ir_head) {
+    const uint32_t e = s_ir_buf[s_ir_tail];
+    s_ir_tail = (uint8_t)(s_ir_tail + 1);
+    if (s_ir_log) ir_log_edge((e & kIrMark) != 0, e & ~kIrMark);
+    uint32_t code = 0;
+    switch (s_nec.feed((e & kIrMark) != 0, e & ~kIrMark, &code)) {
+      case NecDecoder::kFrame:
+        if (s_ir_log) {
+          ir_log_flush();
+          Serial.printf("ir: NEC frame 0x%08lX: %s\n", (unsigned long)code,
+                        remote_key(code) == RemoteKey::None ? "not a known remote" : remote_key_name(remote_key(code)));
+        }
+        s_ir_code = code;
+        s_ir_frames++;
+        if (remote_key(code) != RemoteKey::None) s_led_known_ms = now_ms ? now_ms : 1;
+        s_remote.frame(code, now_ms);
+        break;
+      case NecDecoder::kRepeat:
+        if (s_ir_log) {
+          ir_log_flush();
+          Serial.println("ir: NEC repeat");
+        }
+        s_ir_repeats++;
+        if (s_remote.down() != RemoteKey::None) s_led_known_ms = now_ms ? now_ms : 1;
+        s_remote.repeat(now_ms);
+        break;
+      default: break;
+    }
+  }
+  // the last burst ends with the line idle, which no edge reports
+  if (s_ir_log && s_ir_line_n && (uint32_t)esp_timer_get_time() - s_ir_last_us > 20000) ir_log_flush();
+  s_remote.poll(ev, now_ms);
+  ir_led(now_ms);
+}
+
+void console_input_describe_ir(char *out, size_t n) {
+  if (CONSOLE_IR_PIN < 0) {
+    snprintf(out, n, "ir: no receiver (CONSOLE_IR_PIN -1)");
+    return;
+  }
+  snprintf(out, n, "ir: GPIO %d %s, %lu edges, %lu frames, %lu repeats, last 0x%08lX (%s), down: %s", CONSOLE_IR_PIN,
+           digitalRead(CONSOLE_IR_PIN) ? "high (idle)" : "LOW (hearing IR, or no receiver pull-up)",
+           (unsigned long)s_ir_edges, (unsigned long)s_ir_frames, (unsigned long)s_ir_repeats, (unsigned long)s_ir_code,
+           s_ir_frames ? (remote_key(s_ir_code) == RemoteKey::None ? "not a known remote" : remote_key_name(remote_key(s_ir_code)))
+                       : "none yet",
+           remote_key_name(s_remote.down()));
+}
+
 void console_input_begin() {
+#if CONSOLE_IR_PIN >= 0
+  pinMode(CONSOLE_IR_PIN, INPUT_PULLUP);  // the TSOP has its own pull-up; this one keeps an empty J6 quiet
+  s_ir_last_us = (uint32_t)esp_timer_get_time();
+  attachInterrupt(digitalPinToInterrupt(CONSOLE_IR_PIN), ir_isr, CHANGE);
+#endif
+#if CONSOLE_IR_LED_PIN >= 0
+  rgbLedWrite(CONSOLE_IR_LED_PIN, 0, 0, 0);
+#endif
   analogReadResolution(12);
   knob_begin(s_sel);
   knob_begin(s_vol);
@@ -189,6 +333,7 @@ void console_input_poll(ConsoleInputEvents &ev, uint32_t now_ms) {
   ev.left_ring = ring_step(vol, s_vol_ring);
   ev.right_steps = knob_steps(s_sel);
   ev.left_steps = knob_steps(s_vol);
+  ir_poll(ev.remote, now_ms);
 }
 
 void console_input_describe(char *out, size_t n) {

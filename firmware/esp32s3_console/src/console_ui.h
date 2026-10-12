@@ -17,6 +17,8 @@
 #include <elc_chan.h>
 #include <elc_chan_msg.h>
 
+#include "ir_remote.h"
+
 class OledGfx;
 struct _lv_font_t;
 typedef struct _lv_font_t lv_font_t;
@@ -96,6 +98,15 @@ class ConsoleUi {
   void right_hold(uint32_t now_ms);
   void key_click(int key, uint32_t now_ms);
   void key_hold(int key, uint32_t now_ms);
+  // An IR remote (Apple, Sirius), on top of the knobs: Up / Down are the right knob's turn (the highlight in a list,
+  // up the list; at rest and in an editor up = clockwise), Select its push, Left / Right the soft keys, Menu the menu
+  // at rest and Back (the left soft key) in it; Vol + / - the left knob's turn, Play and Mute its push, Band its hold
+  // (the next source), Display the next drive page (held: the next center view), Power the audio off (off: the source it had back),
+  // the digits 1-9 that radio preset. A press is Up / Down / Vol going down or
+  // auto-repeating.
+  void remote_press(RemoteKey k, uint32_t now_ms);
+  void remote_click(RemoteKey k, uint32_t now_ms);
+  void remote_hold(RemoteKey k, uint32_t now_ms);
   void tick(uint32_t now_ms);
 
   static constexpr int kKeys = 2;
@@ -247,6 +258,9 @@ class ConsoleUi {
   void presets_open(uint32_t now_ms);
   /** Close the list and tune to the preset highlighted (when it is stored and not already playing). */
   void presets_choose(const char *why);
+  void remote_preset(int n, uint32_t now_ms);
+  bool remote_at_rest(uint32_t now_ms);
+  bool sel_is_ok(uint32_t now_ms);
   void presets_close(const char *why) {
     if (_pre_open) _pre_why = why;
     _pre_open = false;

@@ -1297,6 +1297,97 @@ void ConsoleUi::key_hold(int key, uint32_t now_ms) {
   else if (k[key].click) do_key(k[key].click, now_ms);  // a key with no hold of its own: held is a click
 }
 
+// ---- the IR remote: the same actions as the knobs ----
+
+void ConsoleUi::remote_press(RemoteKey k, uint32_t now_ms) {
+  if (k == RemoteKey::VolUp || k == RemoteKey::VolDown) {
+    left_turn(k == RemoteKey::VolUp ? 1 : -1, now_ms);
+    return;
+  }
+  if (k != RemoteKey::Up && k != RemoteKey::Down) return;
+  const bool up = k == RemoteKey::Up;
+  const bool list = _mode == ConsoleMode::Menu || _pre_open;  // a list's highlight: + is down the list
+  right_turn(up == list ? -1 : 1, now_ms);
+}
+
+/** On the drive pages with nothing over them (no menu, call, pairing code or reverse): where DISPLAY acts. */
+bool ConsoleUi::remote_at_rest(uint32_t now_ms) {
+  return idle_input(now_ms) && _mode == ConsoleMode::Drive && !call_shown(now_ms) && !pair_shown(now_ms) && !reverse_shown();
+}
+
+/** The Sirius SEL is OK while there is something to pick (the menu, an editor, the preset list, a call); play / pause
+ *  otherwise. */
+bool ConsoleUi::sel_is_ok(uint32_t now_ms) {
+  return _mode != ConsoleMode::Drive || _pre_open || call_shown(now_ms);
+}
+
+/** A remote's number key: recall that preset, on any screen, while the radio plays. */
+void ConsoleUi::remote_preset(int n, uint32_t now_ms) {
+  if (!idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms) || reverse_shown()) return;
+  char title[16];
+  snprintf(title, sizeof(title), "PRESET %d", n);
+  if (!radio_is_source(now_ms)) {
+    toast(title, "Radio not playing", now_ms);
+    return;
+  }
+  uint32_t khz = 0;
+  if (!preset_khz(n - 1, &khz)) {
+    toast(title, "Empty", now_ms);
+    return;
+  }
+  presets_close("remote preset");
+  media(ELC_MEDIA_PRESET_RECALL, (uint8_t)n, "MEDIA recall preset");
+}
+
+void ConsoleUi::remote_click(RemoteKey k, uint32_t now_ms) {
+  if (k >= RemoteKey::Digit1 && k <= RemoteKey::Digit9) {
+    remote_preset((int)k - (int)RemoteKey::Digit1 + 1, now_ms);
+    return;
+  }
+  switch (k) {
+    case RemoteKey::Left: key_click(0, now_ms); break;
+    case RemoteKey::Right: key_click(1, now_ms); break;
+    case RemoteKey::Select: right_click(now_ms); break;
+    case RemoteKey::Sel: sel_is_ok(now_ms) ? right_click(now_ms) : left_click(now_ms); break;
+    case RemoteKey::Play:
+    case RemoteKey::Mute: left_click(now_ms); break;  // mute (radio, aux in) / play-pause (Bluetooth), audio on
+    case RemoteKey::Band: left_hold(now_ms); break;   // the next source
+    case RemoteKey::Power:  // the audio off; off already: the source it had back (on any screen, not in a call)
+      if (!idle_input(now_ms) || call_shown(now_ms) || pair_shown(now_ms)) break;
+      if (audio_off(now_ms)) audio_on(now_ms);
+      else request_source(ELC_SRC_REQ_OFF, "SOURCE off", now_ms);
+      break;
+    case RemoteKey::Display:  // the next drive page (Media, Trip, Engine, Clock), from any of them
+      if (remote_at_rest(now_ms)) {
+        presets_close("page");
+        page_step(1, now_ms);
+      }
+      break;
+    case RemoteKey::Menu:
+      if (_mode != ConsoleMode::Drive || _pre_open) key_click(0, now_ms);  // Back, Undo, No, Exit, Close
+      else if (!call_shown(now_ms) && !pair_shown(now_ms)) right_click(now_ms);  // at rest: the menu
+      break;
+    default: break;
+  }
+}
+
+void ConsoleUi::remote_hold(RemoteKey k, uint32_t now_ms) {
+  switch (k) {
+    case RemoteKey::Left: key_hold(0, now_ms); break;
+    case RemoteKey::Right: key_hold(1, now_ms); break;
+    case RemoteKey::Select: right_hold(now_ms); break;  // the voice assistant; in the menu, leave it
+    case RemoteKey::Play: left_hold(now_ms); break;     // the next source
+    case RemoteKey::Sel: sel_is_ok(now_ms) ? right_hold(now_ms) : left_hold(now_ms); break;  // leave the menu / the next source
+    case RemoteKey::Display:  // the next center-screen view, as the next-page key held
+      if (remote_at_rest(now_ms)) do_key(kKView, now_ms);
+      break;
+    case RemoteKey::Menu:
+      if (_mode != ConsoleMode::Drive) right_hold(now_ms);  // leave the menu
+      break;
+    default: break;
+  }
+}
+
 void ConsoleUi::do_key(uint8_t act, uint32_t now_ms) {
   switch (act) {
     // calls

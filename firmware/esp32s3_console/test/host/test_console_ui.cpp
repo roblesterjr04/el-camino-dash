@@ -348,6 +348,11 @@ static void test_sources_and_radio() {
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(!ui.presets_shown() && m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_RECALL && m[0][3] == 3);
   CHECK(ui.mode() == ConsoleMode::Drive);
+  ui.remote_click(RemoteKey::Digit1, T);  // a remote's number key: that preset, straight away
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][2] == ELC_MEDIA_PRESET_RECALL && m[0][3] == 1);
+  ui.remote_click(RemoteKey::Digit5, T);  // an empty slot: says so, sends nothing
+  CHECK(r.sent(ELC_CH_AUDIO_CMD).empty());
   CHECK(press(ui, "Presets"));
   CHECK(ui.presets_shown() && ui.preset_sel() == 0);  // reopens on slot 1 (no preset reported playing)
   CHECK(press(ui, "Close") && !ui.presets_shown() && r.sent(ELC_CH_AUDIO_CMD).empty());  // Close does not tune
@@ -402,6 +407,15 @@ static void test_sources_and_radio() {
   ui.right_hold(T);  // (the voice assistant: no phone here)
   CHECK(r.sent(ELC_CH_AUDIO_CMD).empty() && !ui.presets_shown());
   ui.left_click(T);
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][2] == ELC_SRC_RADIO);
+  r.status(ELC_SRC_RADIO);
+  r.deliver(r.radio_out);
+  ui.remote_click(RemoteKey::Power, T);  // the remote's power: the audio off ...
+  m = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][2] == ELC_SRC_REQ_OFF);
+  r.status(ELC_SRC_OFF);
+  ui.remote_click(RemoteKey::Power, T);  // ... and again: the radio it had back
   m = r.sent(ELC_CH_AUDIO_CMD);
   CHECK(m.size() == 1 && m[0][0] == ELC_AUDIO_SOURCE && m[0][2] == ELC_SRC_RADIO);
   r.status(ELC_SRC_RADIO);
@@ -958,6 +972,175 @@ static void test_equalizer() {
   CHECK(press(ui, "Back") && ui.menu_page() == ConsoleUi::kMAccPage);
 }
 
+// ---- the Apple remote: NEC decoding, presses / clicks / holds, and what each button does
+
+/** The marks and spaces the TSOP puts out for one NEC frame (lengths a little off, as a real remote's are). */
+static std::vector<std::pair<bool, uint32_t>> nec_frame(uint32_t code) {
+  std::vector<std::pair<bool, uint32_t>> v = {{false, 40000}, {true, 9100}, {false, 4400}};
+  for (int i = 0; i < 32; i++) {
+    v.push_back({true, 600});
+    v.push_back({false, (code >> i) & 1 ? 1650u : 520u});
+  }
+  v.push_back({true, 600});
+  return v;
+}
+static uint32_t apple(uint8_t cmd, uint8_t id = 0x4A) { return 0x87EEu | (uint32_t)cmd << 16 | (uint32_t)id << 24; }
+
+static void test_ir_remote() {
+  std::printf("IR remotes (Apple, Sirius): NEC frames and repeats, presses, clicks, holds, the buttons on the console\n");
+  NecDecoder d;
+  uint32_t code = 0;
+  int frames = 0;
+  for (auto &e : nec_frame(apple(0x0B))) frames += d.feed(e.first, e.second, &code) == NecDecoder::kFrame;
+  CHECK(frames == 1 && code == apple(0x0B) && remote_key(code) == RemoteKey::Up);
+  // a repeat: 9 ms mark, 2.25 ms space, a mark
+  CHECK(d.feed(false, 96000, &code) == NecDecoder::kNothing && d.feed(true, 9000, &code) == NecDecoder::kNothing);
+  CHECK(d.feed(false, 2250, &code) == NecDecoder::kNothing && d.feed(true, 560, &code) == NecDecoder::kRepeat);
+  // a broken frame (a space that fits nothing) gives nothing, and the next one decodes
+  auto bad = nec_frame(apple(0x02));
+  bad[20].second = 3000;
+  frames = 0;
+  for (auto &e : bad) frames += d.feed(e.first, e.second, &code) == NecDecoder::kFrame;
+  for (auto &e : nec_frame(apple(0x03))) frames += d.feed(e.first, e.second, &code) == NecDecoder::kFrame;
+  CHECK(frames == 1 && remote_key(code) == RemoteKey::Menu);
+  // either value of bit 0, the aluminum remote's own codes, and other remotes
+  CHECK(remote_key(apple(0x0A)) == RemoteKey::Up && remote_key(apple(0x0C)) == RemoteKey::Down);
+  CHECK(remote_key(apple(0x08)) == RemoteKey::Left && remote_key(apple(0x07)) == RemoteKey::Right);
+  CHECK(remote_key(apple(0x04)) == RemoteKey::Select && remote_key(apple(0x5D)) == RemoteKey::Select);
+  CHECK(remote_key(apple(0x5E)) == RemoteKey::Play && remote_key(0x00FF02FDu) == RemoteKey::None);
+  // the Sirius radio remote (address 0x01, codes read off one), and a frame whose command check fails
+  CHECK(remote_key(0xFD02FE01u) == RemoteKey::Up && remote_key(0xFB04FE01u) == RemoteKey::Down);
+  CHECK(remote_key(0xFC03FE01u) == RemoteKey::Sel && remote_key(0xF906FE01u) == RemoteKey::Left);
+  CHECK(remote_key(0xFA05FE01u) == RemoteKey::Right && remote_key(0xF708FE01u) == RemoteKey::Menu);
+  CHECK(remote_key(0xF50AFE01u) == RemoteKey::VolUp && remote_key(0xF10EFE01u) == RemoteKey::VolDown);
+  CHECK(remote_key(0xE31CFE01u) == RemoteKey::Mute && remote_key(0xF30CFE01u) == RemoteKey::Band);
+  CHECK(remote_key(0xEF10FE01u) == RemoteKey::Digit1 && remote_key(0xEB14FE01u) == RemoteKey::Digit4);
+  CHECK(remote_key(0xE718FE01u) == RemoteKey::Digit7 && remote_key(0xE51AFE01u) == RemoteKey::Digit9);
+  CHECK(remote_key(0xEC13FE01u) == RemoteKey::None && remote_key(0xE21DFE01u) == RemoteKey::None);  // a gap; 0
+  CHECK(remote_key(0xFC02FE01u) == RemoteKey::None);
+  CHECK(remote_key(0xFC03FB04u) == RemoteKey::None);  // another remote's (a TV's) code
+
+  uint32_t t = 1000;
+  IrRemote rm(650);
+  RemoteEvents ev;
+  // Up: a step at once, then auto-repeat once held past the delay
+  rm.frame(apple(0x0B), t);
+  rm.poll(ev, t);
+  CHECK(ev.press == RemoteKey::Up && ev.click == RemoteKey::None);
+  int steps = 0;
+  for (int i = 1; i <= 8; i++) {  // 864 ms of repeats
+    t += 108;
+    rm.repeat(t);
+    rm.poll(ev, t);
+    steps += ev.step == RemoteKey::Up;
+  }
+  CHECK(steps >= 3 && steps <= 5);
+  t += 250;
+  rm.poll(ev, t);
+  CHECK(rm.down() == RemoteKey::None && ev.click == RemoteKey::None);  // Up / Down have no click
+  // Select tapped: a click once the repeats stop
+  rm.frame(apple(0x04), t);
+  rm.poll(ev, t);
+  CHECK(ev.press == RemoteKey::Select && ev.click == RemoteKey::None);
+  t += 108;
+  rm.repeat(t);
+  t += 210;
+  rm.poll(ev, t);
+  CHECK(ev.click == RemoteKey::Select && ev.hold == RemoteKey::None);
+  // Menu held: one hold, no click; the hold only counts what the repeats show
+  rm.frame(apple(0x03), t);
+  rm.poll(ev, t);
+  int holds = 0;
+  for (int i = 1; i <= 5; i++) {  // 540 ms: not yet
+    t += 108;
+    rm.repeat(t);
+    rm.poll(ev, t);
+    holds += ev.hold == RemoteKey::Menu;
+  }
+  t += 150;
+  rm.poll(ev, t);
+  CHECK(holds == 0 && ev.hold == RemoteKey::None);  // the clock passed 650 ms but no repeat said it was still down
+  for (int i = 1; i <= 4; i++) {
+    t += 108;
+    rm.repeat(t);
+    rm.poll(ev, t);
+    holds += ev.hold == RemoteKey::Menu;
+  }
+  t += 250;
+  rm.poll(ev, t);
+  CHECK(holds == 1 && ev.click == RemoteKey::None);
+  // the aluminum remote's play, then the white remote's select for old receivers: one play
+  rm.frame(apple(0x5F), t);
+  rm.poll(ev, t);
+  rm.frame(apple(0x05), t + 40);
+  rm.poll(ev, t + 40);
+  CHECK(ev.press == RemoteKey::None && rm.down() == RemoteKey::Play);
+  t += 300;
+  rm.poll(ev, t);
+  CHECK(ev.click == RemoteKey::Play);
+
+  // on the console
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  boot(ui);
+  ui.remote_click(RemoteKey::Menu, T);  // at rest: the menu
+  CHECK(ui.mode() == ConsoleMode::Menu && ui.menu_page() == ConsoleUi::kMHome && ui.menu_sel() == 0);
+  ui.remote_press(RemoteKey::Down, T);  // down the list
+  ui.remote_press(RemoteKey::Down, T);
+  CHECK(ui.menu_sel() == 2);
+  ui.remote_press(RemoteKey::Up, T);
+  CHECK(ui.menu_sel() == 1);
+  CHECK(row(ui, "Display"));
+  int display = -1;
+  const ConsoleRow *rows = nullptr;
+  for (int i = 0, n = ui.menu_rows(&rows); i < n; i++) {
+    if (!std::strcmp(rows[i].label, "Display")) display = i;
+  }
+  while (ui.menu_sel() < display) ui.remote_press(RemoteKey::Down, T);
+  ui.remote_click(RemoteKey::Select, T);  // OK
+  CHECK(ui.menu_page() == ConsoleUi::kMDisplay);
+  ui.remote_click(RemoteKey::Menu, T);  // Back
+  CHECK(ui.mode() == ConsoleMode::Menu && ui.menu_page() == ConsoleUi::kMHome);
+  ui.remote_click(RemoteKey::Menu, T);  // on the top page: Exit
+  CHECK(ui.mode() == ConsoleMode::Drive);
+  ui.remote_click(RemoteKey::Menu, T);
+  CHECK(pick(ui, "Display"));
+  ui.remote_hold(RemoteKey::Menu, T);  // held: straight out
+  CHECK(ui.mode() == ConsoleMode::Drive);
+  // the Sirius SEL: at rest the left knob's push (play / pause, mute), not the menu; in the menu OK
+  r.add_sink();
+  r.add_radio();
+  r.status(ELC_SRC_RADIO);
+  r.sent(ELC_CH_AUDIO_CMD);
+  ui.remote_click(RemoteKey::Sel, T);
+  std::vector<std::vector<uint8_t>> sel = r.sent(ELC_CH_AUDIO_CMD);
+  CHECK(ui.mode() == ConsoleMode::Drive && sel.size() == 1 && sel[0][2] == ELC_MEDIA_TOGGLE);
+  ui.remote_click(RemoteKey::Sel, T);  // and back
+  drain(ui);
+  ui.remote_click(RemoteKey::Menu, T);
+  ui.remote_click(RemoteKey::Sel, T);  // OK: into the highlighted row's page
+  CHECK(ui.mode() == ConsoleMode::Menu && ui.menu_page() != ConsoleUi::kMHome);
+  ui.remote_hold(RemoteKey::Sel, T);  // held in the menu: out
+  CHECK(ui.mode() == ConsoleMode::Drive);
+  CHECK(key(ui, "Trip") == 1);
+  ui.remote_click(RemoteKey::Right, T);  // the right soft key: the next page
+  CHECK(ui.page() == kPageTrip);
+  CHECK(remote_key(0xFE01FE01u) == RemoteKey::Display && remote_key(0xFF00FE01u) == RemoteKey::Power);
+  ui.remote_click(RemoteKey::Display, T);  // DISPLAY: the next page too
+  CHECK(ui.page() == kPageEngine);
+  ui.remote_click(RemoteKey::Menu, T);
+  ui.remote_click(RemoteKey::Display, T);  // not over the menu
+  CHECK(ui.mode() == ConsoleMode::Menu && ui.page() == kPageEngine);
+  ui.remote_hold(RemoteKey::Menu, T);
+  drain(ui);
+  const int vol = ui.volume();
+  ui.remote_press(RemoteKey::VolUp, T);  // Vol +: the left knob's turn, the volume
+  ui.remote_press(RemoteKey::VolUp, T);
+  ui.remote_press(RemoteKey::VolDown, T);
+  CHECK(ui.volume() == vol + 1);
+  drain(ui);
+}
+
 int main() {
   test_drive_pages_and_menu();
   test_sources_and_radio();
@@ -973,6 +1156,7 @@ int main() {
   test_no_center();
   test_card_is_bridge();
   test_equalizer();
+  test_ir_remote();
   if (g_failures) {
     std::printf("%d FAILED\n", g_failures);
     return 1;

@@ -167,6 +167,9 @@ static void print_help() {
   Serial.println("  left +N|-N|click|hold|ringl|ringr    the left knob (volume, mute, power, source)");
   Serial.println("  right +N|-N|click|hold   the right knob (tune / tracks / lists, OK, menu)");
   Serial.println("  knobs                the knob lines (mV, band, which contact is the encoder)");
+  Serial.println("  ir                   the IR receiver: the last remote code heard, the button down");
+  Serial.println("  ir log on|off        every IR burst's marks and spaces (us) and what it decoded to");
+  Serial.println("  remote KEY [hold]    a remote button: up, down, left, right, select, menu, play, vol+, vol-, mute, band, display, power, 1-9, sel");
   Serial.println("  chan                 the channel node: announced nodes, accessory pages");
   Serial.println("  shot                 the frame as hex (tools/console_preview/shot.py turns it into a PNG)");
   Serial.println("  oled test|off        every pixel on / normal");
@@ -233,6 +236,26 @@ static void handle_line(char *line) {
     char buf[320];
     console_input_describe(buf, sizeof(buf));
     Serial.println(buf);
+  } else if (!strcmp(cmd, "ir") && arg && !strcmp(arg, "log")) {
+    const char *how = strtok(nullptr, " \t");
+    const bool on = !how || strcmp(how, "off");
+    console_input_ir_log(on);
+    Serial.printf("ir log %s\n", on ? "on" : "off");
+  } else if (!strcmp(cmd, "ir")) {
+    char buf[200];
+    console_input_describe_ir(buf, sizeof(buf));
+    Serial.println(buf);
+  } else if (!strcmp(cmd, "remote") && arg) {
+    RemoteKey k = RemoteKey::None;
+    for (int i = 1; i < (int)RemoteKey::kCount; i++) {
+      if (!strcmp(arg, remote_key_name((RemoteKey)i))) k = (RemoteKey)i;
+    }
+    const char *how = strtok(nullptr, " \t");
+    if (k == RemoteKey::None) Serial.println("remote: up, down, left, right, select, menu, play, vol+, vol-, mute, band, display, power, 1-9");
+    else if (how && !strcmp(how, "hold")) s_ui.remote_hold(k, now);
+    else if (k == RemoteKey::Up || k == RemoteKey::Down || k == RemoteKey::VolUp || k == RemoteKey::VolDown)
+      s_ui.remote_press(k, now);
+    else s_ui.remote_click(k, now);
   } else if ((!strcmp(cmd, "left") || !strcmp(cmd, "right")) && arg) {
     const bool left = cmd[0] == 'l';
     if (!strcmp(arg, "click")) left ? s_ui.left_click(now) : s_ui.right_click(now);
@@ -311,6 +334,10 @@ void loop() {
     if (ev.key_click[i]) s_ui.key_click(i, now);
     if (ev.key_hold[i]) s_ui.key_hold(i, now);
   }
+  if (ev.remote.press != RemoteKey::None) s_ui.remote_press(ev.remote.press, now);
+  if (ev.remote.step != RemoteKey::None) s_ui.remote_press(ev.remote.step, now);
+  if (ev.remote.click != RemoteKey::None) s_ui.remote_click(ev.remote.click, now);
+  if (ev.remote.hold != RemoteKey::None) s_ui.remote_hold(ev.remote.hold, now);
   poll_serial();
   accessory_can_poll(now);
 
