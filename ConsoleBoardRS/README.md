@@ -3,7 +3,7 @@
 A variant of the [console board](../ConsoleBoard/) (CAN node `0x13`) for a housing **111.5 × 38.5 mm outside**, with
 the controls on two **RetroSound 258A-style knobs** (each an encoder with push, inside a ring that pushes left or
 right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the same **SSD1322 256 × 64 OLED** module
-(100 × 33.5 mm) on the same 2 × 8 socket, CAN, USB-C and IR header; no keys and no key LEDs.
+(100 × 33.5 mm) on the same 2 × 8 socket, CAN, USB-C and an IR receiver (a TSOP4838 on the board); no keys and no key LEDs.
 
 | Files | |
 | --- | --- |
@@ -20,7 +20,8 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
    |                                                          ::    |
    |                 OLED module 100 x 33.5                   ::    |  35.0  centred left to right (4 mm each side)
    |                 (on standoffs, o = M2 holes)             ::    |
-   +----o------------------------------------------------------o----+  ---   1.5 mm of board below the module
+   +123------------------------------------------------------o----+  ---   1.5 mm of board below the module
+    J6: the IR receiver, pins 1-2-3 (no hole in that corner)
 ```
 
 - **Housing:** the board is 108.0 × 35.0 mm, so the 111.5 × 38.5 housing has 1.5 mm walls with 0.25 mm clearance
@@ -31,12 +32,20 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
 - **Module:** exactly as on `ConsoleBoard` (`generate/gen_pcb.py` keeps the same parameters): holes 94 × 28 mm centre to
   centre, J1 a female 2 × 8 socket on the right-hand holes' line shifted 0.5 mm toward the edge, module pin *n* on
   socket pad 17 − *n*. Everything is moved 4 mm right (`MX`); `MY` = 0.
-- **Front** (module side): J1 and the four M2 holes, nothing else. **Back:** the ESP32 module (antenna on the top
-  edge), RESET / BOOT, USB-C, the CAN cable, the two RJ9 jacks, the IR header and all the passives. CAN (J3, under
-  the ESP32), USB-C (J2) and the IR header (J6) are on the bottom edge; the two knob jacks (J4 Select, J5 Volume)
-  face out of the back.
-- **CAN connector:** fit a **vertical** JST PH (B4B-PH-K) on J3's footprint: it has the same four holes and pads as the
-  side-entry S4B-PH-K the footprint is named for, so the plug goes in from behind the board like the knob plugs.
+- **Front** (module side): J1, three M2 holes (H1, H2, H4) and the IR receiver (J6), nothing else. **Back:** the ESP32
+  module (antenna on the top edge), RESET / BOOT, USB-C, the CAN cable, the two RJ9 jacks and all the passives. CAN
+  (J3, under the ESP32) and USB-C (J2) are on the bottom edge; the two knob jacks (J4 Select, J5 Volume) face out of
+  the back.
+- **IR receiver:** J6 is a Vishay TSOP4838 (38 kHz, MOLD package, KiCad `OptoDevice:Vishay_MOLD-3Pin`) on the front in
+  the bottom-left corner, where the module's fourth standoff (H3) was: that hole is gone, so the module rests on three.
+  Seen from the front its pins read 1-2-3 left to right, **1 signal (IR_IN, GPIO 39, 10k pull-up R10), 2 GND,
+  3 VIN (+3V3 through Vishay's supply filter: R11 100 R in series, C16 100 nF to GND, both on the back beside it)**, the TSOP's own order, so it goes straight in. The pins sit 1 mm in from the corner both ways
+  (`IR_INSET`): pin 3 at x = 8.0 mm (1 mm right of H3's old centre), the row at y = 32.85 mm (the pads end 1.25 mm from
+  the bottom edge, 0.65 mm above the module's bottom edge, so pins 2 and 3 are under the module's corner). Its body
+  reaches the bottom edge, so only an "S G V" caption marks it. **Not in the BOM or the placement files** (DNP): it
+  is fitted by hand after the boards arrive. Its filter (R11, C16) and pull-up (R10) are assembled.
+- **CAN connector:** J3 is a **vertical (top-entry)** JST PH, B4B-PH-K, on its own footprint
+  (`JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical`), so the plug goes in from behind the board like the knob plugs.
 - **RJ9 jacks:** Molex 95522-2447 (4P4C, vertical / top entry, 16.25 mm tall, PCB locators), on the back with their
   openings facing away from the board: the plugs go in from behind, straight toward the board. Centre lines at
   x = 57.0 and 75.0 mm (seen from the front); the bodies end 1 mm above the bottom edge. **The footprint is not yet

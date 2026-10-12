@@ -171,12 +171,14 @@ def power(net, x, y, outward=None):
   )''' % (lib_id, f(x), f(y), rot, uid('p'), ref, f(x), f(y), net, f(x + 2.54), f(y), f(x), f(y), f(x), f(y), uid('pp'), SHEET, ref))
 
 
-def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True, unit=1, first=True):
+def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True, unit=1, first=True, fitted=True):
     """nets: {pin number: net name | None (unconnected -> no-connect flag)}; every pin must be listed or be omitted on purpose."""
     if first:
         assert ref not in refs_seen, ref
         refs_seen.add(ref)
         refs_info[ref] = {'group': cur_group[0], 'fp': footprint, 'value': value}
+        if not fitted:
+            refs_info[ref]['dnp'] = True
     pins = {k: v for k, v in lib_pins[lib_id].items() if v[5] in (0, unit)}
     props = lib_props[lib_id]
 
@@ -185,8 +187,8 @@ def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True
         return f(x + px), f(y - py)
 
     rp, vp = pos('Reference', (0, 3)), pos('Value', (0, -3))
-    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom yes) (on_board yes) (dnp no) (uuid "%s")' % (
-        lib_id, f(x), f(y), unit, uid('s' + ref + str(unit))),
+    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom %s) (on_board yes) (dnp %s) (uuid "%s")' % (
+        lib_id, f(x), f(y), unit, 'yes' if fitted else 'no', 'no' if fitted else 'yes', uid('s' + ref + str(unit))),
         '    (property "Reference" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)))' % (ref, rp[0], rp[1]),
         '    (property "Value" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)%s))' % (
             value, vp[0], vp[1], '' if show_value else ' hide'),
@@ -245,7 +247,7 @@ FP_C10 = 'Capacitor_SMD:C_0805_2012Metric'
 FP_SOIC = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_SOT23 = 'Package_TO_SOT_SMD:SOT-23'
 FP_SOD123 = 'Diode_SMD:D_SOD-123'
-FP_PH = 'Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal'
+FP_PH = 'Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical'   # vertical (top entry): the plug goes in from behind the board
 FP_RJ = 'ConsoleBoardRS:RJ9_Molex_95522-2447_Vertical'
 FP_SW = 'Button_Switch_SMD:SW_SPST_PTS810'
 
@@ -374,17 +376,23 @@ place(HDR4, 'J4', 'Select knob (RJ9)', FP_RJ, 240, 300, {'1': 'GND', '2': 'SEL_2
       descr='RJ9 4P4C top-entry jack, Molex 95522-2447 (footprint pins 1-4 = jack contacts 1-4): 1 black GND, 2 red encoder, 3 green switches, 4 yellow GND')
 place(HDR4, 'J5', 'Volume knob (RJ9)', FP_RJ, 290, 300, {'1': 'GND', '2': 'VOL_2', '3': 'VOL_3', '4': 'GND'},
       descr='RJ9 4P4C top-entry jack, Molex 95522-2447 (footprint pins 1-4 = jack contacts 1-4): 1 black GND, 2 red encoder, 3 green switches, 4 yellow GND')
-place(HDR3, 'J6', 'IR receiver', 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical', 340, 300,
-      {'1': 'GND', '2': '+3V3', '3': 'IR_IN'}, descr='Optional IR demodulator (as on the encoder_controller firmware): GND, 3.3 V, OUT')
+place(HDR3, 'J6', 'TSOP4838', 'OptoDevice:Vishay_MOLD-3Pin', 340, 300,
+      {'1': 'IR_IN', '2': 'GND', '3': 'IR_VS'},
+      descr='IR receiver, Vishay TSOP4838 (38 kHz, MOLD package) fitted straight in: 1 OUT (signal), 2 GND, 3 VS on 3.3 V through its filter. Not in the BOM: fitted by hand',
+      fitted=False)
 for i, n in enumerate(['SEL_2', 'SEL_3', 'VOL_2', 'VOL_3', 'IR_IN']):
     r_('33k' if n[:3] in ('SEL', 'VOL') else '10k', '+3V3', n, 230 + 15 * i, 340,
        'Ladder pull-up: the same on both knob lines, so a reversed cord still reads' if n[:3] in ('SEL', 'VOL') else None)
     if n != 'IR_IN':
         c_('10n', n, 'GND', 230 + 15 * i, 355)
+# the TSOP's supply filter (Vishay's application circuit): 100 R in series with VS and 100 nF across it, so the car's
+# supply noise stays out of the receiver
+r_('100', '+3V3', 'IR_VS', 355, 330, 'IR receiver supply filter: in series with VS')
+c_('100n', 'IR_VS', 'GND', 370, 330, d='IR receiver supply filter: VS to GND, next to J6')
 
 # --- mounting
 G('mount')
-for i, ref in enumerate(('H1', 'H2', 'H3', 'H4')):
+for i, ref in enumerate(('H1', 'H2', 'H4')):  # no H3: the IR receiver has that corner
     place(MH, ref, 'MountingHole', 'MountingHole:MountingHole_2.2mm_M2_Pad', 20 + 20 * i, 380, {'1': 'GND'},
           descr='M2 hole for a screen standoff, tied to GND')
 

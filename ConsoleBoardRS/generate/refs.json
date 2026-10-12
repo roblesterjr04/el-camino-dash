@@ -49,6 +49,11 @@
   "group": "ui",
   "value": "10n"
  },
+ "C16": {
+  "fp": "Capacitor_SMD:C_0603_1608Metric",
+  "group": "ui",
+  "value": "100n"
+ },
  "C2": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "esp",
@@ -114,11 +119,6 @@
   "group": "mount",
   "value": "MountingHole"
  },
- "H3": {
-  "fp": "MountingHole:MountingHole_2.2mm_M2_Pad",
-  "group": "mount",
-  "value": "MountingHole"
- },
  "H4": {
   "fp": "MountingHole:MountingHole_2.2mm_M2_Pad",
   "group": "mount",
@@ -135,7 +135,7 @@
   "value": "USB-C"
  },
  "J3": {
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "can",
   "value": "CAN to DigiDash"
  },
@@ -150,9 +150,10 @@
   "value": "Volume knob (RJ9)"
  },
  "J6": {
-  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+  "dnp": true,
+  "fp": "OptoDevice:Vishay_MOLD-3Pin",
   "group": "ui",
-  "value": "IR receiver"
+  "value": "TSOP4838"
  },
  "R1": {
   "fp": "Resistor_SMD:R_0603_1608Metric",
@@ -163,6 +164,11 @@
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "ui",
   "value": "10k"
+ },
+ "R11": {
+  "fp": "Resistor_SMD:R_0603_1608Metric",
+  "group": "ui",
+  "value": "100"
  },
  "R2": {
   "fp": "Resistor_SMD:R_0603_1608Metric",

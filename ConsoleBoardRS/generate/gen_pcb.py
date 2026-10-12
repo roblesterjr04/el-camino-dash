@@ -88,19 +88,24 @@ RJ_X = (57.0, 75.0)                # the two top-entry RJ9 jacks (plugs go in fr
 RJ_BODY = (-1.75, 14.89)           # the 95522-2447 body envelope from its first contact row (see gen_footprints.py)
 RJ_Y = H - 1.0 - RJ_BODY[1]        # first contact row: the bodies end 1 mm above the bottom edge
 U1_X = 26.0                     # the ESP32-S3 module: clear of the left M2 holes
+EDGE_CU = 0.2                   # copper to board edge (the design rule below)
+IR_PAD = 1.8                    # the Vishay MOLD footprint's pads
+IR_INSET = 1.0                  # the IR receiver moved this far in from the corner, right and up
 FIXED = {
     'J1': (HDR_X0, HDR_Y, 0, 'F'),         # socket pad 1 top right of the pair (module pin 1 = pad 2, see gen_sch.py)
     'U1': (U1_X, 12.8, 0, 'B'),            # antenna end on the top edge
-    'J3': (23.5, BOT - 4.8, 0, 'B'),       # CAN cable, side entry, opening past the bottom edge
+    'J3': (23.5, BOT - 4.8, 0, 'B'),       # CAN cable, JST PH B4B-PH-K vertical (top entry): the plug goes in from behind
     'J2': (42.0, BOT - 3.7, 0, 'B'),       # USB-C
     'J4': (RJ_X[0], RJ_Y, 0, 'B'),        # Select knob, RJ9 4P4C, top entry
     'J5': (RJ_X[1], RJ_Y, 0, 'B'),        # Volume knob
-    'J6': (90.0, BOT - 2.5, 90, 'B'),      # IR header
+    # the IR receiver (TSOP4838, on the front): pins 1-2-3 left to right seen from the front, in the corner where H3
+    # was, IR_INSET in from where pin 3 under H3's centre and the row at the copper-to-edge limit would be (the body
+    # hangs past the edge)
+    'J6': (MX + HOLE_X - 2 * HDR_PITCH + IR_INSET, BOT - IR_PAD / 2 - EDGE_CU - 0.05 - IR_INSET, 0, 'F'),
     'SW1': (44.0, 5.5, 0, 'B'),            # RESET
     'SW2': (44.0, 11.0, 0, 'B'),           # BOOT
     'H1': (MX + HOLE_X, MY + HOLE_Y, 0, 'F'),
     'H2': (MX + SCREEN_W - HOLE_X, MY + HOLE_Y, 0, 'F'),
-    'H3': (MX + HOLE_X, MY + SCREEN_H - HOLE_Y, 0, 'F'),
     'H4': (MX + SCREEN_W - HOLE_X, MY + SCREEN_H - HOLE_Y, 0, 'F'),
 }
 SIDE = {'oled': 'B', 'esp': 'B', 'boot': 'B', 'power': 'B', 'usb': 'B', 'can': 'B', 'led': 'B', 'ui': 'B', 'mount': 'F', 'misc': 'B'}
@@ -108,8 +113,9 @@ ANCHOR = {'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2'], 'can': ['J3'], 'power': [
           'ui': ['J4', 'J5', 'J6']}
 GROUP_ORDER = ['esp', 'usb', 'can', 'power', 'boot', 'oled', 'led', 'ui', 'mount', 'misc']
 POWER_NETS = {'+5V', '+3V3', 'VBUS', 'CAB_5V'}
-KEEP_SILK = {'J1', 'J6', 'SW1', 'SW2', 'U1'}     # J2-J5 carry captions instead
-HOLES = [FIXED[h][:2] for h in ('H1', 'H2', 'H3', 'H4')]
+NOT_FITTED = {'J6'}                       # the IR receiver: installed by hand, so not in the BOM or the placement files
+KEEP_SILK = {'J1', 'SW1', 'SW2', 'U1'}     # J2-J6 carry captions instead (J6's outline would be past the edge)
+HOLES = [FIXED[h][:2] for h in ('H1', 'H2', 'H4')]   # no H3: the IR receiver has that corner
 HOLE_KEEP = 3.0                          # radius kept free of parts around them
 
 GRID = 0.2
@@ -188,6 +194,9 @@ def main():
         fp.GetField(pcbnew.FIELD_T_DATASHEET).SetText(sheet)     # as in the schematic, so the parity check is clean
         fp.GetField(pcbnew.FIELD_T_DESCRIPTION).SetText(descr)
         fp.SetAttributes(fp.GetAttributes() & ~pcbnew.FP_EXCLUDE_FROM_BOM)
+        if ref in NOT_FITTED:  # fitted by hand after delivery: not in the BOM or the placement files
+            fp.SetDNP(True)
+            fp.SetAttributes(fp.GetAttributes() | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
         b.Add(fp)
         for pad in fp.Pads():
             n = nets.get((ref, pad.GetNumber()))
@@ -264,7 +273,7 @@ def main():
     for cx in RJ_X:                       # the knob captions, above the RJ9 jacks
         occ['B'].rect(cx - 5.0, RJ_Y + RJ_BODY[0] - 3.4, cx + 5.0, RJ_Y + RJ_BODY[0] - 1.8)
     occ['B'].rect(FIXED['J2'][0] - 3.0, BOT - 10.3, FIXED['J2'][0] + 3.0, BOT - 8.9)
-    occ['B'].rect(FIXED['J6'][0] - 1.5, BOT - 6.2, FIXED['J6'][0] + 6.5, BOT - 4.6)   # the IR header's caption
+    occ['F'].rect(FIXED['J6'][0] - 1.0, FIXED['J6'][1] - 3.2, FIXED['J6'][0] + 6.1, FIXED['J6'][1] - 1.6)   # its caption
     for swref in ('SW1', 'SW2'):          # the RST / BOOT captions beside the two buttons
         occ['B'].rect(FIXED[swref][0] + 4.6, FIXED[swref][1] - 0.8, FIXED[swref][0] + 8.4, FIXED[swref][1] + 0.8)
 
@@ -360,6 +369,9 @@ def main():
         t.SetTextSize(VECTOR2I(mm(0.7), mm(0.7)))
         t.SetTextThickness(mm(0.12))
         fp.Value().SetVisible(False)
+    for item in list(fps['J6'].GraphicalItems()):  # the IR receiver's outline lies past the bottom edge: its caption only
+        if item.GetLayer() == pcbnew.F_SilkS:
+            fps['J6'].Remove(item)
 
     def silk(s, x, y, size=0.7, layer=pcbnew.F_SilkS, rot=0):
         t = pcbnew.PCB_TEXT(b)
@@ -380,7 +392,7 @@ def main():
     silk('SELECT KNOB', RJ_X[0], RJ_Y + RJ_BODY[0] - 2.6, 0.7, BS)
     silk('VOLUME KNOB', RJ_X[1], RJ_Y + RJ_BODY[0] - 2.6, 0.7, BS)
     silk('USB', FIXED['J2'][0], BOT - 9.6, 0.7, BS)
-    silk('IR G 3 O', FIXED['J6'][0] + 2.5, BOT - 5.4, 0.7, BS)
+    silk('S G V', FIXED['J6'][0] + 2.54, FIXED['J6'][1] - 2.4, 0.7)   # the IR receiver's pins, read from the front
     silk('RST', FIXED['SW1'][0] + 6.5, 5.5, 0.7, BS)
     silk('BOOT', FIXED['SW2'][0] + 6.5, 11.0, 0.7, BS)
 
