@@ -24,6 +24,10 @@ bool s_have_vehicle = false, s_have_prefs = false;
 uint32_t s_vehicle_ms = 0, s_now = 0;
 uint32_t s_begin_ms = 0;
 bool s_queried = false;  // the center's QUERY to everyone after boot
+// AUDIO_CMD, as the console follows it: the audio card's STATUS (its source) and NOW PLAYING for the radio
+ElcAudioStatus s_audio;
+ElcAudioNow s_radio_now;
+uint32_t s_audio_ms = 0, s_radio_now_ms = 0;
 
 void on_transfer(const ElcChTransfer &t, void *) {
   accessory_can_transfer(t, s_now);
@@ -37,6 +41,21 @@ void on_transfer(const ElcChTransfer &t, void *) {
     } else if (elc_sys_decode(t, p)) {
       s_prefs = p;
       s_have_prefs = true;
+    }
+  } else if (t.base == ELC_CH_AUDIO_CMD) {
+    ElcAudioStatus st;
+    ElcAudioNow np;
+    if (elc_audio_decode(t, st)) {
+      if (t.src == s_ch.findNode(ELC_TYPE_AUDIO_SINK)) {  // only the audio card's
+        s_audio = st;
+        s_audio_ms = s_now ? s_now : 1;
+      }
+    } else if (elc_audio_decode(t, np) && np.source == ELC_SRC_RADIO) {
+      // from the audio card for its source, or the radio card itself
+      if (t.src == s_audio.source_node || t.src == s_ch.findNode(ELC_TYPE_RADIO)) {
+        s_radio_now = np;
+        s_radio_now_ms = s_now ? s_now : 1;
+      }
     }
   } else if (t.base == ELC_CH_LOG && s_screen == ELC_CAN_SCREEN_CENTER) {
     ElcLogLine l;
@@ -81,7 +100,7 @@ void chan_screen_begin(ElcCan &can, uint8_t screen) {
   // sensors. The center also owns SYSTEM, the core SENSOR readings and the alert manager, and logs LOG lines.
   me.produces = elc_ch_bit(ELC_CH_UI);
   me.consumes = elc_ch_bit(ELC_CH_UI) | elc_ch_bit(ELC_CH_ALERT) | elc_ch_bit(ELC_CH_SENSOR) | elc_ch_bit(ELC_CH_SYSTEM) |
-                elc_ch_bit(ELC_CH_INPUT);
+                elc_ch_bit(ELC_CH_INPUT) | elc_ch_bit(ELC_CH_AUDIO_CMD);
   if (center) {
     me.produces |= elc_ch_bit(ELC_CH_SYSTEM) | elc_ch_bit(ELC_CH_SENSOR) | elc_ch_bit(ELC_CH_ALERT);
     me.consumes |= elc_ch_bit(ELC_CH_LOG);
@@ -124,6 +143,14 @@ bool chan_screen_vehicle(ElcSysVehicle *out, uint32_t *age_ms) {
   if (!s_have_vehicle) return false;
   if (out) *out = s_vehicle;
   if (age_ms) *age_ms = s_now - s_vehicle_ms;
+  return true;
+}
+
+bool chan_screen_radio(ElcAudioNow *now) {
+  if (!s_audio_ms || s_now - s_audio_ms > 3000 || s_audio.source != ELC_SRC_RADIO) return false;
+  const bool have = s_radio_now_ms && s_now - s_radio_now_ms < 5000;
+  if (now) *now = have ? s_radio_now : ElcAudioNow();
+  if (now && !have) now->source = 0;  // the radio plays, but nothing from it yet
   return true;
 }
 

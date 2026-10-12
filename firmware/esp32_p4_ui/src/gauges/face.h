@@ -47,6 +47,8 @@ Face *make_fallout(GaugeFace f);
 void fmt_mmss(char *out, size_t n, float s);
 /** Media title / artist with fallbacks when nothing is playing. */
 const char *media_title(const GaugeData &d);
+/** The radio's signal for the media face's progress bar, 0..1 (0 when not the radio or not known). */
+inline float radio_signal(const GaugeData &d) { return d.media_connected && d.media_radio && d.media_signal > 0 ? d.media_signal : 0.0f; }
 const char *media_artist(const GaugeData &d);
 /** 12-hour clock pieces. */
 int hour12(int h24);

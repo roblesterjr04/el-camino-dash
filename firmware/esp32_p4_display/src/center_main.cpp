@@ -319,7 +319,7 @@ void center_loop() {
     gauge_fill_sensors(gd, s_link, WHEEL_CIRCUMFERENCE_M);
     gd.trip_mi = (gd.odo_valid && s_trip_base_set) ? (gd.odo_mi - s_trip_base_mi) : 0.0f;
     fill_clock(gd, now);
-    fill_media(gd, now);
+    if (!media_can_fill_radio(gd)) fill_media(gd, now);  // the radio as the console shows it, else the phone's track
     gauges_update(gd, now);
   }
   if (fullscreen) {

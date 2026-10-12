@@ -1,5 +1,7 @@
 #include "media_can.h"
 
+#include "chan_screen.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -290,6 +292,41 @@ void media_can_art_status(char *out, size_t n) {
            (unsigned)s_rx.chunks_have(), (unsigned)(s_rx.sized() ? elc_can_art_chunks(s_rx.size()) : 0),
            (unsigned)s_rx.size(), (unsigned)s_req_tries, (unsigned)s_done_id, s_art_valid ? "shown" : "none",
            s_art_w, s_art_h);
+}
+
+bool media_can_fill_radio(GaugeData &d) {
+  ElcAudioNow np;
+  if (!chan_screen_radio(&np)) return false;
+  static char title[34], artist[66], detail[64];
+  d.media_connected = true;
+  d.media_radio = true;
+  d.media_elapsed = d.media_duration = 0;
+  d.art_px = nullptr;  // no album art on the radio
+  if (np.source != ELC_SRC_RADIO) {  // the radio plays, but its card has not said what yet
+    d.media_title = "Radio";
+    d.media_artist = "Waiting for the radio card";
+    d.media_detail = nullptr;
+    return true;
+  }
+  snprintf(title, sizeof(title), "%s", np.line1);
+  snprintf(artist, sizeof(artist), "%s", np.line2);
+  size_t o = 0;
+  auto part = [&](const char *t) {
+    if (o < sizeof(detail)) o += snprintf(detail + o, sizeof(detail) - o, "%s%s", o ? " \xC2\xB7 " : "", t);
+  };
+  char b[16];
+  if (np.preset) {
+    snprintf(b, sizeof(b), "PRESET %u", (unsigned)np.preset);
+    part(b);
+  }
+  if (np.flags & ELC_NOW_F_SEEKING) part("SEEKING");
+  else if (np.flags & ELC_NOW_F_STEREO) part("STEREO");  // the signal: on the progress bar
+  d.media_signal = np.signal <= 5 ? np.signal / 5.0f : -1;
+  if (np.flags & ELC_NOW_F_MUTED) part("MUTED");
+  d.media_title = title[0] ? title : "Radio";
+  d.media_artist = artist;
+  d.media_detail = o ? detail : nullptr;
+  return true;
 }
 
 void media_can_fill(GaugeData &d, uint32_t now_ms) {

@@ -308,7 +308,7 @@ void side_loop() {
     if (!s_right && s_banner[0] != 0 && (int32_t)(s_banner_until_ms - now) > 0) {
       gd.banner = s_banner;
     }
-    if (media) {
+    if (media && !media_can_fill_radio(gd)) {  // the radio as the console shows it, else the phone's track
       media_can_fill(gd, now);
     }
     gauges_update(gd, now);

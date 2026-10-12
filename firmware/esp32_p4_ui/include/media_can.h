@@ -46,3 +46,7 @@ float media_can_elapsed(uint32_t now_ms);
 
 /** Fill the media fields of GaugeData from the CAN bridge (position interpolated between transport frames). */
 void media_can_fill(GaugeData &d, uint32_t now_ms);
+
+/** While the audio card's source is the radio, fill the media fields from the radio's NOW PLAYING (chan_screen.h), as
+ *  the console shows it, and return true; false (nothing filled) for any other source. Call it before the bridge's. */
+bool media_can_fill_radio(GaugeData &d);

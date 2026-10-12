@@ -295,12 +295,14 @@ class ModernMedia : public Face {
     set_text(title_, media_title(d));
     set_text(artist_, media_artist(d));
     const bool t = d.media_connected && d.media_duration > 0;
-    prog_->set(t ? d.media_elapsed / d.media_duration : 0.0f);
-    char b[32] = "", e[12], u[12];
+    prog_->set(t ? d.media_elapsed / d.media_duration : radio_signal(d));
+    char b[64] = "", e[12], u[12];
     if (t) {
       fmt_mmss(e, sizeof(e), d.media_elapsed);
       fmt_mmss(u, sizeof(u), d.media_duration);
       snprintf(b, sizeof(b), "%s  /  %s", e, u);
+    } else if (d.media_connected && d.media_detail) {  // the radio: preset, stereo, signal
+      snprintf(b, sizeof(b), "%s", d.media_detail);
     }
     set_text(time_, b);
   }

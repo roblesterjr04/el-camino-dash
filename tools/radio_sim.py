@@ -60,7 +60,8 @@ STATIONS = [
 
 BANDS = ("FM", "AM")
 REGIONS = ("US", "Europe")
-FM_RANGE = (87500, 108000)
+FM_RANGE = (87500, 108000)  # every FM frequency either region allows (Europe's band; presets are checked against it)
+FM_US = (87900, 107900)      # US: the odd tenths, 200 kHz apart
 AM_RANGE = (520, 1710)
 
 # UI item numbers
@@ -124,7 +125,9 @@ class RadioSim(SimCard):
         self.item(I_ON, TOP, K_TOGGLE, F_SETTING, "Radio on")
         self.item(I_BAND, TOP, K_CHOICE, F_SETTING, "Band", options="\n".join(BANDS))
         if fm:
-            self.item(I_FREQ, TOP, K_NUMBER, F_SETTING, "Frequency", "MHz", exp=-1, lo=875, hi=1080, step=1)
+            lo, hi = self.band_range()
+            self.item(I_FREQ, TOP, K_NUMBER, F_SETTING, "Frequency", "MHz", exp=-1, lo=lo // 100, hi=hi // 100,
+                      step=self.grid() // 100)
         else:
             self.item(I_FREQ, TOP, K_NUMBER, F_SETTING, "Frequency", "kHz", lo=AM_RANGE[0] if not eu else 522,
                       hi=AM_RANGE[1], step=9 if eu else 10)
@@ -224,19 +227,24 @@ class RadioSim(SimCard):
             rt = st.texts[int((age - RDS_RT_S) // RDS_RT_ROTATE_S) % len(st.texts)]
         return ps, rt
 
-    def grid(self) -> int:
-        if self.band == 0:
-            return 100
+    def grid(self, band: int | None = None) -> int:
+        if (self.band if band is None else band) == 0:
+            return 100 if self.region == 1 else 200
         return 9 if self.region == 1 else 10
 
-    def band_range(self) -> tuple[int, int]:
-        if self.band == 0:
-            return FM_RANGE
+    def band_range(self, band: int | None = None) -> tuple[int, int]:
+        if (self.band if band is None else band) == 0:
+            return FM_RANGE if self.region == 1 else FM_US
         return (522, 1710) if self.region == 1 else AM_RANGE
 
+    def snap(self, band: int, khz: int) -> int:
+        """The nearest frequency on the band's grid for the region."""
+        lo, hi = self.band_range(band)
+        g = self.grid(band)
+        return max(lo, min(hi, lo + round((khz - lo) / g) * g))
+
     def tune(self, khz: int, why: str = "tuned") -> None:
-        lo, hi = self.band_range()
-        khz = max(lo, min(hi, khz))
+        khz = self.snap(self.band, khz)  # on the region's grid, whatever asked (an old preset at 101.2 plays 101.1)
         self.khz[self.band] = khz
         self.seek_dir = 0
         self.tuned_at = self.clock()
@@ -446,9 +454,9 @@ class RadioSim(SimCard):
             if v != self.region:
                 self.region = v
                 self.bump()
-                if self.band == 1:
-                    lo = self.band_range()[0]
-                    self.tune(lo + round((self.khz[1] - lo) / self.grid()) * self.grid(), "region")
+                other = 1 - self.band  # both bands onto the new grid (US FM: the odd tenths)
+                self.khz[other] = self.snap(other, self.khz[other])
+                self.tune(self.snap(self.band, self.khz[self.band]), "region")
         elif n in (I_RSSI_MIN, I_SNR_MIN):
             if not 0 <= v <= 127:
                 return 1
@@ -636,6 +644,17 @@ def _test() -> None:
     assert sim.khz[0] == 98900 and sim.station() is None
     ui_set(I_FREQ, 1200)                      # out of range: refused
     assert sim.khz[0] == 98900
+    ui_set(I_FREQ, 990)                       # 99.0 MHz: an even tenth, off the US grid: refused
+    assert sim.khz[0] == 98900
+    ui_set(I_REGION, 1)                       # Europe: 100 kHz steps, and 87.5-108.0
+    ui_set(I_FREQ, 990)
+    assert sim.khz[0] == 99000
+    ui_set(I_REGION, 0)                       # back to the US: onto the odd tenths
+    assert sim.khz[0] in (98900, 99100)
+    sim.tune(98900)
+    sim.tune(101200)                          # an even tenth from an old preset: onto the grid
+    assert sim.khz[0] in (101100, 101300)
+    sim.tune(98900)
     sim.seek_dir = 1
     assert sim.seek_result() == 101100
     sim.seek_dir = -1
@@ -709,19 +728,19 @@ def _test() -> None:
     assert r.on and r.source and r.rail == 1
     r.tune(94700)
     from_sink(bytes([0x84, r.node, MEDIA_TUNE_UP, 0]))
-    assert r.khz[0] == 94800
+    assert r.khz[0] == 94900                 # US FM: one step is 0.2 MHz, odd tenths only
     from_sink(bytes([0x84, r.node, MEDIA_PRESET_STORE, 0]))
-    assert r.presets[0] == 94800
+    assert r.presets[0] == 94900
     r.tune(101100)
     from_sink(bytes([0x84, r.node, MEDIA_PRESET_STORE, 0]))
     assert r.presets[1] == 101100
     from_sink(bytes([0x84, r.node, MEDIA_PRESET_NEXT, 0]))
-    assert r.khz[0] == 94800
+    assert r.khz[0] == 94900
     out.clear()
     t[0] += 3
     r.periodic(t[0])
     nows = [p for i, d in out for p in [rx4.feed(i, d, 0.0)] if p and i == CH_AUDIO_CMD + r.node and p[0] == AUDIO_NOW]
-    assert nows and nows[-1][1] == SRC_RADIO and nows[-1][3] == 1 and b"94.8 FM" in nows[-1]
+    assert nows and nows[-1][1] == SRC_RADIO and nows[-1][3] == 1 and b"94.9 FM" in nows[-1]
     from_sink(bytes([0x01, 30, 0, 0, 0, 0x0F, 1, 0x14]))  # back to Bluetooth: it lets RET go
     assert not r.source and r.rail == 0
     print("radio_sim: all tests passed")

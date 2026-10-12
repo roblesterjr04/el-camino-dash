@@ -96,14 +96,14 @@ QUERY / IDENTIFY) and these channels:
 | Item | Kind | Notes |
 | --- | --- | --- |
 | Band | choice | FM, AM |
-| Frequency | number | FM 87.5–108.0 MHz in 0.1 MHz steps (exponent −1, MHz); AM 520–1710 kHz in 10 kHz steps. Setting it tunes |
+| Frequency | number | FM in the region's grid (exponent −1, MHz): US 87.9–107.9 MHz in 0.2 MHz steps (the odd tenths, .1 .3 .5 .7 .9), Europe 87.5–108.0 MHz in 0.1 MHz steps; AM 520–1710 kHz in 10 kHz steps. Setting it tunes; tune up / down steps one grid step |
 | Seek up / Seek down | action | Seek to the next station that passes the thresholds; the new frequency comes back as a VALUE |
 | Station | text readout | RDS program-service name (8 characters) |
 | Radio text | text readout | RDS radiotext, shortened to 64 bytes |
 | Stereo | readout | 0 mono / 1 stereo |
 | Preset 1–12 | choice + action | Store the current station / recall. Items are flagged bit4 so the center backs them up |
 | Seek threshold | number | RSSI and SNR limits, **advanced** flag |
-| Region | choice | US (100 kHz FM grid, 75 µs de-emphasis, AM 10 kHz) / Europe (50 / 100 kHz, 50 µs, AM 9 kHz), flag bit4 |
+| Region | choice | US (200 kHz FM grid on the odd tenths, 87.9–107.9 MHz, 75 µs de-emphasis, AM 10 kHz) / Europe (100 kHz, 87.5–108.0 MHz, 50 µs, AM 9 kHz), flag bit4. A change moves the frequency onto the new grid |
 | Radio on | toggle | Whether the tuner is powered; **off** powers the tuner down and releases the link |
 
 The radio keeps its own state (band, frequency, presets, region) in the MCU's flash and works without the center.
@@ -253,7 +253,7 @@ up. Its item numbers are the ones the firmware should use:
 | --- | --- | --- | --- |
 | 0 | Radio on | toggle | setting |
 | 1 | Band | choice | FM, AM; setting |
-| 2 | Frequency | number | FM: × 0.1 MHz, 875–1080; AM: kHz, 520–1710 step 10 (Europe 522–1710 step 9). Its ITEM is resent on a band change |
+| 2 | Frequency | number | FM: × 0.1 MHz, US 879–1079 step 2 (odd tenths), Europe 875–1080 step 1; AM: kHz, 520–1710 step 10 (Europe 522–1710 step 9). Its ITEM is resent on a band or region change |
 | 3, 4 | Seek up, Seek down | action | |
 | 5, 6 | Station, Radio text | text readout | RDS PS and radiotext |
 | 7, 8 | Stereo, Signal | readout | live |

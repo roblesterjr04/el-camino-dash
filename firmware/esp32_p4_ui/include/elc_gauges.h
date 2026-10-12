@@ -59,6 +59,12 @@ struct GaugeData {
   const char *media_title = nullptr;
   const char *media_artist = nullptr;
   float media_elapsed = 0, media_duration = 0;
+  /** The radio is the source: the title is the frequency and station, the artist line the radio text,
+   *  media_detail (in the track time's place) the preset, stereo, muted, and the progress bar the signal
+   *  (media_signal 0..1, < 0 = not known), as the console's five bars. */
+  bool media_radio = false;
+  const char *media_detail = nullptr;
+  float media_signal = -1;
   /** Album art, RGB565 with rows of art_stride pixels; nullptr when there is none. art_id changes with
    *  every new image (the face copies and scales it once). */
   const uint16_t *art_px = nullptr;

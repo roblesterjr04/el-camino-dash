@@ -52,6 +52,14 @@ static GaugeData sample(int step) {
   d.media_artist = "Stephen Wilson Jr.";
   d.media_elapsed = 83 + step;
   d.media_duration = 215;
+  if (getenv("RADIO")) {  // the radio as media_can_fill_radio() fills it from the radio's NOW PLAYING
+    d.media_radio = true;
+    d.media_title = "101.1 FM  KGSR";
+    d.media_artist = "Gary Clark Jr. - Bright Lights";
+    d.media_detail = "PRESET 3 \xC2\xB7 STEREO";
+    d.media_signal = 0.8f;
+    d.media_elapsed = d.media_duration = 0;
+  }
   // A synthetic 200×200 cover (sunset gradient, sun, stripes) in a 208-px stride like the P4 decoder's.
   static uint16_t art[208 * 200];
   static bool made = false;

@@ -10,7 +10,8 @@
 /**
  * A round screen's side of the channel protocol (docs/protocols/can_channels.md): its node announces itself (a
  * display, product 0x0001), and every transfer it hears goes to the modules that use it: the accessory pages
- * (accessory_can.h), SYSTEM state, and on the center the LOG lines (printed on its console with the sender's name).
+ * (accessory_can.h), SYSTEM state, the audio card's source and the radio's NOW PLAYING (AUDIO_CMD, for the media
+ * face), and on the center the LOG lines (printed on its console with the sender's name).
  *
  * Loop contract: chan_screen_begin() once, after ElcCan::begin(); chan_screen_poll() once per loop after
  * ElcCan::poll().
@@ -30,6 +31,9 @@ void chan_screen_on_describe(void (*fn)(uint8_t what, void *ctx), void *ctx);
 /** The last SYSTEM state from the center; false until one arrived (age in ms of the last VEHICLE frame in *age). */
 bool chan_screen_vehicle(ElcSysVehicle *out, uint32_t *age_ms);
 bool chan_screen_prefs(ElcSysPrefs *out);
+/** The audio card's source is the radio (its STATUS within 3 s). *now gets the radio's NOW PLAYING (frequency and
+ *  station, radio text, preset, stereo, signal), or source 0 when none came within 5 s. False for any other source. */
+bool chan_screen_radio(ElcAudioNow *now);
 
 /**
  * Console: `chan` (the channel node: transfers, the announced nodes, the accessory items) and `chan query` (ask every
