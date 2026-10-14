@@ -23,6 +23,8 @@ void console_input_begin();
 void console_input_poll(ConsoleInputEvents &ev, uint32_t now_ms);
 /** The knob lines now (mV, which line is which, what they read), for the serial console. */
 void console_input_describe(char *out, size_t n);
+/** On: print every knob line's band changes (raw and debounced, with mV) and each step and click decoded. */
+void console_input_knob_log(bool on);
 /** The IR receiver: the last frame heard (any remote's) and how many, for the serial console. */
 void console_input_describe_ir(char *out, size_t n);
 /** On: print every IR burst's marks and spaces (us) and what it decoded to. */

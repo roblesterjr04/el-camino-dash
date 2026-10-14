@@ -56,6 +56,44 @@
 #ifndef CONSOLE_KNOB_STABLE_SAMPLES
 #define CONSOLE_KNOB_STABLE_SAMPLES 3  // the knob lines are sampled at 1 kHz: a level counts once read this many times
 #endif
+#ifndef CONSOLE_KNOB_ADC_READS
+#define CONSOLE_KNOB_ADC_READS 4  // ADC reads averaged per sample (the bench lines carry ~±90 mV of noise)
+#endif
+// The knob levels (mV), from the bench (~0.1 V under the nominal levels). Each line is read only against its own.
+// The encoder line: open > OPEN > 82k > 82 > 47k > 47 > 30k.
+#ifndef CONSOLE_KNOB_ENC_OPEN_MV
+#define CONSOLE_KNOB_ENC_OPEN_MV 2700
+#endif
+#ifndef CONSOLE_KNOB_ENC_82_MV
+#define CONSOLE_KNOB_ENC_82_MV 2000
+#endif
+#ifndef CONSOLE_KNOB_ENC_47_MV
+#define CONSOLE_KNOB_ENC_47_MV 1630
+#endif
+// The switch line: open > OPEN > ring right > RING_R > ring left > RING_L > push.
+#ifndef CONSOLE_KNOB_SW_OPEN_MV
+#define CONSOLE_KNOB_SW_OPEN_MV 2300
+#endif
+#ifndef CONSOLE_KNOB_SW_RING_R_MV
+#define CONSOLE_KNOB_SW_RING_R_MV 940
+#endif
+#ifndef CONSOLE_KNOB_SW_RING_L_MV
+#define CONSOLE_KNOB_SW_RING_L_MV 280
+#endif
+// A reversed cord: the encoder line under ENC_MIN (a push or ring left) or the switch line between SW_GAP_LO and _HI
+// (the encoder's 82k or 47k), held SWAP_SAMPLES.
+#ifndef CONSOLE_KNOB_ENC_MIN_MV
+#define CONSOLE_KNOB_ENC_MIN_MV 1000
+#endif
+#ifndef CONSOLE_KNOB_SW_GAP_LO
+#define CONSOLE_KNOB_SW_GAP_LO 1650
+#endif
+#ifndef CONSOLE_KNOB_SW_GAP_HI
+#define CONSOLE_KNOB_SW_GAP_HI 2650
+#endif
+#ifndef CONSOLE_KNOB_SWAP_SAMPLES
+#define CONSOLE_KNOB_SWAP_SAMPLES 20
+#endif
 
 #ifndef CONSOLE_HOLD_MS
 #define CONSOLE_HOLD_MS 650  // a knob push or the right ring held this long = its hold action

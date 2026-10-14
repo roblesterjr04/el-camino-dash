@@ -103,15 +103,27 @@ Custom curve while another preset plays). The values are the audio card's own it
 Each RetroSound knob has two analog lines on its RJ9 jack (33k pull-ups, ADC1;
 [`ConsoleBoardRS/README.md`](../../ConsoleBoardRS/README.md#knobs-rj9)): the encoder (open → 82k → 30k → 47k →
 open, detents at open and 30k, two steps per click) and the switches (open, 6.8k ring left, 22k ring right, 0 Ω
-push). A task on core 0 reads all four lines every millisecond with `analogReadMilliVolts` and keeps a line's level
-once it has read the same band three times running, so the RC's settling and contact bounce never count. Bands:
-push < 0.28 V < ring left < 0.94 V < ring right < 1.445 V < 30k < 1.755 V < 47k < 2.15 V < 82k < 2.65 V < open.
+push). A task on core 0 reads all four lines every millisecond (each sample the mean of 4 `analogReadMilliVolts`
+reads) and keeps a line's level once it has read the same band three times running, so the RC's settling and contact
+bounce never count.
 
-Only the encoder reads 1.445-2.65 V and only the switches below 1.445 V, so the firmware tells the lines apart: when
-one shows up in the other's range it swaps the pair (a reversed phone cord) before acting on it, and the first touch
-of the knob after power-up settles it. `knobs` on the serial console shows each line's voltage, band and role: check
-the bands against real knobs on the bench, and set `CONSOLE_SEL_REVERSE` / `CONSOLE_VOL_REVERSE` if one turns the
-wrong way.
+On the bench the levels read ~0.1 V under the nominal ones with ~±90 mV of noise, so the encoder's 30k detent
+(1.35-1.55 V) overlaps the ring-right level (22k, 1.15-1.25 V). Each line is therefore read only against its own
+levels (`console_pins.h`, all overridable with -D):
+
+| Line | Levels (mV, measured) |
+| --- | --- |
+| encoder | 30k ~1450 < 1630 < 47k ~1850 < 2000 < 82k ~2200 < 2700 < open ~3150 |
+| switches | push 0 < 280 < ring left ~480 < 940 < ring right ~1200 < 2300 < open ~3150 |
+
+The pair swaps (a reversed phone cord) only on a level its line could never make, held 20 ms: the switch line at
+1.65-2.65 V (the encoder's 47k / 82k) or the encoder line under 1.0 V (a push or ring left). At power-up a line below
+open with the other open is taken as the encoder parked on its 30k detent. A step missed in a quick turn counts the
+way the knob was already going.
+
+`knobs` on the serial console shows each line's voltage, band and role; `knobs log on` prints every level change
+(raw and debounced, with mV and how long the last level held) and each step and click decoded, which is how the
+levels above were measured. Set `CONSOLE_SEL_REVERSE` / `CONSOLE_VOL_REVERSE` if a knob turns the wrong way.
 
 ## The IR remote
 

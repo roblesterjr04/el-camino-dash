@@ -167,6 +167,7 @@ static void print_help() {
   Serial.println("  left +N|-N|click|hold|ringl|ringr    the left knob (volume, mute, power, source)");
   Serial.println("  right +N|-N|click|hold   the right knob (tune / tracks / lists, OK, menu)");
   Serial.println("  knobs                the knob lines (mV, band, which contact is the encoder)");
+  Serial.println("  knobs log on|off     every knob line's level change (mV, band) and each step / click decoded");
   Serial.println("  ir                   the IR receiver: the last remote code heard, the button down");
   Serial.println("  ir log on|off        every IR burst's marks and spaces (us) and what it decoded to");
   Serial.println("  remote KEY [hold]    a remote button: up, down, left, right, select, menu, play, vol+, vol-, mute, band, display, power, 1-9, sel");
@@ -232,6 +233,11 @@ static void handle_line(char *line) {
     const int i = !strcmp(arg, "right") ? 1 : (!strcmp(arg, "left") ? 0 : -1);
     if (how && !strcmp(how, "hold")) s_ui.key_hold(i, now);
     else s_ui.key_click(i, now);
+  } else if (!strcmp(cmd, "knobs") && arg && !strcmp(arg, "log")) {
+    const char *how = strtok(nullptr, " \t");
+    const bool on = !how || strcmp(how, "off");
+    console_input_knob_log(on);
+    Serial.printf("knobs log %s\n", on ? "on" : "off");
   } else if (!strcmp(cmd, "knobs")) {
     char buf[320];
     console_input_describe(buf, sizeof(buf));
