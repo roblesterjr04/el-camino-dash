@@ -22,7 +22,6 @@ const char *src_name(uint8_t s) {
   switch (s) {
     case ELC_SRC_BLUETOOTH: return "Bluetooth";
     case ELC_SRC_RADIO: return "radio";
-    case ELC_SRC_AUX: return "aux in";
     default: return "off";
   }
 }
@@ -42,8 +41,7 @@ void AudioSink::begin(ElcChannels *ch, SinkIo *io, const Caps &caps, const SinkS
   _s.balance = (int8_t)clampi(_s.balance, -10, 10);
   if (_s.eq_preset > ELC_EQ_PRESET_CUSTOM) _s.eq_preset = ELC_EQ_PRESET_FLAT;
   for (auto &b : _s.eq_custom) b = (int8_t)clampi(b, -ELC_EQ_MAX_DB, ELC_EQ_MAX_DB);
-  if (_s.source == ELC_SRC_AUX && !caps.aux) _s.source = ELC_SRC_BLUETOOTH;
-  if (_s.source > ELC_SRC_AUX) _s.source = ELC_SRC_BLUETOOTH;
+  if (_s.source != ELC_SRC_OFF && _s.source != ELC_SRC_RADIO) _s.source = ELC_SRC_BLUETOOTH;  // (aux once saved)
   _boot_ms = now_ms ? now_ms : 1;
   _radio_wait = _s.source == ELC_SRC_RADIO;  // the radio card may announce after us
   if (_ch) _ch->setFactoryDefaults(_s.factory);
@@ -56,7 +54,6 @@ SinkMusic AudioSink::music() const {
   switch (_s.source) {
     case ELC_SRC_BLUETOOTH: return SinkMusic::Bluetooth;
     case ELC_SRC_RADIO: return SinkMusic::Rail;
-    case ELC_SRC_AUX: return SinkMusic::Aux;
     default: return SinkMusic::Off;
   }
 }
@@ -94,8 +91,8 @@ void AudioSink::set_source(uint8_t code, uint32_t now_ms, const char *why) {
     send_status(now_ms);
     return;
   }
-  if (code == ELC_SRC_AUX && !_caps.aux) {
-    logf("source aux asked for (%s), but this card has no aux input", why);
+  if (code != ELC_SRC_BLUETOOTH && code != ELC_SRC_RADIO && code != ELC_SRC_OFF) {
+    logf("source %u asked for (%s): not one this card has (Bluetooth, radio, off)", (unsigned)code, why);
     send_status(now_ms);
     return;
   }
@@ -115,13 +112,12 @@ void AudioSink::set_source(uint8_t code, uint32_t now_ms, const char *why) {
   send_status(now_ms);  // the sources learn from STATUS which one plays; the asker sees its echo
 }
 
-/** The next one round Bluetooth, the radio (when heard), aux (when fitted) and off. */
+/** The next one round Bluetooth, the radio (when heard) and off. */
 void AudioSink::source_next(uint32_t now_ms) {
-  uint8_t list[4];
+  uint8_t list[3];
   int n = 0;
   list[n++] = ELC_SRC_BLUETOOTH;
   if (radio()) list[n++] = ELC_SRC_RADIO;
-  if (_caps.aux) list[n++] = ELC_SRC_AUX;
   list[n++] = ELC_SRC_OFF;
   int i = n - 1;
   for (int k = 0; k < n; k++) {
@@ -178,7 +174,7 @@ void AudioSink::media(uint8_t action, uint8_t value) {
         _io->bt_media(action);
       }
       return;
-    default: return;  // aux and off: nothing to tell
+    default: return;  // off: nothing to tell
   }
 }
 
@@ -246,16 +242,12 @@ void AudioSink::status_tuple(uint8_t out[7]) const {
       node = radio();
       playing = node && _holder == node;
       break;
-    case ELC_SRC_AUX:
-      playing = true;
-      node = _ch ? _ch->node() : 0;
-      break;
     default: break;
   }
   const bool ducked = (_io && _io->chimes_ducking()) || rail_voice();
   out[0] = (uint8_t)((_s.volume * 100 + 7) / 15);
   out[1] = (uint8_t)((_muted ? ELC_AUDIO_F_MUTED : 0) | (playing ? ELC_AUDIO_F_PLAYING : 0) |
-                     (ducked ? ELC_AUDIO_F_DUCKED : 0) | (_caps.aux ? ELC_AUDIO_F_AUX : 0));
+                     (ducked ? ELC_AUDIO_F_DUCKED : 0));
   out[2] = _io ? _io->chimes_active() : 0;
   out[3] = 0;  // no AUDIO_STREAM yet
   out[4] = _caps.rear ? 0x0F : 0x03;
@@ -418,7 +410,7 @@ void AudioSink::transfer(const ElcChTransfer &t, uint32_t now_ms) {
     } else if (elc_audio_decode(t, s)) {
       if (s.source == 0) source_next(now_ms);
       else if (s.source == ELC_SRC_REQ_OFF) set_source(ELC_SRC_OFF, now_ms, "asked");
-      else if (s.source <= ELC_SRC_AUX) set_source(s.source, now_ms, "asked");
+      else set_source(s.source, now_ms, "asked");  // aux (or anything else) is refused there
     }
   } else if (t.base == ELC_CH_NET && t.op() == ELC_NET_RAIL) {
     ElcNetRail r;

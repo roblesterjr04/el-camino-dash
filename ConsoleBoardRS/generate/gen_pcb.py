@@ -44,6 +44,8 @@ HDR_PITCH = 2.54
 HOLE_DX, HOLE_DY = 94.0, 28.0      # the module's four mounting holes, centre to centre (measured), centred on the module; M2 standoffs
 HOLE_X = (SCREEN_W - HOLE_DX) / 2        # 3.0 mm in from the sides
 HOLE_Y = (SCREEN_H - HOLE_DY) / 2                # 2.75 mm in from the top and from the module's bottom edge
+R_HOLES_DX = 1.0                   # checked against the module: H2 and H4 sit this much further right (J1 stays put)
+H4_DY = 1.0                        # and H4 this much further down
 
 OX, OY = 100.0, 80.0               # board origin on the sheet
 HDR_X0 = MX + SCREEN_W - HOLE_X + HDR_SHIFT + HDR_PITCH / 2   # outer pin column (KiCad's socket has pad 1 in the outer column, pad 2 inside it)
@@ -105,8 +107,8 @@ FIXED = {
     'SW1': (44.0, 5.5, 0, 'B'),            # RESET
     'SW2': (44.0, 11.0, 0, 'B'),           # BOOT
     'H1': (MX + HOLE_X, MY + HOLE_Y, 0, 'F'),
-    'H2': (MX + SCREEN_W - HOLE_X, MY + HOLE_Y, 0, 'F'),
-    'H4': (MX + SCREEN_W - HOLE_X, MY + SCREEN_H - HOLE_Y, 0, 'F'),
+    'H2': (MX + SCREEN_W - HOLE_X + R_HOLES_DX, MY + HOLE_Y, 0, 'F'),
+    'H4': (MX + SCREEN_W - HOLE_X + R_HOLES_DX, MY + SCREEN_H - HOLE_Y + H4_DY, 0, 'F'),
 }
 SIDE = {'oled': 'B', 'esp': 'B', 'boot': 'B', 'power': 'B', 'usb': 'B', 'can': 'B', 'led': 'B', 'ui': 'B', 'mount': 'F', 'misc': 'B'}
 ANCHOR = {'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2'], 'can': ['J3'], 'power': ['J3', 'U1'], 'usb': ['J2'], 'oled': ['J1'],

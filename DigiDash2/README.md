@@ -15,7 +15,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 
 | Files | |
 | --- | --- |
-| `DigiDash2.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 309.2 × 103.7 mm (rev 1's outline), 4 layers. KiCad 10 |
+| `DigiDash2.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 329 × 113 mm (rev 1's 309.2 × 103.7, grown to take the screens' mounting holes), 4 layers. KiCad 10 |
 | `DigiDash2.pretty` | The RCA jack footprint (video input). Everything else is stock KiCad or `DigiDash_Accessory` |
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
 | `fab/DigiDash2_BOM_PCBWay.csv` | The assembler's BOM: the 154 placed parts with maker and part number (`$KIPY generate/gen_bom.py`) |
@@ -42,7 +42,7 @@ cannot fit beside the pins, a legend line ("1 FUEL  2 ETEMP ...") stands in for 
 
 | Ref | Silk name | What it is | Pins (1, 2, ...) |
 | --- | --- | --- | --- |
-| J5 / J1 / J4 | LEFT / CENTER / RIGHT SCREEN | The three round screens (front, face down). Their labels are on the back too | as rev 1 |
+| J5 / J1 / J4 | LEFT / CENTER / RIGHT SCREEN | The three round screens (front, face down), placed per [Screen headers and screen holes](#screen-headers-and-screen-holes). Their labels are on the back too | as rev 1 |
 | J7 | POWER IN | Vehicle power, Micro-Fit 3.0, 6 pin | 12V, 12V, GND, GND, IGN (key on), LAMP (dash lights) |
 | J13 | AUX 12V IN | Separate high-current 12 V for the slots (own fuse at the fuse box) | 12V, GND |
 | J9 | CAMERA | Backup camera and reverse trigger, JST PH 4 pin | REV (reverse lamp 12 V in), 12V (switched camera power), unused, GND |
@@ -80,18 +80,19 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
 
 ## Status
 
-**Placed and fully routed, single-sided assembly** (2026-10-05). Every SMD part is on the back; only the three screen
-headers (J1, J4, J5) are on the front. One Freerouting run (120 passes) left one `+1V8` link open at U8; the finisher
-with rip-up (`DIGIDASH_RIPUP=1 $KIPY generate/gen_pcb.py --finish`) closed it. Then a 3 mm dead-end stub on `CL_SDA`
-(left by the rip-up, near x 149, y 85) was trimmed by hand. DRC (`generate/drc.py`, with the schematic parity
-check): **no errors, nothing unconnected, parity clean.** What is left: 56 silkscreen warnings (reference text at the
-edge, over pads, overlaps), and one 7 µm dangling sliver where the pre-drawn `VID_AIP1A` route meets the routed track
-(physically nothing; trimming it exposes the pre-drawn route, so it stays). 1872 track segments and 1491 vias (1352 of
-them GND). 3 parts on the front, 181 on the back. Fab outputs are in `fab/` (`python3 ../tools/fab_export.py
-DigiDash2`); the not-fitted parts (C42, C43) and the through-hole parts are left out of the placement files. (Run in a
-container without KiCad's global library table, DRC also lists 177 "library not in the configuration" notes; they
-are about the environment, not the board.)
+**Placed and fully routed, single-sided assembly** (2026-10-19, after the screen headers moved and the board grew to
+329 × 113 mm for the screen holes). Every SMD part is on the back; on the front are only the three screen headers
+(J1, J4, J5) and the twelve screen holes (H5–H16). One Freerouting run (120 passes) plus the finisher (3 links)
+routed everything. Two stray vias were then removed by hand: an `AUDIO_GND` via 0.05 mm from J34 pad 23's hole, and a
+dangling `I2S_WS` via. DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected,
+parity clean.** What is left: 60 silkscreen warnings (reference text at the edge, over pads, overlaps), and the 7 µm
+dangling sliver where the pre-drawn `VID_AIP1A` route meets the routed track (physically nothing; trimming it exposes
+the pre-drawn route, so it stays). 1999 track segments and 1712 vias (1553 of them GND). Fab outputs are in `fab/`
+(`python3 ../tools/fab_export.py DigiDash2`): 154 placed parts. The not-fitted parts (C42, C43), the through-hole
+parts and the screen holes are left out of the placement files. (Run in a container without KiCad's global library
+table, DRC also lists "library not in the configuration" notes; they are about the environment, not the board.)
 
+The rev-1-outline version (309.2 × 103.7 mm, rev 1's screen positions), routed and DRC-clean, is at commit `f5028d7`.
 The two-sided version (69 parts on the front), routed and DRC-clean, is at commit `af4628e`.
 
 How it got there, in case a re-run differs:
@@ -109,11 +110,41 @@ How it got there, in case a re-run differs:
 - **U8 (TVP5150) is at x 132,** on the back between slot 5's and slot 6's socket pins. A fixed part's spot is not
   checked against the other side's through-hole pins, so keep that in mind when moving anything near the slots.
 
-## Provisional (move with the bezel)
+## Screen headers and screen holes
 
-- **The screen headers J5 / J1 / J4 are exactly where rev 1 has them.** The bezel is not drawn yet. When it is, move them
-  (and the four M3 mounting holes H1–H4), then re-run placement and routing.
-- The board outline is rev 1's. Once the screen positions are known, the height can change.
+J5 / J1 / J4 are at the spacing measured from the screens (2026-10-19), all on one 2.54 mm grid (`SCREENS` in
+`gen_pcb.py`):
+
+- **Along the board:** 28 empty pin positions between neighbouring headers, so pin 1 to pin 1 is 48 pitches
+  (121.92 mm). Pin 1 of J5, J1 and J4 is at x 8.196, 130.116 and 252.036 (board mm, from the top-left corner).
+- **Up and down:** J5 and J4 keep rev 1's height (pin-1 row at y 96.1). J1 is higher, with one empty pin row between
+  its rows and theirs: shifted 3 pitches (7.62 mm), pin-1 row at y 88.48.
+
+**Screen holes H5–H16** (board-only M4 clearance holes, 4.3 mm, no copper; not in the schematic or BOM). Each screen
+(4C at the sides, 3.4C in the center) has four M4 threads on its back, a 75 mm square round the display's centre.
+From Waveshare's drawings (ESP32-P4-WIFI6-TOUCH-LCD-4C / -3_4C DXF): the carrier and its header sit the same on both
+screens, and seen from the board's front the display centre is **34.384 mm east and 25.745 mm north of header pin 1**
+(pin 1 is the carrier's 5 V corner, which matches J1's nets). The screens clear each other by about 1.7 mm (centres
+122.16 mm apart; the 4C is Ø126, the 3.4C Ø115).
+
+| Screen | Centre | Holes (x, y) |
+| --- | --- | --- |
+| Left (J5) | 42.58, 70.355 | (5.08, 32.855), (80.08, 32.855), (5.08, 107.855), (80.08, 107.855) |
+| Center (J1) | 164.5, 62.735 | (127, 25.235), (202, 25.235), (127, 100.235), (202, 100.235) |
+| Right (J4) | 286.42, 70.355 | (248.92, 32.855), (323.92, 32.855), (248.92, 107.855), (323.92, 107.855) |
+
+The outline grew to 329 × 113 mm to take all twelve, with the screens (and so their holes) centred across the board
+and about 5 mm from the edges. The screw heads are on the back (4.5 mm keep-out round each hole); the left screen's
+upper holes and the center's upper-left one are under card envelopes, below the cards' 8.5 mm bottom edge. The
+standoff length (display back to this board's front) still has to be measured on the bench.
+
+Moving the headers and growing the board moved these too:
+- J1 crossed the old video corner, so the RCA jack (J11) moved up to y 79, between the bottom of the slot sockets and
+  J1; the input chain went beside it, west of the jack; the center CAN transceiver (U9) went to J1's west end; and the
+  center screen's sensor-serial divider went under J1 pin 15 again.
+- On the bottom edge, J25 (trunk) moved to x 141 and J7 (power in) to x 222, clear of the center screen's lower holes;
+  Q2 went with J7.
+- The board mounting holes H1–H4 moved out to the new corners (still provisional: the bezel is not drawn yet).
 
 ## Video review
 

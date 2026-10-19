@@ -115,10 +115,15 @@ def _patch_gfx_dsi_io_hook() -> None:
     scripts = proj.parent / "esp32_p4_common" / "scripts"
     if scripts.is_dir():
         sys.path.insert(0, str(scripts))
-        from pio_pre_gfx_dsi_io_hook import apply_dsi_fb_hook, apply_dsi_panel_io_hook  # noqa: E402
+        from pio_pre_gfx_dsi_io_hook import (  # noqa: E402
+            apply_dsi_fb_hook,
+            apply_dsi_panel_io_hook,
+            apply_dsi_phy_clk_fix,
+        )
 
         apply_dsi_panel_io_hook(libdeps)
         apply_dsi_fb_hook(libdeps)
+        apply_dsi_phy_clk_fix(libdeps)
 
 
 _prepend_riscv_toolchain()

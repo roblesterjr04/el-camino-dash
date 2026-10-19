@@ -30,10 +30,11 @@ int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 }  // namespace
 
-void ConsoleUi::restore(bool trip_set, uint32_t trip_base_tenths, ConsoleContrast contrast) {
+void ConsoleUi::restore(bool trip_set, uint32_t trip_base_tenths, ConsoleContrast contrast, uint8_t drive_pct) {
   _trip_set = trip_set;
   _trip_base = trip_base_tenths;
   _contrast = contrast;
+  _drive = (uint8_t)clampi(drive_pct, 10, 100);
 }
 
 bool ConsoleUi::take_persist_dirty() {
@@ -432,7 +433,7 @@ int ConsoleUi::setting_count(uint16_t id) const {
     case kRIface: case kRMedia: return 3;
     case kRLayout: return 2;
     case kRContrast: return 3;
-    default: return 0;  // brightness: 10..100 in 5s
+    default: return 0;  // brightness, OLED drive: 10..100 in 5s
   }
 }
 
@@ -446,6 +447,7 @@ int ConsoleUi::setting_get(uint16_t id) const {
     case kRMedia: return _cl.media_screen % 3;
     case kRLayout: return (_cl.flags & ELC_CAN_CLUSTER_RIGHT_LAYOUT2) ? 1 : 0;
     case kRContrast: return (int)_contrast;
+    case kRDrive: return _drive;
     default: return 0;
   }
 }
@@ -493,6 +495,10 @@ void ConsoleUi::setting_set(uint16_t id, int v, uint32_t now_ms, bool undo) {
       _contrast = (ConsoleContrast)v;
       _persist_dirty = true;
       break;
+    case kRDrive:  // live: the firmware sends it with the next frame
+      _drive = (uint8_t)clampi(v, 10, 100);
+      _persist_dirty = true;
+      break;
     default: break;
   }
 }
@@ -506,6 +512,7 @@ void ConsoleUi::setting_text(uint16_t id, int v, char *out, size_t n) const {
     case kRIface: case kRMedia: snprintf(out, n, "%s", kScreenName[v % 3]); break;
     case kRLayout: snprintf(out, n, "%s", v ? "Fuel + lamps" : "Four gauges"); break;
     case kRContrast: snprintf(out, n, "%s", v == 0 ? "Auto" : (v == 1 ? "Bright" : "Night")); break;
+    case kRDrive: snprintf(out, n, "%d%%", v); break;
     default: out[0] = '\0'; break;
   }
 }
@@ -666,10 +673,10 @@ void ConsoleUi::build_rows() {
       break;
     }
     case kMDisplay: {
-      static const uint16_t kIds[8] = {kRView, kRTheme, kRBright, kRFollow, kRIface, kRMedia, kRLayout, kRContrast};
-      static const char *const kLabels[8] = {"Center view", "Theme", "Brightness", "Dim with lights", "Menu on",
-                                             "Media on", "Right layout", "OLED contrast"};
-      for (int k = 0; k < 8; k++) {
+      static const uint16_t kIds[9] = {kRView, kRTheme, kRBright, kRFollow, kRIface, kRMedia, kRLayout, kRContrast, kRDrive};
+      static const char *const kLabels[9] = {"Center view", "Theme", "Brightness", "Dim with lights", "Menu on",
+                                             "Media on", "Right layout", "OLED contrast", "OLED drive"};
+      for (int k = 0; k < 9; k++) {
         const int val = (_mode == ConsoleMode::Edit && _edit_id == kIds[k]) ? _edit_val : setting_get(kIds[k]);
         setting_text(kIds[k], val, v, sizeof(v));
         const bool classic_only = kIds[k] == kRLayout && _cl.theme != 0;
@@ -938,9 +945,9 @@ void ConsoleUi::edit_turn(int steps, uint32_t now_ms) {
     int32_t v = _edit_val + steps * step;
     if (it->d.max > it->d.min) v = clampi(v, it->d.min, it->d.max);
     _edit_val = v;
-  } else if (_edit_id == kRBright) {
+  } else if (_edit_id == kRBright || _edit_id == kRDrive) {
     const int v = clampi(_edit_val + steps * 5, 10, 100);
-    if (v != _edit_val) setting_set(kRBright, _edit_val = v, now_ms);
+    if (v != _edit_val) setting_set(_edit_id, _edit_val = v, now_ms);
   } else if (setting_count(_edit_id)) {
     const int v = clampi(_edit_val + steps, 0, setting_count(_edit_id) - 1);
     if (v != _edit_val) setting_set(_edit_id, _edit_val = v, now_ms);  // live: the screens follow as it turns

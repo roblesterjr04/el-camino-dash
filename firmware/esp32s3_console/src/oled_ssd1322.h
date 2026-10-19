@@ -8,7 +8,8 @@
 class OledGfx;
 
 void oled_begin();
-/** Send the frame. scale 0..1 dims every grey level (0 = dark, 1 = as drawn). */
-void oled_flush(const OledGfx &g, float scale);
+/** Send the frame. scale 0..1 dims every grey level (0 = dark, 1 = as drawn); drive_pct is the segment current,
+ *  1..100 % of the chip's maximum (sent only when it changes). */
+void oled_flush(const OledGfx &g, float scale, uint8_t drive_pct);
 /** Bench: every pixel on (SSD1322 "entire display on") or back to normal. */
 void oled_all_on(bool on);

@@ -37,19 +37,19 @@ BITE_DRILL, BITE_PITCH, BITE_OFFSET = 0.5, 0.8, 0.0
 # (directory, ref / net prefix, centre in the panel (mm, y down from DigiDash2's top edge), rotation (deg, KiCad's
 # sense: + is counter-clockwise on screen)).
 #
-#   +--------------------------------- DigiDash2 309.2 x 103.75 ----------------------------------+
-#   +-- GPS 80x60 --+ +-- Audio 80x60 --+ +-- Sensor 80x60 --+    (air: the SMA's 12 mm)
-#   +---------------+ +-----------------+ +------------------+          ^ SMA
-#                        +---- ConsoleBoardRS 108x35 ----+ +-- Radio 80x60 --+
+#   +------------------------------------- DigiDash2 329 x 113 ---------------------------------------+
+#   +-- GPS 80x60 --+ +-- Audio 80x60 --+ +-- Sensor 80x60 --+         (air: the SMA's 12 mm)
+#   +---------------+ +-----------------+ +------------------+               ^ SMA
+#                             +---- ConsoleBoardRS 108x35 ----+ +-- Radio 80x60 --+
 #
-# The Radio card's edge-mount SMA (top edge) overhangs 12 mm: the card sits at the right end of the bottom row, its
-# SMA under the free corner to the right of the Sensor card.
-DD_H = 103.75
+# The Radio card's edge-mount SMA (top edge) overhangs 12 mm: the card sits in the bottom row, its SMA under the free
+# corner to the right of the Sensor card, its top-left corner still under the Sensor card so a tab holds that edge.
+DD_W, DD_H = 329.05, 113.05       # DigiDash2's outline (329 x 113, plus the edge line)
 ROW_B = DD_H + GAP                 # top of the card row
 ROW_C = ROW_B + 60 + GAP           # top of the bottom row
-RADIO_X = 309.25 - 80              # Radio card right-aligned with DigiDash2
+RADIO_X = 2 * (80 + GAP) + 80 - 15.75   # Radio card's left edge: under the Sensor card's last 15.75 mm (a tab there)
 BOARDS = [
-    ('DigiDash2',      'DD', (309.25 / 2, DD_H / 2),                          0),
+    ('DigiDash2',      'DD', (DD_W / 2, DD_H / 2),                            0),
     ('GPSCard',        'GP', (40, ROW_B + 30),                                0),
     ('AudioCarrier',   'AU', (80 + GAP + 40, ROW_B + 30),                     0),
     ('SensorCard',     'SE', (2 * (80 + GAP) + 40, ROW_B + 30),               0),

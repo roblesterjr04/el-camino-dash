@@ -27,7 +27,11 @@ constexpr gpio_num_t kPclk = GPIO_NUM_49;
 constexpr gpio_num_t kVsync = GPIO_NUM_50;
 constexpr gpio_num_t kHsync = GPIO_NUM_51;
 constexpr int kTvpReset = 52;     // TVP5150 RESETB (active low, J1 pin 36 / module pin 17)
-constexpr int kReverseGpio = 25;  // active low (Q3 pulls it down while the reverse lamps are lit)
+#ifndef ELC_REVERSE_GPIO
+#define ELC_REVERSE_GPIO 25
+#endif
+// Active low (Q3 pulls it down while the reverse lamps are lit). -1 = no reverse input (4C: GPIO25 is USB D+).
+constexpr int kReverseGpio = ELC_REVERSE_GPIO;
 constexpr uint8_t kTvpAddr[2] = {0x5C, 0x5D};
 
 // ---------------------------------------------------------------- capture geometry
@@ -393,7 +397,7 @@ void set_msg(const char *m) {
 // ---------------------------------------------------------------- public
 
 void center_camera_begin() {
-  pinMode(kReverseGpio, INPUT_PULLUP);
+  if (kReverseGpio >= 0) pinMode(kReverseGpio, INPUT_PULLUP);
   tvp_reset();
   if (tvp_probe()) {
     tvp_init();
@@ -414,7 +418,7 @@ void center_camera_loop(uint32_t now) {
     }
   }
   // Reverse input: 100 ms debounce on, 1.5 s hold after leaving reverse.
-  const bool raw = digitalRead(kReverseGpio) == LOW;
+  const bool raw = kReverseGpio >= 0 && digitalRead(kReverseGpio) == LOW;
   if (raw != s_rev) {
     if (!s_rev_edge) s_rev_edge = now;
     if (now - s_rev_edge >= (raw ? 100u : 1500u)) {

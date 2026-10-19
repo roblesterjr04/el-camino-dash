@@ -257,7 +257,7 @@ bool open_i2s() {
 
 void engine_task(void *) {
   static int32_t io[kBlock * 2], rear[kBlock * 2], adc[kBlock * 2], ret[kBlock * 2];
-  static float ml[kBlock], mr[kBlock], vl[kBlock], vr[kBlock], mic[kBlock], aux[kBlock], mic_out[kBlock];
+  static float ml[kBlock], mr[kBlock], vl[kBlock], vr[kBlock], mic[kBlock], mic_out[kBlock];
   static int16_t pcm[kBlock * 2];
   dsp::Eq10 eq;
   eq.set_rate(kRate);
@@ -307,8 +307,7 @@ void engine_task(void *) {
       const int mc = s_pins.mic_right ? 1 : 0;
       for (size_t i = 0; i < kBlock; i++) {
         mic[i] = (float)adc[2 * i + mc] / kFull;
-        aux[i] = (float)adc[2 * i + (1 - mc)] / kFull;
-        const float a = fabsf(aux[i]);
+        const float a = fabsf(mic[i]);
         if (a > s_adc_peak) s_adc_peak = a;
       }
     }
@@ -336,14 +335,6 @@ void engine_task(void *) {
               const float a = fabsf(ml[i]);
               if (a > s_ret_peak) s_ret_peak = a;
             }
-          } else {
-            Player::silence(ml, mr, kBlock);
-          }
-          break;
-        case Music::Aux:
-          if (s_rx0) {
-            memcpy(ml, aux, sizeof(ml));
-            memcpy(mr, aux, sizeof(mr));
           } else {
             Player::silence(ml, mr, kBlock);
           }
@@ -473,12 +464,11 @@ bool engine_begin(const EnginePins &pins) {
   // Above the A2DP decoder so the output keeps flowing; on the core Bluetooth's controller does not use.
   xTaskCreatePinnedToCore(engine_task, "audio", 6144, nullptr, configMAX_PRIORITIES - 5, nullptr, 1);
   s_ok = true;
-  Serial.printf("audio engine: 48 kHz, front%s%s%s\n", s_tx1 ? " + rear" : "", s_rx0 ? ", ADC (mic + aux)" : "",
+  Serial.printf("audio engine: 48 kHz, front%s%s%s\n", s_tx1 ? " + rear" : "", s_rx0 ? ", microphone in" : "",
                 s_rx1 ? ", rail RET" : "");
   return true;
 }
 
-bool engine_has_aux() { return s_ok && s_rx0; }
 bool engine_has_rear() { return s_ok && s_tx1; }
 bool engine_has_rail() { return s_ok && s_rx1; }
 
@@ -507,14 +497,14 @@ bool engine_bt_flowing() { return s_bt_open && millis() - s_bt_write_ms < 300; }
 void engine_status(char *out, size_t n) {
   const float ret_db = s_ret_peak > 0 ? 20 * log10f(s_ret_peak) : -99, adc_db = s_adc_peak > 0 ? 20 * log10f(s_adc_peak) : -99;
   s_ret_peak = s_adc_peak = 0;
-  static const char *const kMusic[4] = {"off", "bluetooth", "rail", "aux"};
+  static const char *const kMusic[3] = {"off", "bluetooth", "rail"};
   snprintf(out, n,
            "engine %s, music %s, %lu blocks, %lu/%lu us per 5 ms block; bluetooth %lu Hz, ring %u/%u, trim %+.0f ppm, "
-           "%lu starts, %lu underruns; RET %s (peak %.0f dBFS, %lu short reads), aux peak %.0f dBFS",
-           s_ok ? "up" : "DOWN", kMusic[(int)s_music_now & 3], (unsigned long)s_blocks, (unsigned long)s_busy_us,
+           "%lu starts, %lu underruns; RET %s (peak %.0f dBFS, %lu short reads), mic %s (peak %.0f dBFS)",
+           s_ok ? "up" : "DOWN", kMusic[(int)s_music_now % 3], (unsigned long)s_blocks, (unsigned long)s_busy_us,
            (unsigned long)s_busy_max_us, (unsigned long)s_bt.cfg_rate, (unsigned)s_bt.ring.level(), (unsigned)kBtTarget,
            (s_bt.rs.trim() - 1.0) * 1e6, (unsigned long)s_bt.starts, (unsigned long)s_bt.underruns,
-           s_rx1 ? "in" : "none", ret_db, (unsigned long)s_ret_short, adc_db);
+           s_rx1 ? "in" : "none", ret_db, (unsigned long)s_ret_short, s_rx0 ? "in" : "none", adc_db);
   s_busy_max_us = 0;
 }
 

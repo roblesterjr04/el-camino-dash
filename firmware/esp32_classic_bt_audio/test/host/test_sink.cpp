@@ -1,4 +1,4 @@
-// Host tests for the audio card as the audio sink (sink.cpp): sources (with aux and the radio), Bluetooth paused and
+// Host tests for the audio card as the audio sink (sink.cpp): sources (Bluetooth, the radio, off; no aux), Bluetooth paused and
 // resumed, volume and mute, MEDIA forwarded to the radio, RET arbitration on NET RAIL, STATUS, and the card's page
 // (chime volume, fader, balance, the equaliser's presets and Custom curve).
 
@@ -71,7 +71,7 @@ struct Rig {
   Io io;
   AudioSink sink;
 
-  explicit Rig(bool aux = true, SinkSettings s = SinkSettings()) {
+  explicit Rig(SinkSettings s = SinkSettings()) {
     ElcNetAnnounce me;
     me.type = ELC_TYPE_AUDIO_SINK;
     me.product = ELC_PRODUCT_AUDIO_CARD;
@@ -85,7 +85,6 @@ struct Rig {
     std::strcpy(c.name, "Console");
     console.begin(0x13, c, capture, &console_out);
     AudioSink::Caps caps;
-    caps.aux = aux;
     caps.rear = true;
     caps.slot = 1;
     sink.begin(&card, &io, caps, s, T);
@@ -176,18 +175,16 @@ struct Rig {
 };
 
 static void test_sources() {
-  std::printf("sources: next round Bluetooth, radio, aux, off; Bluetooth paused and resumed\n");
+  std::printf("sources: next round Bluetooth, radio, off; aux refused; Bluetooth paused and resumed\n");
   Rig r;
   r.card.poll(0);
   r.sink.tick(T);
   auto st = r.last_status();
   CHECK(st.size() >= 8 && st[6] == ELC_SRC_BLUETOOTH && st[7] == 0x14);
-  CHECK(st[2] & ELC_AUDIO_F_AUX);
+  CHECK(!(st[2] & ELC_AUDIO_F_AUX));  // no aux in
   CHECK(st[5] == 0x0F);  // four zones: the rear DAC is fitted
-  r.source(0);  // no radio yet: Bluetooth -> aux
-  CHECK(r.sink.source() == ELC_SRC_AUX && r.sink.music() == SinkMusic::Aux);
-  r.source(0);
-  CHECK(r.sink.source() == ELC_SRC_OFF);
+  r.source(0);  // no radio yet: Bluetooth -> off
+  CHECK(r.sink.source() == ELC_SRC_OFF && r.sink.music() == SinkMusic::Off);
   r.source(0);
   CHECK(r.sink.source() == ELC_SRC_BLUETOOTH);
   r.source(ELC_SRC_RADIO);  // not heard: refused
@@ -203,12 +200,14 @@ static void test_sources() {
   CHECK(r.sink.source() == ELC_SRC_OFF && r.io.media.size() == 1);
   r.source(ELC_SRC_BLUETOOTH);
   CHECK(r.io.media.size() == 2 && r.io.media[1] == ELC_MEDIA_PLAY);  // it was playing: it plays again
-  // No aux on a DevKit: never offered, never chosen.
-  Rig d(false);
+  // Aux asked for: refused, the source stays. A saved aux (older firmware) boots to Bluetooth.
+  Rig d;
   d.source(ELC_SRC_AUX);
   CHECK(d.sink.source() == ELC_SRC_BLUETOOTH);
-  d.source(0);
-  CHECK(d.sink.source() == ELC_SRC_OFF);
+  SinkSettings saved;
+  saved.source = ELC_SRC_AUX;
+  Rig e(saved);
+  CHECK(e.sink.source() == ELC_SRC_BLUETOOTH);
 }
 
 static void test_boot_radio() {
@@ -216,7 +215,7 @@ static void test_boot_radio() {
   SinkSettings s;
   s.source = ELC_SRC_RADIO;
   {
-    Rig r(true, s);
+    Rig r(s);
     CHECK(r.sink.source() == ELC_SRC_RADIO);
     T += 2000;
     r.add_radio();
@@ -225,7 +224,7 @@ static void test_boot_radio() {
     CHECK(r.sink.source() == ELC_SRC_RADIO);
   }
   {
-    Rig r(true, s);
+    Rig r(s);
     T += 7000;
     r.sink.tick(T);
     CHECK(r.sink.source() == ELC_SRC_BLUETOOTH);

@@ -1,116 +1,125 @@
 Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,Side,Your Instructions / Notes
 1,AU-C13 AU-C14 AU-C22 AU-C23 DD-C34,5,Samsung,CL10A225KO8NNNC,2.2u: Capacitor 2.2u X5R 10 V,0603,SMD,Bottom,AU: 16 V part (10 V needed)
-2,AU-C15 AU-C17 AU-C18 AU-C19 AU-C24 AU-C26 AU-C27 AU-C28 AU-C40 AU-C41 AU-C43 AU-C45 CO-C2 CO-C6 CO-C9 CO-C10 CO-C11 DD-C6 DD-C7 DD-C19 DD-C20 DD-C21 DD-C22 DD-C23 DD-C24 DD-C25 DD-C26 DD-C27 DD-C28 DD-C35 DD-C36 DD-C37 DD-C38 DD-C40 DD-C41 AU-C4 AU-C6 AU-C9 AU-C11 AU-C12 AU-C46 GP-C3 GP-C4 GP-C6 GP-C9 GP-C10 RA-C3 RA-C5 RA-C7 RA-C10 RA-C11 RA-C13 RA-C15 SE-C2 SE-C3 SE-C4 SE-C5 SE-C6 SE-C7 SE-C8 SE-C10 SE-C11 SE-C14 SE-C15 SE-C18 SE-C19 SE-C24,67,Samsung,CL10B104KB8NNNC,100n: Capacitor 100n X7R 50 V,0603,SMD,Top/Bottom,
+2,AU-C15 AU-C17 AU-C18 AU-C19 AU-C24 AU-C26 AU-C27 AU-C28 AU-C40 AU-C41 AU-C43 AU-C45 DD-C6 DD-C7 DD-C19 DD-C20 DD-C21 DD-C22 DD-C23 DD-C24 DD-C25 DD-C26 DD-C27 DD-C28 DD-C35 DD-C36 DD-C37 DD-C38 DD-C40 DD-C41 AU-C4 AU-C6 AU-C9 AU-C11 AU-C12 AU-C46 GP-C3 GP-C4 GP-C6 GP-C9 GP-C10 RA-C3 RA-C5 RA-C7 RA-C10 RA-C11 RA-C13 RA-C15 SE-C2 SE-C3 SE-C4 SE-C5 SE-C6 SE-C7 SE-C8 SE-C10 SE-C11 SE-C14 SE-C15 SE-C18 SE-C19 SE-C24,62,Samsung,CL10B104KB8NNNC,100n: Capacitor 100n X7R 50 V,0603,SMD,Top/Bottom,
 3,AU-C16 AU-C25 AU-C31 AU-C34 AU-C36 AU-C42 AU-C44 AU-C2 AU-C5 AU-C7 AU-C8,11,Samsung,CL10A106KP8NNNC,10u: Capacitor 10u X5R 10 V,0603,SMD,Top/Bottom,
 4,AU-C20 AU-C21 AU-C29 AU-C30,4,Samsung,CL10C222JB8NNNC,2.2n: Capacitor 2.2n C0G/X7R 50 V,0603,SMD,Bottom,AU: C0G
 5,AU-C32 AU-C35,2,Samsung,CL10C101JB8NNNC,100p: Capacitor 100p C0G 50 V,0603,SMD,Bottom,AU: C0G
-6,AU-C33 AU-C37 AU-C38 AU-C39 CO-C4 DD-C15 DD-C31 DD-C32 DD-C33 AU-C10 GP-C11,11,Samsung,CL10B105KO8NNNC,1u: Capacitor 1u X7R 16 V,0603,SMD,Top/Bottom,CO: EN reset delay (with R2 10k)
+6,AU-C33 AU-C37 AU-C38 AU-C39 DD-C15 DD-C31 DD-C32 DD-C33 AU-C10 GP-C11,10,Samsung,CL10B105KO8NNNC,1u: Capacitor 1u X7R 16 V,0603,SMD,Top/Bottom,
 7,AU-R5 AU-R6 AU-R7 AU-R8,4,Yageo,RC0603FR-07470RL,470: Resistor 470 1%,0603,SMD,Bottom,AU: DAC output filter
-8,AU-R9 AU-R12 AU-R17 CO-R1 DD-R35 DD-R47 DD-R49 DD-R51 AU-R25 RA-R8 RA-R9 RA-R12 RA-R14 SE-R3 SE-R30 SE-R32,16,Yageo,RC0603FR-07100KL,100k: Resistor 100k 1%,0603,SMD,Top/Bottom,CO: OLED CS pull-up
-9,AU-R10 CO-R5 DD-R13 DD-R14 DD-R40 DD-R41 AU-R4 GP-R2 GP-R3 RA-R2 RA-R3 RA-R4 SE-R9 SE-R16 SE-R18 SE-R20 SE-R26 SE-R29 SE-R33 SE-R34 SE-R35 SE-R36 SE-R44,23,Yageo,RC0603FR-071KL,1k: Resistor 1k 1%,0603,SMD,Top/Bottom,CO: CAN RXD series
+8,AU-R9 AU-R12 AU-R17 DD-R35 DD-R47 DD-R49 DD-R51 AU-R25 RA-R8 RA-R9 RA-R12 RA-R14 SE-R3 SE-R30 SE-R32,15,Yageo,RC0603FR-07100KL,100k: Resistor 100k 1%,0603,SMD,Top/Bottom,
+9,AU-R10 DD-R13 DD-R14 DD-R40 DD-R41 AU-R4 GP-R2 GP-R3 RA-R2 RA-R3 RA-R4 SE-R9 SE-R16 SE-R18 SE-R20 SE-R26 SE-R29 SE-R33 SE-R34 SE-R35 SE-R36 SE-R44,22,Yageo,RC0603FR-071KL,1k: Resistor 1k 1%,0603,SMD,Top/Bottom,
 10,AU-R11 AU-R16,2,Yageo,RC0603FR-072K2L,2.2k: Resistor 2.2k 1%,0603,SMD,Bottom,AU: mic bias / preamp gain
-11,AU-R13 AU-R14 CO-R2 CO-R10 DD-R1 DD-R8 DD-R11 DD-R12 DD-R15 DD-R16 DD-R17 DD-R22 DD-R23 DD-R24 DD-R25 DD-R26 DD-R28 DD-R30 DD-R36 DD-R37 DD-R38 DD-R39 AU-R1 AU-R2 AU-R3 AU-R23 GP-R1 RA-R1 RA-R15 SE-R2 SE-R6 SE-R8 SE-R10 SE-R11 SE-R12 SE-R17 SE-R19 SE-R21 SE-R27 SE-R31 SE-R38 SE-R39 SE-R40,43,Yageo,RC0603FR-0710KL,10k: Resistor 10k 1%,0603,SMD,Top/Bottom,CO: R2 EN pull-up; R10 IR pull-up
+11,AU-R13 AU-R14 DD-R1 DD-R8 DD-R11 DD-R12 DD-R15 DD-R16 DD-R17 DD-R22 DD-R23 DD-R24 DD-R25 DD-R26 DD-R28 DD-R30 DD-R36 DD-R37 DD-R38 DD-R39 AU-R1 AU-R2 AU-R3 AU-R23 GP-R1 RA-R1 RA-R15 SE-R2 SE-R6 SE-R8 SE-R10 SE-R11 SE-R12 SE-R17 SE-R19 SE-R21 SE-R27 SE-R31 SE-R38 SE-R39 SE-R40,41,Yageo,RC0603FR-0710KL,10k: Resistor 10k 1%,0603,SMD,Top/Bottom,
 12,AU-R15 DD-R46 DD-R48 SE-R7,4,Yageo,RC0603FR-0747KL,47k: Resistor 47k 1%,0603,SMD,Top/Bottom,AU: preamp feedback
 13,AU-R18 AU-R19 AU-R20 AU-R21 AU-R22 AU-R24 RA-R16,7,Yageo,RC0603FR-0733RL,33: Resistor 33 1%,0603,SMD,Top/Bottom,AU: link / clock series damping
 14,AU-U3,1,Texas Instruments,OPA2376AIDGKR,"OPA2376AIDGK: Dual low-noise RRIO op-amp (mic preamp, aux buffer)",VSSOP-8,SMD,Bottom,AU: Any RRIO dual with the standard pinout will do
 15,AU-U4,1,Texas Instruments,PCM1808PWR,"PCM1808PW: Stereo audio ADC, 24-bit (microphone / aux in)",TSSOP-14,SMD,Bottom,
 16,AU-U5 AU-U6,2,Texas Instruments,PCM5102APWR,"PCM5102APW: Stereo audio DAC, 32-bit, 2.1 Vrms ground-centred out",TSSOP-20,SMD,Bottom,"AU: U5 front pair, U6 rear pair"
-17,CO-C1 CO-C5 CO-C7 CO-C8 DD-C13 DD-C14 DD-C17 DD-C39 SE-C1 SE-C9,10,Samsung,CL21B106KOQNNNE,10u: Ceramic X5R 16 V (on +5V / +3V3),0805,SMD,Top/Bottom,CO: 16 V or 25 V rating keeps capacitance at 5 V (DC bias)
-18,CO-C3 AU-C1,2,Samsung,CL21A226MPQNNNE,22u: Ceramic X5R 10 V,0805,SMD,Top/Bottom,CO: ESP32 bulk
-19,CO-C12 CO-C13 CO-C14 CO-C15 SE-C20 SE-C21 SE-C22 SE-C23,8,Samsung,CL10B103KB8NNNC,10n: Ceramic X7R 50 V,0603,SMD,Top/Bottom,CO: Knob ladder filtering
-20,CO-D1 CO-D2,2,MCC,B5819W-TP,B5819W: Schottky 40 V 1 A (power OR: USB VBUS and cable 5 V),SOD-123,SMD,Bottom,
-21,CO-D5 DD-D2 DD-D3,3,onsemi,NUP2105LT1G,NUP2105L: CAN bus ESD clamp,SOT-23,SMD,Bottom,
-22,CO-J2,1,GCT,USB4105-GF-A,"USB-C: USB-C receptacle, USB 2.0, 16 pin, top mount",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,SMD,Bottom,
-23,CO-R3 CO-R4,2,Yageo,RC0603FR-075K1L,5.1k: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: USB-C CC1 / CC2 (device)
-24,CO-R6 CO-R7 CO-R8 CO-R9,4,Yageo,RC0603FR-0733KL,33k: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: Knob ladder pull-ups
-25,CO-SW1 CO-SW2 AU-SW1 AU-SW2,4,C&K,PTS810 SJM 250 SMTR LFS,"PTS810: Tact switch 4.2 x 3.2 mm SMT (RESET, BOOT)",SW_SPST_PTS810,SMD,Top/Bottom,
-26,CO-U1,1,Espressif,ESP32-S3-WROOM-1-N8,"ESP32-S3-WROOM-1-N8: ESP32-S3 module, 8 MB flash, no PSRAM, PCB antenna",RF_Module:ESP32-S3-WROOM-1,SMD,Bottom,"CO: Antenna on the board edge, keep-out as placed"
-27,CO-U2 DD-U5 DD-U9 DD-U10 AU-U2 GP-U2 RA-U2 SE-U3,8,Microchip,MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V (from the cable, ahead of the OR diode), VIO 3.3 V",SOIC-8,SMD,Top/Bottom,RA: STBY tied low; no termination on the card
-28,CO-U3,1,Diodes Incorporated,AP7361C-33E-13,"AP7361C-33E: LDO 3.3 V 1 A, 0.36 V dropout",SOT-223 (tab = GND),SMD,Bottom,"CO: SOT-223 for the heat: ESP32 + OLED; pinout 1 IN, 2 GND, 3 OUT"
-29,CO-U4 GP-U4,2,STMicroelectronics,USBLC6-2SC6,"USBLC6-2SC6: USB ESD protection, 2 lines + VBUS",SOT-23-6,SMD,Top/Bottom,
-30,DD-C1 DD-C18,2,Panasonic,EEE-FK1H101P,100u 50V: Aluminium electrolytic 100 uF 50 V,10 x 10.2 mm SMD,SMD,Bottom,
-31,DD-C2 DD-C3 DD-C4 DD-C5,4,Murata,GRM32ER72A225KA35L,2.2u 100V: Capacitor 2.2u X7R 100 V,1210,SMD,Bottom,
-32,DD-C8 DD-C9 DD-C10,3,Murata,GRM32ER61A476KE20L,47u 10V: Capacitor 47u X5R 10 V,1210,SMD,Bottom,
-33,DD-C11,1,Samsung,CL10B472KB8NNNC,4.7n: Capacitor 4.7n X7R 50 V,0603,SMD,Bottom,
-34,DD-C12,1,Samsung,CL10C470JB8NNNC,47p: Capacitor 47p C0G 50 V,0603,SMD,Bottom,
-35,DD-C16,1,Samsung,CL21A475KOFNNNE,4.7u: Capacitor 4.7u X5R 16 V,0805,SMD,Bottom,
-36,DD-C29 DD-C30,2,Samsung,CL10C270JB8NNNC,27p: Capacitor 27p C0G 50 V,0603,SMD,Bottom,DD: Y3 load caps: 2 x (18 pF CL - about 4 pF stray)
-37,DD-D4 DD-D8 DD-D9,3,Diodes Inc,BZT52C15-7-F,BZT52C15: Zener 15 V,SOD-123,SMD,Bottom,
-38,DD-D5 DD-D10,2,Littelfuse,SMCJ33A,"SMCJ33A: TVS 33 V standoff, unidirectional, 1500 W",SMC,SMD,Bottom,
-39,DD-D6,1,Diodes Inc,B560C-13-F,B560C: Schottky 5 A 60 V,SMC,SMD,Bottom,
-40,DD-D7,1,Diodes Inc,BZT52C5V1-7-F,BZT52C5V1: Zener 5.1 V,SOD-123,SMD,Bottom,
-41,DD-D11,1,Nexperia,"PESD5V0S1BA,115","PESD5V0S1BA: ESD clamp 5 V, bidirectional",SOD-323,SMD,Bottom,
-42,DD-D12 DD-D13 DD-D14 SE-D1 SE-D4 SE-D5,6,Nexperia,"BAT54S,215","BAT54S: Dual Schottky, series",SOT-23,SMD,Top/Bottom,
-43,DD-F2 DD-F3 DD-F4 DD-F5 DD-F6 DD-F8 DD-F9 DD-F12 DD-F13 DD-F16 DD-F17 DD-F20 DD-F21 DD-F24 DD-F25 DD-F28 DD-F29,17,Bourns,MF-MSMF050/30X-2,"PTC 0.5A: PTC 0.5 A hold, 30 V, AEC-Q200",1812,SMD,Bottom,DD: 30 V part on the 5 V and the 12 V lines alike
-44,DD-F7,1,Bourns,MF-MSMF110/16-2,"PTC 1.1A: PTC 1.1 A hold, 16 V, AEC-Q200",1812,SMD,Bottom,
-45,DD-F10 DD-F14 DD-F18 DD-F22 DD-F26 DD-F30 SE-F1 SE-F2 SE-F3,9,Bourns,MF-NSMF010-2,PTC 0.1A: PTC 0.1 A hold,1206,SMD,Top/Bottom,
-46,DD-F11 DD-F15 DD-F19 DD-F23 DD-F27 DD-F31 GP-F1,7,Bourns,MF-NSMF020-2,PTC 0.2A: PTC 0.2 A hold,1206,SMD,Top/Bottom,
-47,DD-FB1 AU-FB1 AU-FB2 SE-FB1,4,Murata,BLM18KG601SN1D,600R: Ferrite bead 600 R at 100 MHz,0603,SMD,Top/Bottom,"AU: 600 R @ 100 MHz, 1.3 A"
-48,DD-L1,1,Wurth,7443551720,"7.2u: Inductor 7.2 uH, Isat > 7 A, shielded (WE-HCI 1050)",10 x 10 mm,SMD,Bottom,
-49,DD-Q1 DD-Q3 DD-Q4,3,onsemi,MMBT3904LT1G,MMBT3904: NPN 40 V,SOT-23,SMD,Bottom,
-50,DD-Q2 DD-Q5 DD-Q6,3,Vishay,SUD50P04-08-GE3,"SUD50P04-08: P-MOSFET 40 V, 8 mOhm",TO-252 (DPAK),SMD,Bottom,
-51,DD-R2,1,Yageo,RC0603FR-07243KL,243k: Resistor 243k 1%,0603,SMD,Bottom,
-52,DD-R3,1,Yageo,RC0603FR-0753K6L,53.6k: Resistor 53.6k 1%,0603,SMD,Bottom,
-53,DD-R4,1,Yageo,RC0603FR-0710K2L,10.2k: Resistor 10.2k 1%,0603,SMD,Bottom,
-54,DD-R5,1,Yageo,RC0603FR-0716K9L,16.9k: Resistor 16.9k 1%,0603,SMD,Bottom,
-55,DD-R6,1,Yageo,RC0603FR-07442KL,442k: Resistor 442k 1%,0603,SMD,Bottom,
-56,DD-R7,1,Yageo,RC0603FR-0790K9L,90.9k: Resistor 90.9k 1%,0603,SMD,Bottom,
-57,DD-R9 DD-R20 DD-R21 RA-R10 RA-R11 SE-R5 SE-R13 SE-R14,8,Yageo,RC0603FR-074K7L,4.7k: Resistor 4.7k 1%,0603,SMD,Top/Bottom,
-58,DD-R10 DD-R45 SE-R4 SE-R37 SE-R43,5,Yageo,RC0603FR-0722KL,22k: Resistor 22k 1%,0603,SMD,Top/Bottom,
-59,DD-R18 DD-R19,2,Yageo,RC0603FR-07120RL,120: Resistor 120 1%,0603,SMD,Bottom,
-60,DD-R27 DD-R29 DD-R31,3,Yageo,RC0603FR-0720KL,20k: Resistor 20k 1%,0603,SMD,Bottom,
-61,DD-R32 DD-R33,2,Yageo,RC0603FR-0737R4L,37.4: Resistor 37.4 1%,0603,SMD,Bottom,
-62,DD-R34,1,Yageo,RC0603FR-0722RL,22: Resistor 22 1%,0603,SMD,Bottom,
-63,DD-R42,1,Yageo,RC0603FR-073K3L,3.3k: Resistor 3.3k 1%,0603,SMD,Bottom,
-64,DD-R43,1,Yageo,RC0603FR-076K8L,6.8k: Resistor 6.8k 1%,0603,SMD,Bottom,
-65,DD-R44,1,Yageo,RC0603FR-0712KL,12k: Resistor 12k 1%,0603,SMD,Bottom,
-66,DD-R50 DD-R52,2,Yageo,RC0603FR-0727KL,27k: Resistor 27k 1%,0603,SMD,Bottom,
-67,DD-R53,1,Yageo,RC0805JR-070RL,0: Resistor 0 R (jumper),0805,SMD,Bottom,DD: Anti-alias filter L as delivered: swap for a 2.7 uH 0805 to fit the filter
-68,DD-SW1,1,KingTek,DSHP02TSGER,"TERM: DIP switch, 2 position, SMD top slide, 1.27 mm pitch",SMD 4.1 x 5.4 mm,SMD,Bottom,DD: Set position 1 (TERM) ON before shipping
-69,DD-U2,1,Texas Instruments,TPS54560BDDAR,"TPS54560BDDA: 5 A step-down, 4.5-60 V in",SO-8 PowerPAD,SMD,Bottom,
-70,DD-U8,1,Texas Instruments,TVP5150AM1IPBSR,TVP5150AM1IPBS: Video decoder,TQFP-32,SMD,Bottom,
-71,DD-U11,1,Diodes Inc,AP7361C-33E-13,AP7361C-33E: LDO 3.3 V 1 A,SOT-223,SMD,Bottom,
-72,DD-U12,1,Diodes Inc,AP2112K-1.8TRG1,AP2112K-1.8: LDO 1.8 V 600 mA,SOT-23-5,SMD,Bottom,
-73,DD-Y3,1,Abracon,ABM8-14.31818MHZ-B2-T,"14.31818MHz: Crystal 14.31818 MHz, +/-20 ppm, CL 18 pF",3225 4-pad,SMD,Bottom,DD: Load caps C29 / C30 are 27p for its 18 pF
-74,AU-C3,1,KEMET,T491A226K010AT,22u tant: Tantalum 22 uF 10 V (LDO output: needs some ESR),3216-18 (EIA A case),SMD,Top,AU: Polarised: + to +3V3
-75,AU-R26 AU-R27 GP-R4 GP-R5 SE-R15,5,Yageo,RC0603FR-07100RL,100: Resistor 100 1%,0603,SMD,Top,AU: audio bus drive
-76,AU-R28,1,Yageo,RC0603FR-0710RL,10: Resistor 10 1%,0603,SMD,Top,AU: audio bus ground lift
-77,AU-U1,1,Espressif,ESP32-PICO-MINI-02-N8R2,"ESP32-PICO-MINI-02: ESP32 module, 8 MB flash, 2 MB PSRAM, PCB antenna",LGA (custom footprint),SMD,Top,"AU: Must be -N8R2 (the PSRAM is needed); antenna on the left edge, keep-out as placed"
-78,AU-U7,1,Advanced Monolithic Systems,AMS1117-3.3,AMS1117-3.3: LDO 3.3 V 1 A,SOT-223,SMD,Top,
-79,AU-U8,1,Nexperia,"74LVC125APW,118","74LVC125APW: Quad buffer, 3-state (the slot link outputs)",TSSOP-14,SMD,Top,
-80,GP-C1 GP-C2 RA-C1 RA-C2 RA-C4,5,Samsung,CL21A106KPFNNNE,10u: Capacitor 10u X5R 10 V (5 V in / 3.3 V out of U3),0805,SMD,Top,
-81,GP-C5 RA-C6,2,Samsung,CL10A475KP8NNNC,4.7u: Capacitor 4.7u X5R 10 V (MCU VDD),0603,SMD,Top,
-82,GP-C7 GP-C8,2,Samsung,CL10C150JB8NNNC,15p: Capacitor 15p C0G 50 V (crystal load),0603,SMD,Top,GP: C0G / NP0 only. Matches Y1 (CL 12 pF)
-83,GP-D1 RA-D1 RA-D3 SE-D3,4,Lite-On,LTST-C191KGKT,"GPS: status LED, green",0603,SMD,Top,GP: Cathode = pad 1 (to GND)
-84,GP-U1 RA-U1,2,STMicroelectronics,STM32G0B1KBU6,"MCU: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN",UFQFPN-32 5 x 5 mm (exposed pad),SMD,Top,GP: Not the KBU6N (different pinout). Arrives blank: flashed over J3 after assembly. Exposed pad = GND | RA: Arrives blank: flash over J3 (SWD). Exposed pad = VSS
-85,GP-U3,1,Diodes Inc,AP2112K-3.3TRG1,LDO 3.3 V 600 mA,SOT-23-5,SMD,Top,
-86,GP-Y1,1,YXC (Yangxing),X32258MOB4SI,"8 MHz crystal, CL 12 pF, ESR <= 180 R, +-10 ppm, +-20 ppm, -40 to +85 C",SMD3225-4P (3.2 x 2.5 mm),SMD,Top,"GP: LCSC C2682775. Substitute only with 8 MHz 3225 4-pad, CL 12 pF, ESR <= 180 R (else C7 / C8 change)"
-87,RA-C8 RA-C9,2,Samsung,CL10C120JB8NNNC,12p: Capacitor 12p C0G 50 V,0603,SMD,Top,RA: Crystal load caps (see Y1). C0G only
-88,RA-C12,1,Samsung,CL10B223KB8NNNC,22n: Capacitor 22n X7R (tuner DBYP to VA),0603,SMD,Top,RA: Close to U4 pin 21
-89,RA-C14,1,Murata,GRM1885C1H2R2BA01D,2.2p: Capacitor 2.2p C0G (DFS noise cap),0603,SMD,Top,"RA: C0G, +-0.1 pF"
-90,RA-C16 SE-C26 SE-C27,3,Samsung,CL10C102JB8NNNC,1n: Capacitor 1n C0G (FM coupling),0603,SMD,Top,
-91,RA-C17,1,Samsung,CL10B474KO8NNNC,470n: Capacitor 470n X7R (AM coupling),0603,SMD,Top,
-92,RA-D2,1,Texas Instruments,TPD1E0B04DPYR,"TPD1E0B04: 1-channel bidirectional ESD clamp, 0.13 pF (antenna)",X1SON-2 1.0 x 0.6 mm,SMD,Top,RA: AN383 asks for <= 1 pF on the antenna pin. Check the 0402 land pattern against TI's DPY drawing
-93,RA-FB1,1,Murata,BLM18AG121SN1D,"BLM18 120R: ferrite bead 120 R at 100 MHz, 0.8 A (tuner VA)",0603,SMD,Top,
-94,RA-J2,1,Amphenol RF,132289,"SMA jack, edge mount, for 1.6 mm board (antenna)",Edge mount,SMD,Top,"RA: Top edge. Motorola-to-SMA: no straight adapter is sold; use a short pigtail, DIN 41585 female to SMA male (not RP-SMA), e.g. Eightwood TB0188 (10 cm RG174, eBay / Superbat). Check the SMA end has a centre pin"
-95,RA-L1,1,Murata,LQW18AN56NJ00D,"56nH: wire-wound inductor, Q >= 15 at 100 MHz (FM antenna match, AN383 fig. 23)",0603,SMD,Top,RA: Bench-tune for the car whip and its cable; leave off if reception is better without
-96,RA-R5,1,Yageo,RC0603FR-07604RL,604: Resistor 604 1% (DOUT series),0603,SMD,Top,
-97,RA-R6 RA-R7,2,Yageo,RC0603FR-072KL,2k: Resistor 2k 1% (DFS / DCLK series),0603,SMD,Top,
-98,RA-U3,1,Diodes,AP2112K-3.3TRG1,"AP2112K-3.3: LDO 3.3 V 600 mA, EN tied to VIN",SOT-23-5,SMD,Top,
-99,RA-U4,1,Skyworks (Silicon Labs),Si4735-D60-GU,"Si4735-D60: AM / FM / SW / LW receiver with RDS, I2C, digital audio out (slave)",SSOP-24 (3.9 mm body),SMD,Top,RA: ESD-sensitive (some pins < 2 kV HBM). Reference clock from DCLK (no oscillator)
-100,RA-U5,1,Texas Instruments,SN74LVC1G125DCKR,"74LVC1G125: single 3-state buffer (RET driver, off at reset)",SC-70-5 (SOT-353),SMD,Top,
-101,RA-Y1,1,YXC,X32258MOB4SI,8MHz: HSE crystal,3225 4-pad,SMD,Top,"RA: LCSC C2682775. 8 MHz, CL 12 pF, ESR <= 180 R. With C8 / C9 = 12p the load is about 10 pF (about +20 ppm: fine for CAN, more start-up margin)"
-102,SE-C12 SE-C13 SE-C16 SE-C17,4,Samsung,CL10C180JB8NNNC,18p capacitor,0603,SMD,Top,
-103,SE-C25,1,Samsung,CL21B104KBCNNNC,"Speed sensor feed, at J3",0805,SMD,Top,
-104,SE-D2,1,Vishay,BAT42W-E3-08,"Hold diode: this card can only drive WAKE high, never load it (other cards drive it too)",D_SOD-123,SMD,Top,
-105,SE-D6,1,Diodes Inc,1N4148W-7-F,Reverse clamp across the LED (coil kickback),D_SOD-123,SMD,Top,
-106,SE-R1,1,Yageo,RC0603FR-0715KL,Ignition sense divider top (from the slot switched 12 V),0603,SMD,Top,
-107,SE-R22,1,Yageo,RC2010FK-07100RL,"FUEL bank, 100: 0-30R senders (the factory 1964 GM sender); 2010 for 0.25 W into a shorted sender",2010,SMD,Top,SE: Sender bias bank: selected by a solder jumper
-108,SE-R23 SE-R25 SE-R28,3,Yageo,RC1206FR-07220RL,220 resistor,1206,SMD,Top,
-109,SE-R24,1,Yageo,RC0805FR-07470RL,"FUEL bank, 470: 240-33R senders",0805,SMD,Top,SE: Sender bias bank: selected by a solder jumper
-110,SE-R41 SE-R42,2,Yageo,RC1206FR-074K7L,4.7k resistor,1206,SMD,Top,
-111,SE-U1,1,Microchip,ATmega2560-16AU,"Sensor pack MCU. USART0 = FTDI header, USART1 = sensor frames (J8), SPI = MCP2515 + ISP, ICP4 / ICP5 = tach / speed",TQFP-100_14x14mm_P0.5mm,SMD,Top,SE: Arrives blank: flash over J6 (ISP); fuses in DATASHEET.md
-112,SE-U2,1,Microchip,MCP2515-I/SO,"CAN controller (node 0x04, fixed)",SOIC-18W_7.5x11.6mm_P1.27mm,SMD,Top,
-113,SE-U4,1,Fujitsu,MB85RC256VPNF-G-JNERE1,"32 KB I2C FRAM, address 0x50: odometer (A / B slots with CRC-8). Lives on the card: set a new card's mileage in firmware",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
-114,SE-U5,1,Everlight,EL817S1(C)(TU)-F,Tach isolation,SMDIP-4_W7.62mm,SMD,Top,SE: LCSC C106900. Any PC817 in the 4-SMD gull wing
-115,SE-Y1 SE-Y2,2,YXC,X322516MOB4SI,"16 MHz, 3225, CL about 10 pF",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,"SE: LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF part): fine | SE: LCSC C12668. C16 / C17 18p, as Y1"
+17,CO-C1 CO-C5 CO-C7 CO-C8,4,,10u 0805 Ceramic X5R 16 V (on +5V / +3V3),10u: Ceramic X5R 16 V (on +5V / +3V3),0805,SMD,Bottom,CO: 16 V or 25 V rating keeps capacitance at 5 V (DC bias)
+18,CO-C2 CO-C6 CO-C9 CO-C10 CO-C11 CO-C16,6,,100n 0603 Ceramic X7R 50 V,100n: Ceramic X7R 50 V,0603,SMD,Bottom,CO: C16: IR receiver supply filter (with R11)
+19,CO-C3,1,,22u 0805 Ceramic X5R 10 V,22u: Ceramic X5R 10 V,0805,SMD,Bottom,CO: ESP32 bulk
+20,CO-C4,1,,1u 0603 Ceramic X7R 16 V,1u: Ceramic X7R 16 V,0603,SMD,Bottom,CO: EN reset delay (with R2 10k)
+21,CO-C12 CO-C13 CO-C14 CO-C15,4,,10n 0603 Ceramic X7R 50 V,10n: Ceramic X7R 50 V,0603,SMD,Bottom,CO: Knob ladder filtering
+22,CO-D1 CO-D2,2,,B5819W SOD-123 Schottky 40 V 1 A (power OR: USB VBUS and cable 5 V),B5819W: Schottky 40 V 1 A (power OR: USB VBUS and cable 5 V),SOD-123,SMD,Bottom,
+23,CO-D5 DD-D2 DD-D3,3,onsemi,NUP2105LT1G,NUP2105L: CAN bus ESD clamp,SOT-23,SMD,Bottom,
+24,CO-J2,1,GCT,USB4105-GF-A,"USB-C: USB-C receptacle, USB 2.0, 16 pin, top mount",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,SMD,Bottom,
+25,CO-R1,1,,100k 0603 Resistor 1 % 1/10 W,100k: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: OLED CS pull-up
+26,CO-R2 CO-R10,2,,10k 0603 Resistor 1 % 1/10 W,10k: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: R2 EN pull-up; R10 IR pull-up
+27,CO-R3 CO-R4,2,,5.1k 0603 Resistor 1 % 1/10 W,5.1k: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: USB-C CC1 / CC2 (device)
+28,CO-R5,1,,1k 0603 Resistor 1 % 1/10 W,1k: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: CAN RXD series
+29,CO-R6 CO-R7 CO-R8 CO-R9,4,,33k 0603 Resistor 1 % 1/10 W,33k: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: Knob ladder pull-ups
+30,CO-R11,1,,100R 0603 Resistor 1 % 1/10 W,100R: Resistor 1 % 1/10 W,0603,SMD,Bottom,CO: IR receiver supply filter: in series with its VS (with C16)
+31,CO-SW1 CO-SW2 AU-SW1 AU-SW2,4,C&K,PTS810 SJM 250 SMTR LFS,"PTS810: Tact switch 4.2 x 3.2 mm SMT (RESET, BOOT)",SW_SPST_PTS810,SMD,Top/Bottom,
+32,CO-U1,1,Espressif,ESP32-S3-WROOM-1-N8,"ESP32-S3-WROOM-1-N8: ESP32-S3 module, 8 MB flash, no PSRAM, PCB antenna",RF_Module:ESP32-S3-WROOM-1,SMD,Bottom,"CO: Antenna on the board edge, keep-out as placed"
+33,CO-U2 DD-U5 DD-U9 DD-U10 AU-U2 GP-U2 RA-U2 SE-U3,8,Microchip,MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V (from the cable, ahead of the OR diode), VIO 3.3 V",SOIC-8,SMD,Top/Bottom,RA: STBY tied low; no termination on the card
+34,CO-U3,1,Diodes Incorporated,AP7361C-33E-13,"AP7361C-33E: LDO 3.3 V 1 A, 0.36 V dropout",SOT-223 (tab = GND),SMD,Bottom,"CO: SOT-223 for the heat: ESP32 + OLED; pinout 1 IN, 2 GND, 3 OUT"
+35,CO-U4 GP-U4,2,STMicroelectronics,USBLC6-2SC6,"USBLC6-2SC6: USB ESD protection, 2 lines + VBUS",SOT-23-6,SMD,Top/Bottom,
+36,DD-C1 DD-C18,2,Panasonic,EEE-FK1H101P,100u 50V: Aluminium electrolytic 100 uF 50 V,10 x 10.2 mm SMD,SMD,Bottom,
+37,DD-C2 DD-C3 DD-C4 DD-C5,4,Murata,GRM32ER72A225KA35L,2.2u 100V: Capacitor 2.2u X7R 100 V,1210,SMD,Bottom,
+38,DD-C8 DD-C9 DD-C10,3,Murata,GRM32ER61A476KE20L,47u 10V: Capacitor 47u X5R 10 V,1210,SMD,Bottom,
+39,DD-C11,1,Samsung,CL10B472KB8NNNC,4.7n: Capacitor 4.7n X7R 50 V,0603,SMD,Bottom,
+40,DD-C12,1,Samsung,CL10C470JB8NNNC,47p: Capacitor 47p C0G 50 V,0603,SMD,Bottom,
+41,DD-C13 DD-C14 DD-C17 DD-C39 SE-C1 SE-C9,6,Samsung,CL21B106KOQNNNE,10u: Capacitor 10u X7R 16 V,0805,SMD,Top/Bottom,
+42,DD-C16,1,Samsung,CL21A475KOFNNNE,4.7u: Capacitor 4.7u X5R 16 V,0805,SMD,Bottom,
+43,DD-C29 DD-C30,2,Samsung,CL10C270JB8NNNC,27p: Capacitor 27p C0G 50 V,0603,SMD,Bottom,DD: Y3 load caps: 2 x (18 pF CL - about 4 pF stray)
+44,DD-D4 DD-D8 DD-D9,3,Diodes Inc,BZT52C15-7-F,BZT52C15: Zener 15 V,SOD-123,SMD,Bottom,
+45,DD-D5 DD-D10,2,Littelfuse,SMCJ33A,"SMCJ33A: TVS 33 V standoff, unidirectional, 1500 W",SMC,SMD,Bottom,
+46,DD-D6,1,Diodes Inc,B560C-13-F,B560C: Schottky 5 A 60 V,SMC,SMD,Bottom,
+47,DD-D7,1,Diodes Inc,BZT52C5V1-7-F,BZT52C5V1: Zener 5.1 V,SOD-123,SMD,Bottom,
+48,DD-D11,1,Nexperia,"PESD5V0S1BA,115","PESD5V0S1BA: ESD clamp 5 V, bidirectional",SOD-323,SMD,Bottom,
+49,DD-D12 DD-D13 DD-D14 SE-D1 SE-D4 SE-D5,6,Nexperia,"BAT54S,215","BAT54S: Dual Schottky, series",SOT-23,SMD,Top/Bottom,
+50,DD-F2 DD-F3 DD-F4 DD-F5 DD-F6 DD-F8 DD-F9 DD-F12 DD-F13 DD-F16 DD-F17 DD-F20 DD-F21 DD-F24 DD-F25 DD-F28 DD-F29,17,Bourns,MF-MSMF050/30X-2,"PTC 0.5A: PTC 0.5 A hold, 30 V, AEC-Q200",1812,SMD,Bottom,DD: 30 V part on the 5 V and the 12 V lines alike
+51,DD-F7,1,Bourns,MF-MSMF110/16-2,"PTC 1.1A: PTC 1.1 A hold, 16 V, AEC-Q200",1812,SMD,Bottom,
+52,DD-F10 DD-F14 DD-F18 DD-F22 DD-F26 DD-F30 SE-F1 SE-F2 SE-F3,9,Bourns,MF-NSMF010-2,PTC 0.1A: PTC 0.1 A hold,1206,SMD,Top/Bottom,
+53,DD-F11 DD-F15 DD-F19 DD-F23 DD-F27 DD-F31 GP-F1,7,Bourns,MF-NSMF020-2,PTC 0.2A: PTC 0.2 A hold,1206,SMD,Top/Bottom,
+54,DD-FB1 AU-FB1 AU-FB2 SE-FB1,4,Murata,BLM18KG601SN1D,600R: Ferrite bead 600 R at 100 MHz,0603,SMD,Top/Bottom,"AU: 600 R @ 100 MHz, 1.3 A"
+55,DD-L1,1,Wurth,7443551720,"7.2u: Inductor 7.2 uH, Isat > 7 A, shielded (WE-HCI 1050)",10 x 10 mm,SMD,Bottom,
+56,DD-Q1 DD-Q3 DD-Q4,3,onsemi,MMBT3904LT1G,MMBT3904: NPN 40 V,SOT-23,SMD,Bottom,
+57,DD-Q2 DD-Q5 DD-Q6,3,Vishay,SUD50P04-08-GE3,"SUD50P04-08: P-MOSFET 40 V, 8 mOhm",TO-252 (DPAK),SMD,Bottom,
+58,DD-R2,1,Yageo,RC0603FR-07243KL,243k: Resistor 243k 1%,0603,SMD,Bottom,
+59,DD-R3,1,Yageo,RC0603FR-0753K6L,53.6k: Resistor 53.6k 1%,0603,SMD,Bottom,
+60,DD-R4,1,Yageo,RC0603FR-0710K2L,10.2k: Resistor 10.2k 1%,0603,SMD,Bottom,
+61,DD-R5,1,Yageo,RC0603FR-0716K9L,16.9k: Resistor 16.9k 1%,0603,SMD,Bottom,
+62,DD-R6,1,Yageo,RC0603FR-07442KL,442k: Resistor 442k 1%,0603,SMD,Bottom,
+63,DD-R7,1,Yageo,RC0603FR-0790K9L,90.9k: Resistor 90.9k 1%,0603,SMD,Bottom,
+64,DD-R9 DD-R20 DD-R21 RA-R10 RA-R11 SE-R5 SE-R13 SE-R14,8,Yageo,RC0603FR-074K7L,4.7k: Resistor 4.7k 1%,0603,SMD,Top/Bottom,
+65,DD-R10 DD-R45 SE-R4 SE-R37 SE-R43,5,Yageo,RC0603FR-0722KL,22k: Resistor 22k 1%,0603,SMD,Top/Bottom,
+66,DD-R18 DD-R19,2,Yageo,RC0603FR-07120RL,120: Resistor 120 1%,0603,SMD,Bottom,
+67,DD-R27 DD-R29 DD-R31,3,Yageo,RC0603FR-0720KL,20k: Resistor 20k 1%,0603,SMD,Bottom,
+68,DD-R32 DD-R33,2,Yageo,RC0603FR-0737R4L,37.4: Resistor 37.4 1%,0603,SMD,Bottom,
+69,DD-R34,1,Yageo,RC0603FR-0722RL,22: Resistor 22 1%,0603,SMD,Bottom,
+70,DD-R42,1,Yageo,RC0603FR-073K3L,3.3k: Resistor 3.3k 1%,0603,SMD,Bottom,
+71,DD-R43,1,Yageo,RC0603FR-076K8L,6.8k: Resistor 6.8k 1%,0603,SMD,Bottom,
+72,DD-R44,1,Yageo,RC0603FR-0712KL,12k: Resistor 12k 1%,0603,SMD,Bottom,
+73,DD-R50 DD-R52,2,Yageo,RC0603FR-0727KL,27k: Resistor 27k 1%,0603,SMD,Bottom,
+74,DD-R53,1,Yageo,RC0805JR-070RL,0: Resistor 0 R (jumper),0805,SMD,Bottom,DD: Anti-alias filter L as delivered: swap for a 2.7 uH 0805 to fit the filter
+75,DD-SW1,1,KingTek,DSHP02TSGER,"TERM: DIP switch, 2 position, SMD top slide, 1.27 mm pitch",SMD 4.1 x 5.4 mm,SMD,Bottom,DD: Set position 1 (TERM) ON before shipping
+76,DD-U2,1,Texas Instruments,TPS54560BDDAR,"TPS54560BDDA: 5 A step-down, 4.5-60 V in",SO-8 PowerPAD,SMD,Bottom,
+77,DD-U8,1,Texas Instruments,TVP5150AM1IPBSR,TVP5150AM1IPBS: Video decoder,TQFP-32,SMD,Bottom,
+78,DD-U11,1,Diodes Inc,AP7361C-33E-13,AP7361C-33E: LDO 3.3 V 1 A,SOT-223,SMD,Bottom,
+79,DD-U12,1,Diodes Inc,AP2112K-1.8TRG1,AP2112K-1.8: LDO 1.8 V 600 mA,SOT-23-5,SMD,Bottom,
+80,DD-Y3,1,Abracon,ABM8-14.31818MHZ-B2-T,"14.31818MHz: Crystal 14.31818 MHz, +/-20 ppm, CL 18 pF",3225 4-pad,SMD,Bottom,DD: Load caps C29 / C30 are 27p for its 18 pF
+81,AU-C1,1,Samsung,CL21A226MPQNNNE,22u: Capacitor 22u X5R 10 V,0805,SMD,Top,
+82,AU-C3,1,KEMET,T491A226K010AT,22u tant: Tantalum 22 uF 10 V (LDO output: needs some ESR),3216-18 (EIA A case),SMD,Top,AU: Polarised: + to +3V3
+83,AU-R26 AU-R27 GP-R4 GP-R5 SE-R15,5,Yageo,RC0603FR-07100RL,100: Resistor 100 1%,0603,SMD,Top,AU: audio bus drive
+84,AU-R28,1,Yageo,RC0603FR-0710RL,10: Resistor 10 1%,0603,SMD,Top,AU: audio bus ground lift
+85,AU-U1,1,Espressif,ESP32-PICO-MINI-02-N8R2,"ESP32-PICO-MINI-02: ESP32 module, 8 MB flash, 2 MB PSRAM, PCB antenna",LGA (custom footprint),SMD,Top,"AU: Must be -N8R2 (the PSRAM is needed); antenna on the left edge, keep-out as placed"
+86,AU-U7,1,Advanced Monolithic Systems,AMS1117-3.3,AMS1117-3.3: LDO 3.3 V 1 A,SOT-223,SMD,Top,
+87,AU-U8,1,Nexperia,"74LVC125APW,118","74LVC125APW: Quad buffer, 3-state (the slot link outputs)",TSSOP-14,SMD,Top,
+88,GP-C1 GP-C2 RA-C1 RA-C2 RA-C4,5,Samsung,CL21A106KPFNNNE,10u: Capacitor 10u X5R 10 V (5 V in / 3.3 V out of U3),0805,SMD,Top,
+89,GP-C5 RA-C6,2,Samsung,CL10A475KP8NNNC,4.7u: Capacitor 4.7u X5R 10 V (MCU VDD),0603,SMD,Top,
+90,GP-C7 GP-C8,2,Samsung,CL10C150JB8NNNC,15p: Capacitor 15p C0G 50 V (crystal load),0603,SMD,Top,GP: C0G / NP0 only. Matches Y1 (CL 12 pF)
+91,GP-D1 RA-D1 RA-D3 SE-D3,4,Lite-On,LTST-C191KGKT,"GPS: status LED, green",0603,SMD,Top,GP: Cathode = pad 1 (to GND)
+92,GP-U1 RA-U1,2,STMicroelectronics,STM32G0B1KBU6,"MCU: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN",UFQFPN-32 5 x 5 mm (exposed pad),SMD,Top,GP: Not the KBU6N (different pinout). Arrives blank: flashed over J3 after assembly. Exposed pad = GND | RA: Arrives blank: flash over J3 (SWD). Exposed pad = VSS
+93,GP-U3,1,Diodes Inc,AP2112K-3.3TRG1,LDO 3.3 V 600 mA,SOT-23-5,SMD,Top,
+94,GP-Y1,1,YXC (Yangxing),X32258MOB4SI,"8 MHz crystal, CL 12 pF, ESR <= 180 R, +-10 ppm, +-20 ppm, -40 to +85 C",SMD3225-4P (3.2 x 2.5 mm),SMD,Top,"GP: LCSC C2682775. Substitute only with 8 MHz 3225 4-pad, CL 12 pF, ESR <= 180 R (else C7 / C8 change)"
+95,RA-C8 RA-C9,2,Samsung,CL10C120JB8NNNC,12p: Capacitor 12p C0G 50 V,0603,SMD,Top,RA: Crystal load caps (see Y1). C0G only
+96,RA-C12,1,Samsung,CL10B223KB8NNNC,22n: Capacitor 22n X7R (tuner DBYP to VA),0603,SMD,Top,RA: Close to U4 pin 21
+97,RA-C14,1,Murata,GRM1885C1H2R2BA01D,2.2p: Capacitor 2.2p C0G (DFS noise cap),0603,SMD,Top,"RA: C0G, +-0.1 pF"
+98,RA-C16 SE-C26 SE-C27,3,Samsung,CL10C102JB8NNNC,1n: Capacitor 1n C0G (FM coupling),0603,SMD,Top,
+99,RA-C17,1,Samsung,CL10B474KO8NNNC,470n: Capacitor 470n X7R (AM coupling),0603,SMD,Top,
+100,RA-D2,1,Texas Instruments,TPD1E0B04DPYR,"TPD1E0B04: 1-channel bidirectional ESD clamp, 0.13 pF (antenna)",X1SON-2 1.0 x 0.6 mm,SMD,Top,RA: AN383 asks for <= 1 pF on the antenna pin. Check the 0402 land pattern against TI's DPY drawing
+101,RA-FB1,1,Murata,BLM18AG121SN1D,"BLM18 120R: ferrite bead 120 R at 100 MHz, 0.8 A (tuner VA)",0603,SMD,Top,
+102,RA-J2,1,Amphenol RF,132289,"SMA jack, edge mount, for 1.6 mm board (antenna)",Edge mount,SMD,Top,"RA: Top edge. Motorola-to-SMA: no straight adapter is sold; use a short pigtail, DIN 41585 female to SMA male (not RP-SMA), e.g. Eightwood TB0188 (10 cm RG174, eBay / Superbat). Check the SMA end has a centre pin"
+103,RA-L1,1,Murata,LQW18AN56NJ00D,"56nH: wire-wound inductor, Q >= 15 at 100 MHz (FM antenna match, AN383 fig. 23)",0603,SMD,Top,RA: Bench-tune for the car whip and its cable; leave off if reception is better without
+104,RA-R5,1,Yageo,RC0603FR-07604RL,604: Resistor 604 1% (DOUT series),0603,SMD,Top,
+105,RA-R6 RA-R7,2,Yageo,RC0603FR-072KL,2k: Resistor 2k 1% (DFS / DCLK series),0603,SMD,Top,
+106,RA-U3,1,Diodes,AP2112K-3.3TRG1,"AP2112K-3.3: LDO 3.3 V 600 mA, EN tied to VIN",SOT-23-5,SMD,Top,
+107,RA-U4,1,Skyworks (Silicon Labs),Si4735-D60-GU,"Si4735-D60: AM / FM / SW / LW receiver with RDS, I2C, digital audio out (slave)",SSOP-24 (3.9 mm body),SMD,Top,RA: ESD-sensitive (some pins < 2 kV HBM). Reference clock from DCLK (no oscillator)
+108,RA-U5,1,Texas Instruments,SN74LVC1G125DCKR,"74LVC1G125: single 3-state buffer (RET driver, off at reset)",SC-70-5 (SOT-353),SMD,Top,
+109,RA-Y1,1,YXC,X32258MOB4SI,8MHz: HSE crystal,3225 4-pad,SMD,Top,"RA: LCSC C2682775. 8 MHz, CL 12 pF, ESR <= 180 R. With C8 / C9 = 12p the load is about 10 pF (about +20 ppm: fine for CAN, more start-up margin)"
+110,SE-C12 SE-C13 SE-C16 SE-C17,4,Samsung,CL10C180JB8NNNC,18p capacitor,0603,SMD,Top,
+111,SE-C20 SE-C21 SE-C22 SE-C23,4,Samsung,CL10B103KB8NNNC,10n capacitor,0603,SMD,Top,
+112,SE-C25,1,Samsung,CL21B104KBCNNNC,"Speed sensor feed, at J3",0805,SMD,Top,
+113,SE-D2,1,Vishay,BAT42W-E3-08,"Hold diode: this card can only drive WAKE high, never load it (other cards drive it too)",D_SOD-123,SMD,Top,
+114,SE-D6,1,Diodes Inc,1N4148W-7-F,Reverse clamp across the LED (coil kickback),D_SOD-123,SMD,Top,
+115,SE-R1,1,Yageo,RC0603FR-0715KL,Ignition sense divider top (from the slot switched 12 V),0603,SMD,Top,
+116,SE-R22,1,Yageo,RC2010FK-07100RL,"FUEL bank, 100: 0-30R senders (the factory 1964 GM sender); 2010 for 0.25 W into a shorted sender",2010,SMD,Top,SE: Sender bias bank: selected by a solder jumper
+117,SE-R23 SE-R25 SE-R28,3,Yageo,RC1206FR-07220RL,220 resistor,1206,SMD,Top,
+118,SE-R24,1,Yageo,RC0805FR-07470RL,"FUEL bank, 470: 240-33R senders",0805,SMD,Top,SE: Sender bias bank: selected by a solder jumper
+119,SE-R41 SE-R42,2,Yageo,RC1206FR-074K7L,4.7k resistor,1206,SMD,Top,
+120,SE-U1,1,Microchip,ATmega2560-16AU,"Sensor pack MCU. USART0 = FTDI header, USART1 = sensor frames (J8), SPI = MCP2515 + ISP, ICP4 / ICP5 = tach / speed",TQFP-100_14x14mm_P0.5mm,SMD,Top,SE: Arrives blank: flash over J6 (ISP); fuses in DATASHEET.md
+121,SE-U2,1,Microchip,MCP2515-I/SO,"CAN controller (node 0x04, fixed)",SOIC-18W_7.5x11.6mm_P1.27mm,SMD,Top,
+122,SE-U4,1,Fujitsu,MB85RC256VPNF-G-JNERE1,"32 KB I2C FRAM, address 0x50: odometer (A / B slots with CRC-8). Lives on the card: set a new card's mileage in firmware",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
+123,SE-U5,1,Everlight,EL817S1(C)(TU)-F,Tach isolation,SMDIP-4_W7.62mm,SMD,Top,SE: LCSC C106900. Any PC817 in the 4-SMD gull wing
+124,SE-Y1 SE-Y2,2,YXC,X322516MOB4SI,"16 MHz, 3225, CL about 10 pF",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,"SE: LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF part): fine | SE: LCSC C12668. C16 / C17 18p, as Y1"

@@ -154,6 +154,7 @@ static void save_persistent() {
   s_prefs.putBool("trip_set", s_ui.trip_set());
   s_prefs.putUInt("trip_base", s_ui.trip_base());
   s_prefs.putUChar("contrast", (uint8_t)s_ui.contrast());
+  s_prefs.putUChar("drive", s_ui.oled_drive());
 }
 
 // ---- serial console (bench) ----
@@ -301,7 +302,7 @@ void setup() {
   elc_usb_begin();  // Serial, with the USB CAN link (docs/protocols/usb_link.md)
   s_prefs.begin("console", false);
   s_ui.restore(s_prefs.getBool("trip_set", false), s_prefs.getUInt("trip_base", 0),
-               (ConsoleContrast)(s_prefs.getUChar("contrast", 0) % 3));
+               (ConsoleContrast)(s_prefs.getUChar("contrast", 0) % 3), s_prefs.getUChar("drive", ConsoleUi::kDriveDefault));
   console_input_begin();
   oled_begin();
   s_can.onFrame(on_frame, nullptr);
@@ -356,7 +357,7 @@ void loop() {
   if (now - s_frame_ms >= 33 && !s_all_on) {  // ~30 frames/s: page slides and the marquee stay smooth
     s_frame_ms = now;
     s_ui.render(s_gfx, now);
-    oled_flush(s_gfx, s_ui.level_scale());
+    oled_flush(s_gfx, s_ui.level_scale(), s_ui.oled_drive());
   }
   delay(1);
 }

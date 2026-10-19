@@ -14,6 +14,9 @@ namespace {
 
 // The panel's 256 columns are SSD1322 column addresses 0x1C..0x5B (4 pixels each), as in U8g2's NHD driver.
 constexpr uint8_t kColStart = 0x1C;
+// Segment current (0xC1): set from the UI's OLED drive (percent of 0xFF) by oled_flush; the NHD value until then.
+constexpr uint8_t kContrastNormal = 0x9F;
+uint8_t s_contrast = kContrastNormal;
 uint8_t s_frame[OledGfx::W * OledGfx::H / 2];
 const SPISettings kSpi(CONSOLE_OLED_SPI_HZ, MSBFIRST, SPI_MODE0);
 
@@ -64,7 +67,7 @@ void oled_begin() {
   cmd(0xA0); arg(0x06); arg(0x11);   // remap: rows top to bottom, left pixel in the high nibble
   cmd(0xAB); arg(0x01);              // internal VDD regulator
   cmd(0xB4); arg(0xA0); arg(0xFD);   // display enhancement A
-  cmd(0xC1); arg(0x9F);              // contrast
+  cmd(0xC1); arg(kContrastNormal);   // contrast (segment current: oled_flush sets the UI's OLED drive)
   cmd(0xC7); arg(0x0F);              // master current
   cmd(0xB9);                         // linear grey scale
   cmd(0xB1); arg(0xE2);              // phase lengths
@@ -76,13 +79,13 @@ void oled_begin() {
   cmd(0xA9);                         // exit partial display
   end_tx();
   static OledGfx blank;  // 16 KB: never on the loop task's stack
-  oled_flush(blank, 1.0f);
+  oled_flush(blank, 1.0f, (uint8_t)((kContrastNormal * 100 + 127) / 255));  // the NHD current until the UI says
   begin_tx();
   cmd(0xAF);  // display on
   end_tx();
 }
 
-void oled_flush(const OledGfx &g, float scale) {
+void oled_flush(const OledGfx &g, float scale, uint8_t drive_pct) {
   const uint8_t *px = g.pixels();
   if (scale < 0) scale = 0;
   if (scale > 1) scale = 1;
@@ -96,7 +99,13 @@ void oled_flush(const OledGfx &g, float scale) {
     const uint8_t b = CONSOLE_OLED_ROTATE_180 ? px[n - 2 - i] : px[i + 1];
     s_frame[i / 2] = (uint8_t)((lut[a & 15] << 4) | lut[b & 15]);
   }
+  const int pct = drive_pct < 1 ? 1 : (drive_pct > 100 ? 100 : drive_pct);
+  const uint8_t contrast = (uint8_t)((pct * 255 + 50) / 100);
   begin_tx();
+  if (contrast != s_contrast) {
+    s_contrast = contrast;
+    cmd(0xC1); arg(contrast);
+  }
   cmd(0x15); arg(kColStart); arg(kColStart + 63);  // columns
   cmd(0x75); arg(0); arg(63);                       // rows
   cmd(0x5C);                                        // write RAM

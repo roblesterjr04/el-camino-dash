@@ -37,10 +37,25 @@ extern "C" uint32_t millis(void);
 
 namespace {
 
+// Laid out on an 800-unit circle and scaled to the panel's circle (800 on the 3.4C, 720 on the 4C, the centred 600 of
+// a 1024x600 panel) with S(), like the phone card. Fonts keep their size; positions, sizes and radii scale.
 constexpr int kW = 800;
 constexpr int kH = 800;
 constexpr int kItemGap = 130;   // wheel spacing
-constexpr float kCurveR = 490;  // wheel curvature (px)
+constexpr float kCurveR = 490;  // wheel curvature (units)
+
+float s_k = 1.0f;     // panel pixels per unit
+int s_ox = 0, s_oy = 0;  // where the circle's square sits on the panel (pixels)
+
+int S(float v) { return (int)lroundf(v * s_k); }
+
+void update_scale() {
+  const int w = lv_disp_get_hor_res(nullptr), h = lv_disp_get_ver_res(nullptr);
+  const int d = w < h ? w : h;
+  s_k = (float)d / 800.0f;
+  s_ox = (w - d) / 2;
+  s_oy = (h - d) / 2;
+}
 
 const UiMenuHost *H = nullptr;
 
@@ -114,8 +129,8 @@ const char *ph_home_sub();
 const char *ac_home_sub();
 
 // ---------------------------------------------------------------- small builders
-/** Plain rectangle. Not clickable unless marked (LVGL objects are clickable by default). */
-lv_obj_t *box(lv_obj_t *parent, int x, int y, int w, int h) {
+/** Plain rectangle in pixels. Not clickable unless marked (LVGL objects are clickable by default). */
+lv_obj_t *box_px(lv_obj_t *parent, int x, int y, int w, int h) {
   lv_obj_t *o = lv_obj_create(parent);
   lv_obj_remove_style_all(o);
   lv_obj_set_pos(o, x, y);
@@ -123,6 +138,12 @@ lv_obj_t *box(lv_obj_t *parent, int x, int y, int w, int h) {
   lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_clear_flag(o, LV_OBJ_FLAG_CLICKABLE);
   return o;
+}
+
+/** Plain rectangle in units. A 1 unit wide or tall box (a rule, a spacer) stays at least 1 px. */
+lv_obj_t *box(lv_obj_t *parent, int x, int y, int w, int h) {
+  const int pw = S(w), ph = S(h);
+  return box_px(parent, S(x), S(y), pw < 1 ? 1 : pw, ph < 1 ? 1 : ph);
 }
 
 lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t *font, lv_color_t color) {
@@ -154,7 +175,7 @@ lv_obj_t *round_btn(lv_obj_t *parent, const char *icon, int cx, int cy, int d, l
   lv_obj_set_style_bg_color(b, T.line, LV_STATE_PRESSED);
   lv_obj_set_style_transform_zoom(b, 236, LV_STATE_PRESSED);
   lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_ext_click_area(b, 12);
+  lv_obj_set_ext_click_area(b, S(12));
   lv_obj_t *l = label(b, icon, &elc_icons_34, T.text);
   lv_obj_center(l);
   lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
@@ -164,7 +185,7 @@ lv_obj_t *round_btn(lv_obj_t *parent, const char *icon, int cx, int cy, int d, l
 /** Pill-shaped row button with text. */
 lv_obj_t *pill(lv_obj_t *parent, int x, int y, int w, int h, const char *text, lv_event_cb_t cb, void *ud = nullptr) {
   lv_obj_t *b = box(parent, x, y, w, h);
-  lv_obj_set_style_radius(b, h / 2, 0);
+  lv_obj_set_style_radius(b, S(h) / 2, 0);
   fill(b, T.surface);
   outline(b, T.line, 2);
   lv_obj_set_style_bg_color(b, T.line, LV_STATE_PRESSED);
@@ -179,7 +200,7 @@ lv_obj_t *pill(lv_obj_t *parent, int x, int y, int w, int h, const char *text, l
 
 lv_obj_t *page_title(lv_obj_t *parent, const char *text) {
   lv_obj_t *l = label(parent, text, T.title, T.text);
-  lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 104);
+  lv_obj_align(l, LV_ALIGN_TOP_MID, 0, S(104));
   return l;
 }
 
@@ -290,7 +311,7 @@ void layout_wheel() {
     if (nx != w.x || ny != w.y) {
       w.x = nx;
       w.y = ny;
-      lv_obj_set_pos(w.box, nx, ny);
+      lv_obj_set_pos(w.box, S(nx), S(ny));
     }
     // No transforms or group opacity here: those force per-item layer renders in software and made
     // dragging choppy. The centred item uses the big font and ring; neighbours are smaller and dimmer.
@@ -299,10 +320,10 @@ void layout_wheel() {
     if (w.big != big) {
       w.big = big;
       lv_obj_set_style_text_font(w.label, big ? T.label : T.body, 0);
-      lv_obj_set_size(w.ring, big ? 100 : 72, big ? 100 : 72);
-      lv_obj_set_pos(w.ring, big ? 0 : 14, big ? 10 : 24);
+      lv_obj_set_size(w.ring, S(big ? 100 : 72), S(big ? 100 : 72));
+      lv_obj_set_pos(w.ring, S(big ? 0 : 14), S(big ? 10 : 24));
       lv_obj_set_style_text_font(w.icon, big ? &elc_icons_56 : &elc_icons_34, 0);
-      lv_obj_align(w.label, LV_ALIGN_LEFT_MID, big ? 124 : 104, big ? -16 : 0);
+      lv_obj_align(w.label, LV_ALIGN_LEFT_MID, S(big ? 124 : 104), S(big ? -16 : 0));
       if (big) lv_obj_clear_flag(w.sub, LV_OBJ_FLAG_HIDDEN);
       else lv_obj_add_flag(w.sub, LV_OBJ_FLAG_HIDDEN);
     }
@@ -327,10 +348,10 @@ void layout_wheel() {
   s_dots_for = s_target;
   for (int i = 0; i < kNumItems; i++) {
     const bool on = (i == s_target);
-    const int d = on ? 14 : 8;
+    const int d = S(on ? 14 : 8);
     const float a = (-24.0f + 48.0f * (float)i / (float)(kNumItems - 1)) * (float)M_PI / 180.0f;
     lv_obj_set_size(s_dots[i], d, d);
-    lv_obj_set_pos(s_dots[i], (lv_coord_t)(kW / 2 + cosf(a) * 360 - d / 2), (lv_coord_t)(kH / 2 + sinf(a) * 360 - d / 2));
+    lv_obj_set_pos(s_dots[i], (lv_coord_t)(S(kW / 2 + cosf(a) * 360) - d / 2), (lv_coord_t)(S(kH / 2 + sinf(a) * 360) - d / 2));
     fill(s_dots[i], on ? T.accent : T.line);
   }
 }
@@ -343,6 +364,7 @@ void wheel_event(lv_event_t *e) {
   }
   lv_point_t p;
   lv_indev_get_point(indev, &p);
+  p.y = (lv_coord_t)lroundf((float)(p.y - s_oy) / s_k);  // panel pixels → units
   if (code == LV_EVENT_PRESSED) {
     s_press_y = p.y;
     s_press_pos = s_pos;
@@ -382,8 +404,8 @@ void build_home(lv_obj_t *page) {
   lv_obj_add_event_cb(catcher, wheel_event, LV_EVENT_ALL, nullptr);
 
   lv_obj_t *t = label(page, "MENU", T.sub, T.faint);
-  lv_obj_set_style_text_letter_space(t, 4, 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 74);
+  lv_obj_set_style_text_letter_space(t, S(4), 0);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, S(74));
 
   for (int i = 0; i < kNumItems; i++) {
     WheelItem &w = s_wheel[i];
@@ -399,11 +421,11 @@ void build_home(lv_obj_t *page) {
     w.icon = label(w.ring, kItems[i].icon, &elc_icons_56, T.dim);
     lv_obj_center(w.icon);
     w.label = label(w.box, kItems[i].label, T.label, T.dim);
-    lv_obj_align(w.label, LV_ALIGN_LEFT_MID, 124, -16);
+    lv_obj_align(w.label, LV_ALIGN_LEFT_MID, S(124), S(-16));
     w.sub = label(w.box, item_sub(i), T.sub, T.faint);
     lv_label_set_long_mode(w.sub, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(w.sub, 340);
-    lv_obj_align(w.sub, LV_ALIGN_LEFT_MID, 126, 30);
+    lv_obj_set_width(w.sub, S(340));
+    lv_obj_align(w.sub, LV_ALIGN_LEFT_MID, S(126), S(30));
   }
   for (int i = 0; i < kNumItems; i++) {
     s_dots[i] = box(page, 0, 0, 8, 8);
@@ -428,18 +450,18 @@ void bright_apply(bool save) {
 void build_brightness(lv_obj_t *page) {
   page_title(page, "Brightness");
   s_bright_arc = lv_arc_create(page);
-  lv_obj_set_size(s_bright_arc, 360, 360);
-  lv_obj_align(s_bright_arc, LV_ALIGN_CENTER, 0, 10);
+  lv_obj_set_size(s_bright_arc, S(360), S(360));
+  lv_obj_align(s_bright_arc, LV_ALIGN_CENTER, 0, S(10));
   lv_arc_set_rotation(s_bright_arc, 135);
   lv_arc_set_bg_angles(s_bright_arc, 0, 270);
   lv_arc_set_range(s_bright_arc, 10, 100);
   lv_arc_set_value(s_bright_arc, s_level);
-  lv_obj_set_style_arc_width(s_bright_arc, 26, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(s_bright_arc, S(26), LV_PART_MAIN);
   lv_obj_set_style_arc_color(s_bright_arc, T.line, LV_PART_MAIN);
-  lv_obj_set_style_arc_width(s_bright_arc, 26, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_width(s_bright_arc, S(26), LV_PART_INDICATOR);
   lv_obj_set_style_arc_color(s_bright_arc, T.accent, LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(s_bright_arc, T.text, LV_PART_KNOB);
-  lv_obj_set_style_pad_all(s_bright_arc, 4, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(s_bright_arc, S(4), LV_PART_KNOB);
   lv_obj_add_event_cb(s_bright_arc, [](lv_event_t *e) {
     const lv_event_code_t code = lv_event_get_code(e);
     if (code != LV_EVENT_VALUE_CHANGED && code != LV_EVENT_RELEASED) return;
@@ -449,7 +471,7 @@ void build_brightness(lv_obj_t *page) {
   s_bright_val = label(page, "", T.label, T.text);
   lv_obj_align(s_bright_val, LV_ALIGN_CENTER, 0, 0);
   lv_obj_t *cap = label(page, "all three displays", T.sub, T.faint);
-  lv_obj_align(cap, LV_ALIGN_CENTER, 0, 52);
+  lv_obj_align(cap, LV_ALIGN_CENTER, 0, S(52));
   round_btn(page, IC_MINUS, 132, 410, 76, [](lv_event_t *) {
     s_level = (uint8_t)((s_level > 20) ? s_level - 10 : 10);
     bright_apply(true);
@@ -466,10 +488,10 @@ void build_brightness(lv_obj_t *page) {
   });
   lv_obj_t *rl = lv_obj_get_child(row, 0);
   lv_label_set_text(rl, "Dim with headlights");
-  lv_obj_align(rl, LV_ALIGN_LEFT_MID, 24, 0);
+  lv_obj_align(rl, LV_ALIGN_LEFT_MID, S(24), 0);
   s_follow_sw = lv_switch_create(row);
-  lv_obj_set_size(s_follow_sw, 64, 34);
-  lv_obj_align(s_follow_sw, LV_ALIGN_RIGHT_MID, -14, 0);
+  lv_obj_set_size(s_follow_sw, S(64), S(34));
+  lv_obj_align(s_follow_sw, LV_ALIGN_RIGHT_MID, S(-14), 0);
   lv_obj_clear_flag(s_follow_sw, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_set_style_bg_color(s_follow_sw, T.line, LV_PART_MAIN);
   lv_obj_set_style_bg_color(s_follow_sw, T.accent, (lv_style_selector_t)LV_PART_INDICATOR | LV_STATE_CHECKED);
@@ -512,16 +534,16 @@ void build_theme(lv_obj_t *page) {
     outline(face, pt.line, 2);
     lv_obj_clear_flag(face, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *big = label(face, "Aa", pt.label, pt.text);
-    lv_obj_align(big, LV_ALIGN_CENTER, 0, -14);
+    lv_obj_align(big, LV_ALIGN_CENTER, 0, S(-14));
     lv_obj_t *bar = box(face, 43, 122, 90, 8);
-    lv_obj_set_style_radius(bar, 4, 0);
+    lv_obj_set_style_radius(bar, S(4), 0);
     fill(bar, pt.accent);
     lv_obj_t *nm = label(page, opts[i].name, T.body, on ? T.text : T.dim);
-    lv_obj_align(nm, LV_ALIGN_TOP_MID, cx - kW / 2, 494);
+    lv_obj_align(nm, LV_ALIGN_TOP_MID, S(cx - kW / 2), S(494));
   }
   lv_obj_t *cap = label(page, "Applies to all three displays.\nOr hold the center screen 10 s.", T.sub, T.faint);
   lv_obj_set_style_text_align(cap, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 560);
+  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, S(560));
   add_back(page);
 }
 
@@ -559,8 +581,8 @@ void build_screens(lv_obj_t *page) {
   for (int r = 0; r < 2; r++) {
     const int y = 196 + r * 150;
     lv_obj_t *t = label(page, kRows[r], T.sub, T.faint);
-    lv_obj_set_style_text_letter_space(t, 4, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, y);
+    lv_obj_set_style_text_letter_space(t, S(4), 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, S(y));
     for (int s = 0; s < 3; s++) {
       s_screen_btn[r][s] = pill(page, 158 + s * 166, y + 40, 150, 62, kNames[s], screen_pick, (void *)(intptr_t)((r << 4) | s));
     }
@@ -571,7 +593,7 @@ void build_screens(lv_obj_t *page) {
                         "on its screen: hold 3 s to switch to it.",
                         T.sub, T.faint);
   lv_obj_set_style_text_align(cap, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 510);
+  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, S(510));
   add_back(page);
   screens_restyle();
 }
@@ -601,12 +623,12 @@ void build_service(lv_obj_t *page) {
     s_svc_dot[i] = box(page, 162, y + 19, 12, 12);
     lv_obj_set_style_radius(s_svc_dot[i], LV_RADIUS_CIRCLE, 0);
     lv_obj_t *n = label(page, kSvcNames[i], T.sub, T.text);
-    lv_obj_set_pos(n, 188, y + 10);
+    lv_obj_set_pos(n, S(188), S(y + 10));
     s_svc_val[i] = label(page, "", T.sub, T.dim);
     lv_label_set_long_mode(s_svc_val[i], LV_LABEL_LONG_DOT);
-    lv_obj_set_size(s_svc_val[i], 230, lv_font_get_line_height(T.sub));  // one line, ellipsis
+    lv_obj_set_size(s_svc_val[i], S(230), lv_font_get_line_height(T.sub));  // one line, ellipsis
     lv_obj_set_style_text_align(s_svc_val[i], LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(s_svc_val[i], 410, y + 10);
+    lv_obj_set_pos(s_svc_val[i], S(410), S(y + 10));
     lv_obj_t *rule = box(page, 156, y + 48, 488, 1);
     fill(rule, T.line);
   }
@@ -907,7 +929,7 @@ lv_obj_t *ph_button(int x, int y, int w, const char *text, lv_color_t color, uin
 lv_obj_t *ph_row(int y, const char *icon, lv_color_t icon_color, const char *text, const char *note, lv_color_t note_color,
                  uint8_t act, uint8_t arg = 0) {
   lv_obj_t *row = box(s_ph_body, 0, y, kPhW, kPhRowH);
-  lv_obj_set_style_radius(row, 18, 0);
+  lv_obj_set_style_radius(row, S(18), 0);
   fill(row, T.surface);
   outline(row, T.line, 2);
   lv_obj_set_style_bg_color(row, T.line, LV_STATE_PRESSED);
@@ -915,27 +937,27 @@ lv_obj_t *ph_row(int y, const char *icon, lv_color_t icon_color, const char *tex
   int x = 22;
   if (icon) {
     lv_obj_t *ic = label(row, icon, &elc_icons_34, icon_color);
-    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 16, 0);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, S(16), 0);
     x = 66;
   }
   const int note_w = note ? 130 : 0;
   lv_obj_t *l = label(row, text, T.sub, T.text);
   lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(l, kPhW - x - note_w - 20);
-  lv_obj_align(l, LV_ALIGN_LEFT_MID, x, 0);
+  lv_obj_set_width(l, S(kPhW - x - note_w - 20));
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, S(x), 0);
   if (note) {
     lv_obj_t *nl = label(row, note, T.sub, note_color);
-    lv_obj_align(nl, LV_ALIGN_RIGHT_MID, -20, 0);
+    lv_obj_align(nl, LV_ALIGN_RIGHT_MID, S(-20), 0);
   }
   return ph_add(row, act, arg, text);
 }
 
 lv_obj_t *ph_text(const char *text, const lv_font_t *font, lv_color_t color, int y, bool wrap = false) {
   lv_obj_t *l = label(s_ph_body, text, font, color);
-  lv_obj_set_width(l, kPhW);
+  lv_obj_set_width(l, S(kPhW));
   lv_label_set_long_mode(l, wrap ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(l, 0, y);
+  lv_obj_set_pos(l, 0, S(y));
   return l;
 }
 
@@ -984,7 +1006,7 @@ void ph_build_body() {
       ph_code(code, sizeof(code));
       const lv_font_t *cf = ph_code_font();
       const int ch = lv_font_get_line_height(cf);
-      const int cy = 44 + (170 - ch) / 2;  // centred in the band between the question and the hint
+      const int cy = 44 + (170 - (int)lroundf((float)ch / s_k)) / 2;  // centred in the band between the question and the hint
       ph_text(code, cf, T.accent, cy);
       ph_text("Check that the phone shows the same code", T.sub, T.dim, 222);
       ph_button(0, 280, 222, "Reject", T.bad, kPhPairNo);
@@ -996,14 +1018,14 @@ void ph_build_body() {
       int y = 0;
       if (st.flags & ELC_CAN_PHONE_PAIRING) {
         lv_obj_t *win = box(s_ph_body, 0, y, kPhW, 132);
-        lv_obj_set_style_radius(win, 22, 0);
+        lv_obj_set_style_radius(win, S(22), 0);
         fill(win, T.surface);
         outline(win, T.accent, 2);
         snprintf(buf, sizeof(buf), "Discoverable as %s", kPhBtName);
         lv_obj_t *l1 = label(win, buf, T.sub, T.text);
-        lv_obj_align(l1, LV_ALIGN_TOP_MID, 0, 12);
+        lv_obj_align(l1, LV_ALIGN_TOP_MID, 0, S(12));
         s_ph_left = label(win, "", T.sub, T.accent);
-        lv_obj_align(s_ph_left, LV_ALIGN_TOP_MID, 0, 42);
+        lv_obj_align(s_ph_left, LV_ALIGN_TOP_MID, 0, S(42));
         lv_obj_t *stop = pill(win, (kPhW - 180) / 2, 76, 180, 46, "Stop", nullptr);
         lv_obj_set_style_text_color(lv_obj_get_child(stop, 0), T.bad, 0);
         ph_add(stop, kPhStop, 0, "Stop pairing");
@@ -1021,8 +1043,8 @@ void ph_build_body() {
         y += kPhRowH + kPhGap;
       }
       lv_obj_t *hdr = label(s_ph_body, st.paired ? "PAIRED PHONES" : "NO PAIRED PHONES", T.sub, T.faint);
-      lv_obj_set_style_text_letter_space(hdr, 4, 0);
-      lv_obj_set_pos(hdr, 12, y + 10);
+      lv_obj_set_style_text_letter_space(hdr, S(4), 0);
+      lv_obj_set_pos(hdr, S(12), S(y + 10));
       y += 48;
       for (uint8_t i = 0; i < st.paired && i < ELC_CAN_PHONE_MAX_PAIRED; i++) {
         const bool on = ph_connected() && st.connected_index == i;
@@ -1078,17 +1100,17 @@ void build_phone(lv_obj_t *page) {
   s_ph_forget = false;
   s_ph_focus_act = 0xFF;
   lv_obj_t *card = box(page, 170, 176, 460, 96);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, S(22), 0);
   fill(card, T.surface);
   outline(card, T.line, 2);
   s_ph_st1 = label(card, "", T.body, T.text);
   lv_label_set_long_mode(s_ph_st1, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(s_ph_st1, 420);
-  lv_obj_align(s_ph_st1, LV_ALIGN_TOP_LEFT, 20, 14);
+  lv_obj_set_width(s_ph_st1, S(420));
+  lv_obj_align(s_ph_st1, LV_ALIGN_TOP_LEFT, S(20), S(14));
   s_ph_st2 = label(card, "", T.sub, T.dim);
   lv_label_set_long_mode(s_ph_st2, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(s_ph_st2, 420);
-  lv_obj_align(s_ph_st2, LV_ALIGN_TOP_LEFT, 20, 56);
+  lv_obj_set_width(s_ph_st2, S(420));
+  lv_obj_align(s_ph_st2, LV_ALIGN_TOP_LEFT, S(20), S(56));
   s_ph_body = box(page, 170, 288, kPhW, 376);
   lv_obj_set_scroll_dir(s_ph_body, LV_DIR_VER);
   lv_obj_set_scrollbar_mode(s_ph_body, LV_SCROLLBAR_MODE_OFF);
@@ -1355,32 +1377,32 @@ lv_obj_t *ac_add(lv_obj_t *o, lv_obj_t *val, uint8_t act, uint8_t arg, const cha
 /** A list row: text on the left, a note (the value) on the right. */
 void ac_row(int y, const char *text, const char *note, lv_color_t note_color, uint8_t act, uint8_t arg, bool dim = false) {
   lv_obj_t *row = box(s_ac_body, 0, y, kPhW, kPhRowH);
-  lv_obj_set_style_radius(row, 18, 0);
+  lv_obj_set_style_radius(row, S(18), 0);
   fill(row, T.surface);
   outline(row, T.line, 2);
   lv_obj_set_style_bg_color(row, T.line, LV_STATE_PRESSED);
   lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_t *l = label(row, text, T.sub, dim ? T.dim : T.text);
   lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(l, note && note[0] ? 220 : kPhW - 44);
-  lv_obj_align(l, LV_ALIGN_LEFT_MID, 22, 0);
+  lv_obj_set_width(l, S(note && note[0] ? 220 : kPhW - 44));
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, S(22), 0);
   lv_obj_t *nl = nullptr;
   if (note) {
     nl = label(row, note, T.sub, note_color);
     lv_label_set_long_mode(nl, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(nl, kPhW - 44 - 230);
+    lv_obj_set_width(nl, S(kPhW - 44 - 230));
     lv_obj_set_style_text_align(nl, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_align(nl, LV_ALIGN_RIGHT_MID, -20, 0);
+    lv_obj_align(nl, LV_ALIGN_RIGHT_MID, S(-20), 0);
   }
   ac_add(row, nl, act, arg, text);
 }
 
 lv_obj_t *ac_text(const char *text, const lv_font_t *font, lv_color_t color, int y, bool wrap = false) {
   lv_obj_t *l = label(s_ac_body, text, font, color);
-  lv_obj_set_width(l, kPhW);
+  lv_obj_set_width(l, S(kPhW));
   lv_label_set_long_mode(l, wrap ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(l, 0, y);
+  lv_obj_set_pos(l, 0, S(y));
   return l;
 }
 
@@ -1558,17 +1580,17 @@ void build_accessories(lv_obj_t *page) {
   s_ac_edit = 0xFF;
   s_ac_focus_act = 0xFF;
   lv_obj_t *card = box(page, 170, 176, 460, 96);
-  lv_obj_set_style_radius(card, 22, 0);
+  lv_obj_set_style_radius(card, S(22), 0);
   fill(card, T.surface);
   outline(card, T.line, 2);
   s_ac_st1 = label(card, "", T.body, T.text);
   lv_label_set_long_mode(s_ac_st1, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(s_ac_st1, 420);
-  lv_obj_align(s_ac_st1, LV_ALIGN_TOP_LEFT, 20, 14);
+  lv_obj_set_width(s_ac_st1, S(420));
+  lv_obj_align(s_ac_st1, LV_ALIGN_TOP_LEFT, S(20), S(14));
   s_ac_st2 = label(card, "", T.sub, T.dim);
   lv_label_set_long_mode(s_ac_st2, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(s_ac_st2, 420);
-  lv_obj_align(s_ac_st2, LV_ALIGN_TOP_LEFT, 20, 56);
+  lv_obj_set_width(s_ac_st2, S(420));
+  lv_obj_align(s_ac_st2, LV_ALIGN_TOP_LEFT, S(20), S(56));
   s_ac_body = box(page, 170, 288, kPhW, 376);
   lv_obj_set_scroll_dir(s_ac_body, LV_DIR_VER);
   lv_obj_set_scrollbar_mode(s_ac_body, LV_SCROLLBAR_MODE_OFF);
@@ -1715,27 +1737,28 @@ void ui_menu_begin(const UiMenuHost *host) {
   if (H->dim_with_lights) s_follow = H->dim_with_lights();
 
   // Hold-progress ring for gauge-screen gestures (lives outside the menu).
+  update_scale();
   s_hold_arc = lv_arc_create(p4_screen_ui_parent());
-  lv_obj_set_size(s_hold_arc, kW - 24, kH - 24);
+  lv_obj_set_size(s_hold_arc, S(kW - 24), S(kH - 24));
   lv_obj_center(s_hold_arc);
   lv_arc_set_rotation(s_hold_arc, 270);
   lv_arc_set_bg_angles(s_hold_arc, 0, 360);
   lv_arc_set_range(s_hold_arc, 0, 1000);
   lv_obj_remove_style(s_hold_arc, nullptr, LV_PART_KNOB);
   lv_obj_clear_flag(s_hold_arc, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_style_arc_width(s_hold_arc, 12, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(s_hold_arc, S(12), LV_PART_MAIN);
   lv_obj_set_style_arc_opa(s_hold_arc, LV_OPA_50, LV_PART_MAIN);
   lv_obj_set_style_arc_color(s_hold_arc, lv_color_black(), LV_PART_MAIN);
-  lv_obj_set_style_arc_width(s_hold_arc, 12, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_width(s_hold_arc, S(12), LV_PART_INDICATOR);
   lv_obj_add_flag(s_hold_arc, LV_OBJ_FLAG_HIDDEN);
   s_hold_lbl = lv_label_create(p4_screen_ui_parent());
   lv_obj_remove_style_all(s_hold_lbl);
   lv_obj_set_style_bg_opa(s_hold_lbl, LV_OPA_80, 0);
   lv_obj_set_style_bg_color(s_hold_lbl, lv_color_black(), 0);
-  lv_obj_set_style_radius(s_hold_lbl, 20, 0);
-  lv_obj_set_style_pad_hor(s_hold_lbl, 18, 0);
-  lv_obj_set_style_pad_ver(s_hold_lbl, 6, 0);
-  lv_obj_align(s_hold_lbl, LV_ALIGN_BOTTOM_MID, 0, -52);
+  lv_obj_set_style_radius(s_hold_lbl, S(20), 0);
+  lv_obj_set_style_pad_hor(s_hold_lbl, S(18), 0);
+  lv_obj_set_style_pad_ver(s_hold_lbl, S(6), 0);
+  lv_obj_align(s_hold_lbl, LV_ALIGN_BOTTOM_MID, 0, S(-52) - s_oy);
   lv_obj_add_flag(s_hold_lbl, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -1755,7 +1778,9 @@ void ui_menu_open(UiMenuPage page) {
     if (H->brightness) s_level = H->brightness();
     if (H->dim_with_lights) s_follow = H->dim_with_lights();
     p4_screen_set_tear_free(false);  // menu motion is big; favour frame rate over tear-free flips
-    s_root = box(p4_screen_ui_parent(), 0, 0, kW, kH);
+    update_scale();
+    // The backdrop covers the whole panel; the pages sit on the circle's square inside it.
+    s_root = box_px(p4_screen_ui_parent(), 0, 0, lv_disp_get_hor_res(nullptr), lv_disp_get_ver_res(nullptr));
     // Opaque square backdrop: LVGL skips the frozen gauge layer underneath, and a square (not a
     // circle) avoids an anti-aliased radius mask on every repainted row. The panel is round anyway.
     fill(s_root, T.bg);
@@ -1766,7 +1791,7 @@ void ui_menu_open(UiMenuPage page) {
     lv_obj_del_async(s_page);  // may be called from a click inside the old page
   }
   clear_page_refs();
-  s_page = box(s_root, 0, 0, kW, kH);
+  s_page = box_px(s_root, s_ox, s_oy, S(kW), S(kH));
   s_page_id = page;
   switch (page) {
     case UiMenuPage::Home: {

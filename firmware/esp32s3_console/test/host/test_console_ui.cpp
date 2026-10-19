@@ -1141,6 +1141,31 @@ static void test_ir_remote() {
   drain(ui);
 }
 
+static void test_oled_drive() {
+  std::printf("OLED drive: the panel current on the Display page, live, undone, kept\n");
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  ui.restore(false, 0, ConsoleContrast::Auto, 200);  // out of range from the store: clamped
+  CHECK(ui.oled_drive() == 100);
+  ui.restore(false, 0, ConsoleContrast::Auto);
+  CHECK(ui.oled_drive() == ConsoleUi::kDriveDefault);
+  boot(ui);
+  ui.take_persist_dirty();
+  ui.right_click(T);
+  CHECK(pick(ui, "Display") && row(ui, "OLED drive"));
+  CHECK(pick(ui, "OLED drive") && ui.mode() == ConsoleMode::Edit);
+  ui.right_turn(2, T);  // live: two steps of 5 %
+  CHECK(ui.oled_drive() == 70 && ui.take_persist_dirty());
+  CHECK(press(ui, "Undo") && ui.oled_drive() == 60);
+  CHECK(pick(ui, "OLED drive"));
+  ui.right_turn(20, T);  // tops out at 100 %
+  CHECK(press(ui, "Done") && ui.oled_drive() == 100 && ui.take_persist_dirty());
+  CHECK(pick(ui, "OLED drive"));
+  ui.right_turn(-30, T);  // and bottoms out at 10 %
+  CHECK(press(ui, "Done") && ui.oled_drive() == 10);
+  drain(ui);
+}
+
 int main() {
   test_drive_pages_and_menu();
   test_sources_and_radio();
@@ -1157,6 +1182,7 @@ int main() {
   test_card_is_bridge();
   test_equalizer();
   test_ir_remote();
+  test_oled_drive();
   if (g_failures) {
     std::printf("%d FAILED\n", g_failures);
     return 1;

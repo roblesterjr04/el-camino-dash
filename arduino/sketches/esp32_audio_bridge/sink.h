@@ -4,7 +4,7 @@
  * The audio card as the audio sink (docs/protocols/can_channels.md, AUDIO_CMD and NET RAIL): it owns which source
  * plays and the master volume, and runs the I2S rail's RET.
  *
- *   sources    Bluetooth (its own A2DP), the radio (a radio card's audio on RET), aux in (the card's ADC), off.
+ *   sources    Bluetooth (its own A2DP), the radio (a radio card's audio on RET), off. No aux in.
  *              SOURCE picks one; the radio learns it was chosen from STATUS and asks for RET. Bluetooth pauses when
  *              the sink leaves it and plays again when it comes back, if it was playing. The choice is kept.
  *   volume     VOLUME (set / step / mute) on the 0..15 curve the console's knob steps through; STATUS says 0..100.
@@ -27,7 +27,7 @@
 
 /** What the sink is set to (kept in NVS by the firmware). */
 struct SinkSettings {
-  uint8_t source = ELC_SRC_BLUETOOTH;  // ELC_SRC_*: off (0), Bluetooth, radio, aux
+  uint8_t source = ELC_SRC_BLUETOOTH;  // ELC_SRC_*: off (0), Bluetooth, radio
   uint8_t volume = 8;                  // 0..15
   uint8_t chime_volume = 8;            // 1..15
   int8_t fader = 0, balance = 0;       // -10..10
@@ -60,12 +60,11 @@ class SinkIo {
 };
 
 /** What the output plays, from the source and the RET holder. */
-enum class SinkMusic : uint8_t { Off, Bluetooth, Rail, Aux };
+enum class SinkMusic : uint8_t { Off, Bluetooth, Rail };
 
 class AudioSink {
  public:
   struct Caps {
-    bool aux = false;   // an ADC: aux in can be a source
     bool rear = false;  // the rear DAC: fader is offered
     uint8_t slot = 0;   // the card's slot (in RAIL answers)
   };

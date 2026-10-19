@@ -77,10 +77,14 @@ class ConsoleUi {
   void attach(ElcChannels *ch) { _ch = ch; }
 
   /** Persistent settings kept by the console (NVS in the firmware). */
-  void restore(bool trip_set, uint32_t trip_base_tenths, ConsoleContrast contrast);
+  void restore(bool trip_set, uint32_t trip_base_tenths, ConsoleContrast contrast, uint8_t drive_pct = kDriveDefault);
   bool trip_set() const { return _trip_set; }
   uint32_t trip_base() const { return _trip_base; }
   ConsoleContrast contrast() const { return _contrast; }
+  /** OLED drive: the panel's segment current, 10..100 % of the SSD1322's maximum (Display page, "OLED drive"). More is
+   *  brighter (daylight behind a smoked cover) and ages the panel faster. */
+  static constexpr uint8_t kDriveDefault = 60;
+  uint8_t oled_drive() const { return _drive; }
   /** True once after a persistent setting changed (the firmware saves them). */
   bool take_persist_dirty();
 
@@ -180,7 +184,7 @@ class ConsoleUi {
     kRSrcPick,                                                                          // source page (arg = code)
     kRPhStatus, kRPhPair, kRPhStop, kRPhVoice, kRPhRedial, kRPhPaired,                  // phone page (arg = index)
     kRPhConnect, kRPhDisconnect, kRPhForget,                                            // one phone
-    kRView, kRTheme, kRBright, kRFollow, kRIface, kRMedia, kRLayout, kRContrast,        // display settings
+    kRView, kRTheme, kRBright, kRFollow, kRIface, kRMedia, kRLayout, kRContrast, kRDrive,  // display settings
     kRTripReset,
     kRAccNode, kRAccItem, kRAccOpt, kRAdvanced,                                         // accessories (arg)
     kRYes, kRNo,                                                                        // confirmation
@@ -387,6 +391,7 @@ class ConsoleUi {
   bool _trip_set = false;
   uint32_t _trip_base = 0;
   ConsoleContrast _contrast = ConsoleContrast::Auto;
+  uint8_t _drive = kDriveDefault;
   bool _persist_dirty = false;
 
   ConsoleAction _q[16];

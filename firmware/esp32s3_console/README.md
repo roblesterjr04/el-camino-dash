@@ -94,7 +94,7 @@ Custom curve while another preset plays). The values are the audio card's own it
 | Phone | the connected phone, Pair new phone / Stop pairing, voice assistant, redial, the paired phones (Connect or Disconnect, Forget with a confirmation) |
 | Sound | the audio card's page (its preset shows on the row): chime volume, fader, balance, and the **Equalizer** |
 | Accessories | every accessory's page from the UI channel (the audio card, GPS, the gateway…) |
-| Display | center view, theme, brightness, dim with lights, menu screen, media screen, right layout, OLED contrast (live, undone with Undo) |
+| Display | center view, theme, brightness, dim with lights, menu screen, media screen, right layout, OLED contrast (the grey levels: Auto follows the cluster brightness, Bright, Night), OLED drive (the panel current, 10-100 % of the SSD1322's maximum in 5s, default 60 %: up for daylight behind a smoked cover, at the cost of panel life). All live, undone with Undo |
 | Trip | Trip A, and resetting it |
 | Service | the center, the sensors, the audio bridge, the audio card and its source, the radio, the channel nodes |
 

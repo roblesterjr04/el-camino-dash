@@ -29,9 +29,11 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
   allows: its top is 1.75 mm below the housing's top outside edge and its bottom 3.25 mm above the bottom outside edge,
   which gives the bezel its text band below the screen. The module's top holes are 2.75 mm from the board's top
   edge, so the M2 standoffs (about 4 mm across the flats) end about 0.5 mm from it.
-- **Module:** exactly as on `ConsoleBoard` (`generate/gen_pcb.py` keeps the same parameters): holes 94 × 28 mm centre to
-  centre, J1 a female 2 × 8 socket on the right-hand holes' line shifted 0.5 mm toward the edge, module pin *n* on
-  socket pad 17 − *n*. Everything is moved 4 mm right (`MX`); `MY` = 0.
+- **Module:** as on `ConsoleBoard` (`generate/gen_pcb.py` keeps the same parameters), except the right-hand holes,
+  checked against the module: H1 at (7.0, 2.75), H2 at (102.0, 2.75), H4 at (102.0, 31.75) mm from the board's top-left
+  corner (`R_HOLES_DX`, `H4_DY`: H2 and H4 1 mm right of the 94 × 28 pattern, H4 also 1 mm down). J1 a female 2 × 8
+  socket on the old right-hand holes' line (x = 101) shifted 0.5 mm toward the edge (columns at 100.23 and 102.77),
+  module pin *n* on socket pad 17 − *n*. Everything is moved 4 mm right (`MX`); `MY` = 0.
 - **Front** (module side): J1, three M2 holes (H1, H2, H4) and the IR receiver (J6), nothing else. **Back:** the ESP32
   module (antenna on the top edge), RESET / BOOT, USB-C, the CAN cable, the two RJ9 jacks and all the passives. CAN
   (J3, under the ESP32) and USB-C (J2) are on the bottom edge; the two knob jacks (J4 Select, J5 Volume) face out of

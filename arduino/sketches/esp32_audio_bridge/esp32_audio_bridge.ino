@@ -2,7 +2,7 @@
  * esp32_audio_bridge.ino — in-dash Bluetooth media hub (ESP32 classic BT only)
  *
  * - The audio sink (sink.*, audio_engine.*): one 48 kHz output that plays the source the console picks (Bluetooth,
- *   the radio card's audio on the I2S rail's RET, aux in, or nothing) through the 10-band equaliser and the master
+ *   the radio card's audio on the I2S rail's RET, or nothing) through the 10-band equaliser and the master
  *   volume, with fader and balance across the front and rear DACs; AUDIO_CMD STATUS / SOURCE / VOLUME / MEDIA and
  *   NET RAIL on CAN, and the card's page (chime volume, fader, balance, the Equalizer).
  * - A2DP sink: phone / portable player streams stereo audio, resampled into the output (BCK/WS/DOUT per I2S_PIN_*).
@@ -823,7 +823,6 @@ static void can_begin() {
     st.chime_volume = s_bridge_prefs.getUChar("chvol", kChimeVolDefault);
   }
   AudioSink::Caps caps;
-  caps.aux = engine_has_aux();
   caps.rear = engine_has_rear();
   caps.slot = slot;
   s_sink.begin(&s_chan, &s_sink_io, caps, st, millis());
@@ -993,7 +992,7 @@ static void serial_poll() {
 #if AUDIO_BRIDGE_CAN
     } else if (!strcmp(word, "source")) {
       // as AUDIO_CMD SOURCE from a service tool
-      const uint8_t code = !strcmp(rest, "radio") ? ELC_SRC_RADIO : !strcmp(rest, "aux") ? ELC_SRC_AUX
+      const uint8_t code = !strcmp(rest, "radio") ? ELC_SRC_RADIO
                            : !strcmp(rest, "off") ? ELC_SRC_REQ_OFF : !strcmp(rest, "next") || !rest[0] ? 0
                                                                                                : ELC_SRC_BLUETOOTH;
       ElcChWriter w;
@@ -1046,7 +1045,7 @@ static void serial_poll() {
     } else {
       Serial.println("Commands: phone | pair [on|off] | confirm yes|no | answer | end | mute [on|off] | vol 0-15 |");
       Serial.println("  connect <n> | disconnect | forget <n> | redial | voice [on|off] | waiting 0|1|2 | route car|phone |");
-      Serial.println("  play | next | prev | chime 2|3|4 [repeat] | chime stop | audio | source bt|radio|aux|off|next");
+      Serial.println("  play | next | prev | chime 2|3|4 [repeat] | chime stop | audio | source bt|radio|off|next");
       Serial.println("  (<n> = the index in `phone`)");
       continue;
     }

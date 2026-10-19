@@ -1,14 +1,14 @@
 # Panel
 
-All the current boards on **one 4-layer, 1.6 mm panel, 309.25 × 243.7 mm**, broken apart along mouse-bite tabs
+All the current boards on **one 4-layer, 1.6 mm panel, 329 × 253 mm**, broken apart along mouse-bite tabs
 (0.5 mm holes at 0.8 mm pitch, 5 mm tabs, 2.5 mm mill gaps), with 5 mm rails top and bottom that hold four
 1.152 mm tooling holes, three fiducials on each side, and the panel name.
 
 ```
-+---------------------------------- DigiDash2 309.2 x 103.75 -----------------------------------+
-+-- GPS 80x60 --+ +-- Audio 80x60 --+ +-- Sensor 80x60 --+     (air for the SMA)
-+---------------+ +-----------------+ +------------------+           ^ SMA
-                     +---- ConsoleBoardRS 108x35 ----+  +-- Radio 80x60 --+
++-------------------------------------- DigiDash2 329 x 113 ----------------------------------------+
++-- GPS 80x60 --+ +-- Audio 80x60 --+ +-- Sensor 80x60 --+          (air for the SMA)
++---------------+ +-----------------+ +------------------+                ^ SMA
+                            +---- ConsoleBoardRS 108x35 ----+  +-- Radio 80x60 --+
 ```
 
 | Prefix | Board |

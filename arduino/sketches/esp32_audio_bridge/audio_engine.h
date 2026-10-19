@@ -5,15 +5,14 @@
  * and MCLK = 256 fS = 12.288 MHz, which the DACs, the ADC and the rail's cards need) and makes every block of output:
  *
  *   music     the source the sink plays (sink.cpp): Bluetooth (A2DP, resampled from the phone's rate with its clock
- *             drift trimmed out), the radio (the rail's RET, already at 48 kHz on the card's own clock), aux in (the
- *             ADC's right channel, mono) or nothing. Through the 10-band equaliser, then the master volume and mute.
+ *             drift trimmed out), the radio (the rail's RET, already at 48 kHz on the card's own clock) or nothing. Through the 10-band equaliser, then the master volume and mute.
  *   voice     a call's audio (HFP: 8 or 16 kHz, resampled), or a voice card talking on RET: over the music, which
  *             ducks under a voice card. Not equalised.
  *   chimes    the alert chimes (chimes.h), at their own volume, ducking everything under an alert.
  *
  * then fader and balance, to the front DAC (I2S0, master) and the rear DAC (I2S1, a slave on the same BCK / WS, so
- * the two never drift). In the same pass it reads the ADC (I2S0 data in: the microphone on the left, aux on the
- * right) and the rail's RET (I2S1 data in), and during a call sends the microphone, decimated to the call's rate, to
+ * the two never drift). In the same pass it reads the ADC (I2S0 data in: the microphone on the left; there is no
+ * aux in) and the rail's RET (I2S1 data in), and during a call sends the microphone, decimated to the call's rate, to
  * the phone. The rail buffer (the rail's clocks, MIC and MCLK out to the other slots) goes on once the clocks run.
  *
  * Threading: the engine task (core 1) does all the I2S and DSP work. The setters are called from the loop or from
@@ -28,19 +27,18 @@
 
 struct EnginePins {
   int bck = -1, ws = -1, dout = -1;  // I2S0 master: the front DAC (or the DevKit's DAC / amplifier)
-  int din = -1;                      // I2S0 data in: the ADC (microphone left, aux right); -1 = none
+  int din = -1;                      // I2S0 data in: the microphone (the ADC's left channel); -1 = none
   int mclk = -1;                     // the ADC's (and the rail's) master clock: GPIO0, 1 or 3; -1 = none
   int rear_dout = -1;                // I2S1 data out (slave on bck / ws): the rear DAC; -1 = none
   int ret_din = -1;                  // I2S1 data in: the rail's RET; -1 = none
   int rail_en = -1;                  // the rail buffer's enable, low = on; -1 = none
-  bool mic_right = false;            // microphone on the ADC's right channel (aux then on the left)
+  bool mic_right = false;            // microphone on the ADC's right channel instead
 };
 
-enum class Music : uint8_t { Off, Bluetooth, Rail, Aux };
+enum class Music : uint8_t { Off, Bluetooth, Rail };
 
 /** Once, before A2DP starts. False when the I2S could not be set up (no audio at all). */
 bool engine_begin(const EnginePins &pins);
-bool engine_has_aux();   // an ADC is fitted: aux in can be a source
 bool engine_has_rear();  // the rear DAC is fitted (fader means something)
 bool engine_has_rail();  // RET can be heard
 
