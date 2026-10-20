@@ -313,7 +313,7 @@ FP_SOD123 = 'Diode_SMD:D_SOD-123'
 FP_SOIC8 = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_XTAL = 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm'
 FP_FB = 'Inductor_SMD:L_0603_1608Metric'
-FP_PH4 = 'Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal'
+FP_PH4 = 'Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical'     # vertical: every cable plugs in from the rear
 FP_SLOT = 'DigiDash2:Slot_Socket_2x15_P2.54mm_Vertical'   # numbered to mate with the card's right-angle header
 FP_DIPSW = 'Button_Switch_SMD:SW_DIP_SPSTx02_Slide_KingTek_DSHP02TS_W7.62mm_P1.27mm'
 
@@ -353,7 +353,7 @@ text(20, 26, 'All SMD except connectors. The sensor pack is a slot card (SensorC
 # ----------------------------------------------------------------------------- power entry
 cur[0] = Block('power', 1, 'POWER: J7 (battery, ignition, illumination), reverse protection, TVS, 5 A buck '
                '(TI TPS54560B typical application, 400 kHz), 3.3 V and 1.8 V LDOs, switched 12 V')
-place(HDR[6], 'J7', 'Vehicle power', 'Connector_Molex:Molex_Micro-Fit_3.0_43650-0600_1x06_P3.00mm_Horizontal',
+place(HDR[6], 'J7', 'Vehicle power', 'Connector_Molex:Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical',
       {'1': 'BATT_IN', '2': 'BATT_IN', '3': 'GND', '4': 'GND', '5': 'IGN_IN', '6': 'ILLUM_IN'},
       descr='Micro-Fit 3.0, 6 pin: 1-2 battery 12 V (constant), 3-4 ground, 5 ignition 12 V (key on), 6 illumination (dash lights on)')
 place(PFET, 'Q2', 'SUD50P04-08', 'Package_TO_SOT_SMD:TO-252-2', {'1': 'Q2_G', '2': 'BATT_IN', '3': '12V_BATT'},
@@ -428,9 +428,9 @@ for i in range(4):
 # ----------------------------------------------------------------------------- AUX 12 V (bay power)
 cur[0] = Block('aux', 1, 'AUX 12 V: slot power from its own fused feed (pins 25-30 of every slot). Its return (AUX_GND) meets GND only at NT1.')
 place(HDR[2], 'J13', 'AUX 12V in', 'Connector_Molex:Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical',
-      {'1': 'AUX_IN', '2': 'AUX_GND'}, descr='Mini-Fit Jr 2 pin: 1 AUX 12 V (own 10-15 A fuse at the fuse box, switched), 2 ground')
-place(FUSE, nid('F'), '10A mini blade', 'Fuse:Fuseholder_Blade_Mini_Keystone_3568', {'1': 'AUX_IN', '2': 'AUX_IN_F'},
-      descr='Board fuse for all six slots together (mini blade, 10 A)')
+      {'1': 'AUX_IN', '2': 'AUX_GND'}, descr='Mini-Fit Jr 2 pin: 1 AUX 12 V (own 7.5 A fuse at the fuse box, switched), 2 ground')
+place(FUSE, nid('F'), '5A mini blade', 'Fuse:Fuseholder_Blade_Mini_Keystone_3568', {'1': 'AUX_IN', '2': 'AUX_IN_F'},
+      descr='Board fuse for all six slots together (mini blade, 5 A: AUX is sized for about 3 A, the LTE card)')
 place(PFET, 'Q6', 'SUD50P04-08', 'Package_TO_SOT_SMD:TO-252-2', {'1': 'Q6_G', '2': 'AUX_IN_F', '3': 'AUX12'},
       descr='AUX reverse-polarity protection (8 mOhm)')
 r_('10k', 'Q6_G', 'AUX_GND', 'Q6 gate to the AUX return')
@@ -556,7 +556,7 @@ for i, ref in enumerate(('J17', 'J22', 'J23', 'J24')):
     place(HDR[4], ref, 'Cable port %d' % (i + 1), FP_PH4, {'1': p + '_5V', '2': 'CANH', '3': 'CANL', '4': 'GND'},
           descr='Cable port: 1 +5 V, 2 CANH, 3 CANL, 4 GND (a short branch: under 30 cm)')
     ptc('PTC 0.5A', '+5V', p + '_5V', ref + ' 5 V')
-place(HDR[4], 'J25', 'Trunk port', 'Connector_Molex:Molex_Micro-Fit_3.0_43650-0400_1x04_P3.00mm_Horizontal',
+place(HDR[4], 'J25', 'Trunk port', 'Connector_Molex:Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical',
       {'1': 'CANH', '2': 'CANL', '3': 'TRUNK_12V', '4': 'GND'},
       descr='Bus extension to the rear of the car: 1 CANH, 2 CANL (twisted pair), 3 switched 12 V (1.1 A), 4 GND. Switch SW1-1 off and terminate at the far end')
 ptc('PTC 1.1A', 'SW12', 'TRUNK_12V', 'Trunk 12 V')

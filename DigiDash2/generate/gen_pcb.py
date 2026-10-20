@@ -40,8 +40,8 @@ OX, OY = 20.0, 20.0        # board origin on the sheet
 
 # Screen headers J5 / J1 / J4: 2x20, 2.54 mm, on the front, pin rows along x, pin 1 at the west end of the lower row.
 # Measured from the screens (2026-10-19): 28 empty pin positions between neighbours (pin 1 to pin 1: 48 pitches,
-# 121.92 mm). The side headers keep rev 1's height; the center one is higher, with one empty pin row between its rows
-# and theirs (3 pitches, 7.62 mm). Each screen (4C at the sides, 3.4C in the center: the same carrier, placed the same
+# 121.92 mm). The side headers sit 12 mm above rev 1's height (moved 2026-10-19 for the housing); the center one is
+# higher still, with one empty pin row between its rows and theirs (3 pitches, 7.62 mm). Each screen (4C at the sides, 3.4C in the center: the same carrier, placed the same
 # on both) has four M4 threads on its back, a 75 mm square round the display's centre, which is 34.384 mm east and
 # 25.745 mm north of header pin 1 (Waveshare's ESP32-P4-WIFI6-TOUCH-LCD-4C / -3_4C drawings, seen from the board's
 # front). The screens, and so their holes, are centred across the board
@@ -51,7 +51,7 @@ SCREEN_C = (34.384, -25.745)                                            # displa
 SCREEN_HOLE = 37.5                                                      # M4 holes at +/- this from the centre
 SCREEN_HOLE_KEEP = 4.5                                                  # an M4 head on the back, the boss on the front
 SCREEN_X0 = round(W / 2 - SCREEN_STEP - SCREEN_C[0], 3)                 # J5 pin 1
-SCREEN_Y = 96.1                                                         # the side headers' pin-1 row
+SCREEN_Y = 84.1                                                         # the side headers' pin-1 row
 SCREENS = {'J5': (SCREEN_X0, SCREEN_Y), 'J1': (round(SCREEN_X0 + SCREEN_STEP, 3), round(SCREEN_Y - 3 * PITCH, 3)),
            'J4': (round(SCREEN_X0 + 2 * SCREEN_STEP, 3), SCREEN_Y)}
 SCREEN_HOLES = {}                                                       # ref: (x, y), board-only M4 clearance holes
@@ -97,7 +97,7 @@ def load(fpid):
 
 # ---------------------------------------------------------------------------------------------- placement plan
 # Card slots (docs/hardware/accessory_ports.md): six 2x15 sockets in a row on the back, pin rows along y, pin 1 at the
-# bottom. A card stands on edge in each, its parts facing -x: slot 1, at the left end, faces off the end of the row, so
+# top. A card stands on edge in each, its parts facing -x: slot 1, at the left end, faces off the end of the row, so
 # it is the slot for a card with tall parts. A card is 80 mm long, centred on its socket (y 13 .. 93).
 SLOT_X0, SLOT_PITCH, SLOT_YC = 20.0, 25.4, 53.0       # slot 1's socket centre x, the pitch, the sockets' centre y
 SLOTS = {'J%d' % (31 + i): SLOT_X0 + SLOT_PITCH * i for i in range(6)}       # ref: socket centre x
@@ -109,43 +109,60 @@ CARD_PARTS = SLOT_PITCH - 5.4
 ENVELOPES = [(0.0 if i == 0 else x - CARD_PARTS, SLOT_YC - CARD_HALF, x + 6.0, SLOT_YC + CARD_HALF)
              for i, x in enumerate(SLOTS.values())]
 TALL_RE = re.compile(r'CP_Elec|Fuseholder|L_Wuerth_HCI|L_12x12')
-HOLES_MH = {'H1': (4.0, 4.0), 'H2': (W - 4.0, 4.0), 'H3': (4.0, 75.0), 'H4': (W - 4.0, 75.0)}   # provisional
-# connectors on an edge: ref -> (edge, position along it); the body is turned so the plug side faces out. On the bottom
-# edge J25 and J7 stand clear of the center screen's lower holes (x 127 and 202), and J7 of the right screen's (x 249)
-EDGE = {'J17': ('top', 142.0), 'J22': ('top', 158.0), 'J23': ('top', 174.0), 'J24': ('top', 190.0),
-        'J25': ('bottom', 141.0), 'J6': ('bottom', 100.0), 'J9': ('bottom', 176.0), 'J7': ('bottom', 222.0)}
+# board mounting holes (M3, the housing's four posts): in the gaps between the screens, above and below where they
+# meet, each pair mirrored about the board's centre line, 5.25 mm in from the top and bottom edges (from the housing's
+# model, 2026-10-19). 7 mm clear round each, both sides: the post on the front, the screw head on the back
+HOLES_MH = {'H1': (W / 2 - 54.0, 5.25), 'H2': (W / 2 + 54.0, 5.25), 'H3': (W / 2 - 40.0, H - 5.25),
+            'H4': (W / 2 + 40.0, H - 5.25)}
+# connectors on an edge: ref -> (edge, position along it); the body is turned so the plug side faces out. None since
+# 2026-10-19: every cable connector is vertical, in GROUP
+EDGE = {}
+# The cable connectors, all vertical on the back so every cable plugs in from the rear, in one group at the right end
+# of the board, past the power section (the housing steps down from the deep card shell over the low power section to
+# a shallower connector shell), with 5-8 mm between plugs for fingers and latches: ref -> (courtyard centre x, y,
+# rotation). Top row (between the right screen's upper holes): trunk port, serial port, cable port 4. Second row:
+# vehicle power J7, cable ports 1-3. Third row: J7's reverse FET Q2, the camera (RCA video, J9). Bottom row: the AUX
+# input path, Q6 (reverse FET, westmost, toward the slots it feeds), J13, its fuse F1
+GROUP = {
+    'J25': (266.0, 16.0, 0), 'J6': (285.0, 16.0, 0), 'J24': (303.0, 16.0, 0),
+    'J7': (243.4, 31.0, 0), 'J17': (266.0, 31.0, 0), 'J22': (284.0, 31.0, 0), 'J23': (302.0, 31.0, 0),
+    'Q2': (243.4, 45.0, 0), 'J11': (263.0, 45.0, 0), 'J9': (285.0, 45.0, 0),
+    'Q6': (237.0, 64.0, 0), 'J13': (252.5, 64.0, 90), 'F1': (272.0, 64.0, 0),
+}
 # ref: (x, y, rotation, side)
 FIXED = {
-    # AUX strip along the top edge, above the card envelopes (it feeds pins 25-30 of every slot)
-    'J13': (16.0, 8.5, 0, 'B'), 'F1': (32.0, 8.0, 0, 'B'), 'Q6': (58.0, 8.0, 0, 'B'), 'D11': (72.0, 8.0, 0, 'B'),
-    'NT1': (24.0, 13.5, 0, 'B'),
+    # the AUX return's one joint with GND, under the AUX input (J13, in GROUP): its AUX_GND pad right below J13's
+    # pin 2 (AUX GND), its GND pad east
+    'NT1': (252.25, 71.5, 180, 'B'),
     # sensor serial in (a jumper wire from the sensor card's J8): above the slot row (over slot 4), clear of the card
     # envelopes, within reach of a card's left edge (which is at this end of the row) in any slot
     'J27': (96.0, 6.0, 90, 'B'),
-    # video, above the center header (J1), between slot 5's socket pins (J35, x 119.8 / 122.4) and slot 6's (J36,
-    # x 145.2 / 147.8). On the back it is mirrored: the analog side (AIP1A, XTAL1 / XTAL2, pins 1-8) faces east, the data
-    # pins (9-16) face west. The RCA jack (tall) east of slot 6's envelope, between the slot sockets' bottom end and J1
-    'U8': (132.0, 64.0, 180, 'B'), 'J11': (162.0, 79.0, 0, 'B'),
-    'U11': (160.0, 60.0, 0, 'B'), 'U12': (141.0, 71.6, 0, 'B'),
-    # power, beside J7
-    'U2': (224.0, 78.0, 0, 'B'), 'Q2': (220.0, 94.0, 0, 'B'), 'Q5': (244.0, 66.0, 0, 'B'),
+    # video, above the center header (J1), between slot 5's socket pins (J35, x 120.3 / 122.9) and slot 6's (J36,
+    # x 145.7 / 148.3). On the back it is mirrored: the analog side (AIP1A, XTAL1 / XTAL2, pins 1-8) faces east, the data
+    # pins (9-16) face west, toward J1 below. Its 1.8 V LDO above it. The RCA jack (tall) below J1, east of slot 6's
+    # envelope
+    'U8': (132.0, 64.0, 180, 'B'),
+    'U11': (160.0, 60.0, 0, 'B'), 'U12': (132.0, 55.5, 0, 'B'),
+    # power section, between the card cage and the connector group: the 5 V buck (its parts placed round it, below the
+    # video line at y 37) and the switched-12 V FET
+    'U2': (205.0, 50.0, 0, 'B'), 'Q5': (180.0, 48.0, 0, 'B'),
     # CAN transceivers beside their screen headers
-    'U5': (64.0, 84.0, 0, 'B'), 'U9': (124.0, 86.0, 0, 'B'), 'U10': (244.0, 84.0, 0, 'B'),
-    'J16': (177.0, 76.0, 90, 'B'), 'D2': (172.0, 82.0, 0, 'B'),
+    'U5': (64.0, 84.0, 0, 'B'), 'U9': (124.0, 79.0, 0, 'B'), 'U10': (244.0, 84.0, 0, 'B'),
+    'J16': (190.0, 79.0, 90, 'B'), 'D2': (172.0, 82.0, 0, 'B'),
 }
 # video support parts, fixed by their exact description (so renumbering cannot move them). The input chain sits in the
-# free spot between slot 6's socket and the RCA jack (J11 pin 1 at x 162, y 79), above J1, from J1 up: the ESD clamp and
-# the anti-alias filter's C1, the filter's L (0 R as delivered) and C2, then the 75 R termination and 1/2 attenuation, so
+# strip between Q2 and the RCA jack (J11 pin 1 at x 263, y 45), from the jack's level up: the ESD clamp and the
+# anti-alias filter's C1, the filter's L (0 R as delivered) and C2, then the 75 R termination and 1/2 attenuation, so
 # only the low-impedance, terminated signal runs across to the decoder. Beside U8's east side (pins 1-8): the coupling
 # cap at AIP1A, the resistor across the crystal, the crystal and its load caps. The pixel-clock damping resistor right
 # under SCLK (pin 9)
 FIXED_DESCR = {
-    'Video input ESD': (150.5, 82.4, 90, 'B'),
-    'Anti-alias filter C1 (fit with C2 and a 2.7 uH in place of the 0 R)': (152.7, 82.4, 90, 'B'),
-    'Anti-alias filter L: 0 R as delivered, 2.7 uH 0805 inductor to fit the filter': (150.5, 78.3, 90, 'B'),
-    'Anti-alias filter C2 (fit with C1 and a 2.7 uH in place of the 0 R)': (152.7, 78.4, 90, 'B'),
-    '75 R termination and 1/2 attenuation (R1)': (150.5, 74.4, 90, 'B'),
-    '75 R termination and 1/2 attenuation (R2)': (152.7, 74.4, 90, 'B'),
+    'Video input ESD': (250.5, 47.0, 90, 'B'),
+    'Anti-alias filter C1 (fit with C2 and a 2.7 uH in place of the 0 R)': (252.7, 47.0, 90, 'B'),
+    'Anti-alias filter L: 0 R as delivered, 2.7 uH 0805 inductor to fit the filter': (250.5, 43.0, 90, 'B'),
+    'Anti-alias filter C2 (fit with C1 and a 2.7 uH in place of the 0 R)': (252.7, 43.1, 90, 'B'),
+    '75 R termination and 1/2 attenuation (R1)': (250.5, 39.0, 90, 'B'),
+    '75 R termination and 1/2 attenuation (R2)': (252.7, 39.0, 90, 'B'),
     'Input coupling (C4)': (137.6, 58.8, 180, 'B'),
     'Across the crystal (TI note E)': (137.4, 64.5, 270, 'B'),
     '14.31818 MHz, +/-50 ppm, fundamental': (140.0, 64.5, 270, 'B'),
@@ -154,19 +171,20 @@ FIXED_DESCR = {
     'Pixel clock series (edge damping)': (133.75, 70.0, 270, 'B'),
     # the center screen's sensor-serial divider right under its RX pin (J1 pin 15): left to the placer the top resistor
     # lands by J27, walled in by the slot buses between slots 4 and 5, and the link to J1 cannot be routed
-    'Divider top, C screen': (144.96, 91.14, 0, 'B'),
-    'Divider bottom, C screen': (148.96, 91.14, 0, 'B'),
+    'Divider top, C screen': (143.4, 79.14, 0, 'B'),
+    'Divider bottom, C screen': (147.4, 79.14, 0, 'B'),
 }
 # the video input and the pixel clock's first 2 mm, drawn by hand and locked before Freerouting runs (left to itself it
 # detours round J1, 80-150 mm with up to 8 vias). VID_ATT leaves the termination (R32) through a via onto F.Cu, which is
-# empty (every part is on the back) and lies right over the In1 ground plane: west just below slot 6's socket pins
-# (y 72.4), north up the gap between the crystal and slot 6's pins (x 143), back down to B.Cu beside the
+# empty but for crossings and the AUX feed, and lies right over the In1 ground plane: west along y 37.1 (between the
+# connector group's second and third rows, above the buck), over the top of slot 6's socket (y 29.6), south down the
+# gap between slot 6's pins and the crystal (x 143), back down to B.Cu beside the
 # coupling cap C27, and C27 straight into AIP1A (pin 1). (net, layer, width, points in board mm); a via wherever
 # consecutive pieces change layer. Placement is fixed above, so these points follow the parts; re-check them if R32, C27,
 # R34 or U8 move
 PREROUTE = [
-    ('/VID_ATT', 'B', 0.25, [(150.5, 73.58), (150.5, 72.4)]),
-    ('/VID_ATT', 'F', 0.25, [(150.5, 72.4), (143.0, 72.4), (143.0, 58.8), (139.9, 58.8)]),
+    ('/VID_ATT', 'B', 0.25, [(250.5, 38.18), (250.5, 37.1)]),
+    ('/VID_ATT', 'F', 0.25, [(250.5, 37.1), (160.0, 37.1), (152.5, 29.6), (143.0, 29.6), (143.0, 58.8), (139.9, 58.8)]),
     ('/VID_ATT', 'B', 0.25, [(139.9, 58.8), (138.38, 58.8)]),
     ('/VID_AIP1A', 'B', 0.2, [(136.82, 58.8), (136.82, 61.4), (135.97, 62.25), (135.16, 62.25)]),
     # SCLK (pin 9) straight down into the 22 R's pad
@@ -181,7 +199,7 @@ POWER_NETS = {'+5V', '+3V3', '/+1V8', '/+1V8A', '/12V_BATT', '/SW12', '/AUX12'}
 PLANES = {'GND': pcbnew.In1_Cu, '+5V': pcbnew.In2_Cu}
 KEEP_SILK = {'J1', 'J4', 'J5', 'J6', 'J7', 'J9', 'J11', 'J13', 'J16', 'J17',
              'J22', 'J23', 'J24', 'J25', 'J27', 'SW1', 'U8'} | set(SLOTS)
-HOLE_KEEP = 3.3
+HOLE_KEEP = 3.5
 HOLES = []                 # filled with every hole: (x, y, keep-out radius)
 
 GRID = 0.25
@@ -303,12 +321,14 @@ def main():
                 continue
             for k in range(c.OutlineCount()):
                 occ[s_].rect(*bb_mm(c.Outline(k).BBox()), pad=0.3)
+        bare = fp.GetCourtyard(pcbnew.F_CrtYd if side == 'F' else pcbnew.B_CrtYd).OutlineCount() == 0   # a net tie
         for pad in fp.Pads():
             if pad.GetNumber().startswith('MP'):
                 continue
-            # through-hole pins, and SMD parts' pads on the far side (a PowerPAD's thermal vias and back pad)
+            # through-hole pins, SMD parts' pads on the far side (a PowerPAD's thermal vias and back pad), and every pad
+            # of a part without a courtyard
             for s_, lay in (('F', pcbnew.F_Cu), ('B', pcbnew.B_Cu)):
-                if pad.IsOnLayer(lay) and (tht or s_ != side):
+                if pad.IsOnLayer(lay) and (tht or s_ != side or bare):
                     occ[s_].rect(*bb_mm(pad.GetBoundingBox()), pad=0.4)
 
     # screen headers (SCREENS): pin 1 at the given point, turned so the pin rows run along x
@@ -335,18 +355,20 @@ def main():
     for x, y, r in HOLES:
         occ['F'].circle(x, y, r)
         occ['B'].circle(x, y, r)
-    # card slots: turned so pad 2 sits at +x of pad 1 (the card's parts face -x) and pad 3 above pad 1 (pin 1 at the
-    # bottom); this is the only way round in which each pad meets the same-numbered pin of the card's header
+    # card slots: turned so pad 2 sits at +x of pad 1 (the card's parts face -x) and pad 3 below pad 1 (pin 1 at the
+    # top). A card standing in the slot, parts side toward -x, has its header's pin 1 at the top (its right end, seen
+    # from its parts side, is the main board's top) and its pad-2 row (the lower row, nearer the card) toward +x, so
+    # this is the only way round in which each pad meets the same-numbered pin of the card's header
     for ref, xc in SLOTS.items():
         for rot in (0, 90, 180, 270):
             put(ref, 0, 0, rot, 'B')
             q = {p.GetNumber(): p.GetPosition() for p in fps[ref].Pads()}
             d2 = (q['2'].x - q['1'].x, q['2'].y - q['1'].y)
             d3 = (q['3'].x - q['1'].x, q['3'].y - q['1'].y)
-            if d2[0] > 0 and abs(d2[1]) < 1000 and d3[1] < 0 and abs(d3[0]) < 1000:
+            if d2[0] > 0 and abs(d2[1]) < 1000 and d3[1] > 0 and abs(d3[0]) < 1000:
                 break
         else:
-            raise SystemExit('no orientation of %s puts pad 2 at +x and pad 3 above pad 1' % ref)
+            raise SystemExit('no orientation of %s puts pad 2 at +x and pad 3 below pad 1' % ref)
         ps = [p.GetPosition() for p in fps[ref].Pads()]
         mx = (min(v.x for v in ps) + max(v.x for v in ps)) / 2e6 - OX
         my = (min(v.y for v in ps) + max(v.y for v in ps)) / 2e6 - OY
@@ -403,6 +425,13 @@ def main():
         put(ref, x, y, rot, side)
         check_envelope(ref, side)
         mark(ref)
+    for ref, (cx, cy, rot) in GROUP.items():   # by courtyard centre
+        side_of[ref] = 'B'
+        put(ref, 0, 0, rot, 'B')
+        x1, y1, x2, y2 = courtyard(fps[ref], 'B')
+        put(ref, round(cx - (x1 + x2) / 2, 3), round(cy - (y1 + y2) / 2, 3), rot, 'B')
+        check_envelope(ref, 'B')
+        mark(ref)
     # keep the passives off the pre-drawn tracks on the back and the vias where they change layer
     for k, (net_, lay, w, pts) in enumerate(PREROUTE):
         if lay == 'B':
@@ -412,7 +441,7 @@ def main():
             occ['B'].circle(pts[0][0], pts[0][1], 0.8)
 
     # ------------------------------------------------------------------ passives: closest free spot to their pins
-    placed = set(FIXED) | set(EDGE) | set(SLOTS) | set(HOLES_MH) | set(SCREEN_HOLES) | {'J1', 'J4', 'J5'}
+    placed = set(FIXED) | set(EDGE) | set(GROUP) | set(SLOTS) | set(HOLES_MH) | set(SCREEN_HOLES) | {'J1', 'J4', 'J5'}
 
     def placed_pads():
         out = {}
@@ -547,6 +576,27 @@ def main():
         for (x, y) in corners:
             o.Append(mm(OX + x), mm(OY + y))
         b.Add(z)
+    # a net tie's copper bridge is not a pad, so Freerouting does not see it: keep other tracks and vias off it
+    for fp in fps.values():
+        if not fp.GetFPIDAsString().startswith('NetTie'):
+            continue
+        lay = pcbnew.B_Cu if fp.IsFlipped() else pcbnew.F_Cu
+        k = pcbnew.ZONE(b)
+        k.SetIsRuleArea(True)
+        k.SetDoNotAllowTracks(True)
+        k.SetDoNotAllowVias(True)
+        k.SetDoNotAllowZoneFills(False)
+        k.SetDoNotAllowPads(False)
+        k.SetDoNotAllowFootprints(False)
+        k.SetLayer(lay)
+        o = k.Outline()
+        o.NewOutline()
+        ang = np.radians(fp.GetOrientationDegrees())
+        cx, cy = fp.GetPosition().x, fp.GetPosition().y
+        for (dx, dy) in ((-1.0, -1.1), (1.0, -1.1), (1.0, 1.1), (-1.0, 1.1)):   # between the pads (at +/-2 mm)
+            rx, ry = dx * np.cos(ang) + dy * np.sin(ang), -dx * np.sin(ang) + dy * np.cos(ang)
+            o.Append(int(cx + mm(float(rx))), int(cy + mm(float(ry))))
+        b.Add(k)
     k = pcbnew.ZONE(b)                  # no tracks or vias right at the edge
     k.SetIsRuleArea(True)
     k.SetDoNotAllowTracks(True)
@@ -578,7 +628,7 @@ CLASSES = {      # name: (track width, clearance, [nets])
     'Power12': (0.8, 0.2, ['/BATT_IN', '/12V_BATT', '/SW12', '/IGN_IN']),
     'Switch': (1.5, 0.2, ['/BUCK_SW']),
     'Video': (0.25, 0.2, ['/VIDEO_IN', '/VID_AAF', '/VID_ATT']),
-    'Aux': (2.0, 0.3, ['/AUX_IN', '/AUX_IN_F', '/AUX12', '/AUX_GND']),
+    'Aux': (1.0, 0.3, ['/AUX_IN', '/AUX_IN_F', '/AUX12', '/AUX_GND']),     # about 3 A (5 A fuse): the LTE card's buck
 }
 
 
@@ -1391,6 +1441,22 @@ def freeroute(jar):
     after_route(ses)
 
 
+def narrow_power_links(b):
+    """Report tracks on the wide nets (class 0.8 mm and up) narrower than half their class: the finisher joins
+    leftovers at 0.2-0.3 mm, which on a power net needs widening or a hand-drawn link (see README.md)."""
+    width = {m: w for _, (w, _, ms) in CLASSES.items() for m in ms}
+    found = {}
+    for t in b.GetTracks():
+        if t.GetClass() != 'PCB_TRACK':
+            continue
+        w = width.get(t.GetNetname(), 0.8 if re.match(r'^/S\d_12V$', t.GetNetname()) else 0)
+        if w >= 0.8 and t.GetWidth() / 1e6 < w / 2:
+            found[t.GetNetname()] = found.get(t.GetNetname(), 0) + t.GetLength() / 1e6
+    for n, l in sorted(found.items()):
+        print('  narrow link on %s: %.1f mm under half its class width: check it' % (n, l))
+    print('narrow power links: %s' % (len(found) or 'none'))
+
+
 def preroute(b):
     """Add PREROUTE as locked tracks (and a locked via at each layer change), so Freerouting routes around them."""
     prev = None
@@ -1451,6 +1517,7 @@ def after_route(ses):
     finish(b)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     print('routed: %d tracks and vias, %d unrouted' % (len(b.GetTracks()), unrouted(b)))
+    narrow_power_links(b)
     pcbnew.SaveBoard(PCB, b)
     b = pcbnew.LoadBoard(PCB)
     rules(b)

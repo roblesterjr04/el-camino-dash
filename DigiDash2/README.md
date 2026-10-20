@@ -28,7 +28,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | 5 V | U2 TPS54560B, 5 A, 400 kHz: TI's typical application (datasheet figure 32) component for component | EN comes from the ignition through 442k / 90.9k (starts above about 6.5 V) with a 5.1 V clamp. A card holding the slots' WAKE line high also keeps it on: the sensor card does, after key-off, to finish its shutdown work |
 | 3.3 V, 1.8 V | U11 AP7361C-33 (1 A), U12 AP2112K-1.8 | The board's own 3.3 V now feeds the CAN transceivers' VIO, the TVP5150's I/O, GPS and the I2C pull-ups (rev 1 borrowed the center screen's 3V3) |
 | Switched 12 V | Q5 P-FET high-side switch, turned on by the ignition through Q4 | Feeds pin 8 of every slot, the trunk port and the camera |
-| AUX 12 V | J13 (Mini-Fit Jr, vertical), 10 A mini-blade fuse, Q6 reverse P-FET, TVS | Slot power on pins 25–30 of every slot (no more bay plugs). Its return, AUX_GND, meets GND only at net tie NT1 |
+| AUX 12 V | J13 (Mini-Fit Jr, vertical), 5 A mini-blade fuse, Q6 reverse P-FET, TVS. Sized for about 3 A (1 mm tracks): the LTE card's modem buck is its only user | Slot power on pins 25–30 of every slot (no more bay plugs). Its return, AUX_GND, meets GND only at net tie NT1 |
 | Sensor serial in | J27 (1×2 pin header, back side, top edge above slot 4) and one 10k / 20k divider per screen | Optional: a jumper wire from the sensor card's J8 brings its 5 V sensor-frame serial line here, and the dividers take it to 3.3 V on pin 15 of J5 / J1 / J4 (the screens' sensor UART RX). With no wire fitted the screens' RX sits low and the data comes from CAN |
 | Screens | J5 / J1 / J4 (same pin use as rev 1), U5 / U9 / U10 MCP2562 | 120 Ω at the left end, and at the right end through SW1-1 (switch it off when the trunk port carries the bus on) |
 | Video | U8 TVP5150AM1 (address 0x5C), 14.31818 MHz crystal, J11 RCA input (37.4 Ω + 37.4 Ω termination, per TI), anti-alias filter footprints (not fitted) | Same J1 pins as rev 1's module. RESETB: 10k / 2.2 µF power-on delay (about 26 ms), plus the center's GPIO52 (J1 pin 36) through 1k; the firmware pulses it at start-up. Reviewed against TI SLES209E on 2026-10-02: see [Video review](#video-review) |
@@ -40,17 +40,22 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 Every connector carries its name and pin labels on the silkscreen, on the side you plug into. Where the pin labels
 cannot fit beside the pins, a legend line ("1 FUEL  2 ETEMP ...") stands in for them. Pin 1 is the square pad.
 
+**Every cable connector is vertical, on the back, in one group** at the right end (x 232–309, y 13–68), so
+every cable plugs in from the rear and nothing enters through the board's edges (since 2026-10-19; see
+[`housing_envelope.md`](../docs/hardware/housing_envelope.md#power-section-and-rear-connector-group-back-side)). The JST PH ports are
+B4B-PH-K and the Micro-Fit ports 43650-0415 / -0615, so the cable plugs are the same as before.
+
 | Ref | Silk name | What it is | Pins (1, 2, ...) |
 | --- | --- | --- | --- |
 | J5 / J1 / J4 | LEFT / CENTER / RIGHT SCREEN | The three round screens (front, face down), placed per [Screen headers and screen holes](#screen-headers-and-screen-holes). Their labels are on the back too | as rev 1 |
-| J7 | POWER IN | Vehicle power, Micro-Fit 3.0, 6 pin | 12V, 12V, GND, GND, IGN (key on), LAMP (dash lights) |
+| J7 | POWER IN | Vehicle power, Micro-Fit 3.0, 6 pin, vertical | 12V, 12V, GND, GND, IGN (key on), LAMP (dash lights) |
 | J13 | AUX 12V IN | Separate high-current 12 V for the slots (own fuse at the fuse box) | 12V, GND |
 | J9 | CAMERA | Backup camera and reverse trigger, JST PH 4 pin | REV (reverse lamp 12 V in), 12V (switched camera power), unused, GND |
 | J11 | VIDEO IN | Camera's composite video, RCA | tip = video, sleeve = GND |
 | J6 | SERIAL | Serial port: the center screen's UART2 (GPIO3 TX, GPIO2 RX), 3.3 V logic, JST PH 4 pin. Was "GPS"; same pins | 3V3, TX (out of the dash: to the device's RX), RX (into the dash: from the device's TX), GND |
 | J17, J22, J23, J24 | CABLE 1 .. 4 | Cable ports for off-board CAN devices (console, nodes near a sensor) | 5V, H (CANH), L (CANL), G |
-| J25 | TRUNK | Bus extension to the rear of the car, Micro-Fit 3.0, on the bottom edge clear of the cards | H, L, 12V (switched), G. Switch SW1-1 off and terminate at the far end |
-| J31 … J36 | SLOT 1 … 6 | Card slots, 2×15 female socket (square pad = pin 1, at the bottom). Slot 1 is the one for a card with tall parts | see `docs/hardware/accessory_ports.md` |
+| J25 | TRUNK | Bus extension to the rear of the car, Micro-Fit 3.0, 4 pin, vertical | H, L, 12V (switched), G. Switch SW1-1 off and terminate at the far end |
+| J31 … J36 | SLOT 1 … 6 | Card slots, 2×15 female socket (square pad = pin 1, at the top; numbered so each card pin meets its own pad, see [Numbering](../docs/hardware/accessory_ports.md#numbering)). Slot 1 is the one for a card with tall parts | see `docs/hardware/accessory_ports.md` |
 | **J16** | CAN TAP | **A tap on the CAN bus** for a USB-CAN adapter, to watch the traffic while debugging | H (CANH), L (CANL), GND |
 | **J27** | SENSOR SERIAL | **Optional** sensor-frame serial in: a jumper wire (2-pin Dupont) from the sensor card's J8 (pin 2 TX, pin 1 GND). On the back at the top edge, above the slot row, within reach of a card in any slot | 1 TX IN (5 V logic, from the card), 2 GND |
 | SW1 | 1 TERM  2 -- | Back-side 2-way slide switch. 1: the bus's right-end 120 ohm, on at the factory; off if a trunk cable carries the bus on. 2: spare (demo mode moved to the sensor card's J9 jumper) | |
@@ -67,30 +72,46 @@ sensor wiring (senders, speed, tach) now plugs into the sensor card, not this bo
 - **Sides:** every SMD part is on the back, so the board is assembled from one side. Only the three screen headers
   (J1, J4, J5) are on the front.
 - **Rules:** 0.2 mm tracks and 0.13 mm clearance by default. 0.4 mm for 3.3 / 1.8 V, 0.8 mm for the 12 V nets, 1.5 mm
-  for the buck's switch node, 2.0 mm with 0.3 mm clearance for the AUX 12 V path, 0.25 mm with 0.2 mm clearance for the video input. Vias 0.6 / 0.3 mm (0.8 / 0.4 on the
+  for the buck's switch node, 1.0 mm with 0.3 mm clearance for the AUX 12 V path (about 3 A), 0.25 mm with 0.2 mm clearance for the video input. Vias 0.6 / 0.3 mm (0.8 / 0.4 on the
   wide nets). These are standard 4-layer rules at JLCPCB / PCBWay.
 - **Placement:**
-  - The six slots in a row at the left (sockets centred at y 53, x 20 … 147, 25.4 mm apart), the AUX strip above them along the
-    top edge. Under each card's envelope (y 13 … 93) only parts under about 7 mm: the tall ones (electrolytics, fuse
+  - The six slots in a row at the left (sockets centred at y 53, x 20 … 147, 25.4 mm apart). Under each card's envelope (y 13 … 93) only parts under about 7 mm: the tall ones (electrolytics, fuse
     holder, inductor) are kept out, and the placer prints a "check:" line for any through-hole part it finds there.
   - J27 (sensor serial in) above slot 4 on the top edge, outside the card envelopes. The top-right area the sensor
     pack used to take is empty.
-  - The screen transceivers, video decoder, power supply and harness connectors in the lower band.
-  - Cable ports on the top edge. J7, J9, J6 and the trunk port on the bottom edge.
+  - The screen transceivers and video decoder in the lower band.
+  - East of the cards, the power section: the 5 V buck (U2, L1, D6, its caps), the 12 V TVS D5 and the switched-12 V
+    FET Q5. These are low parts, so the housing can step down from the card shell over them.
+  - At the right end, the rear connector group, every cable connector vertical with 5–8 mm between plugs. The top row
+    holds trunk, serial and cable port 4. The second row holds vehicle power J7 and cable ports 1–3. The third row
+    holds Q2 (J7's reverse FET), the RCA jack and J9. The bottom row holds the AUX input: Q6, J13, F1. The video input
+    chain sits between Q2 and the RCA jack. Its terminated signal runs on F.Cu along y 37.1 and over the top of
+    slot 6's socket to the decoder, about 140 mm.
 
 ## Status
 
-**Placed and fully routed, single-sided assembly** (2026-10-19, after the screen headers moved and the board grew to
-329 × 113 mm for the screen holes). Every SMD part is on the back; on the front are only the three screen headers
-(J1, J4, J5) and the twelve screen holes (H5–H16). One Freerouting run (120 passes) plus the finisher (3 links)
-routed everything. Two stray vias were then removed by hand: an `AUDIO_GND` via 0.05 mm from J34 pad 23's hole, and a
-dangling `I2S_WS` via. DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected,
-parity clean.** What is left: 60 silkscreen warnings (reference text at the edge, over pads, overlaps), and the 7 µm
-dangling sliver where the pre-drawn `VID_AIP1A` route meets the routed track (physically nothing; trimming it exposes
-the pre-drawn route, so it stays). 1999 track segments and 1712 vias (1553 of them GND). Fab outputs are in `fab/`
-(`python3 ../tools/fab_export.py DigiDash2`): 154 placed parts. The not-fitted parts (C42, C43), the through-hole
-parts and the screen holes are left out of the placement files. (Run in a container without KiCad's global library
-table, DRC also lists "library not in the configuration" notes; they are about the environment, not the board.)
+**Placed and fully routed, single-sided assembly** (2026-10-20). That covers:
+- the screen headers' new spacing, 12 mm higher for the housing, with the board grown to 329 × 113 mm for the screen
+  holes and the housing's four M3 posts
+- the slot sockets renumbered, so each card pin meets its own pad
+- every cable connector made vertical and gathered at the right end, with the power section between it and the cards
+- AUX sized for about 3 A (1 mm, 5 A fuse)
+
+Every SMD part is on the back; on the front are only the three screen headers (J1, J4, J5) and the twelve screen holes
+(H5–H16). This route is **one Freerouting run of 100 passes** (`FR_PASSES=100`) plus the finisher, with no hand edits.
+The 120- and 150-pass runs each left one link open near the video decoder, which is tightly packed between slots 5
+and 6. Net ties (NT1, NT2) get a small no-track area over their copper bridge, because Freerouting does not see it.
+
+After any re-route, check DRC and the route's "narrow power links" report: the finisher joins leftovers at 0.2–0.3 mm
+whatever the net's class. If a run leaves a link open near U8, try another `FR_PASSES` before hand-routing.
+
+DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected, parity clean.** What is
+left: 10 silkscreen warnings, and the 7 µm dangling sliver where the pre-drawn `VID_AIP1A` route meets the routed track
+(physically nothing; trimming it exposes the pre-drawn route, so it stays). 1985 track segments and 1740 vias (1586 of
+them GND). Fab outputs are in `fab/` (`python3 ../tools/fab_export.py DigiDash2`): 154 placed parts. The not-fitted
+parts (C42, C43), the through-hole parts and the screen holes are left out of the placement files. (Run in a container
+without KiCad's global library table, DRC also lists "library not in the configuration" notes; they are about the
+environment, not the board.)
 
 The rev-1-outline version (309.2 × 103.7 mm, rev 1's screen positions), routed and DRC-clean, is at commit `f5028d7`.
 The two-sided version (69 parts on the front), routed and DRC-clean, is at commit `af4628e`.
@@ -117,8 +138,8 @@ J5 / J1 / J4 are at the spacing measured from the screens (2026-10-19), all on o
 
 - **Along the board:** 28 empty pin positions between neighbouring headers, so pin 1 to pin 1 is 48 pitches
   (121.92 mm). Pin 1 of J5, J1 and J4 is at x 8.196, 130.116 and 252.036 (board mm, from the top-left corner).
-- **Up and down:** J5 and J4 keep rev 1's height (pin-1 row at y 96.1). J1 is higher, with one empty pin row between
-  its rows and theirs: shifted 3 pitches (7.62 mm), pin-1 row at y 88.48.
+- **Up and down:** J5 and J4 have their pin-1 row at y 84.1, which is rev 1's height moved 12 mm up for the housing.
+  J1 is higher, with one empty pin row between its rows and theirs: shifted 3 pitches (7.62 mm), pin-1 row at y 76.48.
 
 **Screen holes H5–H16** (board-only M4 clearance holes, 4.3 mm, no copper; not in the schematic or BOM). Each screen
 (4C at the sides, 3.4C in the center) has four M4 threads on its back, a 75 mm square round the display's centre.
@@ -129,22 +150,28 @@ screens, and seen from the board's front the display centre is **34.384 mm east 
 
 | Screen | Centre | Holes (x, y) |
 | --- | --- | --- |
-| Left (J5) | 42.58, 70.355 | (5.08, 32.855), (80.08, 32.855), (5.08, 107.855), (80.08, 107.855) |
-| Center (J1) | 164.5, 62.735 | (127, 25.235), (202, 25.235), (127, 100.235), (202, 100.235) |
-| Right (J4) | 286.42, 70.355 | (248.92, 32.855), (323.92, 32.855), (248.92, 107.855), (323.92, 107.855) |
+| Left (J5) | 42.58, 58.355 | (5.08, 20.855), (80.08, 20.855), (5.08, 95.855), (80.08, 95.855) |
+| Center (J1) | 164.5, 50.735 | (127, 13.235), (202, 13.235), (127, 88.235), (202, 88.235) |
+| Right (J4) | 286.42, 58.355 | (248.92, 20.855), (323.92, 20.855), (248.92, 95.855), (323.92, 95.855) |
 
-The outline grew to 329 × 113 mm to take all twelve, with the screens (and so their holes) centred across the board
-and about 5 mm from the edges. The screw heads are on the back (4.5 mm keep-out round each hole); the left screen's
-upper holes and the center's upper-left one are under card envelopes, below the cards' 8.5 mm bottom edge. The
-standoff length (display back to this board's front) still has to be measured on the bench.
+The outline grew to 329 × 113 mm to take all twelve, with the screens (and so their holes) centred across the board.
+The screw heads are on the back (4.5 mm keep-out round each hole); H5, H6, H9 and H11 are under card envelopes, below
+the cards' 8.5 mm bottom edge. The standoff length (display back to this board's front) still has to be measured on
+the bench. The housing's view of all this is in [`housing_envelope.md`](../docs/hardware/housing_envelope.md).
+
+**Board mounting holes H1–H4** (M3, plated, GND; in the schematic) take the housing's four posts: (110.5, 5.25),
+(218.5, 5.25), (124.5, 107.75) and (204.5, 107.75), in the gaps between the screens above and below where they meet,
+each pair mirrored about the board's centre line. They keep 7 mm clear on both sides: the post on the front, the M3
+screw head on the back.
 
 Moving the headers and growing the board moved these too:
-- J1 crossed the old video corner, so the RCA jack (J11) moved up to y 79, between the bottom of the slot sockets and
-  J1; the input chain went beside it, west of the jack; the center CAN transceiver (U9) went to J1's west end; and the
-  center screen's sensor-serial divider went under J1 pin 15 again.
-- On the bottom edge, J25 (trunk) moved to x 141 and J7 (power in) to x 222, clear of the center screen's lower holes;
-  Q2 went with J7.
-- The board mounting holes H1–H4 moved out to the new corners (still provisional: the bezel is not drawn yet).
+- J1 crossed the old video corner. U12 (the decoder's 1.8 V LDO) went above U8, J16 (CAN tap) moved up out of J1's
+  way, and the center CAN transceiver (U9) went to J1's west end. The center screen's sensor-serial divider sits
+  under J1 pin 15 again.
+- The RCA jack (J11) went into the rear connector group (pin 1 at x 165, y 36). The input chain sits between slot 6's
+  socket and the jack, under slot 6's card (all low parts). The terminated signal (`VID_ATT`) leaves the termination
+  through a via onto F.Cu and takes its pre-drawn route: west above the top of slot 6's socket (y 29.6), then south
+  down x 143 to the decoder's coupling cap.
 
 ## Video review
 
@@ -200,7 +227,7 @@ KiCad 10, numpy in KiCad's python (`$KIPY -m pip install --user numpy`), Freerou
 ```bash
 KIPY=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3
 python3 generate/gen_footprints.py && python3 generate/gen_sch.py   # also writes generate/refs.json
-JAVA=/opt/homebrew/opt/openjdk@17/bin/java $KIPY generate/gen_pcb.py --route freerouting-1.9.0.jar
+JAVA=/opt/homebrew/opt/openjdk@17/bin/java FR_PASSES=100 $KIPY generate/gen_pcb.py --route generate/freerouting-1.9.0.jar
 python3 generate/drc.py
 ```
 

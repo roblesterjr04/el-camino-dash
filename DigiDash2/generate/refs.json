@@ -405,7 +405,7 @@
   "dnp": false,
   "fp": "Fuse:Fuseholder_Blade_Mini_Keystone_3568",
   "group": "aux",
-  "value": "10A mini blade"
+  "value": "5A mini blade"
  },
  "F10": {
   "dnp": false,
@@ -643,31 +643,31 @@
  },
  "J17": {
   "dnp": false,
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "ports",
   "value": "Cable port 1"
  },
  "J22": {
   "dnp": false,
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "ports",
   "value": "Cable port 2"
  },
  "J23": {
   "dnp": false,
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "ports",
   "value": "Cable port 3"
  },
  "J24": {
   "dnp": false,
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "ports",
   "value": "Cable port 4"
  },
  "J25": {
   "dnp": false,
-  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0400_1x04_P3.00mm_Horizontal",
+  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical",
   "group": "ports",
   "value": "Trunk port"
  },
@@ -727,19 +727,19 @@
  },
  "J6": {
   "dnp": false,
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "screens",
   "value": "Serial"
  },
  "J7": {
   "dnp": false,
-  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0600_1x06_P3.00mm_Horizontal",
+  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical",
   "group": "power",
   "value": "Vehicle power"
  },
  "J9": {
   "dnp": false,
-  "fp": "Connector_JST:JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal",
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
   "group": "screens",
   "value": "Backup Camera"
  },
