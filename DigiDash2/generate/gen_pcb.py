@@ -6,8 +6,8 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 
 A 329 x 113 mm outline, grown from rev 1's (309.2 x 103.7) so that every screen's four M4 holes land on the board. The
 three screen headers (J5 / J1 / J4) are at the spacing measured from the screens (2026-10-19). Four layers: F signal, In1 solid GND, In2 solid +5 V, B signal. Every SMD part
-is on the back (single-sided assembly); only the screen headers are on the front. Through-hole parts are left out of
-the placement files: they are soldered by hand after assembly. Six card slots in a row at the left
+is on the back (single-sided assembly); only the screen headers are on the front. Through-hole parts are in the
+placement files too: the assembler fits them. Six card slots in a row at the left
 (cards stand on edge) with the AUX 12 V feed along the top edge (the sensor pack is a card), and the screen transceivers,
 video decoder, power supply and harness connectors in the lower band. ICs and connectors are placed by hand below; every
 passive then goes to the free spot closest to the pins it connects to. With --route: GND / +5 V fan-out vias, one
@@ -286,9 +286,6 @@ def main():
         fp.SetAttributes(fp.GetAttributes() & ~pcbnew.FP_EXCLUDE_FROM_BOM)
         if groups.get(ref, {}).get('dnp'):
             fp.SetDNP(True)             # not fitted as delivered (the schematic's DNP flag)
-        if fp.GetAttributes() & pcbnew.FP_THROUGH_HOLE:
-            # soldered by hand after assembly: kept in the BOM, left out of the placement files
-            fp.SetAttributes(fp.GetAttributes() | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
         b.Add(fp)
         for pad in fp.Pads():
             n = nets.get((ref, pad.GetNumber()))

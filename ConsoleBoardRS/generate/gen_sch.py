@@ -378,8 +378,7 @@ place(HDR4, 'J5', 'Volume knob (RJ9)', FP_RJ, 290, 300, {'1': 'GND', '2': 'VOL_2
       descr='RJ9 4P4C top-entry jack, Molex 95522-2447 (footprint pins 1-4 = jack contacts 1-4): 1 black GND, 2 red encoder, 3 green switches, 4 yellow GND')
 place(HDR3, 'J6', 'TSOP4838', 'OptoDevice:Vishay_MOLD-3Pin', 340, 300,
       {'1': 'IR_IN', '2': 'GND', '3': 'IR_VS'},
-      descr='IR receiver, Vishay TSOP4838 (38 kHz, MOLD package) fitted straight in: 1 OUT (signal), 2 GND, 3 VS on 3.3 V through its filter. Not in the BOM: fitted by hand',
-      fitted=False)
+      descr='IR receiver, Vishay TSOP4838 (38 kHz, MOLD package) fitted straight in: 1 OUT (signal), 2 GND, 3 VS on 3.3 V through its filter')
 for i, n in enumerate(['SEL_2', 'SEL_3', 'VOL_2', 'VOL_3', 'IR_IN']):
     r_('33k' if n[:3] in ('SEL', 'VOL') else '10k', '+3V3', n, 230 + 15 * i, 340,
        'Ladder pull-up: the same on both knob lines, so a reversed cord still reads' if n[:3] in ('SEL', 'VOL') else None)

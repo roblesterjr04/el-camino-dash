@@ -213,6 +213,29 @@ so the housing should treat slots 2–6 the same. The y and z values below hold 
 | | ESP32-S3 module, **PCB antenna** at the card's top corner | ≈78–93 | z ≈51–68.5 | 3.1 | Wi-Fi: no metal close to it (or the -1U module with an external antenna if the case is metal) |
 | | USB-C (programming), on the left edge | 85.3–98.1 | z 25.6–39.4 | — | |
 
+## Housing model (Onshape, "Cluster housing FS" v5, 2026-10-23)
+
+Checked against this page and the card PCBs, and fixed where they disagreed:
+
+- **Cards beside their pin row.** The cage rails, the rear cover's card slots and the reference cards were centred on
+  each socket's pin row. The card body is at +2.54 … +4.14 mm (centre +3.34), so every card hit the rear cover. Now
+  the "Card offset from pin row" is 3.34 mm and the "Card position in its slot" is 9.34 mm, so the slot panels stay where
+  they were.
+- **Header notches.** The cage's bottom wall and its rails are notched for every card's left-edge headers, from
+  20.7 mm behind the board to the rear and from 6.9 mm on the parts side to 2.8 mm on the back. That covers the 2 × 3
+  ISP header, the solder tails and the LTE USB-C. A card slides in with them fitted. The lower-left cage ear moved
+  from X −95 to −80 (under the upper one): it and its gusset sat in slot 3's notch.
+- **Slot 1 end plate** is open where the audio card's RCA block passes (board y 25.5–56.4, 53 mm behind the board to
+  the rear). Slot panel 1 reaches 10.5 mm past the cage end to cover the block.
+- **Slot panels** have openings for each card's top-edge connectors, plus the 1 mm port margin. Pick the card in each
+  slot in the feature dialog ("Slot 1 card" … "Slot 6 card"; as delivered: 1 Audio, 2 Sensor, 3 GPS, 4 Radio, 5–6
+  empty). Cards: the audio RCA block and 3.5 mm jack; the sensor PH 12, PH 4 and Micro-Fit tach; the GPS PH 4; the
+  radio SMA and AM header.
+
+Collision test (solid test boxes against every housing part, 2026-10-23): the six cards, their left-edge headers, the
+RCA block and every top-edge connector are clear, and no housing parts interfere with each other. Control boxes (a
+card at the old position, a header beside its notch, a plug at a blank panel) all clash, as they should.
+
 ## Open items for the housing
 
 - **Standoff length** between the screens and the main board: measure it on the bench (see [Screens](#screens-front)).

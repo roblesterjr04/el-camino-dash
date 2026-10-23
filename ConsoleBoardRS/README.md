@@ -44,8 +44,8 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
   3 VIN (+3V3 through Vishay's supply filter: R11 100 R in series, C16 100 nF to GND, both on the back beside it)**, the TSOP's own order, so it goes straight in. The pins sit 1 mm in from the corner both ways
   (`IR_INSET`): pin 3 at x = 8.0 mm (1 mm right of H3's old centre), the row at y = 32.85 mm (the pads end 1.25 mm from
   the bottom edge, 0.65 mm above the module's bottom edge, so pins 2 and 3 are under the module's corner). Its body
-  reaches the bottom edge, so only an "S G V" caption marks it. **Not in the BOM or the placement files** (DNP): it
-  is fitted by hand after the boards arrive. Its filter (R11, C16) and pull-up (R10) are assembled.
+  reaches the bottom edge, so only an "S G V" caption marks it. Assembled with the rest (in the BOM and the placement
+  files since 2026-10-23), like its filter (R11, C16) and pull-up (R10).
 - **CAN connector:** J3 is a **vertical (top-entry)** JST PH, B4B-PH-K, on its own footprint
   (`JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical`), so the plug goes in from behind the board like the knob plugs.
 - **RJ9 jacks:** Molex 95522-2447 (4P4C, vertical / top entry, 16.25 mm tall, PCB locators), on the back with their

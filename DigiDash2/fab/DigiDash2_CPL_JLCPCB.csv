@@ -53,6 +53,7 @@ D11,PESD5V0S1BA,D_SOD-323,270.500mm,-67.000mm,90,Bottom
 D12,BAT54S,SOT-23,45.350mm,-68.830mm,270,Bottom
 D13,BAT54S,SOT-23,172.570mm,-74.340mm,180,Bottom
 D14,BAT54S,SOT-23,147.080mm,-68.590mm,180,Bottom
+F1,5A mini blade,Fuseholder_Blade_Mini_Keystone_3568,287.040mm,-85.700mm,0,Bottom
 F2,PTC 0.5A,Fuse_1812_4532Metric,209.590mm,-67.840mm,0,Bottom
 F3,PTC 0.5A,Fuse_1812_4532Metric,277.850mm,-56.090mm,90,Bottom
 F4,PTC 0.5A,Fuse_1812_4532Metric,295.350mm,-56.340mm,0,Bottom
@@ -84,6 +85,24 @@ F29,PTC 0.5A,Fuse_1812_4532Metric,176.090mm,-66.090mm,180,Bottom
 F30,PTC 0.1A,Fuse_1206_3216Metric,172.930mm,-70.770mm,180,Bottom
 F31,PTC 0.2A,Fuse_1206_3216Metric,160.930mm,-66.020mm,0,Bottom
 FB1,600R,L_0603_1608Metric,148.620mm,-72.380mm,270,Bottom
+J6,Serial,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,302.000mm,-36.550mm,0,Bottom
+J7,Vehicle power,Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical,255.900mm,-51.415mm,0,Bottom
+J9,Backup Camera,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,302.000mm,-65.550mm,0,Bottom
+J11,Video in,RCA_RCJ-02x_FaceMount,283.000mm,-65.000mm,0,Bottom
+J13,AUX 12V in,Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical,275.750mm,-84.000mm,90,Bottom
+J16,CAN debug,PinHeader_1x03_P2.54mm_Vertical,210.000mm,-99.000mm,90,Bottom
+J17,Cable port 1,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,283.000mm,-51.550mm,0,Bottom
+J22,Cable port 2,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,301.000mm,-51.550mm,0,Bottom
+J23,Cable port 3,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,319.000mm,-51.550mm,0,Bottom
+J24,Cable port 4,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,320.000mm,-36.550mm,0,Bottom
+J25,Trunk port,Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical,281.500mm,-36.415mm,0,Bottom
+J27,Sensor serial in,PinHeader_1x02_P2.54mm_Vertical,116.000mm,-26.000mm,90,Bottom
+J31,Slot 1,Slot_Socket_2x15_P2.54mm_Vertical,38.730mm,-55.220mm,180,Bottom
+J32,Slot 2,Slot_Socket_2x15_P2.54mm_Vertical,64.130mm,-55.220mm,180,Bottom
+J33,Slot 3,Slot_Socket_2x15_P2.54mm_Vertical,89.530mm,-55.220mm,180,Bottom
+J34,Slot 4,Slot_Socket_2x15_P2.54mm_Vertical,114.930mm,-55.220mm,180,Bottom
+J35,Slot 5,Slot_Socket_2x15_P2.54mm_Vertical,140.330mm,-55.220mm,180,Bottom
+J36,Slot 6,Slot_Socket_2x15_P2.54mm_Vertical,165.730mm,-55.220mm,180,Bottom
 L1,7.2u,L_Wuerth_HCI-1050,210.400mm,-77.450mm,180,Bottom
 Q1,MMBT3904,SOT-23,182.840mm,-90.330mm,270,Bottom
 Q2,SUD50P04-08,TO-252-2,264.240mm,-65.000mm,0,Bottom
@@ -153,3 +172,6 @@ U10,MCP2562-E/SN,SOIC-8_3.9x4.9mm_P1.27mm,264.000mm,-104.000mm,0,Bottom
 U11,AP7361C-33E,SOT-223-3_TabPin2,180.000mm,-80.000mm,0,Bottom
 U12,AP2112K-1.8,SOT-23-5,152.000mm,-75.500mm,0,Bottom
 Y3,14.31818MHz,Crystal_SMD_3225-4Pin_3.2x2.5mm,160.000mm,-84.500mm,270,Bottom
+J1,Center Screen - Master,PinHeader_2x20_P2.54mm_Vertical,150.116mm,-96.480mm,90,Top
+J4,Right Screen,PinHeader_2x20_P2.54mm_Vertical,272.036mm,-104.100mm,90,Top
+J5,Left Screen,PinHeader_2x20_P2.54mm_Vertical,28.196mm,-104.100mm,90,Top

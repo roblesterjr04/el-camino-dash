@@ -2,8 +2,7 @@
 """Write Panel/fab/Panel_BOM_PCBWay.csv: the assembler's BOM for the whole panel.
 
 The parts list is the panel's own placement file (fab/Panel_placement.csv, from tools/fab_export.py), so it holds
-exactly what the machine places: no through-hole parts (gen_panel.py marks them DNP), no DNP parts, no pads-only
-footprints. Maker and part number come from each board's own BOM, matched by designator; rows with the same part
+exactly what the assembler fits: SMD and through-hole parts, no DNP parts, no pads-only footprints. Maker and part number come from each board's own BOM, matched by designator; rows with the same part
 number on several boards are merged. Parts missing from every board BOM, or listed without a part number, are
 printed so they can be filled in.
 
@@ -40,7 +39,8 @@ def board_parts():
         for row in csv.DictReader(open(os.path.join(ROOT, d, bom), newline='')):
             part = dict(maker=row['Manufacturer'].strip(), mpn=row['Mfg Part #'].strip(),
                         desc=row['Description / Value'].strip(), package=row['Package/Footprint'].strip(),
-                        notes=row['Your Instructions / Notes'].strip())
+                        notes=row['Your Instructions / Notes'].strip(),
+                        type='THT' if 'THT' in row['Type'].upper() else 'SMD')
             for r in refs(row['Designator']):
                 info['%s-%s' % (tag, r)] = part
     return info
@@ -56,7 +56,7 @@ def main():
         part = info.get(ref)
         if part is None:
             no_bom.append(ref)
-            part = dict(maker='', mpn='', desc=p['Val'], package=p['Package'], notes='')
+            part = dict(maker='', mpn='', desc=p['Val'], package=p['Package'], notes='', type='SMD')
         if not part['mpn']:
             no_mpn.append(ref)
         key = ('mpn', part['maker'], part['mpn']) if part['mpn'] else ('val', part['desc'], part['package'])
@@ -75,7 +75,7 @@ def main():
                     'Package/Footprint', 'Type', 'Side', 'Your Instructions / Notes'])
         for n, row in enumerate(rows.values(), 1):
             w.writerow([n, ' '.join(row['refs']), len(row['refs']), row['maker'], row['mpn'], row['desc'],
-                        row['package'], 'SMD', '/'.join(sorted(row['sides'], reverse=True)), ' | '.join(row['notes'])])
+                        row['package'], row['type'], '/'.join(sorted(row['sides'], reverse=True)), ' | '.join(row['notes'])])
 
     print('%s: %d lines, %d placed parts' % (os.path.relpath(out, ROOT), len(rows), len(placed)))
     if no_bom:

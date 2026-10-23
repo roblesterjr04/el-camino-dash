@@ -242,7 +242,7 @@
 				)
 			)
 		)
-		(property "Description" "IR receiver, Vishay TSOP4838 (38 kHz, MOLD package) fitted straight in: 1 OUT (signal), 2 GND, 3 VS on 3.3 V through its filter. Not in the BOM: fitted by hand"
+		(property "Description" "IR receiver, Vishay TSOP4838 (38 kHz, MOLD package) fitted straight in: 1 OUT (signal), 2 GND, 3 VS on 3.3 V through its filter"
 			(at 0 0 0)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -255,7 +255,7 @@
 				)
 			)
 		)
-		(attr through_hole exclude_from_pos_files exclude_from_bom dnp)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -1.15 -1.5)

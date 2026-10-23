@@ -115,7 +115,7 @@ ANCHOR = {'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2'], 'can': ['J3'], 'power': [
           'ui': ['J4', 'J5', 'J6']}
 GROUP_ORDER = ['esp', 'usb', 'can', 'power', 'boot', 'oled', 'led', 'ui', 'mount', 'misc']
 POWER_NETS = {'+5V', '+3V3', 'VBUS', 'CAB_5V'}
-NOT_FITTED = {'J6'}                       # the IR receiver: installed by hand, so not in the BOM or the placement files
+NOT_FITTED = set()                        # every part is fitted by the assembler, the IR receiver J6 too
 KEEP_SILK = {'J1', 'SW1', 'SW2', 'U1'}     # J2-J6 carry captions instead (J6's outline would be past the edge)
 HOLES = [FIXED[h][:2] for h in ('H1', 'H2', 'H4')]   # no H3: the IR receiver has that corner
 HOLE_KEEP = 3.0                          # radius kept free of parts around them

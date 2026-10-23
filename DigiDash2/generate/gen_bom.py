@@ -4,9 +4,9 @@ python (it reads the board):
 
     $KIPY generate/gen_bom.py
 
-Only the parts the machine places are listed: SMD footprints that are not DNP. Through-hole parts (connectors, F1)
-are soldered by hand and not-fitted parts (C42, C43) are left out, as in the placement files. Parts with the same
-value and footprint share a row. Where the other boards already use a part for the same value, it is the same part
+Every fitted part is listed, SMD and through-hole (the connectors, the slot sockets and F1's holder): the assembler
+fits them all. Not-fitted parts (C42, C43) are left out, as in the placement files. Parts with the same value and
+footprint share a row. Where the other boards already use a part for the same value, it is the same part
 number.
 """
 import collections
@@ -70,7 +70,40 @@ PARTS = {
     ('TERM', 'SW_DIP_SPSTx02_Slide_KingTek_DSHP02TS_W7.62mm_P1.27mm'): (
         'KingTek', 'DSHP02TSGER', 'DIP switch, 2 position, SMD top slide, 1.27 mm pitch', 'SMD 4.1 x 5.4 mm',
         'Set position 1 (TERM) ON before shipping'),
+    # through hole: connectors, slot sockets, fuse holder
+    ('Center Screen - Master', 'PinHeader_2x20_P2.54mm_Vertical'): (
+        'Sullins', 'PRPC020DAAN-RC', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
+        'THT 2x20', 'FRONT side (screen side), the only parts on the front'),
+    ('Left Screen', 'PinHeader_2x20_P2.54mm_Vertical'): (
+        'Sullins', 'PRPC020DAAN-RC', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
+        'THT 2x20', 'FRONT side (screen side), the only parts on the front'),
+    ('Right Screen', 'PinHeader_2x20_P2.54mm_Vertical'): (
+        'Sullins', 'PRPC020DAAN-RC', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
+        'THT 2x20', 'FRONT side (screen side), the only parts on the front'),
+    ('CAN debug', 'PinHeader_1x03_P2.54mm_Vertical'): (
+        'Sullins', 'PRPC003SAAN-RC', 'Pin header 1 x 3, 2.54 mm, vertical', 'THT 1x3', ''),
+    ('Sensor serial in', 'PinHeader_1x02_P2.54mm_Vertical'): (
+        'Sullins', 'PRPC002SAAN-RC', 'Pin header 1 x 2, 2.54 mm, vertical', 'THT 1x2', ''),
+    ('Vehicle power', 'Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical'): (
+        'Molex', '43650-0615', 'Micro-Fit 3.0 header, 6 pin, 1 row, vertical', 'THT', ''),
+    ('Trunk port', 'Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical'): (
+        'Molex', '43650-0415', 'Micro-Fit 3.0 header, 4 pin, 1 row, vertical', 'THT', ''),
+    ('AUX 12V in', 'Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical'): (
+        'Molex', '39-28-1023', 'Mini-Fit Jr header 5566-02A, 2 pin, vertical, no pegs', 'THT', ''),
+    ('Video in', 'RCA_RCJ-02x_FaceMount'): (
+        'Same Sky', 'RCJ-024', 'RCA jack, vertical, yellow (video)', 'THT', ''),
+    ('5A mini blade', 'Fuseholder_Blade_Mini_Keystone_3568'): (
+        'Keystone', '3568', 'Fuse holder, mini blade (ATM), PCB', 'THT',
+        'Holder only; fit a 5 A mini blade fuse (Littelfuse 0297005.WXNV) after soldering if supplied'),
 }
+# JST PH 4-pin, vertical, and the six slot sockets
+for v in ('Serial', 'Backup Camera', 'Cable port 1', 'Cable port 2', 'Cable port 3', 'Cable port 4'):
+    PARTS[(v, 'JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical')] = ('JST', 'B4B-PH-K-S(LF)(SN)', 'JST PH header, 4 pin, vertical',
+                                                           'THT', '')
+for n in range(1, 7):
+    PARTS[('Slot %d' % n, 'Slot_Socket_2x15_P2.54mm_Vertical')] = (
+        'Sullins', 'PPTC152LFBN-RC', 'Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator', 'THT 2x15',
+        'Pin 1 = square pad. Seat flat: the cards plug in square to the board')
 # 1 % 0603 thick film, Yageo RC0603FR-07..L; one 0805 jumper
 R_0603 = {'10k': '10K', '243k': '243K', '53.6k': '53K6', '10.2k': '10K2', '16.9k': '16K9', '442k': '442K',
           '90.9k': '90K9', '4.7k': '4K7', '22k': '22K', '1k': '1K', '120': '120R', '20k': '20K', '37.4': '37R4',
@@ -87,13 +120,14 @@ def main():
     missing = []
     for f in sorted(b.GetFootprints(), key=lambda f: (f.GetReference().rstrip('0123456789'),
                                                      int(f.GetReference().lstrip('ABCDEFGHIJKLMNOPQRSTUVWXYZ') or 0))):
-        if not f.GetAttributes() & pcbnew.FP_SMD or f.IsDNP() or f.IsExcludedFromBOM():
+        if not f.GetAttributes() & (pcbnew.FP_SMD | pcbnew.FP_THROUGH_HOLE) or f.IsDNP() or f.IsExcludedFromBOM():
             continue
         key = (f.GetValue(), f.GetFPID().GetLibItemName().wx_str())
         if key not in PARTS:
             missing.append('%s %s %s' % (f.GetReference(), *key))
             continue
-        row = rows.setdefault(key, dict(refs=[], sides=set()))
+        row = rows.setdefault(key, dict(refs=[], sides=set(),
+                                        type='THT' if f.GetAttributes() & pcbnew.FP_THROUGH_HOLE else 'SMD'))
         row['refs'].append(f.GetReference())
         row['sides'].add('Bottom' if f.GetLayer() == pcbnew.B_Cu else 'Top')
     if missing:
@@ -106,7 +140,7 @@ def main():
         for n, (key, row) in enumerate(rows.items(), 1):
             maker, mpn, desc, pkg, note = PARTS[key]
             w.writerow([n, ' '.join(row['refs']), len(row['refs']), maker, mpn, '%s: %s' % (key[0], desc), pkg,
-                        'SMD', '/'.join(sorted(row['sides'], reverse=True)), note])
+                        row['type'], '/'.join(sorted(row['sides'], reverse=True)), note])
     todo = [k[0] for k, r in rows.items() if not PARTS[k][1]]
     print('%s: %d lines, %d parts; still to choose: %s' % (os.path.relpath(OUT, ROOT), len(rows),
                                                            sum(len(r['refs']) for r in rows.values()),

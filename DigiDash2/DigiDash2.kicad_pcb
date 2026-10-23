@@ -687,7 +687,7 @@
 				)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 3.92 -1.38)
@@ -1919,7 +1919,7 @@
 				)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 3.92 -1.38)
@@ -2509,7 +2509,7 @@
 				)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 3.92 -1.38)
@@ -3584,7 +3584,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -3.435 -2.01)
@@ -4765,7 +4765,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -2.36 2.11)
@@ -10864,7 +10864,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.81 -8.86)
@@ -15746,7 +15746,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -2.36 2.11)
@@ -17350,7 +17350,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -3.14 -5.17)
@@ -18053,7 +18053,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.8 1.33)
@@ -20119,7 +20119,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.8 1.33)
@@ -21366,7 +21366,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.8 1.33)
@@ -22021,7 +22021,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.8 1.33)
@@ -25503,7 +25503,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -2.36 2.11)
@@ -28422,7 +28422,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -1.38 -3.92)
@@ -30006,7 +30006,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -3.435 -2.01)
@@ -31901,7 +31901,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -1.38 -6.46)
@@ -32131,7 +32131,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.8 1.33)
@@ -32680,7 +32680,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -2.36 2.11)
@@ -33461,7 +33461,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -2.36 2.11)
@@ -33936,7 +33936,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -2.36 2.11)
@@ -36062,7 +36062,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_rect
 			(start -5.35 5)
@@ -36606,7 +36606,7 @@
 				(justify mirror)
 			)
 		)
-		(attr through_hole exclude_from_pos_files)
+		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.8 1.33)

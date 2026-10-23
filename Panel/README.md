@@ -6,10 +6,14 @@ All the current boards on **one 4-layer, 1.6 mm panel, 329 × 253 mm**, broken a
 
 ```
 +-------------------------------------- DigiDash2 329 x 113 ----------------------------------------+
-+-- GPS 80x60 --+ +-- Audio 80x60 --+ +-- Sensor 80x60 --+          (air for the SMA)
-+---------------+ +-----------------+ +------------------+                ^ SMA
-                            +---- ConsoleBoardRS 108x35 ----+  +-- Radio 80x60 --+
++-- GPS 80x60 --+ +-- Audio 80x60 --+   +-- Sensor 80x60 --+        (air for the SMA)
++---------------+ +-----------------+   +------------------+              ^ SMA
+                              +---- ConsoleBoardRS 108x35 ----+    +-- Radio 80x60 --+
 ```
+
+Two gaps are 5 mm instead of 2.5 mm (Audio | Sensor and Console | Radio): the Sensor and Radio cards' left-edge
+headers stand 6.5 mm past the edge, and at 2.5 mm they would sit on the Audio card's 3.5 mm jack and the console's
+OLED socket. At 5 mm they clear by about 1.8 mm.
 
 | Prefix | Board |
 | --- | --- |
@@ -24,12 +28,18 @@ Left out: `DigiDash` (rev 1, reference only), `ConsoleBoard` (replaced by Consol
 
 References and nets carry the board's prefix (`AU-R1`, `AU-GND`); the silkscreen keeps the board's own (`R1`).
 
-## Through-hole parts are not placed
+## Through-hole parts are assembled too
 
-Every through-hole footprint (49: connectors, headers, and DigiDash2's fuse holder F1) is marked **DNP**,
-excluded from the BOM and excluded from the placement files: they are hand-soldered after the boards are broken
-out. Pads-only footprints (solder jumpers, mounting holes, net ties) are out of the BOM and placement files too.
-Footprints with SMD attributes and plated shell pegs stay in: the USB-C `CO-J2` and the edge-mount SMA `RA-J2`.
+Since 2026-10-23 the assembler fits **every** part, through-hole included: all 49 connectors, headers, slot sockets,
+DigiDash2's fuse holder F1 and the console's IR receiver are in the BOM (type THT) and the placement files. Only a
+board's own not-fitted parts (DigiDash2's C42 / C43, the Radio card's R13) stay out. Pads-only footprints (solder
+jumpers, mounting holes, net ties) are out of the BOM and placement files.
+
+Through-hole parts that hang past their board edge (the cards' right-angle headers, the SMA, the RCA block) reach
+over a gap, a rail, empty air, or a neighbour's bare edge, never a neighbour's part on the same side; `gen_panel.py`
+does not check this, so re-check it with a courtyard overlap test after moving a board. Tabs keep clear of SMD
+overhangs only (antennas, USB-C, SMA): a header's pins may cross a tab and the board breaks out clear of them. Snap
+the cards out with care, pins first.
 
 ## Tabs
 
@@ -67,8 +77,10 @@ Panel/.venv/bin/python Panel/generate/gen_panel.py && python3 tools/fab_export.p
   cards were drawn to tighter rules, so their own copper shows ~500 clearance errors and the Audio card's antenna
   keep-out shows 90. Each card is DRC-clean in its own project. Zone fills are copied, not refilled, so the copper
   is the boards' own. Check each board in its own project, not the panel.
-- The right-angle headers on the card edges overhang into the gaps and rails; they are hand-soldered after
-  break-out, so this does not matter for assembly. Sand the mouse-bite nubs flat where a header or card edge must
-  seat in a slot.
+- The right-angle headers on the card edges overhang into the gaps and rails and are now fitted on the panel. Ask
+  the fab to break the boards out by hand, not with a router or V-score tool that runs along those edges. Sand the
+  mouse-bite nubs flat where a header or card edge must seat in a slot.
+- `AU-J6` (Tinkersphere TS3328 3.5 mm jack) is not a distributor part: the fab may ask for it to be supplied. Its pin
+  functions are still to be checked with a meter (see `AudioCarrier/README.md`).
 - Mixed boards on one panel: confirm with the fab that they accept a multi-design panel (it often counts as
   several designs).

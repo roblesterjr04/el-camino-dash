@@ -18,7 +18,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | `DigiDash2.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 329 × 113 mm (rev 1's 309.2 × 103.7, grown to take the screens' mounting holes), 4 layers. KiCad 10 |
 | `DigiDash2.pretty` | The RCA jack footprint (video input). Everything else is stock KiCad or `DigiDash_Accessory` |
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
-| `fab/DigiDash2_BOM_PCBWay.csv` | The assembler's BOM: the 154 placed parts with maker and part number (`$KIPY generate/gen_bom.py`) |
+| `fab/DigiDash2_BOM_PCBWay.csv` | The assembler's BOM: the 176 placed parts (154 SMD, 22 through-hole) with maker and part number (`$KIPY generate/gen_bom.py`) |
 
 ## What is on it
 
@@ -108,8 +108,9 @@ whatever the net's class. If a run leaves a link open near U8, try another `FR_P
 DRC (`generate/drc.py`, with the schematic parity check): **no errors, nothing unconnected, parity clean.** What is
 left: 10 silkscreen warnings, and the 7 µm dangling sliver where the pre-drawn `VID_AIP1A` route meets the routed track
 (physically nothing; trimming it exposes the pre-drawn route, so it stays). 1985 track segments and 1740 vias (1586 of
-them GND). Fab outputs are in `fab/` (`python3 ../tools/fab_export.py DigiDash2`): 154 placed parts. The not-fitted
-parts (C42, C43), the through-hole parts and the screen holes are left out of the placement files. (Run in a container
+them GND). Fab outputs are in `fab/` (`python3 ../tools/fab_export.py DigiDash2`): 176 placed parts, the through-hole
+connectors, slot sockets and F1's holder included (the assembler fits them, since 2026-10-23). The not-fitted parts
+(C42, C43) and the screen holes are left out of the placement files. (Run in a container
 without KiCad's global library table, DRC also lists "library not in the configuration" notes; they are about the
 environment, not the board.)
 

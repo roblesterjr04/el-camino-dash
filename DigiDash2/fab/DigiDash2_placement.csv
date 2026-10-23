@@ -53,6 +53,7 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "D12","BAT54S","SOT-23",45.350000,-68.830000,-90.000000,bottom
 "D13","BAT54S","SOT-23",172.570000,-74.340000,180.000000,bottom
 "D14","BAT54S","SOT-23",147.080000,-68.590000,180.000000,bottom
+"F1","5A mini blade","Fuseholder_Blade_Mini_Keystone_3568",287.040000,-85.700000,0.000000,bottom
 "F2","PTC 0.5A","Fuse_1812_4532Metric",209.590000,-67.840000,0.000000,bottom
 "F3","PTC 0.5A","Fuse_1812_4532Metric",277.850000,-56.090000,90.000000,bottom
 "F4","PTC 0.5A","Fuse_1812_4532Metric",295.350000,-56.340000,0.000000,bottom
@@ -84,6 +85,24 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "F30","PTC 0.1A","Fuse_1206_3216Metric",172.930000,-70.770000,180.000000,bottom
 "F31","PTC 0.2A","Fuse_1206_3216Metric",160.930000,-66.020000,0.000000,bottom
 "FB1","600R","L_0603_1608Metric",148.620000,-72.380000,-90.000000,bottom
+"J6","Serial","JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",302.000000,-36.550000,0.000000,bottom
+"J7","Vehicle power","Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical",255.900000,-51.415000,0.000000,bottom
+"J9","Backup Camera","JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",302.000000,-65.550000,0.000000,bottom
+"J11","Video in","RCA_RCJ-02x_FaceMount",283.000000,-65.000000,0.000000,bottom
+"J13","AUX 12V in","Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical",275.750000,-84.000000,90.000000,bottom
+"J16","CAN debug","PinHeader_1x03_P2.54mm_Vertical",210.000000,-99.000000,90.000000,bottom
+"J17","Cable port 1","JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",283.000000,-51.550000,0.000000,bottom
+"J22","Cable port 2","JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",301.000000,-51.550000,0.000000,bottom
+"J23","Cable port 3","JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",319.000000,-51.550000,0.000000,bottom
+"J24","Cable port 4","JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",320.000000,-36.550000,0.000000,bottom
+"J25","Trunk port","Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical",281.500000,-36.415000,0.000000,bottom
+"J27","Sensor serial in","PinHeader_1x02_P2.54mm_Vertical",116.000000,-26.000000,90.000000,bottom
+"J31","Slot 1","Slot_Socket_2x15_P2.54mm_Vertical",38.730000,-55.220000,180.000000,bottom
+"J32","Slot 2","Slot_Socket_2x15_P2.54mm_Vertical",64.130000,-55.220000,180.000000,bottom
+"J33","Slot 3","Slot_Socket_2x15_P2.54mm_Vertical",89.530000,-55.220000,180.000000,bottom
+"J34","Slot 4","Slot_Socket_2x15_P2.54mm_Vertical",114.930000,-55.220000,180.000000,bottom
+"J35","Slot 5","Slot_Socket_2x15_P2.54mm_Vertical",140.330000,-55.220000,180.000000,bottom
+"J36","Slot 6","Slot_Socket_2x15_P2.54mm_Vertical",165.730000,-55.220000,180.000000,bottom
 "L1","7.2u","L_Wuerth_HCI-1050",210.400000,-77.450000,180.000000,bottom
 "Q1","MMBT3904","SOT-23",182.840000,-90.330000,-90.000000,bottom
 "Q2","SUD50P04-08","TO-252-2",264.240000,-65.000000,0.000000,bottom
@@ -153,3 +172,6 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "U11","AP7361C-33E","SOT-223-3_TabPin2",180.000000,-80.000000,0.000000,bottom
 "U12","AP2112K-1.8","SOT-23-5",152.000000,-75.500000,0.000000,bottom
 "Y3","14.31818MHz","Crystal_SMD_3225-4Pin_3.2x2.5mm",160.000000,-84.500000,-90.000000,bottom
+"J1","Center Screen - Master","PinHeader_2x20_P2.54mm_Vertical",150.116000,-96.480000,90.000000,top
+"J4","Right Screen","PinHeader_2x20_P2.54mm_Vertical",272.036000,-104.100000,90.000000,top
+"J5","Left Screen","PinHeader_2x20_P2.54mm_Vertical",28.196000,-104.100000,90.000000,top

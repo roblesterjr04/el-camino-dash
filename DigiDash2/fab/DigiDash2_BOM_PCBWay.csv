@@ -17,39 +17,61 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footpr
 16,D7,1,Diodes Inc,BZT52C5V1-7-F,BZT52C5V1: Zener 5.1 V,SOD-123,SMD,Bottom,
 17,D11,1,Nexperia,"PESD5V0S1BA,115","PESD5V0S1BA: ESD clamp 5 V, bidirectional",SOD-323,SMD,Bottom,
 18,D12 D13 D14,3,Nexperia,"BAT54S,215","BAT54S: Dual Schottky, series",SOT-23,SMD,Bottom,
-19,F2 F3 F4 F5 F6 F8 F9 F12 F13 F16 F17 F20 F21 F24 F25 F28 F29,17,Bourns,MF-MSMF050/30X-2,"PTC 0.5A: PTC 0.5 A hold, 30 V, AEC-Q200",1812,SMD,Bottom,30 V part on the 5 V and the 12 V lines alike
-20,F7,1,Bourns,MF-MSMF110/16-2,"PTC 1.1A: PTC 1.1 A hold, 16 V, AEC-Q200",1812,SMD,Bottom,
-21,F10 F14 F18 F22 F26 F30,6,Bourns,MF-NSMF010-2,PTC 0.1A: PTC 0.1 A hold,1206,SMD,Bottom,
-22,F11 F15 F19 F23 F27 F31,6,Bourns,MF-NSMF020-2,PTC 0.2A: PTC 0.2 A hold,1206,SMD,Bottom,
-23,FB1,1,Murata,BLM18KG601SN1D,600R: Ferrite bead 600 R at 100 MHz,0603,SMD,Bottom,
-24,L1,1,Wurth,7443551720,"7.2u: Inductor 7.2 uH, Isat > 7 A, shielded (WE-HCI 1050)",10 x 10 mm,SMD,Bottom,
-25,Q1 Q3 Q4,3,onsemi,MMBT3904LT1G,MMBT3904: NPN 40 V,SOT-23,SMD,Bottom,
-26,Q2 Q5 Q6,3,Vishay,SUD50P04-08-GE3,"SUD50P04-08: P-MOSFET 40 V, 8 mOhm",TO-252 (DPAK),SMD,Bottom,
-27,R1 R8 R11 R12 R15 R16 R17 R22 R23 R24 R25 R26 R28 R30 R36 R37 R38 R39,18,Yageo,RC0603FR-0710KL,10k: Resistor 10k 1%,0603,SMD,Bottom,
-28,R2,1,Yageo,RC0603FR-07243KL,243k: Resistor 243k 1%,0603,SMD,Bottom,
-29,R3,1,Yageo,RC0603FR-0753K6L,53.6k: Resistor 53.6k 1%,0603,SMD,Bottom,
-30,R4,1,Yageo,RC0603FR-0710K2L,10.2k: Resistor 10.2k 1%,0603,SMD,Bottom,
-31,R5,1,Yageo,RC0603FR-0716K9L,16.9k: Resistor 16.9k 1%,0603,SMD,Bottom,
-32,R6,1,Yageo,RC0603FR-07442KL,442k: Resistor 442k 1%,0603,SMD,Bottom,
-33,R7,1,Yageo,RC0603FR-0790K9L,90.9k: Resistor 90.9k 1%,0603,SMD,Bottom,
-34,R9 R20 R21,3,Yageo,RC0603FR-074K7L,4.7k: Resistor 4.7k 1%,0603,SMD,Bottom,
-35,R10 R45,2,Yageo,RC0603FR-0722KL,22k: Resistor 22k 1%,0603,SMD,Bottom,
-36,R13 R14 R40 R41,4,Yageo,RC0603FR-071KL,1k: Resistor 1k 1%,0603,SMD,Bottom,
-37,R18 R19,2,Yageo,RC0603FR-07120RL,120: Resistor 120 1%,0603,SMD,Bottom,
-38,R27 R29 R31,3,Yageo,RC0603FR-0720KL,20k: Resistor 20k 1%,0603,SMD,Bottom,
-39,R32 R33,2,Yageo,RC0603FR-0737R4L,37.4: Resistor 37.4 1%,0603,SMD,Bottom,
-40,R34,1,Yageo,RC0603FR-0722RL,22: Resistor 22 1%,0603,SMD,Bottom,
-41,R35 R47 R49 R51,4,Yageo,RC0603FR-07100KL,100k: Resistor 100k 1%,0603,SMD,Bottom,
-42,R42,1,Yageo,RC0603FR-073K3L,3.3k: Resistor 3.3k 1%,0603,SMD,Bottom,
-43,R43,1,Yageo,RC0603FR-076K8L,6.8k: Resistor 6.8k 1%,0603,SMD,Bottom,
-44,R44,1,Yageo,RC0603FR-0712KL,12k: Resistor 12k 1%,0603,SMD,Bottom,
-45,R46 R48,2,Yageo,RC0603FR-0747KL,47k: Resistor 47k 1%,0603,SMD,Bottom,
-46,R50 R52,2,Yageo,RC0603FR-0727KL,27k: Resistor 27k 1%,0603,SMD,Bottom,
-47,R53,1,Yageo,RC0805JR-070RL,0: Resistor 0 R (jumper),0805,SMD,Bottom,Anti-alias filter L as delivered: swap for a 2.7 uH 0805 to fit the filter
-48,SW1,1,KingTek,DSHP02TSGER,"TERM: DIP switch, 2 position, SMD top slide, 1.27 mm pitch",SMD 4.1 x 5.4 mm,SMD,Bottom,Set position 1 (TERM) ON before shipping
-49,U2,1,Texas Instruments,TPS54560BDDAR,"TPS54560BDDA: 5 A step-down, 4.5-60 V in",SO-8 PowerPAD,SMD,Bottom,
-50,U5 U9 U10,3,Microchip,MCP2562-E/SN,MCP2562-E/SN: CAN FD transceiver,SOIC-8,SMD,Bottom,
-51,U8,1,Texas Instruments,TVP5150AM1IPBSR,TVP5150AM1IPBS: Video decoder,TQFP-32,SMD,Bottom,
-52,U11,1,Diodes Inc,AP7361C-33E-13,AP7361C-33E: LDO 3.3 V 1 A,SOT-223,SMD,Bottom,
-53,U12,1,Diodes Inc,AP2112K-1.8TRG1,AP2112K-1.8: LDO 1.8 V 600 mA,SOT-23-5,SMD,Bottom,
-54,Y3,1,Abracon,ABM8-14.31818MHZ-B2-T,"14.31818MHz: Crystal 14.31818 MHz, +/-20 ppm, CL 18 pF",3225 4-pad,SMD,Bottom,Load caps C29 / C30 are 27p for its 18 pF
+19,F1,1,Keystone,3568,"5A mini blade: Fuse holder, mini blade (ATM), PCB",THT,THT,Bottom,Holder only; fit a 5 A mini blade fuse (Littelfuse 0297005.WXNV) after soldering if supplied
+20,F2 F3 F4 F5 F6 F8 F9 F12 F13 F16 F17 F20 F21 F24 F25 F28 F29,17,Bourns,MF-MSMF050/30X-2,"PTC 0.5A: PTC 0.5 A hold, 30 V, AEC-Q200",1812,SMD,Bottom,30 V part on the 5 V and the 12 V lines alike
+21,F7,1,Bourns,MF-MSMF110/16-2,"PTC 1.1A: PTC 1.1 A hold, 16 V, AEC-Q200",1812,SMD,Bottom,
+22,F10 F14 F18 F22 F26 F30,6,Bourns,MF-NSMF010-2,PTC 0.1A: PTC 0.1 A hold,1206,SMD,Bottom,
+23,F11 F15 F19 F23 F27 F31,6,Bourns,MF-NSMF020-2,PTC 0.2A: PTC 0.2 A hold,1206,SMD,Bottom,
+24,FB1,1,Murata,BLM18KG601SN1D,600R: Ferrite bead 600 R at 100 MHz,0603,SMD,Bottom,
+25,J1,1,Sullins,PRPC020DAAN-RC,"Center Screen - Master: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"
+26,J4,1,Sullins,PRPC020DAAN-RC,"Right Screen: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"
+27,J5,1,Sullins,PRPC020DAAN-RC,"Left Screen: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"
+28,J6,1,JST,B4B-PH-K-S(LF)(SN),"Serial: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+29,J7,1,Molex,43650-0615,"Vehicle power: Micro-Fit 3.0 header, 6 pin, 1 row, vertical",THT,THT,Bottom,
+30,J9,1,JST,B4B-PH-K-S(LF)(SN),"Backup Camera: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+31,J11,1,Same Sky,RCJ-024,"Video in: RCA jack, vertical, yellow (video)",THT,THT,Bottom,
+32,J13,1,Molex,39-28-1023,"AUX 12V in: Mini-Fit Jr header 5566-02A, 2 pin, vertical, no pegs",THT,THT,Bottom,
+33,J16,1,Sullins,PRPC003SAAN-RC,"CAN debug: Pin header 1 x 3, 2.54 mm, vertical",THT 1x3,THT,Bottom,
+34,J17,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 1: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+35,J22,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 2: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+36,J23,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 3: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+37,J24,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 4: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+38,J25,1,Molex,43650-0415,"Trunk port: Micro-Fit 3.0 header, 4 pin, 1 row, vertical",THT,THT,Bottom,
+39,J27,1,Sullins,PRPC002SAAN-RC,"Sensor serial in: Pin header 1 x 2, 2.54 mm, vertical",THT 1x2,THT,Bottom,
+40,J31,1,Sullins,PPTC152LFBN-RC,"Slot 1: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+41,J32,1,Sullins,PPTC152LFBN-RC,"Slot 2: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+42,J33,1,Sullins,PPTC152LFBN-RC,"Slot 3: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+43,J34,1,Sullins,PPTC152LFBN-RC,"Slot 4: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+44,J35,1,Sullins,PPTC152LFBN-RC,"Slot 5: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+45,J36,1,Sullins,PPTC152LFBN-RC,"Slot 6: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+46,L1,1,Wurth,7443551720,"7.2u: Inductor 7.2 uH, Isat > 7 A, shielded (WE-HCI 1050)",10 x 10 mm,SMD,Bottom,
+47,Q1 Q3 Q4,3,onsemi,MMBT3904LT1G,MMBT3904: NPN 40 V,SOT-23,SMD,Bottom,
+48,Q2 Q5 Q6,3,Vishay,SUD50P04-08-GE3,"SUD50P04-08: P-MOSFET 40 V, 8 mOhm",TO-252 (DPAK),SMD,Bottom,
+49,R1 R8 R11 R12 R15 R16 R17 R22 R23 R24 R25 R26 R28 R30 R36 R37 R38 R39,18,Yageo,RC0603FR-0710KL,10k: Resistor 10k 1%,0603,SMD,Bottom,
+50,R2,1,Yageo,RC0603FR-07243KL,243k: Resistor 243k 1%,0603,SMD,Bottom,
+51,R3,1,Yageo,RC0603FR-0753K6L,53.6k: Resistor 53.6k 1%,0603,SMD,Bottom,
+52,R4,1,Yageo,RC0603FR-0710K2L,10.2k: Resistor 10.2k 1%,0603,SMD,Bottom,
+53,R5,1,Yageo,RC0603FR-0716K9L,16.9k: Resistor 16.9k 1%,0603,SMD,Bottom,
+54,R6,1,Yageo,RC0603FR-07442KL,442k: Resistor 442k 1%,0603,SMD,Bottom,
+55,R7,1,Yageo,RC0603FR-0790K9L,90.9k: Resistor 90.9k 1%,0603,SMD,Bottom,
+56,R9 R20 R21,3,Yageo,RC0603FR-074K7L,4.7k: Resistor 4.7k 1%,0603,SMD,Bottom,
+57,R10 R45,2,Yageo,RC0603FR-0722KL,22k: Resistor 22k 1%,0603,SMD,Bottom,
+58,R13 R14 R40 R41,4,Yageo,RC0603FR-071KL,1k: Resistor 1k 1%,0603,SMD,Bottom,
+59,R18 R19,2,Yageo,RC0603FR-07120RL,120: Resistor 120 1%,0603,SMD,Bottom,
+60,R27 R29 R31,3,Yageo,RC0603FR-0720KL,20k: Resistor 20k 1%,0603,SMD,Bottom,
+61,R32 R33,2,Yageo,RC0603FR-0737R4L,37.4: Resistor 37.4 1%,0603,SMD,Bottom,
+62,R34,1,Yageo,RC0603FR-0722RL,22: Resistor 22 1%,0603,SMD,Bottom,
+63,R35 R47 R49 R51,4,Yageo,RC0603FR-07100KL,100k: Resistor 100k 1%,0603,SMD,Bottom,
+64,R42,1,Yageo,RC0603FR-073K3L,3.3k: Resistor 3.3k 1%,0603,SMD,Bottom,
+65,R43,1,Yageo,RC0603FR-076K8L,6.8k: Resistor 6.8k 1%,0603,SMD,Bottom,
+66,R44,1,Yageo,RC0603FR-0712KL,12k: Resistor 12k 1%,0603,SMD,Bottom,
+67,R46 R48,2,Yageo,RC0603FR-0747KL,47k: Resistor 47k 1%,0603,SMD,Bottom,
+68,R50 R52,2,Yageo,RC0603FR-0727KL,27k: Resistor 27k 1%,0603,SMD,Bottom,
+69,R53,1,Yageo,RC0805JR-070RL,0: Resistor 0 R (jumper),0805,SMD,Bottom,Anti-alias filter L as delivered: swap for a 2.7 uH 0805 to fit the filter
+70,SW1,1,KingTek,DSHP02TSGER,"TERM: DIP switch, 2 position, SMD top slide, 1.27 mm pitch",SMD 4.1 x 5.4 mm,SMD,Bottom,Set position 1 (TERM) ON before shipping
+71,U2,1,Texas Instruments,TPS54560BDDAR,"TPS54560BDDA: 5 A step-down, 4.5-60 V in",SO-8 PowerPAD,SMD,Bottom,
+72,U5 U9 U10,3,Microchip,MCP2562-E/SN,MCP2562-E/SN: CAN FD transceiver,SOIC-8,SMD,Bottom,
+73,U8,1,Texas Instruments,TVP5150AM1IPBSR,TVP5150AM1IPBS: Video decoder,TQFP-32,SMD,Bottom,
+74,U11,1,Diodes Inc,AP7361C-33E-13,AP7361C-33E: LDO 3.3 V 1 A,SOT-223,SMD,Bottom,
+75,U12,1,Diodes Inc,AP2112K-1.8TRG1,AP2112K-1.8: LDO 1.8 V 600 mA,SOT-23-5,SMD,Bottom,
+76,Y3,1,Abracon,ABM8-14.31818MHZ-B2-T,"14.31818MHz: Crystal 14.31818 MHz, +/-20 ppm, CL 18 pF",3225 4-pad,SMD,Bottom,Load caps C29 / C30 are 27p for its 18 pF

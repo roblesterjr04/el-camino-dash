@@ -5,9 +5,9 @@ bottom with fiducials and tooling holes. Run with KiCad's Python plus KiKit (see
     Panel/.venv/bin/python Panel/generate/gen_panel.py
 
 References get a per-board prefix (AU-R1); the silkscreen keeps the board's own (R1). Nets get the same prefix.
-Every through-hole footprint is marked DNP, out of the BOM and out of the placement files: they are hand-soldered
-after the boards are broken out. Pads-only footprints (solder jumpers, mounting holes, net ties) leave the BOM and
-placement files too.
+Through-hole parts are fitted by the assembler like the SMD ones: in the BOM and the placement files, unless the
+board itself marks them not fitted. Pads-only footprints (solder jumpers, mounting holes, net ties) leave the BOM and
+placement files.
 """
 import os
 import sys
@@ -44,17 +44,23 @@ BITE_DRILL, BITE_PITCH, BITE_OFFSET = 0.5, 0.8, 0.0
 #
 # The Radio card's edge-mount SMA (top edge) overhangs 12 mm: the card sits in the bottom row, its SMA under the free
 # corner to the right of the Sensor card, its top-left corner still under the Sensor card so a tab holds that edge.
+#
+# The through-hole parts are fitted on the panel, so two gaps are wider: the Sensor and Radio cards' left-edge headers
+# (J6-J8, J3 / J4) stand 6.5 mm past the edge, and would meet the Audio card's 3.5 mm jack (J6) and the console's OLED
+# socket (J1), each 3.3 mm in from its own edge. At 5 mm they clear by about 1.8 mm.
 DD_W, DD_H = 329.05, 113.05       # DigiDash2's outline (329 x 113, plus the edge line)
+WIDE_GAP = 5.0                     # mm: Audio | Sensor and Console | Radio
 ROW_B = DD_H + GAP                 # top of the card row
 ROW_C = ROW_B + 60 + GAP           # top of the bottom row
-RADIO_X = 2 * (80 + GAP) + 80 - 15.75   # Radio card's left edge: under the Sensor card's last 15.75 mm (a tab there)
+SENSOR_X = 2 * 80 + GAP + WIDE_GAP      # Sensor card's left edge
+RADIO_X = SENSOR_X + 80 - 15.75         # Radio card's left edge: under the Sensor card's last 15.75 mm (a tab there)
 BOARDS = [
     ('DigiDash2',      'DD', (DD_W / 2, DD_H / 2),                            0),
     ('GPSCard',        'GP', (40, ROW_B + 30),                                0),
     ('AudioCarrier',   'AU', (80 + GAP + 40, ROW_B + 30),                     0),
-    ('SensorCard',     'SE', (2 * (80 + GAP) + 40, ROW_B + 30),               0),
+    ('SensorCard',     'SE', (SENSOR_X + 40, ROW_B + 30),                     0),
     ('RadioCard',      'RA', (RADIO_X + 40, ROW_C + 30),                      0),
-    ('ConsoleBoardRS', 'CO', (RADIO_X - GAP - 54, ROW_C + 17.5),              0),
+    ('ConsoleBoardRS', 'CO', (RADIO_X - WIDE_GAP - 54, ROW_C + 17.5),         0),
 ]
 # Left out: DigiDash/ (rev 1, kept as the reference), ConsoleBoard/ (the keys-and-encoders console, replaced by
 # ConsoleBoardRS), LTECard/ and BenchBoard/.
@@ -86,6 +92,7 @@ def main():
     # Keep-outs for tabs, read off the panel itself (already moved and turned).
     keepouts = []
     for f in panel.board.GetFootprints():
+        # SMD parts only (antennas, USB-C, SMA): a through-hole header's pins may cross a tab, it breaks clear of them
         if not f.GetAttributes() & pcbnew.FP_SMD:
             continue
         p = f.GetPosition()
@@ -128,7 +135,7 @@ def main():
             half = a.width / 2
             # The whole tab, a few mm into this board and across the gap into the facing one, so that the facing
             # board's half of the same tab is dropped with it.
-            into, out = 3 * mm, (GAP + 3) * mm
+            into, out = 3 * mm, (WIDE_GAP + 3) * mm
             if dx:   # left / right edge (direction points into the board): tab spans y
                 xa, xb = (ox - out, ox + into) if dx > 0 else (ox - into, ox + out)
                 tb = sbox(xa, oy - half, xb, oy + half)
@@ -239,7 +246,7 @@ def main():
     panel.setAuxiliaryOrigin(toKiCADPoint((pminx, pmaxy)))
     panel.setGridOrigin(toKiCADPoint((pminx, pmaxy)))
 
-    # Through-hole parts: not placed, not in the BOM, not in the placement files.
+    # Through-hole parts are placed like the SMD ones; only a board's own not-fitted parts stay out.
     tht, padsonly = [], []
     for f in panel.board.GetFootprints():
         a = f.GetAttributes()
@@ -247,10 +254,10 @@ def main():
             f.SetExcludedFromBOM(True)
             f.SetExcludedFromPosFiles(True)
         elif a & pcbnew.FP_THROUGH_HOLE:
-            f.SetDNP(True)
-            f.SetExcludedFromBOM(True)
-            f.SetExcludedFromPosFiles(True)
-            tht.append(f.GetReference())
+            if not f.IsDNP():
+                f.SetExcludedFromBOM(False)
+                f.SetExcludedFromPosFiles(False)
+                tht.append(f.GetReference())
         elif not a & pcbnew.FP_SMD:
             f.SetExcludedFromBOM(True)
             f.SetExcludedFromPosFiles(True)
@@ -267,7 +274,7 @@ def main():
             held = [BOARDS[i][0] for i, sub in enumerate(panel.substrates) if piece.contains(sub.substrates.centroid)]
             print('  piece %d: %s' % (k, ', '.join(held) or 'rail / scrap'))
     print('tabs: %d built, %d dropped (would not reach a neighbour), %d dropped (ran along a gap)' % (len(tabs), dangling, long_tabs))
-    print('through-hole, marked DNP: %d' % len(tht))
+    print('through-hole, placed: %d' % len(tht))
     print('pads-only, out of BOM / placement: %d' % len(padsonly))
     for hit, at in dropped:
         print('tab dropped at (%.1f, %.1f) mm: clear of %s' % (at[0], at[1], ', '.join(hit)))
