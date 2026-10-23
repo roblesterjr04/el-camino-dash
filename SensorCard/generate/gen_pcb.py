@@ -527,11 +527,24 @@ def fab_origin(b):
 
 
 ROUTE_MARGIN = 0.01         # extra clearance for Freerouting only: its rounding can land a hair under the DRC rule
+DRU = os.path.join(ROOT, 'SensorCard.kicad_dru')
+HV_POUR = 2.5               # ground pours keep this far from the tach coil input (IPC-2221 B2, 250-400 V of kickback)
+DRU_TEXT = """(version 1)
+
+# Written by generate/gen_pcb.py. The tach coil input (net class HV) sees a few hundred volts of points / HEI kickback:
+# the GND pours on every layer keep %.1f mm from it (IPC-2221 B2 for up to 500 V). Tracks and pads keep the class's own clearance.
+(rule "HV pour"
+	(condition "A.NetClass == 'HV' && B.Type == 'Zone'")
+	(constraint clearance (min %.1fmm)))
+""" % (HV_POUR, HV_POUR)
 
 
 def rules(b, margin=0.0):
+    """Net classes and constraints, set on the board (SaveBoard writes them to the project file), and the custom rules
+    file (the HV pour clearance). A board reads the rules file when it is loaded, so the fills after LoadBoard use it."""
     fab_origin(b)
-    """Net classes and constraints, set on the board (SaveBoard writes them to the project file)."""
+    if not os.path.exists(DRU) or open(DRU).read() != DRU_TEXT:
+        open(DRU, 'w').write(DRU_TEXT)
     ds = b.GetDesignSettings()
     ds.m_CopperEdgeClearance = mm(0.2)
     ds.m_MinClearance = mm(0.13)

@@ -28,6 +28,7 @@ slot's switched 12 V and constant 12 V are used for sensing and the speed sensor
 | Files | |
 | --- | --- |
 | `SensorCard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, all parts on the parts side (F). KiCad 10 |
+| `SensorCard.kicad_dru` | Custom design rule: the GND pours keep 2.5 mm from the tach's HV nets. Written by `gen_pcb.py` |
 | `DATASHEET.md` | The card's datasheet: ratings, electrical characteristics, pinouts, jumper configuration, sender selection, firmware interface, mechanical. Images in `doc/` |
 | `SensorCard_BOM.csv` | Parts list, every part with maker and part number, plus the PCB solder jumpers (`python3 generate/gen_bom.py`, which also writes `fab/SensorCard_BOM_PCBWay.csv`) |
 | `fab/` | Gerbers, drill, placement and centroid (`python3 ../tools/fab_export.py SensorCard`), and the assembler's BOM `SensorCard_BOM_PCBWay.csv` (placed parts only) |
@@ -63,8 +64,10 @@ Each analog channel has a **topology jumper** (pull-up to +5 V, or pull-down to 
 resistors**, each behind its own 2-pad solder jumper; bridge one value (two give their parallel value). The jumpers
 sit in the labelled **SENDER CONFIG** block on the parts side (one column per channel: PU / PD at the top, the values
 below, `*` = as delivered), and the back silkscreen repeats the table. The pull-ups come straight from +5 V, not
-through the channel's PTC, because the PTC's drop would read as a level error. Every channel then goes through 1k with
-10 nF into the ADC.
+through the channel's PTC, because the PTC's drop would read as a level error. Every channel then goes through **10k**
+with 10 nF into the ADC. The 10k is the input protection: a sender pin shorted to 14.4 V puts about 0.9 mA into the
+2560's ESD diodes, inside Atmel's guidance of about 1 mA. It used to be 1k (about 9 mA). The bank resistor still takes
+the short (sized for 5 V, not 14 V), so a lasting 12 V short can still burn the selected bank resistor.
 
 | Channel | Topology | Bank (jumper) | As delivered |
 | --- | --- | --- | --- |
@@ -89,7 +92,7 @@ suits which sender, with the ADC ranges, is in [`DATASHEET.md`](DATASHEET.md#6-c
 | Input | Circuit | Notes |
 | --- | --- | --- |
 | Speed (ICP5) | J3 pin 2 → 10k pull-up to 5 V, 10k series, BAT54S clamp, 1 nF | Open-collector or push-pull up to 12 V (a 12 V output puts under 1 mA into the clamp). A 2-wire magnetic (VR) pickup needs an interface (LM1815 / MAX9926) that the card does not have |
-| Tach (ICP4) | J4 pin 1 → 2 × 4.7k (1206) → PC817 LED (1N4148W reverse clamp) → 22k pull-up, 1k, 1 nF | The coil-side nets (TACH, TACH_R) have their own net class with **1.0 mm clearance** and stay in the top-right corner behind J4 |
+| Tach (ICP4) | J4 pin 1 → 2 × 4.7k (1206) → PC817 LED (1N4148W reverse clamp) → 22k pull-up, 1k, 1 nF | The coil-side nets (TACH, TACH_R) have their own net class with **1.0 mm clearance** to tracks and pads, the GND pours keep **2.5 mm** from them (rule file), and they stay in the top-right corner behind J4 |
 | Ignition (PA1) | Slot pin 8 (switched 12 V) → 15k / 10k, 100 nF, BAT54S clamp | HIGH from about 7.5 V, so cranking sag does not drop it |
 | Battery (ADC8) | Slot pin 10 (constant 12 V) → 100k / 22k, 100 nF | 16 V → 2.9 V. On port K, not on the JTAG pins (ADC4–7), so no fuse to set |
 | Alternator L (PA0) | J2 pin 11 → 22k / 10k, 100 nF, BAT54S clamp | |
@@ -143,7 +146,8 @@ channel never had a supply).
   limit. **Back (B):** no parts.
 - **Layers and rules:** the GPS card's: F signal, In1 solid GND, In2 signal / GND fill, B signal / GND fill. 0.2 mm
   tracks, 0.3 mm on the supplies, 0.13 mm clearance, 0.6 / 0.3 mm vias, plus the **HV** class (TACH, TACH_R: 1.0 mm
-  clearance).
+  clearance to other tracks and pads). `SensorCard.kicad_dru` (written by `gen_pcb.py`) holds the GND pours on every
+  layer **2.5 mm** off the HV copper: points / HEI kickback reaches 250–400 V, and IPC-2221 B2 asks 2.5 mm up to 500 V.
 - **Sender config block:** the solder jumpers JP2–JP16 in a fixed grid between the 2560 and the MCP2515 (`CFG` at the
   top of `gen_pcb.py`), labelled on the silk; the back silkscreen carries the configuration table. Not-fitted (DNP)
   parts, if any are added, are marked DNP and left out of the placement files by `tools/fab_export.py`.
@@ -161,6 +165,11 @@ routed everything, with no hand edits. The margin exists because an earlier run 
 clearance rule. The finisher also tries every pad-to-pad pair through one via (it closed a FUEL link an earlier
 placement left open); `--from-ses` repeats the import and finishing steps from the last session.
 
+The pre-order changes (October 2026) were made on that routed board without re-routing: the four ADC series resistors
+went from 1k to 10k (value only), and the zones were refilled (`gen_pcb.py --fill`) with the 2.5 mm HV pour rule. A
+BAT54S clamp per sender input was tried first, but with the extra parts Freerouting left one or two +5 V links
+unrouted on all but one of about a dozen runs, so the 10k series took its place.
+
 ## Check before ordering
 
 - **The delivered jumper settings** against the senders actually fitted to the car (the datasheet's tables). They
@@ -170,9 +179,12 @@ placement left open); `--from-ses` repeats the import and finishing steps from t
   copper trace in the footprint, so the card works with no solder work. Confirm the assembler leaves those traces alone.
 - **The speed sensor's supply and output** (JP1, and that it is a hall / square-wave sensor, not a 2-wire VR pickup).
 - **J4's rating and the tach clearance** against the ignition: points and HEI kick back a few hundred volts on the coil
-  negative. The 1206 resistors (two in series) and the 1.0 mm clearance are sized for that; an ignition box's tach
+  negative. The 1206 resistors (two in series), the 1.0 mm track clearance and the 2.5 mm pour clearance are sized for that; an ignition box's tach
   output is a 12 V square wave and needs nothing more.
-- **Crystal load caps:** 18 pF for CL ≈ 10 pF crystals; change them with the crystals you buy.
+- **Crystal load caps:** Y1 / Y2 are YXC X322516MOB4SI, a CL 12 pF part. 18 pF + 18 pF in series is 9 pF, plus 3–5 pF
+  of pins and traces, about 12–14 pF: right. Change the caps if you buy a crystal with a different CL.
+- **PTCs:** the three 0.1 A PTCs (ETEMP V, OILP V, speed sensor power) are Bourns MF-NSMF010/60X-2 (0.1 A hold, 60 V,
+  1206, active), which replaced MF-NSMF010-2 (no longer clearly active). Same footprint.
 - **J1 pin 1** against the main board's slot socket in the 3D viewer, and that J2 / J3 / J4 face off the top edge.
 - The card outline (80 × 60 mm) and the connector positions against the case panel.
 

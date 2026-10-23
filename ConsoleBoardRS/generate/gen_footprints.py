@@ -32,29 +32,28 @@ def tht(num, x, y, drill, dia, shape='circle'):
             (num, shape, x, y, dia, dia, drill))
 
 
-# Molex 95522-2447: RJ9 4P4C modular jack, vertical (top entry), through hole, high profile (16.25 mm), with PCB
-# locators. NOT YET CHECKED AGAINST THE MOLEX DRAWING (955222447_sd.pdf could not be fetched when this was written):
-# - confirmed from Molex's part data: 1.27 mm termination pitch (contacts staggered in two rows), PCB locators,
-#   16.25 mm tall, 1.57 mm board;
-# - assumed: the usual vertical modular-jack pattern, contacts 1-4 staggered on 1.27 mm in two rows 2.54 apart
-#   (1 and 3 in the first row, 2 and 4 in the second), 0.90 mm holes, and two 3.25 mm locating pegs 10.16 apart,
-#   6.35 beyond the second row, symmetric about the contacts;
-# - body: a conservative 15.24 x 16.64 mm envelope (the series' largest body, the 8P8C 95522-2887), taken to start
-#   1.75 mm before the first contact row; the 4P4C body is narrower. Courtyard 0.5 mm bigger all round.
-# Check every hole against the drawing (or a jack in hand) before ordering boards.
-# Origin: the centre of the contact field's first row.
-BW, B0, B1 = 15.24 / 2, -1.75, -1.75 + 16.64
-b = [text('reference', 'REF**', 0, B0 - 1.25, 'F.SilkS', 0.7), text('value', '95522-2447', 0, B1 + 1.6, 'F.Fab', 0.7)]
-for num, x, y in (('1', -1.905, 0), ('2', -0.635, 2.54), ('3', 0.635, 0), ('4', 1.905, 2.54)):
+# Assmann WSW A-2014-3-4-N-T-R: RJ9 (RJ10 / RJ22) 4P4C modular jack, vertical (top entry), through hole, 16.38 mm tall,
+# two PCB locating pegs. From Assmann drawing ASS 7331 CO rev00 (seen from the component side), turned 180 degrees here
+# (no mirroring) so the body runs toward +y from the contacts, as the old envelope did:
+# - contacts: 0.90 mm holes on 1.27 mm, staggered in two rows 2.54 apart: 1 and 3 in the row nearer the pegs (y = 0),
+#   2 and 4 in the far row (y = -2.54); pin 1 at x = -1.905, then 2 -0.635, 3 +0.635, 4 +1.905. Pads 1-4 = jack
+#   contacts 1-4;
+# - pegs: two 3.20 mm non-plated holes, 7.62 apart, centred on the contacts, 6.35 from the near row (8.89 from the far);
+# - body: 11.43 wide (across the rows) x 16.50 long, from 6.50 beyond the pegs (y = 12.85) to 0.76 beyond the far row
+#   (y = -3.65; the main body ends at -3.05, 0.51 beyond it). Leads 3.25 mm. Courtyard 0.5 mm bigger all round.
+# Origin: the centre of the near contact row.
+BW, B0, B1 = 11.43 / 2, -3.65, 12.85
+b = [text('reference', 'REF**', 0, B0 - 1.25, 'F.SilkS', 0.7), text('value', 'A-2014-3-4-N-T-R', 0, B1 + 1.6, 'F.Fab', 0.7)]
+for num, x, y in (('1', -1.905, 0), ('2', -0.635, -2.54), ('3', 0.635, 0), ('4', 1.905, -2.54)):
     b.append(tht(num, x, y, 0.9, 1.5, 'rect' if num == '1' else 'circle'))
-for x in (-5.08, 5.08):
-    b.append('  (pad "" np_thru_hole circle (at %g 8.89) (size 3.25 3.25) (drill 3.25) (layers "*.Cu" "*.Mask"))' % x)
+for x in (-3.81, 3.81):
+    b.append('  (pad "" np_thru_hole circle (at %g 6.35) (size 3.2 3.2) (drill 3.2) (layers "*.Cu" "*.Mask"))' % x)
 b += [rect(-BW, B0, BW, B1, 'F.Fab', 0.1),
       rect(-BW - 0.12, B0 - 0.12, BW + 0.12, B1 + 0.12, 'F.SilkS', 0.12),
       rect(-BW - 0.5, B0 - 0.5, BW + 0.5, B1 + 0.5, 'F.CrtYd', 0.05),
-      text('user', 'PLUG FROM ABOVE', 0, 6.0, 'F.Fab', 0.6)]
-write('RJ9_Molex_95522-2447_Vertical',
-      'Molex 95522-2447 RJ9 4P4C modular jack, vertical top entry, through hole, 16.25 mm tall. Pads 1-4 = jack contacts 1-4. '
-      'Hole pattern assumed (standard staggered 1.27 mm layout), body is an envelope: check against Molex drawing 955222447_sd',
-      'RJ9 RJ10 RJ22 4P4C modular jack vertical top entry Molex 95522', 'through_hole', b)
+      text('user', 'PLUG FROM ABOVE', 0, 10.0, 'F.Fab', 0.6)]
+write('RJ9_Assmann_A-2014-3-4-N-T-R_Vertical',
+      'Assmann WSW A-2014-3-4-N-T-R RJ9 4P4C modular jack, vertical top entry, through hole, 16.38 mm tall, locating pegs. '
+      'Pads 1-4 = jack contacts 1-4. From Assmann drawing ASS 7331 CO rev00',
+      'RJ9 RJ10 RJ22 4P4C modular jack vertical top entry Assmann A-2014-3-4-N-T-R', 'through_hole', b)
 print('wrote', os.path.normpath(OUT))

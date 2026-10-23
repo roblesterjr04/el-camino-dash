@@ -22,6 +22,17 @@
 
 Card card;
 
+// The reset cause (MCUSR), saved before anything else runs: a watchdog reset leaves the watchdog enabled at its shortest
+// timeout (15 ms), so it is cleared and the watchdog stopped in .init3, before the C runtime's start-up and the Arduino
+// core's init(), or the card would reset again before setup() could reach it. `status` prints it.
+uint8_t card_reset_cause __attribute__((section(".noinit")));
+extern "C" void card_wdt_off() __attribute__((naked, used, section(".init3")));
+extern "C" void card_wdt_off() {
+  card_reset_cause = MCUSR;
+  MCUSR = 0;
+  wdt_disable();
+}
+
 namespace {
 const uint32_t kHoldAfterOffMs = 3000;  // WAKE stays up this long after key-off, for the FRAM work and the other cards
 const uint32_t kSaveMinGapMs = 1000;    // calibration is written at most once a second
@@ -125,9 +136,10 @@ void note_boot_load(OdoLoad r) {
 uint8_t resolve_tach_ppr() {
   if (card.cal.tach_ppr) return card.cal.tach_ppr;
   const bool a = digitalRead(PIN_RPM_SEL_A) == LOW, b = digitalRead(PIN_RPM_SEL_B) == LOW;
-  if (a && !b) return 4;
-  if (!a && b) return 6;
-  return 8;  // none, or both: the V8 default
+  // Pulses per crankshaft revolution: a single-coil 4-stroke fires cylinders / 2 times a revolution
+  if (a && !b) return 2;  // 4 cylinders
+  if (!a && b) return 3;  // 6 cylinders
+  return 4;  // none, or both: the V8 default
 }
 
 void sample_inputs(EngineIn &in, uint32_t dt) {
@@ -244,6 +256,7 @@ bool card_save_calibration() {
 
 void card_restart() {
   cli();
+  wdt_reset();  // the watchdog keeps running across the jump; .init3 stops it again
   TIMSK4 = TIMSK5 = 0;
   ADCSRA = 0;
   Serial.flush();
@@ -251,8 +264,6 @@ void card_restart() {
 }
 
 void setup() {
-  MCUSR = 0;
-  wdt_disable();
   pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_PWR_HOLD, OUTPUT);
   digitalWrite(PIN_PWR_HOLD, HIGH);  // hold the main board's rail from the start
@@ -343,9 +354,14 @@ void setup() {
   g_last_step = now;
   g_last_ign_on = now;  // key-off hold also applies to a boot with the key off
   console_begin();
+  // Watchdog from here on: 2 s. setup() above runs without it (the FRAM retries take up to 2 s). Nothing in loop()
+  // blocks for long: FRAM writes are a few ms (Wire has a 3 ms timeout), the key-off flush and the WAKE hold are
+  // non-blocking, a CAN re-probe is about 12 ms per select line.
+  wdt_enable(WDTO_2S);
 }
 
 void loop() {
+  wdt_reset();
   const uint32_t now = millis();
   elc_usb_pump();
 

@@ -438,9 +438,9 @@ void post(F f) {
 bool engine_begin(const EnginePins &pins) {
   s_pins = pins;
   s_chime_mu = xSemaphoreCreateMutex();
-  if (pins.rail_en >= 0) {  // off until the clocks run
-    gpio_set_direction((gpio_num_t)pins.rail_en, GPIO_MODE_OUTPUT);
+  if (pins.rail_en >= 0) {  // off until the clocks run: level first, so the pin never drives low (buffer on)
     gpio_set_level((gpio_num_t)pins.rail_en, 1);
+    gpio_set_direction((gpio_num_t)pins.rail_en, GPIO_MODE_OUTPUT);
   }
   dsp::alloc = alloc_big;
   bool ok = s_bt.ring.init(kBtRing, 2) && s_call.ring.init(kCallRing, 1);

@@ -1,0 +1,7 @@
+(version 1)
+
+# Written by generate/gen_pcb.py. The tach coil input (net class HV) sees a few hundred volts of points / HEI kickback:
+# the GND pours on every layer keep 2.5 mm from it (IPC-2221 B2 for up to 500 V). Tracks and pads keep the class's own clearance.
+(rule "HV pour"
+	(condition "A.NetClass == 'HV' && B.Type == 'Zone'")
+	(constraint clearance (min 2.5mm)))

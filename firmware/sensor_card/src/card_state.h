@@ -38,10 +38,11 @@ struct Card {
   uint32_t identify_until = 0;
   uint32_t steps = 0;
   EngineIn in;                // the last step's inputs
-  uint8_t tach_ppr = 8;
+  uint8_t tach_ppr = 4;  // a V8 fires 4 times a revolution
 };
 
 extern Card card;
+extern uint8_t card_reset_cause;  // MCUSR at the last reset: 1 power-on, 2 external, 4 brown-out, 8 watchdog
 
 void console_begin();
 void console_poll(uint32_t now);

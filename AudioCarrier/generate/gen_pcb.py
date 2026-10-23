@@ -36,9 +36,11 @@ PRO = os.path.join(ROOT, 'AudioCarrier.kicad_pro')
 mm = FromMM
 
 W, H = 80.0, 60.0          # a slot card: the bottom edge (y = H) goes into the slot
-U1_X = 8.0                 # the module's centre; its antenna end on the top edge, at the left corner
+U1_X = 10.2                # the module's centre (ESP32-WROVER-E, 18 x 31.4 mm); its antenna end on the top edge, at the left corner
+U1_Y = 15.9                # module 0.2 ... 31.6 down from the top edge; the antenna area is its top 6.22 mm
+ANT_KEEP = (0.0, 0.0, U1_X + 9.0 + 5.0, 7.0)   # no copper (any layer) and no parts: the antenna area and 5 mm beside it
 RCA_X = 52.0               # the RCA block's centre on the top edge
-JACK_X = 72.0              # the 3.5 mm jack's centre on the top edge, right of the block
+JACK_X = 72.3              # the 3.5 mm jack's centre on the top edge, right of the block (housing: card x 67.4 ... 76.7)
 # Slot header: pin 1 at 17.78 mm right of the centre (the pins count to the left), its plastic body's outer face on
 # the bottom edge, so the pins stand 6 mm past the edge into the socket.
 J1_PIN1 = (W / 2 + 17.78, H - 6.58)
@@ -79,12 +81,12 @@ def load(fpid):
 # ---------------------------------------------------------------------------------------------- placement plan
 # (ref: (x, y, rotation, side)); side 'B' parts are flipped to the bottom. J1 (the slot header) is placed in main().
 FIXED = {
-    'U1': (U1_X, 11.2, 0, 'F'),          # antenna end on the top edge (y 0.2 ... 5.6), at the left corner
+    'U1': (U1_X, U1_Y, 0, 'F'),          # antenna end on the top edge (antenna area y 0.2 ... 6.4), at the left corner
     'J2': (RCA_X, 0.0, 180, 'F'),        # 2 x 2 RCA block, plug side off the top edge (rotation 180: its +y is board -y)
-    'J6': (JACK_X, 0.0, 270, 'F'),       # 3.5 mm jack (Tinkersphere TS3328), nose off the top edge, right of the block
+    'J6': (JACK_X, 6.0, 0, 'F'),         # 3.5 mm jack (Same Sky SJ-3523-SMT): its face on the top edge, the 2.5 mm nose past it
     'J10': (3.0, H - 3.5, 90, 'F'),      # programming header, lower left, beside the slot header
-    'SW1': (4.0, 21.5, 0, 'F'),
-    'SW2': (11.0, 21.5, 0, 'F'),
+    'SW1': (4.5, 36.0, 0, 'F'),          # RESET / BOOT below the module, above J10
+    'SW2': (11.5, 36.0, 0, 'F'),
     'U2': (52.0, H - 13.0, 0, 'F'),      # CAN transceiver above the header's CAN pins (5 / 6)
     'U7': (64.5, H - 13.0, 0, 'F'),      # 3.3 V regulator beside the 5 V pins (1 / 2)
     'U8': (36.0, H - 13.0, 0, 'F'),      # link buffer above the LINK pins (15-18, 24)
@@ -93,6 +95,10 @@ FIXED = {
     'U4': (66.0, 20.0, 0, 'B'),          # ADC, between the DACs and the mic preamp
     'U3': (74.0, 20.0, 0, 'B'),          # mic preamp, behind the 3.5 mm jack
 }
+U7_TAB = (FIXED['U7'][0] + 3.15, FIXED['U7'][1])      # SOT-223 tab (pin 2, GND on the AP7361C), 2 x 3.8 mm
+TAB_AREA = (U7_TAB[0] - 1.0, U7_TAB[1] - 3.4, U7_TAB[0] + 4.4, U7_TAB[1] + 3.4)   # ground copper beside it, with vias
+TAB_VIAS = [(U7_TAB[0] + dx, U7_TAB[1] + dy) for dx in (2.0, 3.4) for dy in (-2.2, -0.75, 0.75, 2.2)] + \
+           [(U7_TAB[0] + dx, U7_TAB[1] + dy) for dx in (-0.4, 0.8) for dy in (-2.75, 2.75)]
 SIDE = {'port': 'F', 'power': 'F', 'esp': 'F', 'boot': 'F', 'can': 'F', 'misc': 'F', 'link': 'F',
         'dac_f': 'B', 'dac_r': 'B', 'adc': 'B', 'mic': 'B', 'rca': 'F'}
 ANCHOR = {'power': ['U7'], 'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2', 'J10'], 'can': ['U2'], 'dac_f': ['U5'],
@@ -152,7 +158,7 @@ def courtyard(fp, side):
 
 
 def main():
-    route = sys.argv[sys.argv.index('--route') + 1] if '--route' in sys.argv else None
+    route = os.path.abspath(sys.argv[sys.argv.index('--route') + 1]) if '--route' in sys.argv else None   # Freerouting runs in TMP
     comps, nets = netlist()
     groups = json.load(open(os.path.join(HERE, 'refs.json')))
     b = pcbnew.BOARD()
@@ -194,7 +200,9 @@ def main():
     for hx, hy in HOLES:
         occ['F'].circle(hx, hy, HOLE_KEEP)
         occ['B'].circle(hx, hy, HOLE_KEEP)
-    occ['B'].rect(U1_X - 6.8, 0, U1_X + 6.8, 6.0)     # nothing metal under the antenna
+    for s_ in ('F', 'B'):
+        occ[s_].rect(*ANT_KEEP)                          # nothing metal under or beside the antenna
+    occ['F'].rect(*TAB_AREA)                             # the regulator tab's ground copper and its vias
 
     def put(ref, x, y, rot, side):
         fp = fps[ref]
@@ -342,7 +350,7 @@ def main():
         t = fp.Reference()
         t.SetTextAngle(EDA_ANGLE(rot, pcbnew.DEGREES_T))
         if ref == 'U1':
-            t.SetPosition(P(U1_X, 8.0))
+            t.SetPosition(P(U1_X, 24.0))
         else:
             t.SetPosition(P(fp.GetPosition().x / 1e6 - OX + dx, fp.GetPosition().y / 1e6 - OY + dy))
 
@@ -361,7 +369,7 @@ def main():
     # the jack columns, on the back (under the block): from the plug side the left column is FL / FR
     silk('FL FR', RCA_X + 7.0, 3.5, 0.9, pcbnew.B_SilkS)
     silk('RL RR', RCA_X - 7.0, 3.5, 0.9, pcbnew.B_SilkS)
-    silk('MIC / AUX', JACK_X, 14.5, 0.8, pcbnew.B_SilkS)
+    silk('MIC', JACK_X, 16.0, 0.8, pcbnew.B_SilkS)
     tx, ty = FIXED['J10'][0], FIXED['J10'][1]
     for k, s in enumerate(['G', 'TX', 'RX', 'IO0', 'EN']):
         silk(s, tx + 2.54 * k, ty - 2.3, 0.8)
@@ -412,6 +420,48 @@ def main():
     for (x, y) in [(e, e), (W - e, e), (W - e, H - e), (e, H - e)]:
         o.Append(mm(OX + x), mm(OY + y), 0, 0)
     b.Add(k)
+
+    # the antenna: no copper on any layer under it or within 5 mm beside it (the module's own keep-out covers its area)
+    k = pcbnew.ZONE(b)
+    k.SetIsRuleArea(True)
+    k.SetDoNotAllowTracks(True)
+    k.SetDoNotAllowVias(True)
+    k.SetDoNotAllowZoneFills(True)
+    k.SetDoNotAllowPads(True)
+    k.SetDoNotAllowFootprints(False)
+    k.SetLayerSet(pcbnew.LSET.AllCuMask(4))
+    o = k.Outline()
+    o.NewOutline()
+    x1, y1, x2, y2 = ANT_KEEP
+    for (x, y) in [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]:
+        o.Append(mm(OX + x), mm(OY + y))
+    b.Add(k)
+
+    # the regulator's tab (GND): solid to the F pour, a ground copper area beside it and vias to the planes
+    for pad in fps['U7'].Pads():
+        if pad.GetNumber() == '2':
+            pad.SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
+    z = pcbnew.ZONE(b)
+    z.SetLayer(pcbnew.F_Cu)
+    z.SetNet(net('GND'))
+    z.SetMinThickness(mm(0.2))
+    z.SetLocalClearance(mm(0.2))
+    z.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
+    z.SetAssignedPriority(1)
+    o = z.Outline()
+    o.NewOutline()
+    x1, y1, x2, y2 = TAB_AREA
+    for (x, y) in [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]:
+        o.Append(mm(OX + x), mm(OY + y))
+    b.Add(z)
+    for (x, y) in TAB_VIAS:
+        v = pcbnew.PCB_VIA(b)
+        v.SetPosition(P(x, y))
+        v.SetWidth(mm(0.6))
+        v.SetDrill(mm(0.3))
+        v.SetNet(net('GND'))
+        v.SetLocked(True)
+        b.Add(v)
 
     rules(b)
     pcbnew.SaveBoard(PCB, b)
@@ -909,7 +959,7 @@ def freeroute(jar):
     for rnd in range(1):
         b = pcbnew.LoadBoard(PCB)
         rules(b)
-        stitch(b, fanout=['U2', 'U3', 'U4', 'U5', 'U6', 'U7'] +      # every GND pad but the module's has its own via
+        stitch(b, fanout=['U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'J6'] +      # every GND pad but the module's has its own via
                sorted(f.GetReference() for f in b.GetFootprints() if re.match(r'(C|R|JP|SW)\d', f.GetReference())))
         pcbnew.SaveBoard(PCB, b)
         for z in list(b.Zones()):

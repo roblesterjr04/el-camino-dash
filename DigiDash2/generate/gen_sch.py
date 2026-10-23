@@ -362,7 +362,7 @@ r_('10k', 'Q2_G', 'GND', 'Q2 gate to ground')
 zener('BZT52C15', '12V_BATT', 'Q2_G', 'Q2 gate-source clamp (Vgs max 20 V)')
 place(DZ, nid('D'), 'SMCJ33A', 'Diode_SMD:D_SMC', {'1': '12V_BATT', '2': 'GND'},
       descr='TVS, unidirectional, 33 V standoff, clamps load dump below the buck\'s 65 V')
-place(CP, nid('C'), '100u 50V', 'Capacitor_SMD:CP_Elec_10x10.5', {'1': '12V_BATT', '2': 'GND'}, descr='Input bulk')
+place(CP, nid('C'), '100u 63V', 'Capacitor_SMD:CP_Elec_10x10.5', {'1': '12V_BATT', '2': 'GND'}, descr='Input bulk (63 V: above the TVS clamp)')
 for _ in range(4):
     c_('2.2u 100V', '12V_BATT', 'GND', 'Buck input (C1-C3, C10 in the TI example)')
 c_('100n', '12V_BATT', 'GND', 'Buck input, HF')
@@ -436,7 +436,7 @@ place(PFET, 'Q6', 'SUD50P04-08', 'Package_TO_SOT_SMD:TO-252-2', {'1': 'Q6_G', '2
 r_('10k', 'Q6_G', 'AUX_GND', 'Q6 gate to the AUX return')
 zener('BZT52C15', 'AUX12', 'Q6_G', 'Q6 gate-source clamp')
 place(DZ, nid('D'), 'SMCJ33A', 'Diode_SMD:D_SMC', {'1': 'AUX12', '2': 'AUX_GND'}, descr='AUX TVS')
-place(CP, nid('C'), '100u 50V', 'Capacitor_SMD:CP_Elec_10x10.5', {'1': 'AUX12', '2': 'AUX_GND'}, descr='AUX bulk')
+place(CP, nid('C'), '100u 63V', 'Capacitor_SMD:CP_Elec_10x10.5', {'1': 'AUX12', '2': 'AUX_GND'}, descr='AUX bulk (63 V: above the TVS clamp)')
 
 # ----------------------------------------------------------------------------- screens and CAN
 cur[0] = Block('screens', 1, 'SCREENS: J5 left, J1 center, J4 right (ESP32-P4, plugged in face down). One MCP2562 each '
@@ -448,11 +448,13 @@ HDR_NETS = {
            '30': 'V_HS', '31': 'CAN_TX_C', '32': 'V_D6', '33': 'GND', '34': 'CL_SCL', '35': 'V_D5', '36': 'V_P17',
            '37': 'V_FID', '38': 'CL_SDA', '39': 'V_D4', '40': 'GND'},
     'J4': {'1': '+5V', '3': '+5V', '5': 'GND', '10': 'GND', '13': 'GND', '15': 'SENS_TX_R', '17': 'POS_R', '18': '3V3_R',
-           '23': 'CAN_RX_R', '28': 'Illumination', '31': 'CAN_TX_R', '34': 'CL_SCL', '38': 'CL_SDA'},
+           '23': 'CAN_RX_R', '31': 'CAN_TX_R', '34': 'CL_SCL', '38': 'CL_SDA'},
     'J5': {'1': '+5V', '3': '+5V', '5': 'GND', '10': 'GND', '13': 'GND', '15': 'SENS_TX_L', '17': 'POS_L', '19': 'GND',
-           '23': 'CAN_RX_L', '26': 'GND', '28': 'Illumination', '29': 'GND', '31': 'CAN_TX_L', '33': 'GND', '34': 'CL_SCL',
+           '23': 'CAN_RX_L', '26': 'GND', '29': 'GND', '31': 'CAN_TX_L', '33': 'GND', '34': 'CL_SCL',
            '38': 'CL_SDA', '40': 'GND'},
 }
+# Pin 28 (GPIO24) is wired on the center screen only. On the side screens (4C) GPIO24 is the P4's USB D-, so the
+# illumination line (Q1, 100 nF) there would break their USB-C; the side screens take the dim level over CAN.
 for ref, name in (('J5', 'Left Screen'), ('J1', 'Center Screen - Master'), ('J4', 'Right Screen')):
     nets = {str(n): HDR_NETS[ref].get(str(n)) for n in range(1, 41)}
     place(HDR2[20], ref, name, 'Connector_PinHeader_2.54mm:PinHeader_2x20_P2.54mm_Vertical', nets,
@@ -479,7 +481,7 @@ r_('4.7k', '+3V3', 'CL_SCL', 'Cluster I2C pull-up (R16)')
 text(cur[0].x0 + 300, cur[0].y0 + 6, 'Vehicle inputs to the screens (as rev 1): illumination (J7 pin 6), reverse (J9 pin 1). J6: serial port (center UART2).', 1.6)
 r_('10k', 'ILLUM_IN', 'Q1_B', 'Illumination base')
 r_('10k', 'Q1_B', 'GND', 'Illumination base pull-down')
-npn('Q1_B', 'GND', 'Illumination', 'Illumination: low = dim (GPIO24 on each screen, internal pull-up)', ref='Q1')
+npn('Q1_B', 'GND', 'Illumination', 'Illumination: low = dim (center screen GPIO24, internal pull-up; not the side screens: USB D-)', ref='Q1')
 c_('100n', 'Illumination', 'GND', 'Illumination filter')
 place(HDR[4], 'J9', 'Backup Camera', FP_PH4, {'1': 'REV_IN', '2': 'CAM_12V', '3': None, '4': 'GND'},
       descr='1 reverse lamp 12 V, 2 camera power (switched, fused), 3 spare, 4 ground. Video: J11')
@@ -497,7 +499,7 @@ place(HDR[2], 'J27', 'Sensor serial in', 'Connector_PinHeader_2.54mm:PinHeader_1
 for side in ('L', 'C', 'R'):
     r_('10k', 'SENS_TX', 'SENS_TX_' + side, 'Divider top, %s screen' % side)
     r_('20k', 'SENS_TX_' + side, 'GND', 'Divider bottom, %s screen' % side)
-place(HDR[4], 'J6', 'Serial', FP_PH4, {'1': '+3V3', '2': 'SER_TX', '3': 'SER_RX', '4': 'GND'},
+place(HDR[4], 'J6', 'Serial', FP_PH4, {'1': 'SER_3V3', '2': 'SER_TX', '3': 'SER_RX', '4': 'GND'},
       descr='Serial port: the center screen\'s UART2, 3.3 V logic. 1 3V3, 2 TX (out of the dash: to the device\'s RX), '
             '3 RX (into the dash: from the device\'s TX), 4 GND. Same pins as rev 1\'s GPS connector')
 
@@ -596,6 +598,9 @@ for src, dst, what in (('ILLUM_IN', 'LAMP_LVL', 'Dash-light level (rheostat volt
     place(BAT54S, nid('D'), 'BAT54S', FP_SOT23, {'1': 'GND', '2': '+3V3', '3': dst}, descr=what + ': clamp')
 place(NETTIE, 'NT2', 'NetTie', 'NetTie:NetTie-2_SMD_Pad2.0mm', {'1': 'GND', '2': 'AUDIO_GND'},
       descr='The only joint between the slots\' audio-bus ground and the logic ground')
+# J6's 3.3 V through its own PTC, so a short on the serial cable cannot take the board's 3.3 V down (added last so the
+# other parts keep their references)
+ptc('PTC 0.1A', '+3V3', 'SER_3V3', 'Serial port 3.3 V (J6 pin 1)', FP_PTC_S)
 
 # ----------------------------------------------------------------------------- write
 for b in blocks:

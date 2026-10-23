@@ -8,7 +8,7 @@ Qty,Designators,Value,Description,Package / footprint,Manufacturer part (example
 1,J1,2x8 female socket,"2.54 mm pin socket, 2 x 8, vertical (OLED module plugs in)",PinSocket_2x08_P2.54mm_Vertical,"any 2.54 mm 2x8 female, about 8.5 mm tall","Wired to the measured module pinout (1 GND, 2 VCC, 4 CLK, 5 DIN, 14 DC, 15 RES, 16 CS)"
 1,J2,USB-C,"USB-C receptacle, USB 2.0, 16 pin, top mount",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,GCT USB4105-GF-A,
 1,J3,JST PH 4-pin,"JST PH 2.0 mm, 4 pin, vertical (top entry), through hole (CAN cable)",JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,JST B4B-PH-K-S(LF)(SN),Plug goes in from behind the board. Mating housing PHR-4 + SPH-002T-P0.5S crimps
-2,"J4, J5",RJ9 4P4C,"Modular jack 4P4C (RJ9), vertical / top entry, through hole (J4 Select knob, J5 Volume knob)",RJ9_Molex_95522-2447_Vertical (ConsoleBoardRS.pretty),Molex 95522-2447,"Plugs in from behind the board. 16.25 mm tall. Footprint hole pattern not yet checked against Molex drawing 955222447_sd: check before ordering"
+2,"J4, J5",RJ9 4P4C,"Modular jack 4P4C (RJ9), vertical / top entry, through hole (J4 Select knob, J5 Volume knob)",RJ9_Assmann_A-2014-3-4-N-T-R_Vertical (ConsoleBoardRS.pretty),Assmann WSW A-2014-3-4-N-T-R (DigiKey 2183644),"Plugs in from behind the board. 16.38 mm tall, two locating pegs. Footprint from Assmann drawing ASS 7331 CO rev00; pad 1 = jack contact 1"
 2,"SW1, SW2",PTS810,"Tact switch 4.2 x 3.2 mm SMT (RESET, BOOT)",SW_SPST_PTS810,C&K PTS810 SJM 250 SMTR LFS,
 1,C3,22u,Ceramic X5R 10 V,0805,any,ESP32 bulk
 4,"C1, C5, C7, C8",10u,Ceramic X5R 16 V (on +5V / +3V3),0805,any,16 V or 25 V rating keeps capacitance at 5 V (DC bias)

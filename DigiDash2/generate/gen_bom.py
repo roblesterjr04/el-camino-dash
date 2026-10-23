@@ -24,7 +24,8 @@ OUT = os.path.join(ROOT, 'fab', 'DigiDash2_BOM_PCBWay.csv')
 # (value, footprint) -> (maker, part number, description, package, note)
 PARTS = {
     # capacitors
-    ('100u 50V', 'CP_Elec_10x10.5'): ('Panasonic', 'EEE-FK1H101P', 'Aluminium electrolytic 100 uF 50 V', '10 x 10.2 mm SMD', ''),
+    ('100u 63V', 'CP_Elec_10x10.5'): ('Panasonic', 'EEE-FK1J101P', 'Aluminium electrolytic 100 uF 63 V, AEC-Q200', '10 x 10.2 mm SMD',
+                                       '63 V: above the SMCJ33A clamp (about 53 V)'),
     ('2.2u 100V', 'C_1210_3225Metric'): ('Murata', 'GRM32ER72A225KA35L', 'Capacitor 2.2u X7R 100 V', '1210', ''),
     ('47u 10V', 'C_1210_3225Metric'): ('Murata', 'GRM32ER61A476KE20L', 'Capacitor 47u X5R 10 V', '1210', ''),
     ('100n', 'C_0603_1608Metric'): ('Samsung', 'CL10B104KB8NNNC', 'Capacitor 100n X7R 50 V', '0603', ''),
@@ -45,11 +46,12 @@ PARTS = {
     ('BAT54S', 'SOT-23'): ('Nexperia', 'BAT54S,215', 'Dual Schottky, series', 'SOT-23', ''),
     ('PESD5V0S1BA', 'D_SOD-323'): ('Nexperia', 'PESD5V0S1BA,115', 'ESD clamp 5 V, bidirectional', 'SOD-323', ''),
     # fuses (PTC)
-    ('PTC 0.1A', 'Fuse_1206_3216Metric'): ('Bourns', 'MF-NSMF010-2', 'PTC 0.1 A hold', '1206', ''),
-    ('PTC 0.2A', 'Fuse_1206_3216Metric'): ('Bourns', 'MF-NSMF020-2', 'PTC 0.2 A hold', '1206', ''),
+    ('PTC 0.1A', 'Fuse_1206_3216Metric'): ('Bourns', 'MF-NSMF010/60X-2', 'PTC 0.1 A hold, 60 V', '1206', ''),
+    ('PTC 0.2A', 'Fuse_1206_3216Metric'): ('Bourns', 'MF-NSMF020X-2', 'PTC 0.2 A hold, 30 V, AEC-Q200', '1206',
+                                           'On the battery line: 30 V part'),
     ('PTC 0.5A', 'Fuse_1812_4532Metric'): ('Bourns', 'MF-MSMF050/30X-2', 'PTC 0.5 A hold, 30 V, AEC-Q200', '1812',
                                           '30 V part on the 5 V and the 12 V lines alike'),
-    ('PTC 1.1A', 'Fuse_1812_4532Metric'): ('Bourns', 'MF-MSMF110/16-2', 'PTC 1.1 A hold, 16 V, AEC-Q200', '1812', ''),
+    ('PTC 1.1A', 'Fuse_1812_4532Metric'): ('Bourns', 'MF-MSMF110/33X-2', 'PTC 1.1 A hold, 33 V', '1812', ''),
     # inductors, ferrite
     ('600R', 'L_0603_1608Metric'): ('Murata', 'BLM18KG601SN1D', 'Ferrite bead 600 R at 100 MHz', '0603', ''),
     ('7.2u', 'L_Wuerth_HCI-1050'): ('Wurth', '7443551720', 'Inductor 7.2 uH, Isat > 7 A, shielded (WE-HCI 1050)',

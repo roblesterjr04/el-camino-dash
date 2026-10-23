@@ -16,7 +16,9 @@ struct Chan {
 };
 Chan s_speed, s_tach;
 const uint32_t kSpeedMinTicks = 1000;  // 500 us: a hall sensor cannot be faster
-const uint32_t kTachMinTicks = 400;    // 200 us
+// 1 ms hold-off after an accepted tach pulse: breaker points bounce for 0.1-1 ms. A V8 at 8000 rpm fires 533 times a
+// second (1.9 ms apart), so 1 ms passes up to 1000 pulses a second (15000 rpm on a V8, 20000 on a six).
+const uint32_t kTachMinTicks = 2000;   // 1 ms (0.5 us ticks)
 
 inline void captured(Chan &c, uint16_t icr, bool ovf_pending, uint32_t min_ticks) {
   uint32_t ext = ((uint32_t)c.ovf << 16) | icr;

@@ -9,6 +9,7 @@
 #include <time.h>
 
 #include <cluster_i2c.h>
+#include <display_setup.h>
 #include <elc_can_codec.h>
 #include <sensor_link.h>
 #include <sensor_packet.h>
@@ -218,7 +219,8 @@ void center_ui_sync_cluster_bus() {
   st.brightness = center_menu_brightness();
   st.flags = (uint8_t)((center_menu_dim_with_lights() ? ELC_CAN_CLUSTER_DIM_WITH_LIGHTS : 0) |
                        (center_ui_media_shown() ? ELC_CAN_CLUSTER_MEDIA_SHOWN : 0) |
-                       (s_right_layout2 ? ELC_CAN_CLUSTER_RIGHT_LAYOUT2 : 0));
+                       (s_right_layout2 ? ELC_CAN_CLUSTER_RIGHT_LAYOUT2 : 0) |
+                       (elc_illumination_is_night() ? ELC_CAN_CLUSTER_LIGHTS_ON : 0));
   center_can_send_cluster(st);
 }
 

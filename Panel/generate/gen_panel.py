@@ -29,7 +29,7 @@ OUT = os.path.join(ROOT, 'Panel', 'Panel.kicad_pcb')
 GAP = 2.5          # mm between boards (the mill path)
 RAIL = 5.0         # mm, top and bottom rails (the assembler's conveyor edges)
 TAB_W = 5.0        # mm, tab width
-TAB_PITCH = 45.0   # mm, about one tab per this much shared edge
+TAB_PITCH = 30.0   # mm, about one tab per this much shared edge (60 mm card edges get two)
 MAX_REACH = 3 + 27.5 + 1.5    # mm: fillet + the widest board-to-rail gap (ConsoleBoardRS) + slack
 KEEPOUT = 1.5      # mm around a placed part that hangs past its board edge: no tab there
 BITE_DRILL, BITE_PITCH, BITE_OFFSET = 0.5, 0.8, 0.0
@@ -49,8 +49,8 @@ BITE_DRILL, BITE_PITCH, BITE_OFFSET = 0.5, 0.8, 0.0
 # (J6-J8, J3 / J4) stand 6.5 mm past the edge, and would meet the Audio card's 3.5 mm jack (J6) and the console's OLED
 # socket (J1), each 3.3 mm in from its own edge. At 5 mm they clear by about 1.8 mm.
 DD_W, DD_H = 329.05, 113.05       # DigiDash2's outline (329 x 113, plus the edge line)
-WIDE_GAP = 5.0                     # mm: Audio | Sensor and Console | Radio
-ROW_B = DD_H + GAP                 # top of the card row
+WIDE_GAP = 5.0                     # mm: Audio | Sensor, Console | Radio, and DigiDash2 / the card row
+ROW_B = DD_H + WIDE_GAP            # top of the card row (5 mm: the Audio card's mic jack nose stands 2.5 mm past its top edge)
 ROW_C = ROW_B + 60 + GAP           # top of the bottom row
 SENSOR_X = 2 * 80 + GAP + WIDE_GAP      # Sensor card's left edge
 RADIO_X = SENSOR_X + 80 - 15.75         # Radio card's left edge: under the Sensor card's last 15.75 mm (a tab there)

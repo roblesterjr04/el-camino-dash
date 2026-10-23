@@ -230,6 +230,11 @@ static void fill_media(GaugeData &d, uint32_t now) {
 
 void center_loop() {
   elc_illumination_gpio_poll();
+  static bool s_lights_sent = false;  // the side screens dim from this flag in 0x210: send it as soon as it changes
+  if (elc_illumination_is_night() != s_lights_sent) {
+    s_lights_sent = elc_illumination_is_night();
+    center_ui_sync_cluster_bus();
+  }
   center_gps_loop();
   center_shell_poll(s_prefs);
   center_ble_loop();

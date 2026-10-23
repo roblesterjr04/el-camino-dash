@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// With PSRAM (BOARD_HAS_PSRAM: ESP32-DevKitC-VE / WROVER-E, the carrier's PICO-MINI-02-N8R2) the work buffers live
+// With PSRAM (BOARD_HAS_PSRAM: ESP32-DevKitC-VE / WROVER-E, the carrier's WROVER-E-N8R8) the work buffers live
 // there and the small copy is 128 px. Without it (the WROOM DevKitC-32) they must fit in internal RAM, which has only
 // ~32 KB free while a phone streams, so the copy is 64 px (~37 KB of work) and is usually skipped.
 #ifdef BOARD_HAS_PSRAM

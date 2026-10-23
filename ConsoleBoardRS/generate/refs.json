@@ -140,17 +140,16 @@
   "value": "CAN to DigiDash"
  },
  "J4": {
-  "fp": "ConsoleBoardRS:RJ9_Molex_95522-2447_Vertical",
+  "fp": "ConsoleBoardRS:RJ9_Assmann_A-2014-3-4-N-T-R_Vertical",
   "group": "ui",
   "value": "Select knob (RJ9)"
  },
  "J5": {
-  "fp": "ConsoleBoardRS:RJ9_Molex_95522-2447_Vertical",
+  "fp": "ConsoleBoardRS:RJ9_Assmann_A-2014-3-4-N-T-R_Vertical",
   "group": "ui",
   "value": "Volume knob (RJ9)"
  },
  "J6": {
-  "dnp": true,
   "fp": "OptoDevice:Vishay_MOLD-3Pin",
   "group": "ui",
   "value": "TSOP4838"

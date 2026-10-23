@@ -57,6 +57,8 @@ class ElcCanSensorDecoder {
 static const uint8_t ELC_CAN_CLUSTER_DIM_WITH_LIGHTS = 0x01;  // flags: backlight follows the headlight input
 static const uint8_t ELC_CAN_CLUSTER_MEDIA_SHOWN = 0x02;      // flags: the media screen shows its media view
 static const uint8_t ELC_CAN_CLUSTER_RIGHT_LAYOUT2 = 0x04;    // flags: the right screen's second Classic layout (fuel + lamps)
+static const uint8_t ELC_CAN_CLUSTER_LIGHTS_ON = 0x08;        // flags: the center's illumination input says the dash lights are on
+                                                              // (the side screens have no input of their own: GPIO24 is their USB D-)
 struct ElcCanClusterState {
   uint8_t theme = 0;
   uint8_t center_subview = 0;

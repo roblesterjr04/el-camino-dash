@@ -1,32 +1,32 @@
 Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,Side,Your Instructions / Notes
-1,C1,1,Samsung,CL21A226MPQNNNE,22u: Capacitor 22u X5R 10 V,0805,SMD,Top,
-2,C2 C5 C7 C8 C16 C25 C31 C34 C36 C42 C44,11,Samsung,CL10A106KP8NNNC,10u: Capacitor 10u X5R 10 V,0603,SMD,Bottom/Top,
-3,C3,1,KEMET,T491A226K010AT,22u tant: Tantalum 22 uF 10 V (LDO output: needs some ESR),3216-18 (EIA A case),SMD,Top,Polarised: + to +3V3
-4,C4 C6 C9 C11 C12 C15 C17 C18 C19 C24 C26 C27 C28 C40 C41 C43 C45 C46,18,Samsung,CL10B104KB8NNNC,100n: Capacitor 100n X7R 50 V,0603,SMD,Bottom/Top,
-5,C10 C33 C37 C38 C39,5,Samsung,CL10B105KO8NNNC,1u: Capacitor 1u X7R 16 V,0603,SMD,Bottom/Top,
-6,C13 C14 C22 C23,4,Samsung,CL10A225KO8NNNC,2.2u: Capacitor 2.2u X5R 10 V,0603,SMD,Bottom,16 V part (10 V needed)
-7,C20 C21 C29 C30,4,Samsung,CL10C222JB8NNNC,2.2n: Capacitor 2.2n C0G/X7R 50 V,0603,SMD,Bottom,C0G
+1,C1 C3,2,Samsung,CL21A226MPQNNNE,22u: Capacitor 22u X5R 10 V,0805,SMD,Top,C1 regulator input / C3 regulator output (ceramic)
+2,C2 C5 C7 C8 C16 C25 C34 C36 C41 C43,10,Samsung,CL10A106KP8NNNC,10u: Capacitor 10u X5R 10 V,0603,SMD,Bottom/Top,
+3,C4 C6 C9 C11 C12 C15 C17 C18 C19 C24 C26 C27 C28 C39 C40 C42 C44 C45,18,Samsung,CL10B104KB8NNNC,100n: Capacitor 100n X7R 50 V,0603,SMD,Bottom/Top,
+4,C10 C33 C37 C38,4,Samsung,CL10B105KO8NNNC,1u: Capacitor 1u X7R 16 V,0603,SMD,Bottom/Top,
+5,C13 C14 C22 C23,4,Samsung,CL10A225KO8NNNC,2.2u: Capacitor 2.2u X5R 16 V,0603,SMD,Bottom,
+6,C20 C21 C29 C30,4,Samsung,CL10C222JB8NNNC,2.2n: Capacitor 2.2n C0G 50 V,0603,SMD,Bottom,C0G
+7,C31,1,Samsung,CL31A476MPHNNNE,47u: Capacitor 47u X5R 10 V,1206,SMD,Bottom,Electret bias supply filter
 8,C32 C35,2,Samsung,CL10C101JB8NNNC,100p: Capacitor 100p C0G 50 V,0603,SMD,Bottom,C0G
 9,FB1 FB2,2,Murata,BLM18KG601SN1D,600R @100MHz: Ferrite bead (analog supply filters),0603,SMD,Top,"600 R @ 100 MHz, 1.3 A"
 10,J1,1,Sullins,PRPC015DBAN-M71RC,"DigiDash slot: pin header 2 x 15, 2.54 mm, right angle",THT,THT,Top,"Any 2 x 15 2.54 mm right-angle male header; on the bottom edge, pins pointing off the board"
 11,J2,1,Switchcraft,PJRAS2X2S01X,"RCA block: RCA jacks, 2 x 2, right angle (front L/R, rear L/R)",THT (custom footprint),THT,Top,Check against the part: board-edge line (plate rear face) and 28.5 mm height
-12,J6,1,Tinkersphere,TS3328,"3.5mm mic / aux in: 3.5 mm audio jack, horizontal (mic tip / aux ring)",THT (custom footprint),THT,Top,Pin functions PROVISIONAL: verify tip/ring/sleeve with a meter before ordering. May need to be customer-supplied
+12,J6,1,Same Sky,SJ-3523-SMT-TR,"Mic in: 3.5 mm audio jack, 3-conductor, right angle, SMT (tip = mic, ring and sleeve = GND)",SMD (Jack_3.5mm_CUI_SJ-3523-SMT_Horizontal),SMD,Top,Nose over the top edge; two plastic locating pegs
 13,J10,1,Sullins,PRPC005SAAN-RC,"Program: Programming header (GND, TX0, RX0, IO0, EN)",THT,THT,Top,ESP-Prog / USB-serial adapter; Any 1 x 5 2.54 mm vertical header
-14,R1 R2 R3 R13 R14 R23,6,Yageo,RC0603FR-0710KL,10k: Resistor 10k 1%,0603,SMD,Bottom/Top,
-15,R4 R10,2,Yageo,RC0603FR-071KL,1k: Resistor 1k 1%,0603,SMD,Bottom/Top,
+14,R1 R2 R3 R13 R14 R22,6,Yageo,RC0603FR-0710KL,10k: Resistor 10k 1%,0603,SMD,Bottom/Top,
+15,R4 R10,2,Yageo,RC0603FR-071KL,1k: Resistor 1k 1%,0603,SMD,Bottom/Top,R10 = electret bias supply filter
 16,R5 R6 R7 R8,4,Yageo,RC0603FR-07470RL,470: Resistor 470 1%,0603,SMD,Bottom,DAC output filter
-17,R9 R12 R17 R25,4,Yageo,RC0603FR-07100KL,100k: Resistor 100k 1%,0603,SMD,Bottom/Top,
+17,R9 R12 R24,3,Yageo,RC0603FR-07100KL,100k: Resistor 100k 1%,0603,SMD,Bottom/Top,
 18,R11 R16,2,Yageo,RC0603FR-072K2L,2.2k: Resistor 2.2k 1%,0603,SMD,Bottom,mic bias / preamp gain
 19,R15,1,Yageo,RC0603FR-0747KL,47k: Resistor 47k 1%,0603,SMD,Bottom,preamp feedback
-20,R18 R19 R20 R21 R22 R24,6,Yageo,RC0603FR-0733RL,33: Resistor 33 1%,0603,SMD,Bottom/Top,link / clock series damping
-21,R26 R27,2,Yageo,RC0603FR-07100RL,100: Resistor 100 1%,0603,SMD,Top,audio bus drive
-22,R28,1,Yageo,RC0603FR-0710RL,10: Resistor 10 1%,0603,SMD,Top,audio bus ground lift
+20,R17 R18 R19 R20 R21 R23,6,Yageo,RC0603FR-0733RL,33: Resistor 33 1%,0603,SMD,Bottom/Top,link / clock series damping
+21,R25 R26,2,Yageo,RC0603FR-07100RL,100: Resistor 100 1%,0603,SMD,Top,audio bus drive
+22,R27,1,Yageo,RC0603FR-0710RL,10: Resistor 10 1%,0603,SMD,Top,audio bus ground lift
 23,SW1,1,C&K,PTS810 SJM 250 SMTR LFS,RESET: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
 24,SW2,1,C&K,PTS810 SJM 250 SMTR LFS,BOOT: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
-25,U1,1,Espressif,ESP32-PICO-MINI-02-N8R2,"ESP32-PICO-MINI-02: ESP32 module, 8 MB flash, 2 MB PSRAM, PCB antenna",LGA (custom footprint),SMD,Top,"Must be -N8R2 (the PSRAM is needed); antenna on the left edge, keep-out as placed"
+25,U1,1,Espressif,ESP32-WROVER-E-N8R8,"ESP32-WROVER-E: ESP32 module, 8 MB flash, 8 MB PSRAM, PCB antenna, 18.0 x 31.4 mm",SMD castellated + EPAD (custom footprint),SMD,Top,"Must be -N8R8 (PCB antenna, PSRAM needed; not the -IE); antenna end on the top edge, keep-out as placed"
 26,U2,1,Microchip,MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
-27,U3,1,Texas Instruments,OPA2376AIDGKR,"OPA2376AIDGK: Dual low-noise RRIO op-amp (mic preamp, aux buffer)",VSSOP-8,SMD,Bottom,Any RRIO dual with the standard pinout will do
-28,U4,1,Texas Instruments,PCM1808PWR,"PCM1808PW: Stereo audio ADC, 24-bit (microphone / aux in)",TSSOP-14,SMD,Bottom,
+27,U3,1,Texas Instruments,OPA2376AIDGKR,"OPA2376AIDGK: Dual low-noise RRIO op-amp (mic preamp; B unused, a follower)",VSSOP-8,SMD,Bottom,Any RRIO dual with the standard pinout will do
+28,U4,1,Texas Instruments,PCM1808PWR,"PCM1808PW: Stereo audio ADC, 24-bit (microphone in)",TSSOP-14,SMD,Bottom,
 29,U5 U6,2,Texas Instruments,PCM5102APWR,"PCM5102APW: Stereo audio DAC, 32-bit, 2.1 Vrms ground-centred out",TSSOP-20,SMD,Bottom,"U5 front pair, U6 rear pair"
-30,U7,1,Advanced Monolithic Systems,AMS1117-3.3,AMS1117-3.3: LDO 3.3 V 1 A,SOT-223,SMD,Top,
+30,U7,1,Diodes Incorporated,AP7361C-33E-13,"AP7361C-33E: LDO 3.3 V 1 A, 0.36 V dropout",SOT-223 (tab = GND),SMD,Top,"Pinout 1 IN, 2 GND (tab), 3 OUT"
 31,U8,1,Nexperia,"74LVC125APW,118","74LVC125APW: Quad buffer, 3-state (the slot link outputs)",TSSOP-14,SMD,Top,

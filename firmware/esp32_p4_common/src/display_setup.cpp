@@ -302,10 +302,24 @@ void elc_backlight_set_user(uint8_t pct, bool follow_lights) {
 
 bool elc_illumination_is_night(void) { return s_night == 1; }
 
+void elc_illumination_set_external(bool night) {
+#if ELC_ILLUMINATION_GPIO < 0
+  const int8_t n = night ? 1 : 0;
+  if (n != s_night) {
+    s_night = n;
+    elc_backlight_apply();
+  }
+#else
+  (void)night;
+#endif
+}
+
 void elc_illumination_gpio_poll(void) {
 #if ELC_ILLUMINATION_GPIO < 0
-  if (s_applied < 0) {
-    s_night = 0;
+  if (s_applied < 0) {  // day until the center says otherwise (elc_illumination_set_external)
+    if (s_night < 0) {
+      s_night = 0;
+    }
     elc_backlight_apply();
   }
   return;
@@ -356,6 +370,7 @@ void elc_illumination_gpio_poll(void) {
 void elc_illumination_gpio_poll(void) {}
 void elc_backlight_set_user(uint8_t, bool) {}
 bool elc_illumination_is_night(void) { return false; }
+void elc_illumination_set_external(bool) {}
 #endif
 
 Arduino_GFX *create_tsps_display() {

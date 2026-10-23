@@ -248,7 +248,7 @@ FP_SOIC = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_SOT23 = 'Package_TO_SOT_SMD:SOT-23'
 FP_SOD123 = 'Diode_SMD:D_SOD-123'
 FP_PH = 'Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical'   # vertical (top entry): the plug goes in from behind the board
-FP_RJ = 'ConsoleBoardRS:RJ9_Molex_95522-2447_Vertical'
+FP_RJ = 'ConsoleBoardRS:RJ9_Assmann_A-2014-3-4-N-T-R_Vertical'
 FP_SW = 'Button_Switch_SMD:SW_SPST_PTS810'
 
 cnt = {}
@@ -373,9 +373,9 @@ text(220, 222, 'KNOBS: RetroSound 258A style controls on RJ9 (4P4C). Contacts 1 
      'A reversed phone cord swaps 2 and 3, so both get the same 33k pull-up and 10 nF and go to ADC1: the levels tell the firmware which is which '
      '(green 0 / 0.56 / 1.32 / 3.3 V, red 1.57 / 1.94 / 2.35 / 3.3 V).', 1.4)
 place(HDR4, 'J4', 'Select knob (RJ9)', FP_RJ, 240, 300, {'1': 'GND', '2': 'SEL_2', '3': 'SEL_3', '4': 'GND'},
-      descr='RJ9 4P4C top-entry jack, Molex 95522-2447 (footprint pins 1-4 = jack contacts 1-4): 1 black GND, 2 red encoder, 3 green switches, 4 yellow GND')
+      descr='RJ9 4P4C top-entry jack, Assmann WSW A-2014-3-4-N-T-R (footprint pins 1-4 = jack contacts 1-4): 1 black GND, 2 red encoder, 3 green switches, 4 yellow GND')
 place(HDR4, 'J5', 'Volume knob (RJ9)', FP_RJ, 290, 300, {'1': 'GND', '2': 'VOL_2', '3': 'VOL_3', '4': 'GND'},
-      descr='RJ9 4P4C top-entry jack, Molex 95522-2447 (footprint pins 1-4 = jack contacts 1-4): 1 black GND, 2 red encoder, 3 green switches, 4 yellow GND')
+      descr='RJ9 4P4C top-entry jack, Assmann WSW A-2014-3-4-N-T-R (footprint pins 1-4 = jack contacts 1-4): 1 black GND, 2 red encoder, 3 green switches, 4 yellow GND')
 place(HDR3, 'J6', 'TSOP4838', 'OptoDevice:Vishay_MOLD-3Pin', 340, 300,
       {'1': 'IR_IN', '2': 'GND', '3': 'IR_VS'},
       descr='IR receiver, Vishay TSOP4838 (38 kHz, MOLD package) fitted straight in: 1 OUT (signal), 2 GND, 3 VS on 3.3 V through its filter')

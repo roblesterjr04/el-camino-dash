@@ -26,7 +26,7 @@ Rev 1 stays in [`DigiDash/`](../DigiDash) as the reference.
 | --- | --- | --- |
 | Power in | J7 (Micro-Fit 3.0, 6 pin: 1–2 battery, 3–4 GND, 5 ignition, 6 illumination), Q2 reverse-polarity P-FET, SMCJ33A TVS | J7 carries about 10 A (two pins each for battery and ground) |
 | 5 V | U2 TPS54560B, 5 A, 400 kHz: TI's typical application (datasheet figure 32) component for component | EN comes from the ignition through 442k / 90.9k (starts above about 6.5 V) with a 5.1 V clamp. A card holding the slots' WAKE line high also keeps it on: the sensor card does, after key-off, to finish its shutdown work |
-| 3.3 V, 1.8 V | U11 AP7361C-33 (1 A), U12 AP2112K-1.8 | The board's own 3.3 V now feeds the CAN transceivers' VIO, the TVP5150's I/O, GPS and the I2C pull-ups (rev 1 borrowed the center screen's 3V3) |
+| 3.3 V, 1.8 V | U11 AP7361C-33 (1 A), U12 AP2112K-1.8 | The board's own 3.3 V now feeds the CAN transceivers' VIO, the TVP5150's I/O, the serial port and the I2C pull-ups (rev 1 borrowed the center screen's 3V3). U11's GND tab joins the back ground pour solidly (no thermal spokes) to shed its heat. J6's 3.3 V goes through its own 0.1 A PTC (F32), so a short on the serial cable cannot take the rail down |
 | Switched 12 V | Q5 P-FET high-side switch, turned on by the ignition through Q4 | Feeds pin 8 of every slot, the trunk port and the camera |
 | AUX 12 V | J13 (Mini-Fit Jr, vertical), 5 A mini-blade fuse, Q6 reverse P-FET, TVS. Sized for about 3 A (1 mm tracks): the LTE card's modem buck is its only user | Slot power on pins 25–30 of every slot (no more bay plugs). Its return, AUX_GND, meets GND only at net tie NT1 |
 | Sensor serial in | J27 (1×2 pin header, back side, top edge above slot 4) and one 10k / 20k divider per screen | Optional: a jumper wire from the sensor card's J8 brings its 5 V sensor-frame serial line here, and the dividers take it to 3.3 V on pin 15 of J5 / J1 / J4 (the screens' sensor UART RX). With no wire fitted the screens' RX sits low and the data comes from CAN |
@@ -47,12 +47,12 @@ B4B-PH-K and the Micro-Fit ports 43650-0415 / -0615, so the cable plugs are the 
 
 | Ref | Silk name | What it is | Pins (1, 2, ...) |
 | --- | --- | --- | --- |
-| J5 / J1 / J4 | LEFT / CENTER / RIGHT SCREEN | The three round screens (front, face down), placed per [Screen headers and screen holes](#screen-headers-and-screen-holes). Their labels are on the back too | as rev 1 |
+| J5 / J1 / J4 | LEFT / CENTER / RIGHT SCREEN | The three round screens (front, face down), placed per [Screen headers and screen holes](#screen-headers-and-screen-holes). Their labels are on the back too | as rev 1, except pin 28 (illumination, GPIO24) is wired on J1 only: on the side screens (4C) GPIO24 is the P4's USB D-, so J5 / J4 leave it open (2026-10-23) |
 | J7 | POWER IN | Vehicle power, Micro-Fit 3.0, 6 pin, vertical | 12V, 12V, GND, GND, IGN (key on), LAMP (dash lights) |
 | J13 | AUX 12V IN | Separate high-current 12 V for the slots (own fuse at the fuse box) | 12V, GND |
 | J9 | CAMERA | Backup camera and reverse trigger, JST PH 4 pin | REV (reverse lamp 12 V in), 12V (switched camera power), unused, GND |
 | J11 | VIDEO IN | Camera's composite video, RCA | tip = video, sleeve = GND |
-| J6 | SERIAL | Serial port: the center screen's UART2 (GPIO3 TX, GPIO2 RX), 3.3 V logic, JST PH 4 pin. Was "GPS"; same pins | 3V3, TX (out of the dash: to the device's RX), RX (into the dash: from the device's TX), GND |
+| J6 | SERIAL | Serial port: the center screen's UART2 (RX GPIO3 on J1 pin 20, TX GPIO2 on J1 pin 22; the firmware matches since 2026-10-23), 3.3 V logic, JST PH 4 pin. Was "GPS"; GPS now comes from the GPS card over CAN | 3V3, TX (out of the dash: to the device's RX), RX (into the dash: from the device's TX), GND |
 | J17, J22, J23, J24 | CABLE 1 .. 4 | Cable ports for off-board CAN devices (console, nodes near a sensor) | 5V, H (CANH), L (CANL), G |
 | J25 | TRUNK | Bus extension to the rear of the car, Micro-Fit 3.0, 4 pin, vertical | H, L, 12V (switched), G. Switch SW1-1 off and terminate at the far end |
 | J31 … J36 | SLOT 1 … 6 | Card slots, 2×15 female socket (square pad = pin 1, at the top; numbered so each card pin meets its own pad, see [Numbering](../docs/hardware/accessory_ports.md#numbering)). Slot 1 is the one for a card with tall parts | see `docs/hardware/accessory_ports.md` |

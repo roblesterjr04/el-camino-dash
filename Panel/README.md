@@ -1,6 +1,6 @@
 # Panel
 
-All the current boards on **one 4-layer, 1.6 mm panel, 329 × 253 mm**, broken apart along mouse-bite tabs
+All the current boards on **one 4-layer, 1.6 mm panel, 329 × 255.5 mm**, broken apart along mouse-bite tabs
 (0.5 mm holes at 0.8 mm pitch, 5 mm tabs, 2.5 mm mill gaps), with 5 mm rails top and bottom that hold four
 1.152 mm tooling holes, three fiducials on each side, and the panel name.
 
@@ -11,9 +11,10 @@ All the current boards on **one 4-layer, 1.6 mm panel, 329 × 253 mm**, broken a
                               +---- ConsoleBoardRS 108x35 ----+    +-- Radio 80x60 --+
 ```
 
-Two gaps are 5 mm instead of 2.5 mm (Audio | Sensor and Console | Radio): the Sensor and Radio cards' left-edge
-headers stand 6.5 mm past the edge, and at 2.5 mm they would sit on the Audio card's 3.5 mm jack and the console's
-OLED socket. At 5 mm they clear by about 1.8 mm.
+Three gaps are 5 mm instead of 2.5 mm: Audio | Sensor and Console | Radio (the Sensor and Radio cards' left-edge
+headers stand 6.5 mm past the edge and would sit on the Audio card's mic jack and the console's OLED socket; at 5 mm
+they clear by about 1.8 mm), and DigiDash2 / the card row (the Audio card's mic jack nose stands 2.5 mm past its top
+edge).
 
 | Prefix | Board |
 | --- | --- |
@@ -43,7 +44,7 @@ the cards out with care, pins first.
 
 ## Tabs
 
-The generator spaces tabs about one per 45 mm of shared edge, with none within 1.5 mm of a placed part that hangs
+The generator spaces tabs about one per 30 mm of shared edge (so a 60 mm card edge gets two), with none within 1.5 mm of a placed part that hangs
 past its board edge (the Audio and console ESP32 antennas, `CO-J2`, `RA-J2`). Gaps with only one board facing a
 rail run the tab all the way to the rail. It checks that the panel is one piece and that every gap stays mostly open.
 

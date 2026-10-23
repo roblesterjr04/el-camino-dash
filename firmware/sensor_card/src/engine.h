@@ -30,7 +30,7 @@ struct EngineIn {
   // pulse timing (speed ICP5, tach ICP4), microseconds; period 0 = no pulse seen yet
   uint32_t speed_period_us = 0, speed_since_us = 0, speed_pulses = 0;
   uint32_t tach_period_us = 0, tach_since_us = 0;
-  uint8_t tach_ppr = 8;  // after the J5 jumpers and the setting
+  uint8_t tach_ppr = 4;  // after the J5 jumpers and the setting (4 = a V8)
   uint32_t dt_ms = kStepMs;
 };
 

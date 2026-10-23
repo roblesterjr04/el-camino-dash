@@ -27,8 +27,8 @@ values, all with solder jumpers. That lets one card read most common resistive g
 - **CAN 2.0B** at 500 kbit/s: MCP2515 controller (own 16 MHz crystal) + MCP2562 transceiver; fixed node `0x04`, never
   terminates the bus
 - **4 configurable sender channels** (fuel, engine temperature, oil pressure, ambient temperature): pull-up or
-  pull-down by solder jumper, a 2- or 3-value resistor bank per channel (values can be combined in parallel), 1 kΩ +
-  10 nF input filter
+  pull-down by solder jumper, a 2- or 3-value resistor bank per channel (values can be combined in parallel), 10 kΩ +
+  10 nF input filter (the 10 kΩ also limits a 12 V miswire to under 1 mA)
 - **Speed input** for hall / square-wave sensors: open-collector or push-pull up to 30 V, sensor supply 5 V or 12 V by
   solder jumper (0.1 A PTC)
 - **Tach input**, optically isolated (PC817), for a coil negative terminal (points or HEI) or an ignition box's tach
@@ -90,7 +90,7 @@ Design limits, derived from the parts' ratings and the input networks. Beyond th
 | --- | --- | --- | --- | --- |
 | +5 V supply (slot pins 1, 2) | −0.3 | 6.0 | V | Limited by the ATmega2560 and the FRAM |
 | Switched / constant 12 V (slot pins 8, 10) | −0.3 | 16, transients to the main board's TVS clamp | V | The main board's SMCJ33A clamps load dump; the dividers' 15k / 100k tops limit the clamp current to a few mA |
-| Sender pins (J2: FUEL, ETEMP, OILP, AMB) | −0.5 | 5.5 | V | **Not protected against a short to 12 V**: the 1 kΩ ADC series resistor and the bank resistor would feed it into the 5 V rail |
+| Sender pins (J2: FUEL, ETEMP, OILP, AMB) | −0.5 | 5.5 | V | Each ADC input is behind 10 kΩ: a short to 14.4 V puts about 0.9 mA into the 2560's ESD diodes (Atmel: about 1 mA), but the bridged bank resistor (sized for 5 V) can still burn if the short lasts |
 | Alternator L (J2 pin 11) | −20 | 40 | V | 22k / 10k divider, BAT54S clamp |
 | Speed signal (J3 pin 2) | −20 | 30 | V | 10k series, BAT54S clamp (2.5 mA at 30 V) |
 | Tach (J4 pin 1), continuous | −60 | 60 | V | Two 4.7k 1206 in series (0.38 W at 60 V); 1N4148W clamps the reverse |
@@ -125,7 +125,7 @@ Calculated at +5 V = 5.0 V, 25 °C, unless noted.
 | Parameter | Value | Notes |
 | --- | --- | --- |
 | ADC | 10 bit, AVCC (5 V) reference, 1 LSB = 4.9 mV | Ratiometric: the bias resistors run from the same 5 V, so supply drift cancels |
-| Input filter | 1 kΩ series + 10 nF, τ = 10 µs | Per channel, at the ADC pin |
+| Input filter | 10 kΩ series + 10 nF, τ = 100 µs | Per channel, at the ADC pin; the 10 kΩ is also the overvoltage protection |
 | Topology | Pull-up (to +5 V) or pull-down (to GND), per channel | Topology jumpers JP2–JP5 |
 | Bias resistor | Selected from the bank; ±1 % | See section 6 |
 | ETEMP V / OILP V feed | 5 V through a 0.1 A PTC, monitored (TEMP_MON / PRESS_MON) | For senders fed from the card |
@@ -231,7 +231,8 @@ Pad 1 is on the right, seen from the parts side.
 | 1 | TACH | Coil negative, HEI "TACH" terminal, or an ignition box's tach output |
 | 2 | G | Ground |
 
-The tach nets keep 1.0 mm clearance to everything else up to the two series resistors.
+The tach nets keep 1.0 mm clearance to other tracks and pads up to the two series resistors, and the ground pours keep
+2.5 mm from them on every layer.
 
 ### Left-edge headers (right angle, pin 1 is the lowest pin)
 
@@ -245,7 +246,7 @@ The tach nets keep 1.0 mm clearance to everything else up to the two series resi
 
 | Ref | Function | Pins |
 | --- | --- | --- |
-| J5 | RPM select (pulses per engine revolution) | 1-2 = A, 3-4 = B. None: 8 · A only: 4 · B only: 6 · both: 8 |
+| J5 | RPM select (pulses per engine revolution) | 1-2 = A, 3-4 = B. None: 4 (V8) · A only: 2 (4 cylinders) · B only: 3 (6 cylinders) · both: 4 |
 | J9 | Demo | Fitted = the card sends a slow fake sweep (bench only). 1 DEMO, 2 +5V |
 | J10 | Spare I/O | 1 +5V, 2 GND, 3–6 ADC10–ADC13 (port K: analog, digital or pin-change interrupt), 7–10 D44–D47 (PWM). 5 V logic, unprotected |
 
@@ -380,7 +381,7 @@ The ATmega2560 arrives blank (internal 1 MHz clock). Program it through J6 with 
 | --- | --- | --- |
 | Low | 0xFF (16 MHz crystal) | 0xFF |
 | High | 0xD8 (boot reset, 4 KB boot, JTAG off) | 0xD9 |
-| Extended | 0xFD (brown-out 2.7 V) | 0xFD |
+| Extended | 0xFC (brown-out 4.3 V: 16 MHz needs VCC ≥ 4.5 V) | 0xFC |
 
 With the bootloader on, J7 (FTDI) takes uploads like an Arduino Mega.
 
@@ -437,7 +438,7 @@ The center stops re-sending `0x100`–`0x104` when it hears them from node `0x04
 ## 10. Parts
 
 See [`SensorCard_BOM.csv`](SensorCard_BOM.csv). Key parts: ATmega2560-16AU, MCP2515-I/SO, MCP2562-E/SN,
-MB85RC256V, PC817 (SMD), two 16 MHz 3225 crystals (CL ≈ 10 pF, 18 pF load caps), JST S12B-PH-K-S and S4B-PH-K-S,
+MB85RC256V, PC817 (SMD), two 16 MHz 3225 crystals (YXC X322516MOB4SI, CL 12 pF, 18 pF load caps), JST S12B-PH-K-S and S4B-PH-K-S,
 Molex 43650-0200.
 
 ## 11. Revision history

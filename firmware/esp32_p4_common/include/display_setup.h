@@ -21,3 +21,6 @@ void elc_illumination_gpio_poll(void);
 // follow_lights=false keeps full brightness regardless of the headlight input.
 void elc_backlight_set_user(uint8_t pct, bool follow_lights);
 bool elc_illumination_is_night(void);
+// Night state from elsewhere (the center's, over CAN) on a screen built without an illumination input
+// (ELC_ILLUMINATION_GPIO < 0). Ignored where the screen reads its own input.
+void elc_illumination_set_external(bool night);

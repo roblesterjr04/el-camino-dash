@@ -196,8 +196,8 @@ so the housing should treat slots 2–6 the same. The y and z values below hold 
 | Card | Item | y | Past the top edge (z) | Off the parts face | Notes |
 | --- | --- | --- | --- | --- | --- |
 | **Audio** (slot 1) | 2 × 2 RCA block (front / rear line out), right angle | 26.5–55.4 | to z 70.0 | **28.5** | Plugs from the rear |
-| | 3.5 mm jack (mic / aux in) | 16.3–25.6 | to z 71.0 | ≈6 | Plugs from the rear |
-| | ESP32 module, **PCB antenna** at the card's top corner | 78–93 | z 51–68.5 | 2.6 | Bluetooth: no metal close to this corner |
+| | 3.5 mm mic jack (Same Sky SJ-3523-SMT, Ø5 nose) | 18.2–23.2 | to z 71.0 | 5 | Plugs from the rear (HFP mic only) |
+| | ESP32-WROVER-E module (18 × 31.4 mm, since 2026-10-23), **PCB antenna** at the card's top corner | 74–92 | z 37–68.3 | 3.3 | Bluetooth: no metal close to the antenna end (the top 7 mm, z ≈ 61–68.5) |
 | | Programming header J10 (vertical 1 × 5) | 78–92 | z 10–14 | 8.6 | Reached from the open end of the row |
 | **GPS** | JST PH 4-pin to the GPS puck, side entry | 47.5–58.4 | to z 68.9 | 4.8 | Plugs from the rear |
 | | SWD + debug serial, right angle on the left edge | to 99.5 | z 30.7–54.4 | 2.5 | |

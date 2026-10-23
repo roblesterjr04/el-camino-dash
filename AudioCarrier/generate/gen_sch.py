@@ -222,12 +222,8 @@ def text(x, y, s, size=1.6):
 # ----------------------------------------------------------------------------- parts
 R = stock('Device', 'R')
 C = stock('Device', 'C')
-CP = stock('Device', 'C_Polarized')
 FB = stock('Device', 'FerriteBead')
-JACK = box_symbol('AudioCarrier:TS3328', 'J', 'TS3328 3.5mm jack',
-                  [('2', 'PIN_2', 'passive'), ('3', 'PIN_3', 'passive'), ('4', 'PIN_4', 'passive'), ('5', 'PIN_5', 'passive')], [],
-                  w=12.7, footprint='AudioCarrier:Jack_3.5mm_TS3328_Horizontal',
-                  descr='Tinkersphere TS3328 3.5 mm jack (right angle, 5 flat pins). Pin 4 has two tabs. The pin functions are from the vendor drawing and NOT verified: see JACK_MAP in gen_sch.py')
+JACK = stock('Connector_Audio', 'AudioJack3')
 RCA4 = box_symbol('AudioCarrier:PJRAS2X2', 'J', 'PJRAS2X2S01X',
                   [('1', 'TIP_FL_white', 'passive'), ('2', 'TIP_FR_red', 'passive'), ('3', 'TIP_RL_white', 'passive'),
                    ('4', 'TIP_RR_red', 'passive')],
@@ -241,26 +237,26 @@ SJ = stock('Jumper', 'SolderJumper_2_Open')
 SW = stock('Switch', 'SW_Push')
 CAN = stock('Interface_CAN_LIN', 'MCP2562-E-P')
 OPA = stock_as('Amplifier_Operational', 'LM2904', 'AudioCarrier:OPA2376', 'OPA2376AIDGK')
-LDO = stock_as('Regulator_Linear', 'AP1117-15', 'AudioCarrier:AMS1117-3.3', 'AMS1117-3.3')
+LDO = stock_as('Regulator_Linear', 'SPX2920M3-3.3_SOT223', 'AudioCarrier:AP7361C-33E', 'AP7361C-33E')   # 1 IN, 2 GND (tab), 3 OUT
 for n in ('GND', '+5V', '+3V3', 'PWR_FLAG'):
     stock('power', n)
 
-# ESP32-PICO-MINI-02 pin numbers from the Espressif datasheet v1.7, table 3 (IO23 and IO18 are not brought out).
-GND_PINS = ['1', '2', '11', '14'] + [str(n) for n in range(36, 54)]
-ESP = box_symbol('AudioCarrier:ESP32-PICO-MINI-02', 'U', 'ESP32-PICO-MINI-02',
-                 [('3', '3V3', 'power_in'), ('8', 'EN', 'input'), ('4', 'I36', 'input'), ('5', 'I37', 'input'),
-                  ('6', 'I38', 'input'), ('7', 'I39', 'input'), ('9', 'I34', 'input'), ('10', 'I35', 'input'),
-                  ('30', 'RXD0', 'bidirectional'), ('31', 'TXD0', 'bidirectional'), ('25', 'NC', 'no_connect'),
-                  ('32', 'NC', 'no_connect')] + [(n, 'GND', 'power_in') for n in GND_PINS],
-                 [('23', 'IO0', 'bidirectional'), ('22', 'IO2', 'bidirectional'), ('24', 'IO4', 'bidirectional'),
-                  ('29', 'IO5', 'bidirectional'), ('27', 'IO7', 'bidirectional'), ('28', 'IO8', 'bidirectional'),
-                  ('19', 'IO12', 'bidirectional'), ('20', 'IO13', 'bidirectional'), ('18', 'IO14', 'bidirectional'),
-                  ('21', 'IO15', 'bidirectional'), ('33', 'IO19', 'bidirectional'), ('26', 'IO20', 'bidirectional'),
-                  ('35', 'IO21', 'bidirectional'), ('34', 'IO22', 'bidirectional'), ('15', 'IO25', 'bidirectional'),
-                  ('16', 'IO26', 'bidirectional'), ('17', 'IO27', 'bidirectional'), ('12', 'IO32', 'bidirectional'),
-                  ('13', 'IO33', 'bidirectional')],
-                 w=17.78, footprint='AudioCarrier:ESP32-PICO-MINI-02',
-                 descr='Espressif ESP32-PICO-MINI-02 module: classic ESP32 (Bluetooth Classic for A2DP / HFP), 8 MB flash, 13.2 x 16.6 mm')
+# ESP32-WROVER-E pin numbers from the Espressif datasheet v2.4, table 3. Pins 17-22 (GPIO6-11, the flash) and 27 / 28
+# (GPIO16 / 17, the PSRAM) are not brought out; 39 is the ground EPAD.
+GND_PINS = ['1', '15', '38', '39']
+ESP = box_symbol('AudioCarrier:ESP32-WROVER-E', 'U', 'ESP32-WROVER-E',
+                 [('2', '3V3', 'power_in'), ('3', 'EN', 'input'), ('4', 'I36', 'input'), ('5', 'I39', 'input'),
+                  ('6', 'I34', 'input'), ('7', 'I35', 'input'), ('34', 'RXD0', 'bidirectional'), ('35', 'TXD0', 'bidirectional')] +
+                 [(n, 'NC', 'no_connect') for n in ('17', '18', '19', '20', '21', '22', '27', '28', '32')] +
+                 [(n, 'GND', 'power_in') for n in GND_PINS],
+                 [('25', 'IO0', 'bidirectional'), ('24', 'IO2', 'bidirectional'), ('26', 'IO4', 'bidirectional'),
+                  ('29', 'IO5', 'bidirectional'), ('14', 'IO12', 'bidirectional'), ('16', 'IO13', 'bidirectional'),
+                  ('13', 'IO14', 'bidirectional'), ('23', 'IO15', 'bidirectional'), ('30', 'IO18', 'bidirectional'),
+                  ('31', 'IO19', 'bidirectional'), ('33', 'IO21', 'bidirectional'), ('36', 'IO22', 'bidirectional'),
+                  ('37', 'IO23', 'bidirectional'), ('10', 'IO25', 'bidirectional'), ('11', 'IO26', 'bidirectional'),
+                  ('12', 'IO27', 'bidirectional'), ('8', 'IO32', 'bidirectional'), ('9', 'IO33', 'bidirectional')],
+                 w=17.78, footprint='AudioCarrier:ESP32-WROVER-E',
+                 descr='Espressif ESP32-WROVER-E-N8R8 module: classic ESP32 (Bluetooth Classic for A2DP / HFP), 8 MB flash, 8 MB PSRAM, PCB antenna, 18.0 x 31.4 mm')
 
 # Pin tables below are from the TI datasheets (PCM5100A/5101A/5102A SLAS859C, PCM1808 SLES177B), PW packages.
 DAC = box_symbol('AudioCarrier:PCM5102A_TSSOP20', 'U', 'PCM5102APW',
@@ -283,6 +279,7 @@ ADC = box_symbol('AudioCarrier:PCM1808_TSSOP14', 'U', 'PCM1808PW',
 FP_R = 'Resistor_SMD:R_0603_1608Metric'
 FP_C = 'Capacitor_SMD:C_0603_1608Metric'
 FP_C22 = 'Capacitor_SMD:C_0805_2012Metric'
+FP_C1206 = 'Capacitor_SMD:C_1206_3216Metric'
 FP_SJ = 'Jumper:SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm'
 FP_SOIC = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_VSSOP = 'Package_SO:VSSOP-8_3x3mm_P0.65mm'
@@ -311,7 +308,7 @@ def c_(v, a, b, x, y, fp=None, d=None):
     return ref
 
 
-text(15, 12, 'AUDIO CARD  -  ESP32-PICO-MINI-02 + 2 x PCM5102A (4 line outputs) + PCM1808 (microphone input)', 3)
+text(15, 12, 'AUDIO CARD  -  ESP32-WROVER-E + 2 x PCM5102A (4 line outputs) + PCM1808 (hands-free microphone input)', 3)
 text(15, 20, 'Card for a DigiDash slot, 80 x 60 mm, standing on edge (docs/hardware/accessory_ports.md); its place is slot 1 '
      '(the RCA block is 28.5 mm tall). CAN node 0x14 + (slot - 1), from the slot ID on GPIO36. 5 V from the slot only; 3.3 V on board.', 1.6)
 
@@ -336,12 +333,12 @@ place('power:PWR_FLAG', '#FLG04', 'PWR_FLAG', '', 70, 85, {'1': '+3V3A'}, show_v
 
 # --- power
 G('power')
-text(15, 100, 'POWER: +5 V -> AMS1117-3.3 (ESP32, digital sides). Ferrites make +5VA (PCM1808 analog, mic op-amp) and +3V3A (PCM5102A analog + charge pump).', 1.4)
+text(15, 100, 'POWER: +5 V -> AP7361C-33E (ESP32, digital sides; tab = GND on a copper area with vias to the plane). Ferrites make +5VA (PCM1808 analog, mic op-amp) and +3V3A (PCM5102A analog + charge pump).', 1.4)
 c_('22u', '+5V', 'GND', 25, 125)
 c_('10u', '+5V', 'GND', 40, 125)
-place(LDO, 'U7', 'AMS1117-3.3', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', 75, 120, {'1': 'GND', '2': '+3V3', '3': '+5V'})
-place(CP, nid('C'), '22u tant', 'Capacitor_Tantalum_SMD:CP_EIA-3216-18_Kemet-A', 105, 125, {'1': '+3V3', '2': 'GND'},
-      descr='AMS1117 wants >= 22 uF with some ESR on the output')
+place(LDO, 'U7', 'AP7361C-33E', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', 75, 120, {'1': '+5V', '2': 'GND', '3': '+3V3'},
+      descr='Diodes AP7361C-33E-13: 3.3 V 1 A LDO, SOT-223, pin 1 IN, 2 GND (tab), 3 OUT. Stable with ceramics >= 2.2 uF')
+c_('22u', '+3V3', 'GND', 105, 125, d='LDO output (ceramic: the AP7361C is stable with MLCCs >= 2.2 uF)')
 c_('100n', '+3V3', 'GND', 120, 125)
 place(FB, 'FB1', '600R @100MHz', 'Inductor_SMD:L_0603_1608Metric', 145, 125, {'1': '+5V', '2': '+5VA'})
 c_('10u', '+5VA', 'GND', 165, 125)
@@ -358,13 +355,13 @@ sig = {'IO32': 'CAN_TXD', 'IO33': 'CAN_RX', 'IO14': 'I2S_BCLK', 'IO25': 'I2S_LRC
        'IO0': 'BOOT', 'EN': 'EN', 'TXD0': 'UART_TX', 'RXD0': 'UART_RX', '3V3': '+3V3', 'GND': 'GND'}
 for num, (px, py, ang, nm, typ, u) in lib_pins[ESP].items():
     en[num] = sig.get(nm)
-place(ESP, 'U1', 'ESP32-PICO-MINI-02', 'AudioCarrier:ESP32-PICO-MINI-02', 260, 215, en,
-      descr='Espressif ESP32-PICO-MINI-02-N8R2 (or -N8): classic ESP32 module, antenna on the board edge')
-c_('10u', '+3V3', 'GND', 230, 290, d='Module supply, at pin 3')
-c_('100n', '+3V3', 'GND', 245, 290, d='Module supply, at pin 3')
+place(ESP, 'U1', 'ESP32-WROVER-E-N8R8', 'AudioCarrier:ESP32-WROVER-E', 260, 215, en,
+      descr='Espressif ESP32-WROVER-E-N8R8: classic ESP32 module, 8 MB flash, 8 MB PSRAM, antenna end on the board edge')
+c_('10u', '+3V3', 'GND', 230, 290, d='Module supply, at pin 2')
+c_('100n', '+3V3', 'GND', 245, 290, d='Module supply, at pin 2')
 text(215, 150, 'I2S0 master: BCK GPIO14, WS GPIO25, DOUT GPIO27 (front DAC), DIN GPIO35 (PCM1808), MCLK GPIO0 (12.288 MHz for the ADC).\n'
      'I2S1 slave on the same BCK / WS pins: DOUT GPIO26 (rear DAC). GPIO4 = DAC mute (XSMT), pulled low. '
-     'GPIO32 / 33 CAN, GPIO13 / 22 rev 1 node straps, unused on rev 2 (the module has no GPIO23). GPIO12 / 2 / 15 / 5 left open (boot straps).\n'
+     'GPIO32 / 33 CAN, GPIO13 / 22 rev 1 node straps, unused on rev 2. GPIO12 / 2 / 15 / 5 left open (boot straps: GPIO12 must read low at reset for the 3.3 V flash).\n'
      'Slot: GPIO36 slot ID (ADC1), GPIO34 I2S1 data in from the I2S rail (LINK3 = RET), GPIO21 low enables the rail buffer.', 1.4)
 
 G('boot')
@@ -427,36 +424,31 @@ G('port')
 
 # --- microphone
 G('mic')
-text(30, 340, 'MICROPHONE: 3.5 mm TRS jack J6. Tip = electret mic (2.2k bias from filtered 3.3 V, DC-blocked), ring = second input (line / aux, no bias).\n'
-     'Mic preamp: OPA2376 non-inverting, gain 1 + 47k / 2.2k = 22 (27 dB), DC gain 1 at mid-supply (2.5 V). Ring input is a unity-gain buffer. '
-     'PCM1808 full scale is 3 Vp-p (about 1 Vrms).', 1.4)
-r_('1k', '+3V3A', 'MICV', 90, 365)
-c_('10u', 'MICV', 'GND', 105, 365)
-r_('2.2k', 'MICV', 'MIC_TIP', 120, 365, 'Electret bias')
+text(30, 340, 'MICROPHONE (hands-free calls only, no line / aux input): 3.5 mm jack J6 for an electret car microphone on a mono TS plug '
+     '(plug-in power). Tip = mic, bias 2.2k from MICV (+5VA through 1k + 47u). Ring and sleeve to ground, so a TS or a TRS plug works.\n'
+     'Preamp: OPA2376 A non-inverting, gain 1 + 47k / 2.2k = 22.4 (27 dB): -42 dBV/Pa gives 0.18 Vrms at 94 dB SPL, '
+     'clipping (PCM1808 full scale 3 Vp-p, about 1 Vrms) at about 109 dB SPL. DC gain 1 at mid-supply (2.5 V). '
+     'OPA2376 B (spare) is a follower on VMID; the ADC right input is AC-grounded.', 1.4)
+r_('1k', '+5VA', 'MICV', 90, 365, 'Electret bias supply filter (with the 47 uF)')
+c_('47u', 'MICV', 'GND', 105, 365, fp=FP_C1206, d='Electret bias supply filter: 1k + 47 uF, about 3 Hz')
+r_('2.2k', 'MICV', 'MIC_TIP', 120, 365, 'Electret bias (plug-in power)')
 c_('100p', 'MIC_TIP', 'GND', 135, 365, d='RF bypass, at the jack')
-# PROVISIONAL pin functions of the TS3328 (the vendor's drawing numbers the pins 2, 3, 4, 4, 5 but does not name them).
-# Read from its wiring diagram, which looks 4-pole: sleeve = 5, then the springs from the deepest: tip = 2, ring 1 = 4,
-# ring 2 = 3. A TRS plug's sleeve touches ring 2 and the sleeve spring, so 3 and 5 are both ground. Verify with a plug and
-# a meter (continuity from the plug's tip / ring / sleeve to each pin), then edit this table and re-run.
-JACK_MAP = {'2': 'MIC_TIP', '4': 'RING', '3': 'GND', '5': 'GND'}
-place(JACK, 'J6', '3.5mm mic / aux in', 'AudioCarrier:Jack_3.5mm_TS3328_Horizontal', 60, 380, JACK_MAP,
-      descr='Tinkersphere TS3328. Tip = mic, ring = aux in, sleeve = ground. Pin functions provisional (see JACK_MAP in gen_sch.py)')
+place(JACK, 'J6', 'Mic in', 'Connector_Audio:Jack_3.5mm_CUI_SJ-3523-SMT_Horizontal', 60, 380, {'T': 'MIC_TIP', 'R': 'GND', 'S': 'GND'},
+      descr='Same Sky SJ-3523-SMT-TR 3.5 mm jack, right angle (pins: 1 sleeve, 2 tip, 3 ring). Tip = electret mic, ring and sleeve = ground')
 c_('1u', 'MIC_TIP', 'MIC_IN', 150, 365)
 r_('100k', 'MIC_IN', 'VMID', 165, 365)
 r_('10k', '+5VA', 'VMID', 180, 380)
 r_('10k', 'VMID', 'GND', 195, 380)
 c_('10u', 'VMID', 'GND', 210, 380)
 place(OPA, 'U3', 'OPA2376AIDGK', FP_VSSOP, 250, 380, {'3': 'MIC_IN', '2': 'MIC_FB', '1': 'MIC_OP'}, unit=1,
-      descr='Dual RRIO low-noise op-amp on 5 V, VSSOP-8 (any RRIO dual with the standard pinout will do)')
+      descr='Dual RRIO low-noise op-amp on 5 V, VSSOP-8 (A: mic preamp, B: spare, a follower on VMID)')
 r_('47k', 'MIC_OP', 'MIC_FB', 280, 365)
 c_('100p', 'MIC_OP', 'MIC_FB', 295, 365, d='Roll-off, about 34 kHz')
 r_('2.2k', 'MIC_FB', 'MIC_G', 310, 365)
 c_('10u', 'MIC_G', 'GND', 325, 365)
 c_('1u', 'MIC_OP', 'ADC_INL', 340, 380)
-c_('1u', 'RING', 'RING_IN', 150, 400)
-r_('100k', 'RING_IN', 'VMID', 165, 400)
-place(OPA, 'U3', 'OPA2376AIDGK', FP_VSSOP, 250, 410, {'5': 'RING_IN', '6': 'RING_OP', '7': 'RING_OP'}, unit=2, first=False)
-c_('1u', 'RING_OP', 'ADC_INR', 340, 410)
+place(OPA, 'U3', 'OPA2376AIDGK', FP_VSSOP, 250, 410, {'5': 'VMID', '6': 'OPB_OUT', '7': 'OPB_OUT'}, unit=2, first=False)
+c_('1u', 'ADC_INR', 'GND', 340, 410, d='Unused ADC right input: AC-grounded (the PCM1808 biases it internally)')
 place(OPA, 'U3', 'OPA2376AIDGK', FP_VSSOP, 290, 410, {'4': 'GND', '8': '+5VA'}, unit=3, first=False)
 c_('100n', '+5VA', 'GND', 310, 410, d='U3 decoupling, next to the pins')
 
@@ -476,7 +468,7 @@ text(430, 415, 'GPIO0 outputs the 12.288 MHz clock (256 x 48 kHz) after boot. Th
 # --- links and the audio bus
 G('link')
 text(530, 300, 'I2S RAIL (bused to every slot; this card is its clock master): a 74LVC125 drives LINK0 BCK, LINK1 WS, LINK2 the '
-     'mic / aux data (PCM1808 DOUT) and LINK4 MCLK, only while GPIO21 holds its enables low (pulled high: off at reset). '
+     'mic data (PCM1808 DOUT) and LINK4 MCLK, only while GPIO21 holds its enables low (pulled high: off at reset). '
      'LINK3 (RET: the I2S data of the card granted the rail over CAN) comes in on GPIO34 (I2S1 data in).\n'
      'AUDIO BUS: the front pair drives AUDIO_L / R through 100 R; AUDIO_GND joins this card\'s ground through 10 R.', 1.4)
 for unit, (oe, a, y, src, dst) in enumerate([('1', '2', '3', 'I2S_BCLK', 'LINK0'), ('4', '5', '6', 'I2S_LRC', 'LINK1'),
@@ -498,8 +490,8 @@ r_('10', 'AUDIO_GND', 'GND', 600, 440, 'Audio bus ground: tied here through 10 R
 out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "A2")',
-       '  (title_block (title "DigiDash audio card") (date "2026-10-01") (rev "F")',
-       '    (comment 1 "ESP32-PICO-MINI-02 + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + 3.5 mm mic / aux input")',
+       '  (title_block (title "DigiDash audio card") (date "2026-10-23") (rev "G")',
+       '    (comment 1 "ESP32-WROVER-E + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + 3.5 mm hands-free mic input")',
        '    (comment 2 "Card for a DigiDash slot (2x15, on edge), slot 1"))',
        '  (lib_symbols']
 for t in lib_text.values():

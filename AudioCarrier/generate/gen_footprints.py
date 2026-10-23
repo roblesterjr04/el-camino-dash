@@ -26,39 +26,44 @@ def smd(num, x, y, w, h, extra=''):
     return ('  (pad "%s" smd rect (at %g %g) (size %g %g) (layers "F.Cu" "F.Paste" "F.Mask")%s)' % (num, x, y, w, h, extra))
 
 
-# ESP32-PICO-MINI-02: Espressif datasheet v1.7, figures 3 (pin layout) and 14 (recommended land pattern).
-# 13.2 x 16.6 mm body, antenna at the -Y end (y -11 ... -5.6). 0.4 x 0.8 pads on a 0.8 mm pitch: 11 per side
-# (1-11 left, top to bottom; 25-35 right, bottom to top), 13 per end row (12-24 bottom, left to right; 36-48 top,
-# right to left), 0.7 mm corner pads 50-53 and a 3 x 3 grid of 1.45 mm ground pads (all pin 49).
-# Same land pattern as KiCad's ESP32-C6-MINI-1, with a courtyard that covers the module only; the antenna
-# keep-out is a rule area over the antenna end, and the module sits with that end on the board edge.
-b = [text('reference', 'REF**', 0, 6.9, 'F.SilkS'), text('value', 'ESP32-PICO-MINI-02', 0, 8.2, 'F.Fab')]
-for i in range(11):
-    b.append(smd(1 + i, -5.9, -4 + 0.8 * i, 0.8, 0.4))
-    b.append(smd(35 - i, 5.9, -4 + 0.8 * i, 0.8, 0.4))
-for i in range(13):
-    b.append(smd(12 + i, -4.8 + 0.8 * i, 4.9, 0.4, 0.8))
-    b.append(smd(48 - i, -4.8 + 0.8 * i, -4.9, 0.4, 0.8))
-for gx in (-1.975, 0, 1.975):
-    for gy in (-1.975, 0, 1.975):
-        b.append(smd(49, gx, gy, 1.45, 1.45))
-for num, x, y in ((50, 5.95, -4.95), (51, 5.95, 4.95), (52, -5.95, 4.95), (53, -5.95, -4.95)):
-    b.append(smd(num, x, y, 0.7, 0.7, ' (zone_connect 2)'))     # solid: too small and too near the edge for spokes
-# all ground pads are one net inside the module: tell KiCad, so the corner pads need no copper of their own
-b.append('  (jumper_pad_groups ("%s"))' % '" "'.join(str(n) for n in [1, 2, 11, 14] + list(range(36, 54))))
-b += [rect(-6.6, -11, 6.6, 5.6, 'F.Fab', 0.1),
-      '  (fp_line (start -6.6 -5.6) (end 6.6 -5.6) (stroke (width 0.1) (type solid)) (layer "F.Fab"))',
-      rect(-6.75, -11.15, 6.75, 5.75, 'F.SilkS', 0.12),
-      '  (fp_poly (pts (xy -7.1 -4) (xy -7.44 -3.76) (xy -7.44 -4.24)) (stroke (width 0.12) (type solid)) (fill solid) (layer "F.SilkS"))',
-      rect(-6.85, -11.25, 6.85, 5.85, 'F.CrtYd', 0.05),
-      text('user', 'ANTENNA', 0, -8.3, 'F.Fab', 0.8),
+# ESP32-WROVER-E (-N8R8): Espressif ESP32-WROVER-E / -IE datasheet v2.4, figure 12 (dimensions) and figure 15 (recommended
+# PCB land pattern). 18.0 x 31.4 mm, antenna at the -Y end (the "antenna area", 6.22 mm deep). 38 castellated pins on a
+# 1.27 mm pitch, 19 per side: 1-19 down the left side (pin 1 7.44 mm from the antenna end, pin 19 1.1 mm from the far
+# end), 20-38 up the right side. Pads 1.5 x 0.9, their outer end 0.5 mm past the module edge (centres 17.5 mm apart).
+# Pin 39 is the ground EPAD: 3 x 3 pads of 0.9 mm in a 3.7 mm square, centred 7.5 mm from the left edge and 16.16 mm from
+# the far end. Here it is one 3.7 mm copper pad with the nine 0.9 mm paste openings, and no vias in it (no via in a pad
+# on this board): it reaches the ground pours by its spokes. The keep-out (no copper, any layer) covers the antenna area.
+M_W, M_L, ANT = 18.0, 31.4, 6.22
+TOP = -M_L / 2
+b = [text('reference', 'REF**', 0, TOP + 9.5, 'F.SilkS'), text('value', 'ESP32-WROVER-E', 0, 6.0, 'F.Fab')]
+for k in range(19):
+    b.append(smd(1 + k, -8.75, round(TOP + 7.44 + 1.27 * k, 3), 1.5, 0.9))
+    b.append(smd(20 + k, 8.75, round(-TOP - 1.1 - 1.27 * k, 3), 1.5, 0.9))
+ex, ey = -M_W / 2 + 7.5, -TOP - 16.16
+b.append('  (pad "39" smd rect (at %g %g) (size 3.7 3.7) (layers "F.Cu" "F.Mask"))' % (ex, round(ey, 3)))
+for gx in (-1.4, 0, 1.4):
+    for gy in (-1.4, 0, 1.4):
+        b.append('  (pad "" smd rect (at %g %g) (size 0.9 0.9) (layers "F.Paste"))' % (round(ex + gx, 3), round(ey + gy, 3)))
+s = 0.12
+xs, y1, y2 = M_W / 2 + 0.11, TOP - 0.11, -TOP + 0.11
+b += [rect(-M_W / 2, TOP, M_W / 2, -TOP, 'F.Fab', 0.1),
+      '  (fp_line (start %g %g) (end %g %g) (stroke (width 0.1) (type solid)) (layer "F.Fab"))' % (-M_W / 2, TOP + ANT, M_W / 2, TOP + ANT),
+      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (-xs, y1, xs, y1, s),
+      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (-xs, y2, xs, y2, s),
+      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (-xs, y1, -xs, TOP + 6.9, s),
+      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (xs, y1, xs, TOP + 6.9, s),
+      '  (fp_poly (pts (xy -10.0 %g) (xy -10.4 %g) (xy -10.4 %g)) (stroke (width 0.12) (type solid)) (fill solid) (layer "F.SilkS"))' % (
+          TOP + 7.44, TOP + 7.14, TOP + 7.74),
+      rect(-9.75, TOP - 0.25, 9.75, -TOP + 0.25, 'F.CrtYd', 0.05),
+      text('user', 'ANTENNA', 0, TOP + 3.1, 'F.Fab', 0.8),
       '  (zone (net 0) (net_name "") (layers "*.Cu") (hatch edge 0.5) (connect_pads (clearance 0)) (min_thickness 0.25)'
       ' (keepout (tracks not_allowed) (vias not_allowed) (pads not_allowed) (copperpour not_allowed) (footprints allowed))'
       ' (fill (thermal_gap 0.5) (thermal_bridge_width 0.5))'
-      ' (polygon (pts (xy -6.6 -11.3) (xy 6.6 -11.3) (xy 6.6 -5.6) (xy -6.6 -5.6))))']
-write('ESP32-PICO-MINI-02',
-      'Espressif ESP32-PICO-MINI-02 module (classic ESP32, Bluetooth Classic + BLE, Wi-Fi), 13.2 x 16.6 mm. Land pattern from the datasheet (figure 14). Antenna end at -Y, keep copper away from it',
-      'ESP32 PICO MINI module', 'smd', b)
+      ' (polygon (pts (xy %g %g) (xy %g %g) (xy %g %g) (xy %g %g))))' % (-M_W / 2, TOP - 0.3, M_W / 2, TOP - 0.3, M_W / 2, TOP + ANT,
+                                                                       -M_W / 2, TOP + ANT)]
+write('ESP32-WROVER-E',
+      'Espressif ESP32-WROVER-E module (classic ESP32, Bluetooth Classic + BLE, Wi-Fi, PCB antenna), 18.0 x 31.4 mm. Land pattern from the datasheet v2.4 (figure 15). Antenna end at -Y: keep copper away from it',
+      'ESP32 WROVER-E module', 'smd', b)
 
 
 def pad(num, x, y, size, drill):
@@ -93,32 +98,6 @@ b = [text('reference', 'REF**', 0, -16.5, 'F.SilkS'), text('value', 'PJRAS2X2S01
 write('RCA_Switchcraft_PJRAS2X2_RightAngle',
       'Switchcraft PJRAS2X2S01X, 4 x RCA jack (2 x 2), right angle PC mount. Pads from the customer drawing. Origin at the plate rear face (put the board edge at y = 0), body at -y. Body 27 x 13.7 mm, 28.5 mm tall; the barrels stand 8.2 mm and the plate 1.5 mm past the edge',
       'RCA phono 2x2 right angle', 'through_hole', b)
-
-
-# Tinkersphere TS3328 "1/8 in (3.5 mm) audio jack, PCB mount": 5 flat pins (1.5 x 0.8 blades) and two round posts, right
-# angle. Hole pattern from the drawing on its product page (photo 3: "P.C.B LAYOUT, TOP VIEW"). Origin: the middle of the
-# body's front face; the body runs to +x (12 mm) and the barrel (nose, 6 mm dia, 2.5 mm long) stands out at -x, so the board
-# edge goes on x = 0. Pad names are the drawing's pin numbers; the two "4" pads are one contact with two tabs.
-def blade(num, x, y, along_x=True):
-    w, h = (2.6, 1.9) if along_x else (1.9, 2.6)
-    dw, dh = (1.9, 1.1) if along_x else (1.1, 1.9)
-    return ('  (pad "%s" thru_hole oval (at %g %g) (size %g %g) (drill oval %g %g) (layers "*.Cu" "*.Mask"))' %
-            (num, x, y, w, h, dw, dh))
-
-
-def peg(x, y):
-    return '  (pad "" np_thru_hole circle (at %g %g) (size 1.6 1.6) (drill 1.6) (layers "*.Cu" "*.Mask"))' % (x, y)
-
-
-b = [text('reference', 'REF**', 6.0, -6.0, 'F.SilkS'), text('value', 'TS3328_3.5mm_jack', 6.0, 6.0, 'F.Fab'),
-     blade(4, 3.5, -3.3), blade(4, 3.5, 3.3), blade(2, 11.5, -2.8), blade(3, 11.5, 2.8), blade(5, 12.0, 0, False),
-     peg(2.0, 0), peg(9.0, 0),
-     rect(0, -3.5, 12.0, 3.5, 'F.Fab', 0.1), rect(-2.5, -3.0, 0, 3.0, 'F.Fab', 0.1),
-     '  (fp_line (start 0 -3.9) (end 0 3.9) (stroke (width 0.15) (type solid)) (layer "F.SilkS"))',
-     rect(-0.2, -4.6, 12.6, 4.6, 'F.CrtYd', 0.05)]
-write('Jack_3.5mm_TS3328_Horizontal',
-      'Tinkersphere TS3328 3.5 mm audio jack, right angle, 5 flat pins + 2 posts. From the vendor drawing. Origin at the middle of the front face (board edge at x = 0), body at +x 12 x 7 mm x 6 mm high, barrel 2.5 mm out at -x. Pin functions are not documented on the page: verify (see the carrier README)',
-      'audio jack 3.5mm TS3328', 'through_hole', b)
 
 
 # a plain 3D model of the block for the viewer (VRML: 1 unit = 2.54 mm, footprint +y is VRML -y): body, plate, four barrels

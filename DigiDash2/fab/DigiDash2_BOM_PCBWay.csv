@@ -1,5 +1,5 @@
 Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,Side,Your Instructions / Notes
-1,C1 C18,2,Panasonic,EEE-FK1H101P,100u 50V: Aluminium electrolytic 100 uF 50 V,10 x 10.2 mm SMD,SMD,Bottom,
+1,C1 C18,2,Panasonic,EEE-FK1J101P,"100u 63V: Aluminium electrolytic 100 uF 63 V, AEC-Q200",10 x 10.2 mm SMD,SMD,Bottom,63 V: above the SMCJ33A clamp (about 53 V)
 2,C2 C3 C4 C5,4,Murata,GRM32ER72A225KA35L,2.2u 100V: Capacitor 2.2u X7R 100 V,1210,SMD,Bottom,
 3,C6 C7 C19 C20 C21 C22 C23 C24 C25 C26 C27 C28 C35 C36 C37 C38 C40 C41,18,Samsung,CL10B104KB8NNNC,100n: Capacitor 100n X7R 50 V,0603,SMD,Bottom,
 4,C8 C9 C10,3,Murata,GRM32ER61A476KE20L,47u 10V: Capacitor 47u X5R 10 V,1210,SMD,Bottom,
@@ -19,9 +19,9 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footpr
 18,D12 D13 D14,3,Nexperia,"BAT54S,215","BAT54S: Dual Schottky, series",SOT-23,SMD,Bottom,
 19,F1,1,Keystone,3568,"5A mini blade: Fuse holder, mini blade (ATM), PCB",THT,THT,Bottom,Holder only; fit a 5 A mini blade fuse (Littelfuse 0297005.WXNV) after soldering if supplied
 20,F2 F3 F4 F5 F6 F8 F9 F12 F13 F16 F17 F20 F21 F24 F25 F28 F29,17,Bourns,MF-MSMF050/30X-2,"PTC 0.5A: PTC 0.5 A hold, 30 V, AEC-Q200",1812,SMD,Bottom,30 V part on the 5 V and the 12 V lines alike
-21,F7,1,Bourns,MF-MSMF110/16-2,"PTC 1.1A: PTC 1.1 A hold, 16 V, AEC-Q200",1812,SMD,Bottom,
-22,F10 F14 F18 F22 F26 F30,6,Bourns,MF-NSMF010-2,PTC 0.1A: PTC 0.1 A hold,1206,SMD,Bottom,
-23,F11 F15 F19 F23 F27 F31,6,Bourns,MF-NSMF020-2,PTC 0.2A: PTC 0.2 A hold,1206,SMD,Bottom,
+21,F7,1,Bourns,MF-MSMF110/33X-2,"PTC 1.1A: PTC 1.1 A hold, 33 V",1812,SMD,Bottom,
+22,F10 F14 F18 F22 F26 F30 F32,7,Bourns,MF-NSMF010/60X-2,"PTC 0.1A: PTC 0.1 A hold, 60 V",1206,SMD,Bottom,
+23,F11 F15 F19 F23 F27 F31,6,Bourns,MF-NSMF020X-2,"PTC 0.2A: PTC 0.2 A hold, 30 V, AEC-Q200",1206,SMD,Bottom,On the battery line: 30 V part
 24,FB1,1,Murata,BLM18KG601SN1D,600R: Ferrite bead 600 R at 100 MHz,0603,SMD,Bottom,
 25,J1,1,Sullins,PRPC020DAAN-RC,"Center Screen - Master: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"
 26,J4,1,Sullins,PRPC020DAAN-RC,"Right Screen: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"

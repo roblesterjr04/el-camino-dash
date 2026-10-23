@@ -1,5 +1,5 @@
 Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
-C1,100u 50V,CP_Elec_10x10.5,186.290mm,-66.890mm,180,Bottom
+C1,100u 63V,CP_Elec_10x10.5,186.290mm,-66.890mm,180,Bottom
 C2,2.2u 100V,C_1210_3225Metric,222.500mm,-75.700mm,270,Bottom
 C3,2.2u 100V,C_1210_3225Metric,218.750mm,-74.200mm,270,Bottom
 C4,2.2u 100V,C_1210_3225Metric,222.750mm,-64.200mm,90,Bottom
@@ -16,7 +16,7 @@ C14,10u,C_0805_2012Metric,151.590mm,-72.120mm,0,Bottom
 C15,1u,C_0603_1608Metric,173.620mm,-77.380mm,180,Bottom
 C16,4.7u,C_0805_2012Metric,154.880mm,-71.340mm,90,Bottom
 C17,10u,C_0805_2012Metric,146.380mm,-73.590mm,90,Bottom
-C18,100u 50V,CP_Elec_10x10.5,261.790mm,-93.640mm,0,Bottom
+C18,100u 63V,CP_Elec_10x10.5,261.790mm,-93.640mm,0,Bottom
 C19,100n,C_0603_1608Metric,153.620mm,-98.620mm,0,Bottom
 C20,100n,C_0603_1608Metric,269.120mm,-103.380mm,270,Bottom
 C21,100n,C_0603_1608Metric,275.620mm,-106.380mm,0,Bottom
@@ -84,6 +84,7 @@ F28,PTC 0.5A,Fuse_1812_4532Metric,172.590mm,-60.590mm,90,Bottom
 F29,PTC 0.5A,Fuse_1812_4532Metric,176.090mm,-66.090mm,180,Bottom
 F30,PTC 0.1A,Fuse_1206_3216Metric,172.930mm,-70.770mm,180,Bottom
 F31,PTC 0.2A,Fuse_1206_3216Metric,160.930mm,-66.020mm,0,Bottom
+F32,PTC 0.1A,Fuse_1206_3216Metric,306.000mm,-44.000mm,90,Bottom
 FB1,600R,L_0603_1608Metric,148.620mm,-72.380mm,270,Bottom
 J6,Serial,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,302.000mm,-36.550mm,0,Bottom
 J7,Vehicle power,Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical,255.900mm,-51.415mm,0,Bottom

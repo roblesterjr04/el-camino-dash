@@ -175,6 +175,7 @@ void cluster_peer_frame(const ElcCanFrame &f) {
     s_st = st;
     s_have_st = true;
     s_st_ms = millis();
+    elc_illumination_set_external((st.flags & ELC_CAN_CLUSTER_LIGHTS_ON) != 0);  // no-op where the screen has its own input
     return;
   }
   ElcCanCenterStatus cs;

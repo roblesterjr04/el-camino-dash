@@ -567,25 +567,25 @@
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "10k"
  },
  "R34": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "10k"
  },
  "R35": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "10k"
  },
  "R36": {
   "dnp": false,
   "fp": "Resistor_SMD:R_0603_1608Metric",
   "group": "sensors",
-  "value": "1k"
+  "value": "10k"
  },
  "R37": {
   "dnp": false,

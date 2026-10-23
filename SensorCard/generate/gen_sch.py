@@ -383,7 +383,7 @@ c_('10u', '+5V', 'GND', 'U1 bulk')
 place(FB, nid('FB'), '600R', FP_FB, {'1': '+5V', '2': 'AVCC'}, descr='AVCC filter')
 c_('100n', 'AVCC', 'GND', 'AVCC')
 c_('100n', 'AREF', 'GND', 'AREF (AVCC reference selected in firmware)')
-place(XTAL, 'Y1', '16MHz', FP_XTAL, {'1': 'XTAL1', '2': 'GND', '3': 'XTAL2', '4': 'GND'}, descr='16 MHz, 3225, CL about 10 pF')
+place(XTAL, 'Y1', '16MHz', FP_XTAL, {'1': 'XTAL1', '2': 'GND', '3': 'XTAL2', '4': 'GND'}, descr='16 MHz, 3225, CL 12 pF (18p + 18p in series plus stray)')
 c_('18p', 'XTAL1', 'GND', 'Y1 load')
 c_('18p', 'XTAL2', 'GND', 'Y1 load')
 r_('10k', '+5V', 'RESET', 'Reset pull-up')
@@ -440,7 +440,7 @@ r_('10k', '+5V', 'SENS_RX1', 'USART1 RX idle high (nothing wired in the car)')
 
 # ----------------------------------------------------------------------------- senders
 cur[0] = Block('sensors', 1, 'SENDERS (J2, JST PH 12 pin, top edge). Each channel: a topology jumper (pull-up to +5 V or pull-down to GND) '
-               'feeding a bank of resistors, each behind its own solder jumper. Bridge one value (two give them in parallel). 1k + 10 nF into the ADC.')
+               'feeding a bank of resistors, each behind its own solder jumper. Bridge one value (two give them in parallel). 10k + 10 nF into the ADC.')
 place(HDR[12], 'J2', 'Senders', 'Connector_JST:JST_PH_S12B-PH-K_1x12_P2.00mm_Horizontal',
       {'1': 'FUEL', '2': 'GND', '3': 'ENGINE_TEMP', '4': 'ENGINE_TEMP_VIN', '5': 'GND', '6': 'OIL_PRESSURE',
        '7': 'OIL_PRESSURE_VIN', '8': 'GND', '9': 'AMB_TEMP', '10': 'GND', '11': 'ALT_L_IN', '12': 'GND'},
@@ -480,7 +480,7 @@ for net, name, topo, bank in BANKS:
               descr='%s %s select: %s as delivered' % (name, v, 'bridged' if bridged else 'open'))
         r_(v, '%s_%s' % (net, v.upper()), net, '%s bank, %s: %s' % (name, v, note), fp)
 for net in ('FUEL', 'ENGINE_TEMP', 'OIL_PRESSURE', 'AMB_TEMP'):
-    r_('1k', net, net + '_ADC', 'ADC series (protection)')
+    r_('10k', net, net + '_ADC', 'ADC series: the input protection (14.4 V on the pin puts about 0.9 mA into the 2560 ESD diodes)')
     c_('10n', net + '_ADC', 'GND', 'ADC filter')
 # alternator L
 r_('22k', 'ALT_L_IN', 'ALT_L', 'Alternator L divider top')

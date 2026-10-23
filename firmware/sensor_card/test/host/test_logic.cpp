@@ -264,7 +264,7 @@ static void test_engine() {
   EngineIn m = steady(236.0f, true);
   m.speed_period_us = 45000;
   m.speed_since_us = 1000;
-  m.tach_period_us = 7500;  // 8 ppr: 8000 pulses/min -> 1000 rpm
+  m.tach_period_us = 15000;  // a V8, 4 ppr: 4000 pulses/min -> 1000 rpm
   m.tach_since_us = 100;
   e3.step(m, out);
   NEAR(out.mph, 10.0, 0.1);

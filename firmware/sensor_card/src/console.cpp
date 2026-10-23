@@ -286,8 +286,8 @@ void cmd_can(int argc, char **argv) {
 
 void cmd_status() {
   const EngineOut &o = card.out;
-  SAY("sensor card fw %d, node 0x%02X, uid %08lX, up %lus%s", CARD_FW_VERSION, (unsigned)kCardNode, (unsigned long)card.uid,
-      (unsigned long)(millis() / 1000), card.demo ? ", DEMO" : "");
+  SAY("sensor card fw %d, node 0x%02X, uid %08lX, up %lus, reset cause %02X%s", CARD_FW_VERSION, (unsigned)kCardNode,
+      (unsigned long)card.uid, (unsigned long)(millis() / 1000), (unsigned)card_reset_cause, card.demo ? ", DEMO" : "");
   SAY("fram %s, calibration %s%s, odometer %s%s", card.fram ? "ok" : "none", card.cal_from_fram ? "from FRAM" : "defaults",
       card.cal_dirty ? " (unsaved)" : "", card.odo.known() ? "known" : "unknown", card.odo.persisted() ? "" : " (not stored)");
   SAY("ign %u alt %u | %d mph x10 | %lu rpm | fuel %ld.%ld%% (%s) | temp %ld (%s) | oil %ld kPa (%s) | batt %ld.%02ld V",

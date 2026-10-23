@@ -149,6 +149,8 @@ FIXED = {
     # CAN transceivers beside their screen headers
     'U5': (64.0, 84.0, 0, 'B'), 'U9': (124.0, 79.0, 0, 'B'), 'U10': (244.0, 84.0, 0, 'B'),
     'J16': (190.0, 79.0, 90, 'B'), 'D2': (172.0, 82.0, 0, 'B'),
+    # the serial port's 3.3 V PTC, inline on J6 pin 1's track below the connector
+    'F32': (286.0, 24.0, 90, 'B'),
 }
 # video support parts, fixed by their exact description (so renumbering cannot move them). The input chain sits in the
 # strip between Q2 and the RCA jack (J11 pin 1 at x 263, y 45), from the jack's level up: the ESD clamp and the
@@ -286,6 +288,10 @@ def main():
         fp.SetAttributes(fp.GetAttributes() & ~pcbnew.FP_EXCLUDE_FROM_BOM)
         if groups.get(ref, {}).get('dnp'):
             fp.SetDNP(True)             # not fitted as delivered (the schematic's DNP flag)
+        if ref == 'U11':                # the 3.3 V LDO's GND tab joins the pour solidly, to shed its heat
+            for pad in fp.Pads():
+                if pad.GetNumber() == '2':
+                    pad.SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
         b.Add(fp)
         for pad in fp.Pads():
             n = nets.get((ref, pad.GetNumber()))

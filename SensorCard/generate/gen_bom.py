@@ -31,7 +31,7 @@ MPN = {     # maker, part number
 }
 BY_VALUE = {'BAT54S': ('Nexperia', 'BAT54S,215'), 'BAT42W': ('Vishay', 'BAT42W-E3-08'),
             '1N4148W': ('Diodes Inc', '1N4148W-7-F'), 'green': ('Lite-On', 'LTST-C191KGKT'),
-            '600R': ('Murata', 'BLM18KG601SN1D'), 'PTC 0.1A': ('Bourns', 'MF-NSMF010-2')}
+            '600R': ('Murata', 'BLM18KG601SN1D'), 'PTC 0.1A': ('Bourns', 'MF-NSMF010/60X-2')}
 CAPS = {('10u', '0805'): 'CL21B106KOQNNNE', ('100n', '0603'): 'CL10B104KB8NNNC', ('100n', '0805'): 'CL21B104KBCNNNC',
         ('10n', '0603'): 'CL10B103KB8NNNC', ('18p', '0603'): 'CL10C180JB8NNNC', ('1n', '0603'): 'CL10C102JB8NNNC'}
 NOTES = {'Y1': 'LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF part): fine',
@@ -39,7 +39,7 @@ NOTES = {'Y1': 'LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF pa
          'J9': 'Plus one 2.54 mm jumper shunt (Sullins QPC02SXGN-RC), not fitted: bench only',
          'J1': 'Same part as the audio and GPS cards; on the bottom edge, pins pointing off the board'}
 GROUP_DESCR = {'BAT54S': 'Input clamps to GND / 5 V (ignition sense, alternator L, speed)',
-               'PTC 0.1A': '0.1 A feed fuses: ETEMP V, OILP V, speed sensor power'}
+               'PTC 0.1A': '0.1 A, 60 V feed fuses, 1206: ETEMP V, OILP V, speed sensor power'}
 
 
 def resistor(val, pkg):

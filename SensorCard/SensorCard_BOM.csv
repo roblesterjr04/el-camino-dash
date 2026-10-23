@@ -4,7 +4,7 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,U3,Microchip MCP2562-E/SN,"CAN transceiver, VIO 5 V, STBY low. No termination: a card never terminates the bus",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
 1,U4,Fujitsu MB85RC256VPNF-G-JNERE1,"32 KB I2C FRAM, address 0x50: odometer (A / B slots with CRC-8). Lives on the card: set a new card's mileage in firmware",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
 1,U5,Everlight EL817S1(C)(TU)-F,Tach isolation,SMDIP-4_W7.62mm,SMD,Top,LCSC C106900. Any PC817 in the 4-SMD gull wing
-1,Y1,YXC X322516MOB4SI,"16 MHz, 3225, CL about 10 pF",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF part): fine
+1,Y1,YXC X322516MOB4SI,"16 MHz, 3225, CL 12 pF (18p + 18p in series plus stray)",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF part): fine
 1,Y2,YXC X322516MOB4SI,"MCP2515 clock, own crystal",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,"LCSC C12668. C16 / C17 18p, as Y1"
 1,J1,Sullins PRPC015DBAN-M71RC,"Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, switched 12 V (8), constant 12 V (10), WAKE (12). Not used: 3.3 V, slot ID (the node is fixed), LAMP, REV, I2S, audio, AUX 12 V",PinHeader_2x15_P2.54mm_Horizontal,THT,Top,"Same part as the audio and GPS cards; on the bottom edge, pins pointing off the board"
 1,J2,JST S12B-PH-K-S,"Senders: 1 FUEL, 2 FUEL return, 3 ETEMP, 4 ETEMP V (5 V, 0.1 A PTC), 5 ETEMP return, 6 OILP, 7 OILP V (5 V, 0.1 A PTC), 8 OILP return, 9 AMB, 10 AMB return, 11 ALT L (alternator lamp terminal, 12 V level), 12 GND",JST_PH_S12B-PH-K_1x12_P2.00mm_Horizontal,THT,Top,
@@ -37,14 +37,14 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,D3,Lite-On LTST-C191KGKT,"Status (PB7, Arduino D13)",0603,SMD,Top,
 1,D6,Diodes Inc 1N4148W-7-F,Reverse clamp across the LED (coil kickback),D_SOD-123,SMD,Top,
 1,FB1,Murata BLM18KG601SN1D,AVCC filter,0603,SMD,Top,
-3,F1 F2 F3,Bourns MF-NSMF010-2,"0.1 A feed fuses: ETEMP V, OILP V, speed sensor power",1206,SMD,Top,
+3,F1 F2 F3,Bourns MF-NSMF010/60X-2,"0.1 A, 60 V feed fuses, 1206: ETEMP V, OILP V, speed sensor power",1206,SMD,Top,
 1,R1,Yageo RC0603FR-0715KL,Ignition sense divider top (from the slot switched 12 V),0603,SMD,Top,
-14,R2 R6 R8 R10 R11 R12 R17 R19 R21 R27 R31 R38 R39 R40,Yageo RC0603FR-0710KL,10k resistor,0603,SMD,Top,
+18,R2 R6 R8 R10 R11 R12 R17 R19 R21 R27 R31 R33 R34 R35 R36 R38 R39 R40,Yageo RC0603FR-0710KL,10k resistor,0603,SMD,Top,
 3,R3 R30 R32,Yageo RC0603FR-07100KL,100k resistor,0603,SMD,Top,
 3,R4 R37 R43,Yageo RC0603FR-0722KL,22k resistor,0603,SMD,Top,
 3,R5 R13 R14,Yageo RC0603FR-074K7L,4.7k resistor,0603,SMD,Top,
 1,R7,Yageo RC0603FR-0747KL,WAKE into the 2560 (series: the line may be up while the 2560 is unpowered),0603,SMD,Top,
-11,R9 R16 R18 R20 R26 R29 R33 R34 R35 R36 R44,Yageo RC0603FR-071KL,1k resistor,0603,SMD,Top,
+7,R9 R16 R18 R20 R26 R29 R44,Yageo RC0603FR-071KL,1k resistor,0603,SMD,Top,
 1,R15,Yageo RC0603FR-07100RL,Series R on the serial out (a wire leaves the card),0603,SMD,Top,
 1,R22,Yageo RC2010FK-07100RL,"FUEL bank, 100: 0-30R senders (the factory 1964 GM sender); 2010 for 0.25 W into a shorted sender",2010,SMD,Top,Sender bias bank: selected by a solder jumper
 3,R23 R25 R28,Yageo RC1206FR-07220RL,220 resistor,1206,SMD,Top,

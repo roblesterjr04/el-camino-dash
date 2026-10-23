@@ -44,9 +44,9 @@ pio run -t upload --upload-port /dev/cu.usbmodemXXXX   # an Arduino Mega 2560 (s
 On the card itself:
 
 - **With the Mega bootloader** (a bootloader on the 2560, then the J7 FTDI header takes uploads like a Mega): fuses
-  `L 0xFF, H 0xD8, E 0xFD`, upload through J7 with `--upload-port` the FTDI adapter.
+  `L 0xFF, H 0xD8, E 0xFC`, upload through J7 with `--upload-port` the FTDI adapter.
 - **ISP only** (J6, with the card powered from its slot): `pio run -e sensorcard_isp -t fuses` then
-  `pio run -e sensorcard_isp -t upload`. Fuses `L 0xFF, H 0xD9, E 0xFD`. Use a USBasp, AVRISP mkII or Atmel-ICE, not a USBtiny.
+  `pio run -e sensorcard_isp -t upload`. Fuses `L 0xFF, H 0xD9, E 0xFC` (brown-out at 4.3 V: 16 MHz needs 4.5 V). Use a USBasp, AVRISP mkII or Atmel-ICE, not a USBtiny.
 
 `pio test` is not used: the logic tests run on the Mac with the C++ compiler, no hardware:
 
@@ -114,3 +114,5 @@ Nothing here has run on silicon yet. In this order, each step isolates one part:
 - The GM coolant sensor preset's resistance table is entered from GM's published chart and is **unchecked**: capture a point against the real sender before trusting it, as the spec says.
 - The stored bias resistance is a u32 (ohms ×10), not the spec's u16 (it cannot hold the 10 kΩ and 100 kΩ bank values); the FRAM block is private to the card, and the spec's payload table should read u32.
 - `restart` (and the center's NET RESTART) jumps to address 0 instead of using the watchdog: the Mega's stock bootloader does not clear a watchdog reset and would loop.
+- **Watchdog:** 2 s, started at the end of `setup()` and fed at the top of `loop()`; the reset cause is saved and the watchdog stopped in `.init3` (before `init()`), and `status` prints it (`reset cause` = MCUSR: 01 power-on, 02 external, 04 brown-out, 08 watchdog). On the card (ISP, no bootloader) a watchdog reset restarts the firmware. On a Mega whose bootloader does not clear the watchdog (the old stk500v2 one), a watchdog reset loops in the bootloader until the power is cycled: it only happens if the firmware has hung anyway.
+- **Tach hold-off:** a pulse less than 1 ms after the last accepted one is ignored (points bounce). That passes up to 1000 pulses a second: 15000 rpm on a V8 firing 4 times a revolution. The J5 default is 4 pulses a revolution (a V8; A = 2 for a four, B = 3 for a six; fixed 2026-10-23, it was 8 and read half).

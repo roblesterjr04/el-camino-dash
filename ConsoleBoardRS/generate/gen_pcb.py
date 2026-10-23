@@ -86,8 +86,8 @@ def load(fpid):
 # is at the right end of its pins).
 BOT = H                             # bottom edge
 RJ_X = (57.0, 75.0)                # the two top-entry RJ9 jacks (plugs go in from behind the board): centre lines,
-                                   # 18 mm apart so the 95522 body envelopes (15.24 wide) keep their courtyards apart
-RJ_BODY = (-1.75, 14.89)           # the 95522-2447 body envelope from its first contact row (see gen_footprints.py)
+                                   # 18 mm apart (the A-2014-3-4-N-T-R bodies are 11.43 wide, 6.6 mm between them)
+RJ_BODY = (-3.65, 12.85)           # the A-2014-3-4-N-T-R body from its near contact row (see gen_footprints.py)
 RJ_Y = H - 1.0 - RJ_BODY[1]        # first contact row: the bodies end 1 mm above the bottom edge
 U1_X = 26.0                     # the ESP32-S3 module: clear of the left M2 holes
 EDGE_CU = 0.2                   # copper to board edge (the design rule below)

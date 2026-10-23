@@ -9,10 +9,10 @@
 #include <time.h>
 
 #ifndef GPS_UART_RX
-#define GPS_UART_RX 2
+#define GPS_UART_RX 3  // DigiDash2 J6 pin 3 (from the device's TX) -> J1 pin 20 = GPIO3
 #endif
 #ifndef GPS_UART_TX
-#define GPS_UART_TX 3
+#define GPS_UART_TX 2  // J6 pin 2 (to the device's RX) -> J1 pin 22 = GPIO2
 #endif
 #ifndef GPS_UART_BAUD
 #define GPS_UART_BAUD 9600

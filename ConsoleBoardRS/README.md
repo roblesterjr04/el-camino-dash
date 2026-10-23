@@ -8,7 +8,7 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
 | Files | |
 | --- | --- |
 | `ConsoleBoardRS.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 108.0 × 35.0 mm, 4 layers, parts on both sides. KiCad 10 |
-| `ConsoleBoardRS.pretty` | The Molex 95522-2447 RJ9 footprint (hole pattern not yet checked against the Molex drawing, see [Mechanics](#mechanics)). Everything else is stock KiCad |
+| `ConsoleBoardRS.pretty` | The Assmann WSW A-2014-3-4-N-T-R RJ9 footprint (from the Assmann drawing, see [Mechanics](#mechanics)). Everything else is stock KiCad |
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
 | `ConsoleBoardRS_BOM.csv`, `fab/` | BOM, Gerbers / drill, placement and centroid, PCBWay BOM |
 
@@ -48,16 +48,15 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
   files since 2026-10-23), like its filter (R11, C16) and pull-up (R10).
 - **CAN connector:** J3 is a **vertical (top-entry)** JST PH, B4B-PH-K, on its own footprint
   (`JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical`), so the plug goes in from behind the board like the knob plugs.
-- **RJ9 jacks:** Molex 95522-2447 (4P4C, vertical / top entry, 16.25 mm tall, PCB locators), on the back with their
-  openings facing away from the board: the plugs go in from behind, straight toward the board. Centre lines at
-  x = 57.0 and 75.0 mm (seen from the front); the bodies end 1 mm above the bottom edge. **The footprint is not yet
-  checked against the Molex drawing** (955222447_sd): the 1.27 mm stagger is Molex's, but the rest is the usual
-  vertical modular-jack pattern (contacts in two rows 2.54 apart, 0.90 mm holes, two 3.25 mm pegs 10.16 apart and
-  6.35 beyond the second row), and the body is a 15.24 × 16.64 mm envelope (the series' 8P8C body; the 4P4C one is
-  narrower) taken to start 1.75 mm before the first contact row. Check the holes against the drawing or a jack in
-  hand before ordering boards, then fix `gen_footprints.py` (and `RJ_BODY` in `gen_pcb.py`) and regenerate.
-
-## Schematic blocks
+- **RJ9 jacks:** M- **RJ9 jacks:** Assmann WSW A-2014-3-4-N-T-R (DigiKey 2183644; 4P4C, vertical / top entry, 16.38 mm tall, two
+  locating pegs), on the back with their openings facing away from the board: the plugs go in from behind, straight
+  toward the board. Centre lines at x = 57.0 and 75.0 mm (seen from the front); the bodies end 1 mm above the bottom
+  edge. The footprint (`RJ9_Assmann_A-2014-3-4-N-T-R_Vertical`, `gen_footprints.py`) follows Assmann drawing
+  ASS 7331 CO rev00: contacts 1-4 = pads 1-4 (pad 1 square), 0.90 mm holes on 1.27 mm staggered in two rows 2.54 apart
+  (1 and 3 in the row nearer the pegs), two 3.20 mm unplated peg holes 7.62 apart, 6.35 mm beyond the near row. The
+  body is 11.43 × 16.50 mm, from 6.50 mm beyond the pegs to 0.76 mm beyond the far contact row, so it reaches toward
+  the bottom edge (`RJ_BODY` in `gen_pcb.py`). It replaced the Molex 95522-2447 (footprint never verified, 112-week
+  lead time) on 2026-10-23.cks
 
 As on [`ConsoleBoard`](../ConsoleBoard/README.md#schematic-blocks) (MCU, power, USB, CAN, OLED, IR), except:
 
