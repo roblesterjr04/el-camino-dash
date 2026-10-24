@@ -72,6 +72,19 @@ Then, from the repo root, after any change to a board:
 Panel/.venv/bin/python Panel/generate/gen_panel.py && python3 tools/fab_export.py Panel && python3 Panel/generate/gen_bom.py
 ```
 
+After **regenerating** a board (its gen_pcb.py), re-apply the solder-mask dams before exporting it:
+`python3 tools/mask_dams.py <Board>` narrows fine-pitch pads so neighbours are at least 0.22 mm apart (PCBWay's
+smallest mask dam: the 0.5 mm QFPs DigiDash2 U8 and SensorCard U1 and the USB-C ConsoleBoardRS J2 go to 0.28 mm
+pads, the 0.65 mm VSSOP AudioCarrier U3 to 0.43 mm), then refill the zones (`gen_pcb.py --fill`).
+
+## PCBWay engineering questions (2026-10-24)
+
+- **Via on pad:** fixed in the design, no resin fill needed. Every via that touched an SMD pad (17 fan-out vias on
+  DigiDash2, 12 on SensorCard) was moved out of its pad with a short track (copper 0.15 mm clear of the pad; vias are
+  tented), or removed where the pad already joins its plane through the pour. No SMD pad on any board has a via in or
+  touching it.
+- **IC pad gap under 0.22 mm:** fixed in the design by narrowing those pads (above), so every gap keeps a mask dam.
+
 ## Open items
 
 - **Panel DRC is noisy, but not from geometry.** The panel uses DigiDash2's design rules (0.2 mm clearance); the
