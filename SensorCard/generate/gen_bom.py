@@ -20,18 +20,18 @@ CLI = os.environ.get('KICAD_CLI', KICAD if os.path.exists(KICAD) else 'kicad-cli
 TMP = os.environ.get('TMPDIR', '/tmp')
 
 MPN = {     # maker, part number
-    'U1': ('Microchip', 'ATmega2560-16AU'), 'U2': ('Microchip', 'MCP2515-I/SO'), 'U3': ('Microchip', 'MCP2562-E/SN'),
+    'U1': ('Microchip', 'ATmega2560-16AU'), 'U2': ('Microchip', 'MCP2515-I/SO'), 'U3': ('NXP', 'TJA1051T/3/1J'),
     'U4': ('Fujitsu', 'MB85RC256VPNF-G-JNERE1'),
     'U5': ('Everlight', 'EL817S1(C)(TU)-F'),          # PC817 in the 4-SMD gull wing (LCSC C106900)
     'Y1': ('YXC', 'X322516MOB4SI'), 'Y2': ('YXC', 'X322516MOB4SI'),   # 16 MHz, CL 12 pF, ESR 50 R (LCSC C12668)
     'J1': ('Sullins', 'PRPC015DBAN-M71RC'), 'J2': ('JST', 'S12B-PH-K-S'), 'J3': ('JST', 'S4B-PH-K-S'),
-    'J4': ('Molex', '43650-0200'), 'J5': ('Sullins', 'PRPC002DAAN-RC'), 'J6': ('Sullins', 'PRPC003DBAN-M71RC'),
+    'J4': ('Molex', '43650-0200'), 'J5': ('XFCN', 'PZ254V-12-4P'), 'J6': ('XFCN', 'PZ254R-12-6P'),
     'J7': ('Sullins', 'PRPC006SBAN-M71RC'), 'J8': ('Sullins', 'PREC003SBAN-M71RC'),
-    'J9': ('Sullins', 'PRPC002SAAN-RC'), 'J10': ('Sullins', 'PRPC005DAAN-RC'),
+    'J9': ('Sullins', 'PRPC002SAAN-RC'), 'J10': ('XFCN', 'PZ254V-12-10P'),
 }
 BY_VALUE = {'BAT54S': ('Nexperia', 'BAT54S,215'), 'BAT42W': ('Vishay', 'BAT42W-E3-08'),
             '1N4148W': ('Diodes Inc', '1N4148W-7-F'), 'green': ('Lite-On', 'LTST-C191KGKT'),
-            '600R': ('Murata', 'BLM18KG601SN1D'), 'PTC 0.1A': ('Bourns', 'MF-NSMF010/60X-2')}
+            '600R': ('Murata', 'BLM18KG601SN1D'), 'PTC 0.1A': ('Littelfuse', '1206L010/60WR')}
 CAPS = {('10u', '0805'): 'CL21B106KOQNNNE', ('100n', '0603'): 'CL10B104KB8NNNC', ('100n', '0805'): 'CL21B104KBCNNNC',
         ('10n', '0603'): 'CL10B103KB8NNNC', ('18p', '0603'): 'CL10C180JB8NNNC', ('1n', '0603'): 'CL10C102JB8NNNC'}
 NOTES = {'Y1': 'LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF part): fine',

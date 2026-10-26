@@ -179,7 +179,7 @@ Moving the headers and growing the board moved these too:
 The TVP5150AM1 circuit was checked line by line against TI SLES209E (2026-10-02):
 
 - **Matches the datasheet:** the pinout; the I2C address strap (YOUT7 10k down: 0xB8 / 7-bit 0x5C); the INTREQ 10k pull-down that TI
-  requires when the pin is disabled; the 14.31818 MHz crystal and 100k across it (load caps 27 pF since 2026-10-05, for the Abracon ABM8's 18 pF CL); the 1 µF REFP / REFM / REFP–REFM caps;
+  requires when the pin is disabled; the 14.31818 MHz crystal and 100k across it (load caps 33 pF since 2026-10-26, for the YXC X32251431818MSB4SI's 20 pF CL; 27 pF before that, for the Abracon ABM8's 18 pF); the 1 µF REFP / REFM / REFP–REFM caps;
   the 37.4 Ω + 37.4 Ω termination with 0.1 µF coupling (and AIP1B to ground through 0.1 µF); PDN held high; the supplies
   (3.3 V I/O, 1.8 V core through a ferrite for the analog side) with a 0.1 µF at every supply pin. The center firmware's
   register writes (composite on AIP1A, auto standard, BT.656 8-bit with embedded syncs, outputs on) and its chip-ID check

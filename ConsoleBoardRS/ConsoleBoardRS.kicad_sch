@@ -5719,7 +5719,7 @@
   (text "CAN (node 0x13): MCP2562, VDD 5 V straight from the cable (CAB_5V, ahead of the OR diode, so it stays above its 4.5 V minimum), VIO 3.3 V, STBY low. No 120 R: the console never terminates the bus. J3 pin order is the DigiDash cable-port one." (at 15 280 0) (effects (font (size 1.4 1.4)) (justify left top)) (uuid "54c46e75-9260-50b3-84c5-5e990b4d185e"))
   (symbol (lib_id "Interface_CAN_LIN:MCP2562-E-SN") (at 55 315 0) (unit 1) (in_bom yes) (on_board yes) (dnp no) (uuid "c11ca7d3-f0d2-555b-a473-35aa98e5ec7d")
     (property "Reference" "U2" (at 44.84 306.11 0) (effects (font (size 1.27 1.27)) (justify left)))
-    (property "Value" "MCP2562-E/SN" (at 57.54 306.11 0) (effects (font (size 1.27 1.27)) (justify left)))
+    (property "Value" "TJA1051T/3" (at 57.54 306.11 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" (at 55 315 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 55 315 0) (effects (font (size 1.27 1.27)) hide))
     (pin "1" (uuid "32699ed3-0d7c-5e62-add3-00d73e906979"))

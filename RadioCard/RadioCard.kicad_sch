@@ -6943,7 +6943,7 @@
   (text "CAN: MCP2562 (VDD 5 V, VIO 3.3 V, STBY low). No 120 R: a card never terminates the bus." (at 15 215 0) (effects (font (size 1.4 1.4)) (justify left top)) (uuid "3434c7a9-5b56-5859-986f-44ca274a0417"))
   (symbol (lib_id "Interface_CAN_LIN:MCP2562-E-SN") (at 55 245 0) (unit 1) (in_bom yes) (on_board yes) (dnp no) (uuid "d9c81b4f-ba9a-5373-bcb1-0fa584f8275a")
     (property "Reference" "U2" (at 44.84 236.11 0) (effects (font (size 1.27 1.27)) (justify left)))
-    (property "Value" "MCP2562-E/SN" (at 57.54 236.11 0) (effects (font (size 1.27 1.27)) (justify left)))
+    (property "Value" "TJA1051T/3" (at 57.54 236.11 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" (at 55 245 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 55 245 0) (effects (font (size 1.27 1.27)) hide))
     (pin "1" (uuid "55ab3ee2-2d60-5c41-abfc-616d15a43a2d"))

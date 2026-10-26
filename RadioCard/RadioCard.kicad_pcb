@@ -8122,7 +8122,7 @@
 				)
 			)
 		)
-		(property "Value" "MCP2562-E/SN"
+		(property "Value" "TJA1051T/3"
 			(at 0 3.4 0)
 			(layer "F.Fab")
 			(hide yes)

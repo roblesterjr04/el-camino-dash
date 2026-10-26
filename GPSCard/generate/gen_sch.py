@@ -313,7 +313,7 @@ place(HDR1x3, 'J4', 'Debug serial', 'Connector_PinHeader_2.54mm:PinHeader_1x03_P
 # --- CAN
 G('can')
 text(15, 215, 'CAN: MCP2562 (VDD 5 V, VIO 3.3 V, STBY low). No 120 R: a card never terminates the bus.', 1.4)
-place(CAN, 'U2', 'MCP2562-E/SN', 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm', 55, 245,
+place(CAN, 'U2', 'TJA1051T/3', 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm', 55, 245,
       {'1': 'CAN_TXD', '2': 'GND', '3': '+5V', '4': 'CAN_RXD', '5': '+3V3', '6': 'CANL', '7': 'CANH', '8': 'GND'})
 r_('1k', 'CAN_RXD', 'CAN_RX', 95, 235, 'Series R on the receive line, as on the DigiDash board')
 c_('100n', '+5V', 'GND', 115, 235, d='MCP2562 VDD')

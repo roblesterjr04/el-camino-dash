@@ -56,4 +56,22 @@ b += [rect(-3.81, -1.27, 1.27, 36.83, 'F.Fab', 0.1), rect(-3.87, -1.33, 1.33, 36
 write('Slot_Socket_2x15_P2.54mm_Vertical', 'Card slot: 2x15 female socket, 2.54 mm, vertical, numbered as KiCad\'s stock socket '
       '(pad 2 at -2.54 mm): on the back, pad 2 toward +x and pin 1 at the top, it mates pin for pin with a right-angle 2x15 '
       'header on a card standing in it', 'socket 2x15 slot card', 'through_hole', b)
+
+# Molded 1050 power inductor (COILMX MS1050-6R8M, 11.15 x 10.0 mm body, terminals 2.0 wide x 3.0 at the ends, centred
+# +/-4.6): two 4.0 x 4.0 mm pads at +/-3.9, so each terminal (3.6 ... 5.6) sits on its pad with 0.3 mm to spare
+# outward and the pad reaches 1.9 mm under the body. The datasheet asks for 4.1 x 4.95 mm pads at +/-4.75 (13.6 mm
+# overall); on DigiDash2 that ran into C3, a GND via and the 12V_BATT track beside L1, and the smaller pads are the
+# Wurth WE-HCI 1050 pattern it replaced on 2026-10-26 (3.85 x 4.0 at +/-3.83) grown a little, which the routing allows.
+def smd(num, x, y, w, h):
+    return ('  (pad "%s" smd rect (at %g %g) (size %g %g) (layers "F.Cu" "F.Paste" "F.Mask"))' % (num, x, y, w, h))
+
+
+b = [text('reference', 'REF**', 0, -6.3, 'F.SilkS'), text('value', 'L_Molded_1050', 0, 6.3, 'F.Fab'),
+     smd(1, -3.9, 0, 4.0, 4.0), smd(2, 3.9, 0, 4.0, 4.0),
+     rect(-5.575, -5.0, 5.575, 5.0, 'F.Fab', 0.1),
+     '  (fp_line (start -2.5 -5.11) (end 2.5 -5.11) (stroke (width 0.12) (type solid)) (layer "F.SilkS"))',
+     '  (fp_line (start -2.5 5.11) (end 2.5 5.11) (stroke (width 0.12) (type solid)) (layer "F.SilkS"))',
+     rect(-5.85, -5.3, 5.85, 5.3, 'F.CrtYd', 0.05)]
+write('L_Molded_1050', 'Molded shielded power inductor, 1050 size (COILMX MS1050 series, 11.15 x 10.0 x 5.0 mm): pads 4.0 x 4.0 mm at +/-3.9 (terminals 2.0 x 3.0 at +/-4.6)',
+      'inductor molded 1050 MS1050', 'smd', b)
 print('footprints written')

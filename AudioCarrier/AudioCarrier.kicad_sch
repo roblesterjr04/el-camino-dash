@@ -2908,7 +2908,7 @@
     		)
     		(embedded_fonts no)
     	)
-    (symbol "AudioCarrier:OPA2376"
+    (symbol "AudioCarrier:TLV9062"
     		(pin_names
     			(offset 0.127)
     		)
@@ -2928,7 +2928,7 @@
     				(justify left)
     			)
     		)
-    		(property "Value" "OPA2376AIDGK"
+    		(property "Value" "TLV9062AIDGK"
     			(at 0 -5.08 0)
     			(show_name no)
     			(do_not_autoplace no)
@@ -3004,7 +3004,7 @@
     				)
     			)
     		)
-    		(symbol "OPA2376_1_1"
+    		(symbol "TLV9062_1_1"
     			(polyline
     				(pts
     					(xy -5.08 5.08) (xy 5.08 0) (xy -5.08 -5.08) (xy -5.08 5.08)
@@ -3072,7 +3072,7 @@
     				)
     			)
     		)
-    		(symbol "OPA2376_2_1"
+    		(symbol "TLV9062_2_1"
     			(polyline
     				(pts
     					(xy -5.08 5.08) (xy 5.08 0) (xy -5.08 -5.08) (xy -5.08 5.08)
@@ -3140,7 +3140,7 @@
     				)
     			)
     		)
-    		(symbol "OPA2376_3_1"
+    		(symbol "TLV9062_3_1"
     			(pin power_in line
     				(at -2.54 -7.62 90)
     				(length 3.81)
@@ -4751,7 +4751,7 @@
   (text "CAN: MCP2562 (VDD 5 V, VIO 3.3 V, STBY low). No 120 R: the carrier never terminates the bus." (at 15 250 0) (effects (font (size 1.4 1.4)) (justify left top)) (uuid "b3f78240-8a3c-5cc6-b893-d67f34d4156f"))
   (symbol (lib_id "Interface_CAN_LIN:MCP2562-E-P") (at 55 285 0) (unit 1) (in_bom yes) (on_board yes) (dnp no) (uuid "6a451eed-7e7d-5c44-8e87-fd04e57c4212")
     (property "Reference" "U2" (at 44.84 276.11 0) (effects (font (size 1.27 1.27)) (justify left)))
-    (property "Value" "MCP2562-E/SN" (at 57.54 276.11 0) (effects (font (size 1.27 1.27)) (justify left)))
+    (property "Value" "TJA1051T/3" (at 57.54 276.11 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" (at 55 285 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 55 285 0) (effects (font (size 1.27 1.27)) hide))
     (pin "1" (uuid "724f1a12-1117-5a2e-bfe9-cd155185cfaa"))
@@ -5676,7 +5676,7 @@
     (instances (project "AudioCarrier" (path "/e7754ba9-d41c-5b95-b272-4f76d329ea40" (reference "#PWR90") (unit 1))))
   )
   (text "J2: 2 x 2 RCA block (Switchcraft PJRAS2X2S01X, right angle)\nleft column FL white / FR red, right column RL white / RR red" (at 520 80 0) (effects (font (size 1.6 1.6)) (justify left top)) (uuid "81bbc749-1a92-5527-aff1-8eccc2c569ca"))
-  (text "MICROPHONE (hands-free calls only, no line / aux input): 3.5 mm jack J6 for an electret car microphone on a mono TS plug (plug-in power). Tip = mic, bias 2.2k from MICV (+5VA through 1k + 47u). Ring and sleeve to ground, so a TS or a TRS plug works.\nPreamp: OPA2376 A non-inverting, gain 1 + 47k / 2.2k = 22.4 (27 dB): -42 dBV/Pa gives 0.18 Vrms at 94 dB SPL, clipping (PCM1808 full scale 3 Vp-p, about 1 Vrms) at about 109 dB SPL. DC gain 1 at mid-supply (2.5 V). OPA2376 B (spare) is a follower on VMID; the ADC right input is AC-grounded." (at 30 340 0) (effects (font (size 1.4 1.4)) (justify left top)) (uuid "1055f264-0fa6-5816-94b0-0da0eb92b208"))
+  (text "MICROPHONE (hands-free calls only, no line / aux input): 3.5 mm jack J6 for an electret car microphone on a mono TS plug (plug-in power). Tip = mic, bias 2.2k from MICV (+5VA through 1k + 47u). Ring and sleeve to ground, so a TS or a TRS plug works.\nPreamp: TLV9062 A non-inverting, gain 1 + 47k / 2.2k = 22.4 (27 dB): -42 dBV/Pa gives 0.18 Vrms at 94 dB SPL, clipping (PCM1808 full scale 3 Vp-p, about 1 Vrms) at about 109 dB SPL. DC gain 1 at mid-supply (2.5 V). TLV9062 B (spare) is a follower on VMID; the ADC right input is AC-grounded." (at 30 340 0) (effects (font (size 1.4 1.4)) (justify left top)) (uuid "1055f264-0fa6-5816-94b0-0da0eb92b208"))
   (symbol (lib_id "Device:R") (at 90 365 0) (unit 1) (in_bom yes) (on_board yes) (dnp no) (uuid "a11a9c4c-0566-513d-8900-ec947bddf563")
     (property "Reference" "R10" (at 92.032 365 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Value" "1k" (at 90 365 0) (effects (font (size 1.27 1.27)) (justify left)))
@@ -5857,9 +5857,9 @@
     (pin "1" (uuid "92947947-3054-5d0b-8409-13578a45b899"))
     (instances (project "AudioCarrier" (path "/e7754ba9-d41c-5b95-b272-4f76d329ea40" (reference "#PWR96") (unit 1))))
   )
-  (symbol (lib_id "AudioCarrier:OPA2376") (at 250 380 0) (unit 1) (in_bom yes) (on_board yes) (dnp no) (uuid "a6e56739-404d-5daf-a9b9-984e95b3d93b")
+  (symbol (lib_id "AudioCarrier:TLV9062") (at 250 380 0) (unit 1) (in_bom yes) (on_board yes) (dnp no) (uuid "a6e56739-404d-5daf-a9b9-984e95b3d93b")
     (property "Reference" "U3" (at 250 374.92 0) (effects (font (size 1.27 1.27)) (justify left)))
-    (property "Value" "OPA2376AIDGK" (at 250 385.08 0) (effects (font (size 1.27 1.27)) (justify left)))
+    (property "Value" "TLV9062AIDGK" (at 250 385.08 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Package_SO:VSSOP-8_3x3mm_P0.65mm" (at 250 380 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 250 380 0) (effects (font (size 1.27 1.27)) hide))
     (property "Description" "Dual RRIO low-noise op-amp on 5 V, VSSOP-8 (A: mic preamp, B: spare, a follower on VMID)" (at 250 380 0) (effects (font (size 1.27 1.27)) hide))
@@ -5947,9 +5947,9 @@
   (label "MIC_OP" (at 340 373.65 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "23f4c67b-027c-56a8-82f4-882bdd38b4bb"))
   (wire (pts (xy 340 383.81) (xy 340 386.35)) (stroke (width 0) (type default)) (uuid "cc55d940-ccdc-537f-ab77-c8c0546a6e3e"))
   (label "ADC_INL" (at 340 386.35 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "82e0a74f-5539-5d79-9c4c-addaad09f50a"))
-  (symbol (lib_id "AudioCarrier:OPA2376") (at 250 410 0) (unit 2) (in_bom yes) (on_board yes) (dnp no) (uuid "897bdf37-9667-5552-84f9-5783244fe2e5")
+  (symbol (lib_id "AudioCarrier:TLV9062") (at 250 410 0) (unit 2) (in_bom yes) (on_board yes) (dnp no) (uuid "897bdf37-9667-5552-84f9-5783244fe2e5")
     (property "Reference" "U3" (at 250 404.92 0) (effects (font (size 1.27 1.27)) (justify left)))
-    (property "Value" "OPA2376AIDGK" (at 250 415.08 0) (effects (font (size 1.27 1.27)) (justify left)))
+    (property "Value" "TLV9062AIDGK" (at 250 415.08 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Package_SO:VSSOP-8_3x3mm_P0.65mm" (at 250 410 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 250 410 0) (effects (font (size 1.27 1.27)) hide))
     (pin "5" (uuid "a33b51d6-5846-58ba-a424-550cb346c2aa"))
@@ -5984,9 +5984,9 @@
     (pin "1" (uuid "af9363c1-798d-5bc5-9dd2-f6a97f514aca"))
     (instances (project "AudioCarrier" (path "/e7754ba9-d41c-5b95-b272-4f76d329ea40" (reference "#PWR98") (unit 1))))
   )
-  (symbol (lib_id "AudioCarrier:OPA2376") (at 290 410 0) (unit 3) (in_bom yes) (on_board yes) (dnp no) (uuid "511766b4-f4d9-592a-8e20-a04aa8373a3f")
+  (symbol (lib_id "AudioCarrier:TLV9062") (at 290 410 0) (unit 3) (in_bom yes) (on_board yes) (dnp no) (uuid "511766b4-f4d9-592a-8e20-a04aa8373a3f")
     (property "Reference" "U3" (at 290 404.92 0) (effects (font (size 1.27 1.27)) (justify left)))
-    (property "Value" "OPA2376AIDGK" (at 290 415.08 0) (effects (font (size 1.27 1.27)) (justify left)))
+    (property "Value" "TLV9062AIDGK" (at 290 415.08 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Package_SO:VSSOP-8_3x3mm_P0.65mm" (at 290 410 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 290 410 0) (effects (font (size 1.27 1.27)) hide))
     (pin "4" (uuid "3548a605-7ec7-552f-9b30-26d9297cbc32"))

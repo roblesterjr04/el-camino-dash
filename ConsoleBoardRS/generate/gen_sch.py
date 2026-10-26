@@ -357,7 +357,7 @@ c_('100n', 'VBUS', 'GND', 100, 250)
 # --- CAN
 G('can')
 text(15, 280, 'CAN (node 0x13): MCP2562, VDD 5 V straight from the cable (CAB_5V, ahead of the OR diode, so it stays above its 4.5 V minimum), VIO 3.3 V, STBY low. No 120 R: the console never terminates the bus. J3 pin order is the DigiDash cable-port one.', 1.4)
-place(CAN, 'U2', 'MCP2562-E/SN', FP_SOIC, 55, 315, {'1': 'CAN_TXD', '2': 'GND', '3': 'CAB_5V', '4': 'CAN_RXD', '5': '+3V3',
+place(CAN, 'U2', 'TJA1051T/3', FP_SOIC, 55, 315, {'1': 'CAN_TXD', '2': 'GND', '3': 'CAB_5V', '4': 'CAN_RXD', '5': '+3V3',
                                                       '6': 'CANL', '7': 'CANH', '8': 'GND'})
 r_('1k', 'CAN_RXD', 'CAN_RX', 95, 305, 'Series R on the receive line, as on the DigiDash board')
 c_('100n', 'CAB_5V', 'GND', 115, 305, d='MCP2562 VDD')

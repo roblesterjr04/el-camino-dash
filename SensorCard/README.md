@@ -183,8 +183,8 @@ unrouted on all but one of about a dozen runs, so the 10k series took its place.
   output is a 12 V square wave and needs nothing more.
 - **Crystal load caps:** Y1 / Y2 are YXC X322516MOB4SI, a CL 12 pF part. 18 pF + 18 pF in series is 9 pF, plus 3–5 pF
   of pins and traces, about 12–14 pF: right. Change the caps if you buy a crystal with a different CL.
-- **PTCs:** the three 0.1 A PTCs (ETEMP V, OILP V, speed sensor power) are Bourns MF-NSMF010/60X-2 (0.1 A hold, 60 V,
-  1206, active), which replaced MF-NSMF010-2 (no longer clearly active). Same footprint.
+- **PTCs:** the three 0.1 A PTCs (ETEMP V, OILP V, speed sensor power) are Littelfuse 1206L010/60WR (0.1 A hold, 60 V,
+  1206; since 2026-10-26, for the JLCPCB order), which replaced Bourns MF-NSMF010/60X-2 (hard to get). Same footprint.
 - **J1 pin 1** against the main board's slot socket in the 3D viewer, and that J2 / J3 / J4 face off the top edge.
 - The card outline (80 × 60 mm) and the connector positions against the case panel.
 

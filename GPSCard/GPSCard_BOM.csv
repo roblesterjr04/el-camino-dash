@@ -14,7 +14,7 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 2,R2 R3,Yageo RC0603FR-071KL,1k: Resistor 1k 1% (LED; CAN RXD series),0603,SMD,Top,
 2,R4 R5,Yageo RC0603FR-07100RL,100: Resistor 100 1% (puck TX / RX series),0603,SMD,Top,
 1,U1,STMicroelectronics STM32G0B1KBU6,"MCU: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN",UFQFPN-32 5 x 5 mm (exposed pad),SMD,Top,Not the KBU6N (different pinout). Arrives blank: flashed over J3 after assembly. Exposed pad = GND
-1,U2,Microchip MCP2562-E/SN,"CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
+1,U2,NXP TJA1051T/3/1J,"CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
 1,U3,Diodes Inc AP2112K-3.3TRG1,LDO 3.3 V 600 mA,SOT-23-5,SMD,Top,
 1,U4,STMicroelectronics USBLC6-2SC6,"ESD array (puck TX, RX, supply)",SOT-23-6,SMD,Top,
 1,Y1,YXC (Yangxing) X32258MOB4SI,"8 MHz crystal, CL 12 pF, ESR <= 180 R, +-10 ppm, +-20 ppm, -40 to +85 C",SMD3225-4P (3.2 x 2.5 mm),SMD,Top,"LCSC C2682775. Substitute only with 8 MHz 3225 4-pad, CL 12 pF, ESR <= 180 R (else C7 / C8 change)"

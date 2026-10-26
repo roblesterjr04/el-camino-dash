@@ -24,18 +24,18 @@ OUT = os.path.join(ROOT, 'fab', 'DigiDash2_BOM_PCBWay.csv')
 # (value, footprint) -> (maker, part number, description, package, note)
 PARTS = {
     # capacitors
-    ('100u 63V', 'CP_Elec_10x10.5'): ('Panasonic', 'EEE-FK1J101P', 'Aluminium electrolytic 100 uF 63 V, AEC-Q200', '10 x 10.2 mm SMD',
-                                       '63 V: above the SMCJ33A clamp (about 53 V)'),
+    ('100u 63V', 'CP_Elec_10x10.5'): ('Honor', 'RYRVT63V100UF10*10', 'Aluminium electrolytic 100 uF 63 V, SMD', '10 x 10.2 mm SMD',
+                                       '63 V: above the SMCJ33A clamp (about 53 V). Panasonic EEE-FK1J101P (AEC-Q200) is the equal'),
     ('2.2u 100V', 'C_1210_3225Metric'): ('Murata', 'GRM32ER72A225KA35L', 'Capacitor 2.2u X7R 100 V', '1210', ''),
-    ('47u 10V', 'C_1210_3225Metric'): ('Murata', 'GRM32ER61A476KE20L', 'Capacitor 47u X5R 10 V', '1210', ''),
+    ('47u 10V', 'C_1210_3225Metric'): ('Samsung', 'CL32A476KPJNNNE', 'Capacitor 47u X5R 10 V', '1210', ''),
     ('100n', 'C_0603_1608Metric'): ('Samsung', 'CL10B104KB8NNNC', 'Capacitor 100n X7R 50 V', '0603', ''),
     ('4.7n', 'C_0603_1608Metric'): ('Samsung', 'CL10B472KB8NNNC', 'Capacitor 4.7n X7R 50 V', '0603', ''),
     ('47p', 'C_0603_1608Metric'): ('Samsung', 'CL10C470JB8NNNC', 'Capacitor 47p C0G 50 V', '0603', ''),
     ('10u', 'C_0805_2012Metric'): ('Samsung', 'CL21B106KOQNNNE', 'Capacitor 10u X7R 16 V', '0805', ''),
     ('1u', 'C_0603_1608Metric'): ('Samsung', 'CL10B105KO8NNNC', 'Capacitor 1u X7R 16 V', '0603', ''),
     ('4.7u', 'C_0805_2012Metric'): ('Samsung', 'CL21A475KOFNNNE', 'Capacitor 4.7u X5R 16 V', '0805', ''),
-    ('27p', 'C_0603_1608Metric'): ('Samsung', 'CL10C270JB8NNNC', 'Capacitor 27p C0G 50 V', '0603',
-                                   'Y3 load caps: 2 x (18 pF CL - about 4 pF stray)'),
+    ('33p', 'C_0603_1608Metric'): ('Samsung', 'CL10C330JB8NNNC', 'Capacitor 33p C0G 50 V', '0603',
+                                   'Y3 load caps: 2 x (20 pF CL - about 4 pF stray)'),
     ('2.2u', 'C_0603_1608Metric'): ('Samsung', 'CL10A225KO8NNNC', 'Capacitor 2.2u X5R 16 V', '0603', ''),
     # diodes
     ('NUP2105L', 'SOT-23'): ('onsemi', 'NUP2105LT1G', 'CAN bus ESD clamp', 'SOT-23', ''),
@@ -46,41 +46,41 @@ PARTS = {
     ('BAT54S', 'SOT-23'): ('Nexperia', 'BAT54S,215', 'Dual Schottky, series', 'SOT-23', ''),
     ('PESD5V0S1BA', 'D_SOD-323'): ('Nexperia', 'PESD5V0S1BA,115', 'ESD clamp 5 V, bidirectional', 'SOD-323', ''),
     # fuses (PTC)
-    ('PTC 0.1A', 'Fuse_1206_3216Metric'): ('Bourns', 'MF-NSMF010/60X-2', 'PTC 0.1 A hold, 60 V', '1206', ''),
+    ('PTC 0.1A', 'Fuse_1206_3216Metric'): ('Littelfuse', '1206L010/60WR', 'PTC 0.1 A hold, 60 V', '1206', ''),
     ('PTC 0.2A', 'Fuse_1206_3216Metric'): ('Bourns', 'MF-NSMF020X-2', 'PTC 0.2 A hold, 30 V, AEC-Q200', '1206',
                                            'On the battery line: 30 V part'),
-    ('PTC 0.5A', 'Fuse_1812_4532Metric'): ('Bourns', 'MF-MSMF050/30X-2', 'PTC 0.5 A hold, 30 V, AEC-Q200', '1812',
+    ('PTC 0.5A', 'Fuse_1812_4532Metric'): ('PTTC', 'SMD1812P050TF/30', 'PTC 0.5 A hold, 30 V', '1812',
                                           '30 V part on the 5 V and the 12 V lines alike'),
-    ('PTC 1.1A', 'Fuse_1812_4532Metric'): ('Bourns', 'MF-MSMF110/33X-2', 'PTC 1.1 A hold, 33 V', '1812', ''),
+    ('PTC 1.1A', 'Fuse_1812_4532Metric'): ('Littelfuse', '1812L110/33MR', 'PTC 1.1 A hold, 33 V', '1812', ''),
     # inductors, ferrite
     ('600R', 'L_0603_1608Metric'): ('Murata', 'BLM18KG601SN1D', 'Ferrite bead 600 R at 100 MHz', '0603', ''),
-    ('7.2u', 'L_Wuerth_HCI-1050'): ('Wurth', '7443551720', 'Inductor 7.2 uH, Isat > 7 A, shielded (WE-HCI 1050)',
-                                    '10 x 10 mm', ''),
+    ('6.8u', 'L_Molded_1050'): ('COILMX', 'MS1050-6R8M', 'Inductor 6.8 uH, Isat 14 A, Irms 8.5 A, molded shielded',
+                                 '11.2 x 10 mm', 'Replaces Wurth 7443551720 (7.2 uH, WE-HCI 1050): the land pattern changed with it'),
     # transistors
     ('MMBT3904', 'SOT-23'): ('onsemi', 'MMBT3904LT1G', 'NPN 40 V', 'SOT-23', ''),
     ('SUD50P04-08', 'TO-252-2'): ('Vishay', 'SUD50P04-08-GE3', 'P-MOSFET 40 V, 8 mOhm', 'TO-252 (DPAK)', ''),
     # ICs
     ('TPS54560BDDA', 'TI_SO-PowerPAD-8_ThermalVias'): ('Texas Instruments', 'TPS54560BDDAR',
                                                        '5 A step-down, 4.5-60 V in', 'SO-8 PowerPAD', ''),
-    ('MCP2562-E/SN', 'SOIC-8_3.9x4.9mm_P1.27mm'): ('Microchip', 'MCP2562-E/SN', 'CAN FD transceiver', 'SOIC-8', ''),
+    ('TJA1051T/3', 'SOIC-8_3.9x4.9mm_P1.27mm'): ('NXP', 'TJA1051T/3/1J', 'CAN FD transceiver (pin-compatible with MCP2562-E/SN)', 'SOIC-8', ''),
     ('TVP5150AM1IPBS', 'TQFP-32_5x5mm_P0.5mm'): ('Texas Instruments', 'TVP5150AM1IPBSR', 'Video decoder', 'TQFP-32', ''),
     ('AP7361C-33E', 'SOT-223-3_TabPin2'): ('Diodes Inc', 'AP7361C-33E-13', 'LDO 3.3 V 1 A', 'SOT-223', ''),
     ('AP2112K-1.8', 'SOT-23-5'): ('Diodes Inc', 'AP2112K-1.8TRG1', 'LDO 1.8 V 600 mA', 'SOT-23-5', ''),
-    ('14.31818MHz', 'Crystal_SMD_3225-4Pin_3.2x2.5mm'): ('Abracon', 'ABM8-14.31818MHZ-B2-T',
-                                                         'Crystal 14.31818 MHz, +/-20 ppm, CL 18 pF', '3225 4-pad',
-                                                         'Load caps C29 / C30 are 27p for its 18 pF'),
+    ('14.31818MHz', 'Crystal_SMD_3225-4Pin_3.2x2.5mm'): ('YXC', 'X32251431818MSB4SI',
+                                                         'Crystal 14.31818 MHz, +/-20 ppm, CL 20 pF', '3225 4-pad',
+                                                         'Load caps C29 / C30 are 33p for its 20 pF'),
     ('TERM', 'SW_DIP_SPSTx02_Slide_KingTek_DSHP02TS_W7.62mm_P1.27mm'): (
         'KingTek', 'DSHP02TSGER', 'DIP switch, 2 position, SMD top slide, 1.27 mm pitch', 'SMD 4.1 x 5.4 mm',
         'Set position 1 (TERM) ON before shipping'),
     # through hole: connectors, slot sockets, fuse holder
     ('Center Screen - Master', 'PinHeader_2x20_P2.54mm_Vertical'): (
-        'Sullins', 'PRPC020DAAN-RC', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
+        'XFCN', 'PZ254V-12-40P', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
         'THT 2x20', 'FRONT side (screen side), the only parts on the front'),
     ('Left Screen', 'PinHeader_2x20_P2.54mm_Vertical'): (
-        'Sullins', 'PRPC020DAAN-RC', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
+        'XFCN', 'PZ254V-12-40P', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
         'THT 2x20', 'FRONT side (screen side), the only parts on the front'),
     ('Right Screen', 'PinHeader_2x20_P2.54mm_Vertical'): (
-        'Sullins', 'PRPC020DAAN-RC', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
+        'XFCN', 'PZ254V-12-40P', 'Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)',
         'THT 2x20', 'FRONT side (screen side), the only parts on the front'),
     ('CAN debug', 'PinHeader_1x03_P2.54mm_Vertical'): (
         'Sullins', 'PRPC003SAAN-RC', 'Pin header 1 x 3, 2.54 mm, vertical', 'THT 1x3', ''),
@@ -104,7 +104,7 @@ for v in ('Serial', 'Backup Camera', 'Cable port 1', 'Cable port 2', 'Cable port
                                                            'THT', '')
 for n in range(1, 7):
     PARTS[('Slot %d' % n, 'Slot_Socket_2x15_P2.54mm_Vertical')] = (
-        'Sullins', 'PPTC152LFBN-RC', 'Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator', 'THT 2x15',
+        'Connfly', 'DS1023-2*15SF11', 'Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator (Sullins PPTC152LFBN-RC equal)', 'THT 2x15',
         'Pin 1 = square pad. Seat flat: the cards plug in square to the board')
 # 1 % 0603 thick film, Yageo RC0603FR-07..L; one 0805 jumper
 R_0603 = {'10k': '10K', '243k': '243K', '53.6k': '53K6', '10.2k': '10K2', '16.9k': '16K9', '442k': '442K',

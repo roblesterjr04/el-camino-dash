@@ -108,7 +108,7 @@ CARD_HALF = 40.0
 CARD_PARTS = SLOT_PITCH - 5.4
 ENVELOPES = [(0.0 if i == 0 else x - CARD_PARTS, SLOT_YC - CARD_HALF, x + 6.0, SLOT_YC + CARD_HALF)
              for i, x in enumerate(SLOTS.values())]
-TALL_RE = re.compile(r'CP_Elec|Fuseholder|L_Wuerth_HCI|L_12x12')
+TALL_RE = re.compile(r'CP_Elec|Fuseholder|L_Wuerth_HCI|L_Molded_1050|L_12x12')
 # board mounting holes (M3, the housing's four posts): in the gaps between the screens, above and below where they
 # meet, each pair mirrored about the board's centre line, 5.25 mm in from the top and bottom edges (from the housing's
 # model, 2026-10-19). 7 mm clear round each, both sides: the post on the front, the screw head on the back

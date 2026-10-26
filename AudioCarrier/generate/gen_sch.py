@@ -236,7 +236,7 @@ HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
 SJ = stock('Jumper', 'SolderJumper_2_Open')
 SW = stock('Switch', 'SW_Push')
 CAN = stock('Interface_CAN_LIN', 'MCP2562-E-P')
-OPA = stock_as('Amplifier_Operational', 'LM2904', 'AudioCarrier:OPA2376', 'OPA2376AIDGK')
+OPA = stock_as('Amplifier_Operational', 'LM2904', 'AudioCarrier:TLV9062', 'TLV9062AIDGK')
 LDO = stock_as('Regulator_Linear', 'SPX2920M3-3.3_SOT223', 'AudioCarrier:AP7361C-33E', 'AP7361C-33E')   # 1 IN, 2 GND (tab), 3 OUT
 for n in ('GND', '+5V', '+3V3', 'PWR_FLAG'):
     stock('power', n)
@@ -379,7 +379,7 @@ text(15, 235, 'Flash: hold BOOT, tap RESET, then upload. Power the board from th
 # --- CAN
 G('can')
 text(15, 250, 'CAN: MCP2562 (VDD 5 V, VIO 3.3 V, STBY low). No 120 R: the carrier never terminates the bus.', 1.4)
-place(CAN, 'U2', 'MCP2562-E/SN', FP_SOIC, 55, 285, {'1': 'CAN_TXD', '2': 'GND', '3': '+5V', '4': 'CAN_RXD', '5': '+3V3',
+place(CAN, 'U2', 'TJA1051T/3', FP_SOIC, 55, 285, {'1': 'CAN_TXD', '2': 'GND', '3': '+5V', '4': 'CAN_RXD', '5': '+3V3',
                                                       '6': 'CANL', '7': 'CANH', '8': 'GND'})
 r_('1k', 'CAN_RXD', 'CAN_RX', 95, 275, 'Series R on the receive line, as on the DigiDash board')
 c_('100n', '+5V', 'GND', 115, 275)
@@ -426,9 +426,9 @@ G('port')
 G('mic')
 text(30, 340, 'MICROPHONE (hands-free calls only, no line / aux input): 3.5 mm jack J6 for an electret car microphone on a mono TS plug '
      '(plug-in power). Tip = mic, bias 2.2k from MICV (+5VA through 1k + 47u). Ring and sleeve to ground, so a TS or a TRS plug works.\n'
-     'Preamp: OPA2376 A non-inverting, gain 1 + 47k / 2.2k = 22.4 (27 dB): -42 dBV/Pa gives 0.18 Vrms at 94 dB SPL, '
+     'Preamp: TLV9062 A non-inverting, gain 1 + 47k / 2.2k = 22.4 (27 dB): -42 dBV/Pa gives 0.18 Vrms at 94 dB SPL, '
      'clipping (PCM1808 full scale 3 Vp-p, about 1 Vrms) at about 109 dB SPL. DC gain 1 at mid-supply (2.5 V). '
-     'OPA2376 B (spare) is a follower on VMID; the ADC right input is AC-grounded.', 1.4)
+     'TLV9062 B (spare) is a follower on VMID; the ADC right input is AC-grounded.', 1.4)
 r_('1k', '+5VA', 'MICV', 90, 365, 'Electret bias supply filter (with the 47 uF)')
 c_('47u', 'MICV', 'GND', 105, 365, fp=FP_C1206, d='Electret bias supply filter: 1k + 47 uF, about 3 Hz')
 r_('2.2k', 'MICV', 'MIC_TIP', 120, 365, 'Electret bias (plug-in power)')
@@ -440,16 +440,16 @@ r_('100k', 'MIC_IN', 'VMID', 165, 365)
 r_('10k', '+5VA', 'VMID', 180, 380)
 r_('10k', 'VMID', 'GND', 195, 380)
 c_('10u', 'VMID', 'GND', 210, 380)
-place(OPA, 'U3', 'OPA2376AIDGK', FP_VSSOP, 250, 380, {'3': 'MIC_IN', '2': 'MIC_FB', '1': 'MIC_OP'}, unit=1,
+place(OPA, 'U3', 'TLV9062AIDGK', FP_VSSOP, 250, 380, {'3': 'MIC_IN', '2': 'MIC_FB', '1': 'MIC_OP'}, unit=1,
       descr='Dual RRIO low-noise op-amp on 5 V, VSSOP-8 (A: mic preamp, B: spare, a follower on VMID)')
 r_('47k', 'MIC_OP', 'MIC_FB', 280, 365)
 c_('100p', 'MIC_OP', 'MIC_FB', 295, 365, d='Roll-off, about 34 kHz')
 r_('2.2k', 'MIC_FB', 'MIC_G', 310, 365)
 c_('10u', 'MIC_G', 'GND', 325, 365)
 c_('1u', 'MIC_OP', 'ADC_INL', 340, 380)
-place(OPA, 'U3', 'OPA2376AIDGK', FP_VSSOP, 250, 410, {'5': 'VMID', '6': 'OPB_OUT', '7': 'OPB_OUT'}, unit=2, first=False)
+place(OPA, 'U3', 'TLV9062AIDGK', FP_VSSOP, 250, 410, {'5': 'VMID', '6': 'OPB_OUT', '7': 'OPB_OUT'}, unit=2, first=False)
 c_('1u', 'ADC_INR', 'GND', 340, 410, d='Unused ADC right input: AC-grounded (the PCM1808 biases it internally)')
-place(OPA, 'U3', 'OPA2376AIDGK', FP_VSSOP, 290, 410, {'4': 'GND', '8': '+5VA'}, unit=3, first=False)
+place(OPA, 'U3', 'TLV9062AIDGK', FP_VSSOP, 290, 410, {'4': 'GND', '8': '+5VA'}, unit=3, first=False)
 c_('100n', '+5VA', 'GND', 310, 410, d='U3 decoupling, next to the pins')
 
 G('adc')

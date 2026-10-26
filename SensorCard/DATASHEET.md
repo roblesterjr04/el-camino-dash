@@ -437,7 +437,7 @@ The center stops re-sending `0x100`–`0x104` when it hears them from node `0x04
 
 ## 10. Parts
 
-See [`SensorCard_BOM.csv`](SensorCard_BOM.csv). Key parts: ATmega2560-16AU, MCP2515-I/SO, MCP2562-E/SN,
+See [`SensorCard_BOM.csv`](SensorCard_BOM.csv). Key parts: ATmega2560-16AU, MCP2515-I/SO, TJA1051T/3 (pin-compatible with the MCP2562-E/SN),
 MB85RC256V, PC817 (SMD), two 16 MHz 3225 crystals (YXC X322516MOB4SI, CL 12 pF, 18 pF load caps), JST S12B-PH-K-S and S4B-PH-K-S,
 Molex 43650-0200.
 

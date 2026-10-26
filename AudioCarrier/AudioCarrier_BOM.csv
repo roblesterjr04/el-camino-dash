@@ -24,8 +24,8 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,SW1,C&K PTS810 SJM 250 SMTR LFS,RESET: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
 1,SW2,C&K PTS810 SJM 250 SMTR LFS,BOOT: Tact switch 4.2 x 3.2 mm SMT,SMD,SMD,Top,
 1,U1,Espressif ESP32-WROVER-E-N8R8,"ESP32-WROVER-E: ESP32 module, 8 MB flash, 8 MB PSRAM, PCB antenna, 18.0 x 31.4 mm",SMD castellated + EPAD (custom footprint),SMD,Top,"Must be -N8R8 (PCB antenna, PSRAM needed; not the -IE); antenna end on the top edge, keep-out as placed"
-1,U2,Microchip MCP2562-E/SN,"MCP2562-E/SN: CAN FD transceiver, VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
-1,U3,Texas Instruments OPA2376AIDGKR,"OPA2376AIDGK: Dual low-noise RRIO op-amp (mic preamp; B unused, a follower)",VSSOP-8,SMD,Bottom,Any RRIO dual with the standard pinout will do
+1,U2,NXP TJA1051T/3/1J,"TJA1051T/3: CAN FD transceiver (pin-compatible with MCP2562-E/SN), VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,
+1,U3,Texas Instruments TLV9062IDGKR,"TLV9062IDGK: Dual RRIO op-amp, 10 MHz, 10 nV/rtHz (mic preamp; B unused, a follower)",VSSOP-8,SMD,Bottom,Any RRIO dual with the standard pinout will do
 1,U4,Texas Instruments PCM1808PWR,"PCM1808PW: Stereo audio ADC, 24-bit (microphone in)",TSSOP-14,SMD,Bottom,
 2,U5 U6,Texas Instruments PCM5102APWR,"PCM5102APW: Stereo audio DAC, 32-bit, 2.1 Vrms ground-centred out",TSSOP-20,SMD,Bottom,"U5 front pair, U6 rear pair"
 1,U7,Diodes Incorporated AP7361C-33E-13,"AP7361C-33E: LDO 3.3 V 1 A, 0.36 V dropout",SOT-223 (tab = GND),SMD,Top,"Pinout 1 IN, 2 GND (tab), 3 OUT"

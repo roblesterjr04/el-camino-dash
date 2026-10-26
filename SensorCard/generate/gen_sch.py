@@ -410,7 +410,7 @@ r_('10k', '+5V', 'CAN_INT', 'CAN_INT pull-up')
 place(XTAL, 'Y2', '16MHz', FP_XTAL, {'1': 'CAN_OSC1', '2': 'GND', '3': 'CAN_OSC2', '4': 'GND'}, descr='MCP2515 clock, own crystal')
 c_('18p', 'CAN_OSC1', 'GND', 'Y2 load')
 c_('18p', 'CAN_OSC2', 'GND', 'Y2 load')
-place(XCVR, 'U3', 'MCP2562-E/SN', FP_SOIC8,
+place(XCVR, 'U3', 'TJA1051T/3', FP_SOIC8,
       {'1': 'SNS_TXCAN', '2': 'GND', '3': '+5V', '4': 'SNS_RXCAN', '5': '+5V', '6': 'CANL', '7': 'CANH', '8': 'GND'},
       descr='CAN transceiver, VIO 5 V, STBY low. No termination: a card never terminates the bus')
 c_('100n', '+5V', 'GND', 'U3 VDD / VIO')

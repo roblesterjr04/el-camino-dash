@@ -9102,7 +9102,7 @@
 				)
 			)
 		)
-		(property "Value" "MCP2562-E/SN"
+		(property "Value" "TJA1051T/3"
 			(at 0 3.4 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -12796,7 +12796,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "OPA2376AIDGK"
+		(property "Value" "TLV9062AIDGK"
 			(at 0 -2.45 180)
 			(layer "B.Fab")
 			(hide yes)

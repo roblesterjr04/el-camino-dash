@@ -1,7 +1,7 @@
 Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,U1,Microchip ATmega2560-16AU,"Sensor pack MCU. USART0 = FTDI header, USART1 = sensor frames (J8), SPI = MCP2515 + ISP, ICP4 / ICP5 = tach / speed",TQFP-100_14x14mm_P0.5mm,SMD,Top,Arrives blank: flash over J6 (ISP); fuses in DATASHEET.md
 1,U2,Microchip MCP2515-I/SO,"CAN controller (node 0x04, fixed)",SOIC-18W_7.5x11.6mm_P1.27mm,SMD,Top,
-1,U3,Microchip MCP2562-E/SN,"CAN transceiver, VIO 5 V, STBY low. No termination: a card never terminates the bus",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
+1,U3,NXP TJA1051T/3/1J,"CAN transceiver, VIO 5 V, STBY low. No termination: a card never terminates the bus",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
 1,U4,Fujitsu MB85RC256VPNF-G-JNERE1,"32 KB I2C FRAM, address 0x50: odometer (A / B slots with CRC-8). Lives on the card: set a new card's mileage in firmware",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
 1,U5,Everlight EL817S1(C)(TU)-F,Tach isolation,SMDIP-4_W7.62mm,SMD,Top,LCSC C106900. Any PC817 in the 4-SMD gull wing
 1,Y1,YXC X322516MOB4SI,"16 MHz, 3225, CL 12 pF (18p + 18p in series plus stray)",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,LCSC C12668. C12 / C13 18p give about 13-14 pF load (CL 12 pF part): fine
@@ -10,12 +10,12 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,J2,JST S12B-PH-K-S,"Senders: 1 FUEL, 2 FUEL return, 3 ETEMP, 4 ETEMP V (5 V, 0.1 A PTC), 5 ETEMP return, 6 OILP, 7 OILP V (5 V, 0.1 A PTC), 8 OILP return, 9 AMB, 10 AMB return, 11 ALT L (alternator lamp terminal, 12 V level), 12 GND",JST_PH_S12B-PH-K_1x12_P2.00mm_Horizontal,THT,Top,
 1,J3,JST S4B-PH-K-S,"Speed sensor: 1 sensor power (5 V or 12 V by JP1, 0.1 A PTC), 2 signal, 3 GND, 4 GND / shield",JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal,THT,Top,
 1,J4,Molex 43650-0200,"Tach: 1 coil negative / HEI tach terminal / ignition box tach output, 2 GND",Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal,THT,Top,
-1,J5,Sullins PRPC002DAAN-RC,"RPM select jumpers (pulses per revolution; internal pull-ups): 1-2 = A, 3-4 = B",PinHeader_2x02_P2.54mm_Vertical,THT,Top,
-1,J6,Sullins PRPC003DBAN-M71RC,ISP (USBasp or AVRISP mkII; USBtiny is unreliable above 128 KB). Pin 2 is the card 5 V: power the card from its slot,PinHeader_2x03_P2.54mm_Horizontal,THT,Top,
+1,J5,XFCN PZ254V-12-4P,"RPM select jumpers (pulses per revolution; internal pull-ups): 1-2 = A, 3-4 = B",PinHeader_2x02_P2.54mm_Vertical,THT,Top,
+1,J6,XFCN PZ254R-12-6P,ISP (USBasp or AVRISP mkII; USBtiny is unreliable above 128 KB). Pin 2 is the card 5 V: power the card from its slot,PinHeader_2x03_P2.54mm_Horizontal,THT,Top,
 1,J7,Sullins PRPC006SBAN-M71RC,"FTDI 6-pin (5 V logic): 1 GND, 2 CTS (grounded), 3 VCC (not used: power from the slot), 4 adapter TX, 5 adapter RX, 6 DTR",PinHeader_1x06_P2.54mm_Horizontal,THT,Top,
 1,J8,Sullins PREC003SBAN-M71RC,"Sensor serial (USART1, 5 V, 115200 8N1): 1 GND, 2 TX (sensor frames out: jumper wire to the main board J27 pin 1), 3 RX (in; unused in the car)",PinHeader_1x03_P2.54mm_Horizontal,THT,Top,
 1,J9,Sullins PRPC002SAAN-RC,"Demo jumper: fitted = the sensor pack sends a fake sweep (bench only). 1 DEMO, 2 +5V",PinHeader_1x02_P2.54mm_Vertical,THT,Top,"Plus one 2.54 mm jumper shunt (Sullins QPC02SXGN-RC), not fitted: bench only"
-1,J10,Sullins PRPC005DAAN-RC,"Spare 2560 pins: ADC10-13 (port K: analog or digital, pin-change interrupts), D44-D47 (PWM). 5 V logic, no protection",PinHeader_2x05_P2.54mm_Vertical,THT,Top,
+1,J10,XFCN PZ254V-12-10P,"Spare 2560 pins: ADC10-13 (port K: analog or digital, pin-change interrupts), D44-D47 (PWM). 5 V logic, no protection",PinHeader_2x05_P2.54mm_Vertical,THT,Top,
 1,JP1,"(PCB solder jumper, no part)",Speed sensor supply: 1-2 (bridged as delivered) = 5 V; cut 1-2 and bridge 2-3 = slot switched 12 V,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
 1,JP2,"(PCB solder jumper, no part)",FUEL topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
 1,JP3,"(PCB solder jumper, no part)",ETEMP topology: 1-2 (bridged as delivered) = pull-up to +5 V; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
@@ -37,7 +37,7 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,D3,Lite-On LTST-C191KGKT,"Status (PB7, Arduino D13)",0603,SMD,Top,
 1,D6,Diodes Inc 1N4148W-7-F,Reverse clamp across the LED (coil kickback),D_SOD-123,SMD,Top,
 1,FB1,Murata BLM18KG601SN1D,AVCC filter,0603,SMD,Top,
-3,F1 F2 F3,Bourns MF-NSMF010/60X-2,"0.1 A, 60 V feed fuses, 1206: ETEMP V, OILP V, speed sensor power",1206,SMD,Top,
+3,F1 F2 F3,Littelfuse 1206L010/60WR,"0.1 A, 60 V feed fuses, 1206: ETEMP V, OILP V, speed sensor power",1206,SMD,Top,
 1,R1,Yageo RC0603FR-0715KL,Ignition sense divider top (from the slot switched 12 V),0603,SMD,Top,
 18,R2 R6 R8 R10 R11 R12 R17 R19 R21 R27 R31 R33 R34 R35 R36 R38 R39 R40,Yageo RC0603FR-0710KL,10k resistor,0603,SMD,Top,
 3,R3 R30 R32,Yageo RC0603FR-07100KL,100k resistor,0603,SMD,Top,

@@ -371,8 +371,8 @@ place(BUCK, 'U2', 'TPS54560BDDA', 'Package_SO:TI_SO-PowerPAD-8_ThermalVias',
        '7': 'GND', '8': 'BUCK_SW', '9': 'GND'}, descr='5 V, 5 A step-down, 4.5-60 V in')
 c_('100n', 'BUCK_BOOT', 'BUCK_SW', 'Bootstrap (C4)')
 r_('243k', 'BUCK_RT', 'GND', 'RT: 400 kHz (R3)')
-place(L, nid('L'), '7.2u', 'Inductor_SMD:L_Wuerth_HCI-1050', {'1': 'BUCK_SW', '2': '+5V'},
-      descr='7.2 uH, Isat > 7 A, shielded (Wurth WE-HCI 1050, 7443551720 or equal)')
+place(L, nid('L'), '6.8u', 'DigiDash2:L_Molded_1050', {'1': 'BUCK_SW', '2': '+5V'},
+      descr='6.8 uH, Isat 14 A, Irms 8.5 A, molded shielded (COILMX MS1050-6R8M or equal)')
 place(DS, nid('D'), 'B560C', 'Diode_SMD:D_SMC', {'1': 'BUCK_SW', '2': 'GND'}, descr='Catch diode, 5 A 60 V Schottky')
 for _ in range(3):
     c_('47u 10V', '+5V', 'GND', 'Buck output (C6, C7, C9)')
@@ -462,7 +462,7 @@ for ref, name in (('J5', 'Left Screen'), ('J1', 'Center Screen - Master'), ('J4'
 r_('1k', 'POS_L', 'GND', 'Left position strap (R37 on rev 1)')
 r_('1k', 'POS_R', '3V3_R', 'Right position strap, to the right screen\'s own 3V3 (R38 on rev 1)')
 for side, ref in (('L', 'U5'), ('C', 'U9'), ('R', 'U10')):
-    place(XCVR, ref, 'MCP2562-E/SN', FP_SOIC8,
+    place(XCVR, ref, 'TJA1051T/3', FP_SOIC8,
           {'1': 'CAN_TX_' + side, '2': 'GND', '3': '+5V', '4': 'CAN_RX_' + side, '5': '+3V3', '6': 'CANL', '7': 'CANH', '8': 'GND'},
           descr='%s screen CAN transceiver' % {'L': 'Left', 'C': 'Center', 'R': 'Right'}[side])
     c_('100n', '+5V', 'GND', ref + ' VDD')
@@ -531,9 +531,9 @@ place(TVP, 'U8', 'TVP5150AM1IPBS', 'Package_QFP:TQFP-32_5x5mm_P0.5mm', {
     '21': 'CL_SCL', '22': 'CL_SDA'}, descr='Video decoder')
 r_('22', 'VID_SCLK', 'V_PCLK', 'Pixel clock series (edge damping)')
 place(XTAL, 'Y3', '14.31818MHz', FP_XTAL, {'1': 'VID_XTAL1', '2': 'GND', '3': 'VID_XTAL2', '4': 'GND'},
-      descr='14.31818 MHz, +/-50 ppm, fundamental')   # Abracon ABM8-14.31818MHZ-B2-T: CL 18 pF, so 27p load caps
-c_('27p', 'VID_XTAL1', 'GND', 'Y3 load (2 CL - Cstray)')
-c_('27p', 'VID_XTAL2', 'GND', 'Y3 load')
+      descr='14.31818 MHz, +/-50 ppm, fundamental')   # YXC X32251431818MSB4SI: CL 20 pF, so 33p load caps
+c_('33p', 'VID_XTAL1', 'GND', 'Y3 load (2 CL - Cstray)')
+c_('33p', 'VID_XTAL2', 'GND', 'Y3 load')
 r_('100k', 'VID_XTAL1', 'VID_XTAL2', 'Across the crystal (TI note E)')
 c_('1u', 'VID_REFP', 'GND', 'REFP (C1)')
 c_('1u', 'VID_REFM', 'GND', 'REFM (C2)')

@@ -1,6 +1,6 @@
 Qty,Designators,Value,Description,Package / footprint,Manufacturer part (example),Notes
 1,U1,ESP32-S3-WROOM-1-N8,"ESP32-S3 module, 8 MB flash, no PSRAM, PCB antenna",RF_Module:ESP32-S3-WROOM-1,Espressif ESP32-S3-WROOM-1-N8,"Antenna on the board edge, keep-out as placed"
-1,U2,MCP2562-E/SN,"CAN FD transceiver, VDD 5 V (from the cable, ahead of the OR diode), VIO 3.3 V",SOIC-8,Microchip MCP2562-E/SN,
+1,U2,TJA1051T/3,"CAN FD transceiver (pin-compatible with MCP2562-E/SN), VDD 5 V (from the cable, ahead of the OR diode), VIO 3.3 V",SOIC-8,NXP TJA1051T/3/1J,
 1,U3,AP7361C-33E,"LDO 3.3 V 1 A, 0.36 V dropout",SOT-223 (tab = GND),Diodes Inc AP7361C-33E-13,"SOT-223 for the heat: ESP32 + OLED; pinout 1 IN, 2 GND, 3 OUT"
 1,U4,USBLC6-2SC6,"USB ESD protection, 2 lines + VBUS",SOT-23-6,STMicroelectronics USBLC6-2SC6,
 1,D5,NUP2105L,CAN bus ESD clamp,SOT-23,onsemi NUP2105LT1G,

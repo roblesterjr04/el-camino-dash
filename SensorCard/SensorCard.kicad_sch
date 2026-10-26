@@ -10468,7 +10468,7 @@
   )
   (symbol (lib_id "Interface_CAN_LIN:MCP2562-E-SN") (at 591.82 317.5 0) (unit 1) (in_bom yes) (on_board yes) (dnp no) (uuid "6da6fde8-5406-5b57-96d5-880beceebc95")
     (property "Reference" "U3" (at 581.66 308.61 0) (effects (font (size 1.27 1.27)) (justify left)))
-    (property "Value" "MCP2562-E/SN" (at 594.36 308.61 0) (effects (font (size 1.27 1.27)) (justify left)))
+    (property "Value" "TJA1051T/3" (at 594.36 308.61 0) (effects (font (size 1.27 1.27)) (justify left)))
     (property "Footprint" "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" (at 591.82 317.5 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "~" (at 591.82 317.5 0) (effects (font (size 1.27 1.27)) hide))
     (property "Description" "CAN transceiver, VIO 5 V, STBY low. No termination: a card never terminates the bus" (at 591.82 317.5 0) (effects (font (size 1.27 1.27)) hide))

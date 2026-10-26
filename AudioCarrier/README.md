@@ -25,8 +25,8 @@ CAN node from its slot (`0x14 + (slot − 1)`: `0x14` in slot 1), 5 V from the s
 ESP32 I2S0 (master) BCK GPIO14, WS GPIO25, DOUT GPIO27 ──► PCM5102A front ──► 470 R + 2.2 nF ──► J2 FL, J3 FR
 ESP32 I2S1 (slave, same BCK / WS)  DOUT GPIO26            ──► PCM5102A rear  ──► 470 R + 2.2 nF ──► J4 RL, J5 RR
 +5VA ─ 1k ─ MICV (47u) ─ 2.2k ─┐
-J6 tip, electret mic (100p) ────┴ 1u ─ OPA2376 A (gain 22.4) ─ 1u ─► PCM1808 VINL ──► ESP32 I2S0 DIN GPIO35
-J6 ring + sleeve = GND;  PCM1808 VINR ─ 1u ─ GND;  OPA2376 B = follower on VMID (spare)
+J6 tip, electret mic (100p) ────┴ 1u ─ TLV9062 A (gain 22.4) ─ 1u ─► PCM1808 VINL ──► ESP32 I2S0 DIN GPIO35
+J6 ring + sleeve = GND;  PCM1808 VINR ─ 1u ─ GND;  TLV9062 B = follower on VMID (spare)
 ESP32 GPIO0 (CLK_OUT) 12.288 MHz = 256 fS master clock ──► PCM1808 SCKI      GPIO4 = DAC mute (XSMT, pulled low)
 
 I2S rail (bused to all six slots), through U8 74LVC125 (enabled by GPIO21 low) and 33 R each. The card's net names
@@ -74,10 +74,10 @@ solder tabs are ground.
 - **Mic input (calls only):** for an electret car hands-free microphone on a mono 3.5 mm TS plug ("plug-in power").
   Bias: 2.2 kΩ to the tip from MICV, which is +5VA through 1 kΩ + 47 µF (about 3 Hz; about 4.5 V at a 0.5 mA
   capsule). 100 pF from the tip to ground at the jack (RF). DC-blocked (1 µF into 100 kΩ to VMID = 2.5 V), then
-  OPA2376 A non-inverting, gain 1 + 47k / 2.2k = 22.4 (27 dB; 2.2 kΩ + 10 µF to ground, so DC gain 1; 100 pF across
+  TLV9062 A non-inverting, gain 1 + 47k / 2.2k = 22.4 (27 dB; 2.2 kΩ + 10 µF to ground, so DC gain 1; 100 pF across
   the 47k, about 34 kHz). A -42 dBV/Pa capsule gives 0.18 Vrms at 94 dB SPL; the PCM1808's ~1 Vrms full scale is
   reached at about 109 dB SPL, so a loud voice close to the mic still has headroom. Out through 1 µF to VINL (the
-  left channel, which the firmware reads). VINR is AC-grounded through 1 µF; OPA2376 B is a follower on VMID, its
+  left channel, which the firmware reads). VINR is AC-grounded through 1 µF; TLV9062 B is a follower on VMID, its
   output unloaded (no floating inputs). There is no line / aux input.
 - **Power:** +5 V from the port; **AP7361C-33E** (Diodes, SOT-223: 1 IN, 2 GND / tab, 3 OUT; 1 A, 0.36 V dropout) for
   the ESP32 and digital sides, 22 µF + 10 µF ceramic in, 22 µF ceramic + 100 nF out, 10 µF + 100 nF at the module.
@@ -139,7 +139,7 @@ placement file; `AudioCarrier_BOM.csv` is the same list.
   - **Regulator:** AMS1117-3.3 + 22 µF tantalum → **AP7361C-33E-13** with ceramics (pinout 1 IN, 2 GND, 3 OUT, from
     the Diodes datasheet); tab solid to a ground copper area with 12 vias.
   - **Mic:** aux path removed (ring buffer, its coupling cap and bias resistor, the RING net); bias now from +5VA
-    through 1k + 47 µF; ring and sleeve to ground; OPA2376 B a follower on VMID; PCM1808 VINR AC-grounded.
+    through 1k + 47 µF; ring and sleeve to ground; TLV9062 B a follower on VMID; PCM1808 VINR AC-grounded.
     Tinkersphere TS3328 → **Same Sky SJ-3523-SMT** (stock footprint, datasheet pinout). The SJ1-3523N was checked
     first: it is 12 mm wide, more than the 9.3 mm the housing allows there.
   - **Moved:** the module (now x 1.2–19.2, y 0.2–31.6), SW1 / SW2 (below the module, y 36), the jack (x 72.3); every
@@ -151,7 +151,7 @@ placement file; `AudioCarrier_BOM.csv` is the same list.
   Check with the block in hand and against the case panel cut-out.
 - **Earlier checks (2026-10-05), still valid:** PCM1808 (TI SLES177B pin table; MD0 / MD1 low = slave, FMT low = I2S;
   VREF 100n + 10u); PCM5102A (TI pin table; SCK low = internal PLL, FMT low = I2S, LDOO 100n as TI asks); MCP2562;
-  OPA2376 (standard dual pinout); 74LVC125 (1 / 4 / 10 / 13 OE, BCK / WS / ADC data / MCLK onto LINK0 / 1 / 2 / 4); J1
+  TLV9062 (standard dual pinout; an OPA2376 until 2026-10-26, swapped for price, any RRIO dual with that pinout fits); 74LVC125 (1 / 4 / 10 / 13 OE, BCK / WS / ADC data / MCLK onto LINK0 / 1 / 2 / 4); J1
   against the slot pinout and DigiDash2's J31–J36; the RCA block against Switchcraft's PC board layout.
 - **BOM complete:** every line of `fab/AudioCarrier_BOM_PCBWay.csv` has a maker and part number.
 - **Still open:**
