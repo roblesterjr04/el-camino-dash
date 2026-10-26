@@ -1,0 +1,27 @@
+Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,Side,Your Instructions / Notes
+1,U1,1,STMicroelectronics,STM32G0B1KBU6,"STM32G0B1KBU6: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN",UFQFPN-32 5 x 5 mm (exposed pad),SMD,Top,Arrives blank: flash over J3 (SWD). Exposed pad = VSS
+2,U2,1,NXP,TJA1051T/3/1J,"TJA1051T/3: CAN FD transceiver (pin-compatible with MCP2562-E/SN), VDD 5 V, VIO 3.3 V",SOIC-8,SMD,Top,STBY tied low; no termination on the card
+3,U3,1,Diodes,AP2112K-3.3TRG1,"AP2112K-3.3: LDO 3.3 V 600 mA, EN tied to VIN",SOT-23-5,SMD,Top,
+4,U4,1,Skyworks (Silicon Labs),Si4735-D60-GU,"Si4735-D60: AM / FM / SW / LW receiver with RDS, I2C, digital audio out (slave)",SSOP-24 (3.9 mm body),SMD,Top,ESD-sensitive (some pins < 2 kV HBM). Reference clock from DCLK (no oscillator)
+5,U5,1,Texas Instruments,SN74LVC1G125DCKR,"74LVC1G125: single 3-state buffer (RET driver, off at reset)",SC-70-5 (SOT-353),SMD,Top,
+6,Y1,1,YXC,X32258MOB4SI,8MHz: HSE crystal,3225 4-pad,SMD,Top,"LCSC C2682775. 8 MHz, CL 12 pF, ESR <= 180 R. With C8 / C9 = 12p the load is about 10 pF (about +20 ppm: fine for CAN, more start-up margin)"
+7,D2,1,Texas Instruments,TPD1E0B04DPYR,"TPD1E0B04: 1-channel bidirectional ESD clamp, 0.13 pF (antenna)",X1SON-2 1.0 x 0.6 mm,SMD,Top,AN383 asks for <= 1 pF on the antenna pin. Check the 0402 land pattern against TI's DPY drawing
+8,D1 D3,2,Lite-On,LTST-C191KGKT,TUNED / STEREO-RDS: status LEDs,0603,SMD,Top,
+9,L1,1,Murata,LQW18AN56NJ00D,"56nH: wire-wound inductor, Q >= 15 at 100 MHz (FM antenna match, AN383 fig. 23)",0603,SMD,Top,Bench-tune for the car whip and its cable; leave off if reception is better without
+10,FB1,1,Murata,BLM18AG121SN1D,"BLM18 120R: ferrite bead 120 R at 100 MHz, 0.8 A (tuner VA)",0603,SMD,Top,
+11,J2,1,Amphenol RF,132289,"SMA jack, edge mount, for 1.6 mm board (antenna)",Edge mount,SMD,Top,"Top edge. Motorola-to-SMA: no straight adapter is sold; use a short pigtail, DIN 41585 female to SMA male (not RP-SMA), e.g. Eightwood TB0188 (10 cm RG174, eBay / Superbat). Check the SMA end has a centre pin"
+12,C1 C2 C4,3,Samsung,CL21A106KPFNNNE,10u: Capacitor 10u X5R 10 V,0805,SMD,Top,
+13,C6,1,Samsung,CL10A475KP8NNNC,4.7u: Capacitor 4.7u X5R 10 V,0603,SMD,Top,
+14,C3 C5 C7 C10 C11 C13 C15,7,Samsung,CL10B104KB8NNNC,100n: Capacitor 100n X7R 50 V,0603,SMD,Top,
+15,C12,1,Samsung,CL10B223KB8NNNC,22n: Capacitor 22n X7R (tuner DBYP to VA),0603,SMD,Top,Close to U4 pin 21
+16,C17,1,Samsung,CL10B474KO8NNNC,470n: Capacitor 470n X7R (AM coupling),0603,SMD,Top,
+17,C16,1,Samsung,CL10C102JB8NNNC,1n: Capacitor 1n C0G (FM coupling),0603,SMD,Top,
+18,C8 C9,2,Samsung,CL10C120JB8NNNC,12p: Capacitor 12p C0G 50 V,0603,SMD,Top,Crystal load caps (see Y1). C0G only
+19,C14,1,Yageo,CC0603CRNPO9BN2R2,2.2p: Capacitor 2.2p C0G (DFS noise cap),0603,SMD,Top,"C0G, +-0.25 pF"
+20,R1 R15,2,Yageo,RC0603FR-0710KL,10k: Resistor 10k 1% (slot ID pull-up; RET buffer off),0603,SMD,Top,
+21,R2 R3 R4,3,Yageo,RC0603FR-071KL,1k: Resistor 1k 1% (LEDs; CAN RXD series),0603,SMD,Top,
+22,R5,1,Yageo,RC0603FR-07604RL,604: Resistor 604 1% (DOUT series),0603,SMD,Top,
+23,R6 R7,2,Yageo,RC0603FR-072KL,2k: Resistor 2k 1% (DFS / DCLK series),0603,SMD,Top,
+24,R8 R9 R12 R14,4,Yageo,RC0603FR-07100KL,100k: Resistor 100k 1% (rail idle pull-downs; tuner reset; RCLK),0603,SMD,Top,
+25,R10 R11,2,Yageo,RC0603FR-074K7L,4.7k: Resistor 4.7k 1% (I2C pull-ups),0603,SMD,Top,
+26,R16,1,Yageo,RC0603FR-0733RL,33: Resistor 33 1% (RET series),0603,SMD,Top,

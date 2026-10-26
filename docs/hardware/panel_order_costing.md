@@ -42,6 +42,22 @@ The expensive chips (ATmega2560 ~$13, STM32G0B1 ~$5.20, TVP5150 ~$9.40) are at t
 PCB prices are estimates (JLCPCB 4-layer: DigiDash2 x5 ~$140, five-card panel x5 ~$110). Fees are from the published table and
 the line counts in the BOM (54 lines on the DigiDash2 order, 73 on the cards order, 39 for Sensor + Console alone).
 
+## Rev 3: the through-hole main board (2026-10-26)
+
+`DigiDash3/` is DigiDash2 with every SMD part swapped for a through-hole one (two LM2576HV 3 A bucks, DIP
+MCP2562-E/P from stock, radial PTCs, TO-220s lying flat, a 2 x 10 socket for a TVP5150 breakout in place of the
+decoder), two layers, so it needs no assembly service at all. One built main board plus four bare spares:
+
+| Item | Cost |
+|---|---|
+| 5 bare 2-layer PCBs, 329 x 113 mm, JLCPCB (estimate) | $55 to $70 |
+| Duty 35 % and shipping | $45 to $60 |
+| 149 through-hole parts for one board, LCSC prices, transceivers on hand | about $30 (DigiKey brand-name parts: $45 to $55) |
+| **One built main board, four spares** | **about $140 to $180** |
+
+Against about $350 for the main board's share of a JLCPCB-assembled set. The cards (sensor, GPS, radio, audio, console)
+are unchanged and still need an assembly order when they are wanted.
+
 ## Levers still open
 
 - Leave the audio card out of the first cards order: it is the only two-sided board, so the order drops to one side

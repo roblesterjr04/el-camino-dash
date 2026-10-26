@@ -5,20 +5,16 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footpr
 4,U4,1,STMicroelectronics,USBLC6-2SC6,"USBLC6-2SC6: USB ESD protection, 2 lines + VBUS",SOT-23-6,SMD,bottom,
 5,D5,1,onsemi,NUP2105LT1G,NUP2105L: CAN bus ESD clamp,SOT-23,SMD,bottom,
 6,D1 D2,2,Jiangsu Changjiang,B5819W SL,B5819W: Schottky 40 V 1 A (any B5819W) (power OR: USB VBUS and cable 5 V),SOD-123,SMD,bottom,
-7,J1,1,Connfly,DS1023-2*8SF11,"2x8 female socket (Sullins PPTC082LFBN-RC equal): 2.54 mm pin socket, 2 x 8, vertical (OLED module plugs in)",PinSocket_2x08_P2.54mm_Vertical,THT,top,"Wired to the measured module pinout (1 GND, 2 VCC, 4 CLK, 5 DIN, 14 DC, 15 RES, 16 CS)"
-8,J2,1,GCT,USB4105-GF-A,"USB-C: USB-C receptacle, USB 2.0, 16 pin, top mount",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,SMD,bottom,
-9,J3,1,JST,B4B-PH-K-S(LF)(SN),"JST PH 4-pin: JST PH 2.0 mm, 4 pin, vertical (top entry), through hole (CAN cable)",JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,THT,bottom,Vertical (top entry): the plug goes in from behind the board
-10,J4 J5,2,Assmann WSW,A-2014-3-4-N-T-R,"RJ9 4P4C: modular jack, vertical / top entry, through hole, 16.38 mm tall, locating pegs (J4 Select knob, J5 Volume knob)",RJ9_Assmann_A-2014-3-4-N-T-R_Vertical,THT,bottom,"Opening faces away from the board. Pad 1 (square) = jack contact 1. DigiKey 2183644"
-11,SW1 SW2,2,C&K,PTS810 SJM 250 SMTR LFS,"PTS810: Tact switch 4.2 x 3.2 mm SMT (RESET, BOOT)",SW_SPST_PTS810,SMD,bottom,
-12,C3,1,Samsung,CL21A226MPQNNNE,22u: Ceramic X5R 10 V,0805,SMD,bottom,ESP32 bulk
-13,C1 C5 C7 C8,4,Samsung,CL21A106KOQNNNE,10u: Ceramic X5R 16 V (on +5V / +3V3),0805,SMD,bottom,16 V or 25 V rating keeps capacitance at 5 V (DC bias)
-14,C4,1,Samsung,CL10B105KO8NNNC,1u: Ceramic X7R 16 V,0603,SMD,bottom,EN reset delay (with R2 10k)
-15,C2 C6 C9 C10 C11 C16,6,Samsung,CL10B104KB8NNNC,100n: Ceramic X7R 50 V,0603,SMD,bottom,C16: IR receiver supply filter (with R11)
-16,C12 C13 C14 C15,4,Samsung,CL10B103KB8NNNC,10n: Ceramic X7R 50 V,0603,SMD,bottom,Knob ladder filtering
-17,R2 R10,2,Yageo,RC0603FR-0710KL,10k: Resistor 1 % 1/10 W,0603,SMD,bottom,R2 EN pull-up; R10 IR pull-up
-18,R6 R7 R8 R9,4,Yageo,RC0603FR-0733KL,33k: Resistor 1 % 1/10 W,0603,SMD,bottom,Knob ladder pull-ups
-19,R1,1,Yageo,RC0603FR-07100KL,100k: Resistor 1 % 1/10 W,0603,SMD,bottom,OLED CS pull-up
-20,R3 R4,2,Yageo,RC0603FR-075K1L,5.1k: Resistor 1 % 1/10 W,0603,SMD,bottom,USB-C CC1 / CC2 (device)
-21,R5,1,Yageo,RC0603FR-071KL,1k: Resistor 1 % 1/10 W,0603,SMD,bottom,CAN RXD series
-22,R11,1,Yageo,RC0603FR-07100RL,100R: Resistor 1 % 1/10 W,0603,SMD,bottom,IR receiver supply filter: in series with its VS (with C16)
-23,J6,1,Vishay,TSOP4838,"TSOP4838: IR receiver, 38 kHz, MOLD package",Vishay_MOLD-3Pin,THT,top,Front side; pin order as the S G V silkscreen. Seat flat (the OLED module sits just above it)
+7,J2,1,GCT,USB4105-GF-A,"USB-C: USB-C receptacle, USB 2.0, 16 pin, top mount",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,SMD,bottom,
+8,SW1 SW2,2,C&K,PTS810 SJM 250 SMTR LFS,"PTS810: Tact switch 4.2 x 3.2 mm SMT (RESET, BOOT)",SW_SPST_PTS810,SMD,bottom,
+9,C3,1,Samsung,CL21A226MPQNNNE,22u: Ceramic X5R 10 V,0805,SMD,bottom,ESP32 bulk
+10,C1 C5 C7 C8,4,Samsung,CL21A106KOQNNNE,10u: Ceramic X5R 16 V (on +5V / +3V3),0805,SMD,bottom,16 V or 25 V rating keeps capacitance at 5 V (DC bias)
+11,C4,1,Samsung,CL10B105KO8NNNC,1u: Ceramic X7R 16 V,0603,SMD,bottom,EN reset delay (with R2 10k)
+12,C2 C6 C9 C10 C11 C16,6,Samsung,CL10B104KB8NNNC,100n: Ceramic X7R 50 V,0603,SMD,bottom,C16: IR receiver supply filter (with R11)
+13,C12 C13 C14 C15,4,Samsung,CL10B103KB8NNNC,10n: Ceramic X7R 50 V,0603,SMD,bottom,Knob ladder filtering
+14,R2 R10,2,Yageo,RC0603FR-0710KL,10k: Resistor 1 % 1/10 W,0603,SMD,bottom,R2 EN pull-up; R10 IR pull-up
+15,R6 R7 R8 R9,4,Yageo,RC0603FR-0733KL,33k: Resistor 1 % 1/10 W,0603,SMD,bottom,Knob ladder pull-ups
+16,R1,1,Yageo,RC0603FR-07100KL,100k: Resistor 1 % 1/10 W,0603,SMD,bottom,OLED CS pull-up
+17,R3 R4,2,Yageo,RC0603FR-075K1L,5.1k: Resistor 1 % 1/10 W,0603,SMD,bottom,USB-C CC1 / CC2 (device)
+18,R5,1,Yageo,RC0603FR-071KL,1k: Resistor 1 % 1/10 W,0603,SMD,bottom,CAN RXD series
+19,R11,1,Yageo,RC0603FR-07100RL,100R: Resistor 1 % 1/10 W,0603,SMD,bottom,IR receiver supply filter: in series with its VS (with C16)

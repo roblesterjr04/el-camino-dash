@@ -7,7 +7,7 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
 
 | Files | |
 | --- | --- |
-| `ConsoleBoardRS.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 108.0 × 35.0 mm, 4 layers, parts on both sides. KiCad 10 |
+| `ConsoleBoardRS.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 108.0 × 35.0 mm, **2 layers** (since 2026-10-26; 4 before), SMD on the back only, the OLED socket and IR receiver on the front. KiCad 10 |
 | `ConsoleBoardRS.pretty` | The Assmann WSW A-2014-3-4-N-T-R RJ9 footprint (from the Assmann drawing, see [Mechanics](#mechanics)). Everything else is stock KiCad |
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
 | `ConsoleBoardRS_BOM.csv`, `fab/` | BOM, Gerbers / drill, placement and centroid, PCBWay BOM |

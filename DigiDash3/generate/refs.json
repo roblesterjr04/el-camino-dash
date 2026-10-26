@@ -1,0 +1,1010 @@
+{
+ "#FLG01": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG02": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG03": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG04": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG05": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG06": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG07": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG08": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG09": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG10": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG11": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "#FLG12": {
+  "dnp": false,
+  "fp": "",
+  "group": "power",
+  "value": "PWR_FLAG"
+ },
+ "C1": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+  "group": "power",
+  "value": "100u 63V"
+ },
+ "C10": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+  "group": "aux",
+  "value": "100u 63V"
+ },
+ "C11": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C12": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C13": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C14": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C15": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C16": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C17": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C18": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "screens",
+  "value": "100n"
+ },
+ "C19": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "video",
+  "value": "100n"
+ },
+ "C2": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "power",
+  "value": "100n"
+ },
+ "C20": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "slots",
+  "value": "100n"
+ },
+ "C21": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "slots",
+  "value": "100n"
+ },
+ "C3": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+  "group": "power",
+  "value": "100u 63V"
+ },
+ "C4": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+  "group": "power",
+  "value": "1000u 16V"
+ },
+ "C5": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+  "group": "power",
+  "value": "100u 63V"
+ },
+ "C6": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+  "group": "power",
+  "value": "1000u 16V"
+ },
+ "C7": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D5.0mm_P2.00mm",
+  "group": "power",
+  "value": "10u 25V"
+ },
+ "C8": {
+  "dnp": false,
+  "fp": "Capacitor_THT:CP_Radial_D5.0mm_P2.00mm",
+  "group": "power",
+  "value": "10u 25V"
+ },
+ "C9": {
+  "dnp": false,
+  "fp": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+  "group": "power",
+  "value": "100n"
+ },
+ "D10": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-201AD_P15.24mm_Horizontal",
+  "group": "aux",
+  "value": "1.5KE33A"
+ },
+ "D11": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-15_P10.16mm_Horizontal",
+  "group": "screens",
+  "value": "SA24CA"
+ },
+ "D12": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-15_P10.16mm_Horizontal",
+  "group": "screens",
+  "value": "SA24CA"
+ },
+ "D13": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-15_P10.16mm_Horizontal",
+  "group": "ports",
+  "value": "SA24CA"
+ },
+ "D14": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-15_P10.16mm_Horizontal",
+  "group": "ports",
+  "value": "SA24CA"
+ },
+ "D15": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "1N4148"
+ },
+ "D16": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "BAT85"
+ },
+ "D17": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "BAT85"
+ },
+ "D18": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "BAT85"
+ },
+ "D19": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "BAT85"
+ },
+ "D4": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-41_SOD81_P10.16mm_Horizontal",
+  "group": "power",
+  "value": "1N4744A"
+ },
+ "D5": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-201AD_P15.24mm_Horizontal",
+  "group": "power",
+  "value": "1.5KE33A"
+ },
+ "D6": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-201AD_P15.24mm_Horizontal",
+  "group": "power",
+  "value": "SB560"
+ },
+ "D7": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-201AD_P15.24mm_Horizontal",
+  "group": "power",
+  "value": "SB560"
+ },
+ "D8": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-41_SOD81_P10.16mm_Horizontal",
+  "group": "power",
+  "value": "1N4744A"
+ },
+ "D9": {
+  "dnp": false,
+  "fp": "Diode_THT:D_DO-41_SOD81_P10.16mm_Horizontal",
+  "group": "aux",
+  "value": "1N4744A"
+ },
+ "F1": {
+  "dnp": false,
+  "fp": "Fuse:Fuseholder_Blade_Mini_Keystone_3568",
+  "group": "aux",
+  "value": "5A mini blade"
+ },
+ "F10": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F11": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F12": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F13": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F14": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F15": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F16": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F17": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F18": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F19": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F2": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "screens",
+  "value": "PTC 0.5A"
+ },
+ "F20": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F21": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F22": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F23": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F24": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F25": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F26": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F27": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F28": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F29": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F3": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "screens",
+  "value": "PTC 0.1A"
+ },
+ "F30": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "F31": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.1A"
+ },
+ "F32": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.2A"
+ },
+ "F4": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "ports",
+  "value": "PTC 0.5A"
+ },
+ "F5": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "ports",
+  "value": "PTC 0.5A"
+ },
+ "F6": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "ports",
+  "value": "PTC 0.5A"
+ },
+ "F7": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "ports",
+  "value": "PTC 0.5A"
+ },
+ "F8": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "ports",
+  "value": "PTC 1.1A"
+ },
+ "F9": {
+  "dnp": false,
+  "fp": "DigiDash3:PTC_Radial_P5.08mm",
+  "group": "slots",
+  "value": "PTC 0.5A"
+ },
+ "H1": {
+  "dnp": false,
+  "fp": "MountingHole:MountingHole_3.2mm_M3_Pad",
+  "group": "power",
+  "value": "MountingHole"
+ },
+ "H2": {
+  "dnp": false,
+  "fp": "MountingHole:MountingHole_3.2mm_M3_Pad",
+  "group": "power",
+  "value": "MountingHole"
+ },
+ "H3": {
+  "dnp": false,
+  "fp": "MountingHole:MountingHole_3.2mm_M3_Pad",
+  "group": "power",
+  "value": "MountingHole"
+ },
+ "H4": {
+  "dnp": false,
+  "fp": "MountingHole:MountingHole_3.2mm_M3_Pad",
+  "group": "power",
+  "value": "MountingHole"
+ },
+ "J1": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x20_P2.54mm_Vertical",
+  "group": "screens",
+  "value": "Center Screen - Master"
+ },
+ "J10": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+  "group": "video",
+  "value": "Video aux"
+ },
+ "J13": {
+  "dnp": false,
+  "fp": "Connector_Molex:Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical",
+  "group": "aux",
+  "value": "AUX 12V in"
+ },
+ "J16": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+  "group": "screens",
+  "value": "CAN debug"
+ },
+ "J17": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
+  "group": "ports",
+  "value": "Cable port 1"
+ },
+ "J22": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
+  "group": "ports",
+  "value": "Cable port 2"
+ },
+ "J23": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
+  "group": "ports",
+  "value": "Cable port 3"
+ },
+ "J24": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
+  "group": "ports",
+  "value": "Cable port 4"
+ },
+ "J25": {
+  "dnp": false,
+  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical",
+  "group": "ports",
+  "value": "Trunk port"
+ },
+ "J27": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+  "group": "screens",
+  "value": "Sensor serial in"
+ },
+ "J31": {
+  "dnp": false,
+  "fp": "DigiDash3:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 1"
+ },
+ "J32": {
+  "dnp": false,
+  "fp": "DigiDash3:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 2"
+ },
+ "J33": {
+  "dnp": false,
+  "fp": "DigiDash3:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 3"
+ },
+ "J34": {
+  "dnp": false,
+  "fp": "DigiDash3:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 4"
+ },
+ "J35": {
+  "dnp": false,
+  "fp": "DigiDash3:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 5"
+ },
+ "J36": {
+  "dnp": false,
+  "fp": "DigiDash3:Slot_Socket_2x15_P2.54mm_Vertical",
+  "group": "slots",
+  "value": "Slot 6"
+ },
+ "J4": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x20_P2.54mm_Vertical",
+  "group": "screens",
+  "value": "Right Screen"
+ },
+ "J5": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x20_P2.54mm_Vertical",
+  "group": "screens",
+  "value": "Left Screen"
+ },
+ "J6": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
+  "group": "screens",
+  "value": "Serial"
+ },
+ "J7": {
+  "dnp": false,
+  "fp": "Connector_Molex:Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical",
+  "group": "power",
+  "value": "Vehicle power"
+ },
+ "J8": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_2x10_P2.54mm_Vertical",
+  "group": "video",
+  "value": "Video module"
+ },
+ "J9": {
+  "dnp": false,
+  "fp": "Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical",
+  "group": "screens",
+  "value": "Backup Camera"
+ },
+ "JP1": {
+  "dnp": false,
+  "fp": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+  "group": "video",
+  "value": "Video VCC"
+ },
+ "L1": {
+  "dnp": false,
+  "fp": "Inductor_THT:L_Radial_D14.2mm_P10.00mm_Neosid_SD14",
+  "group": "power",
+  "value": "100u"
+ },
+ "L2": {
+  "dnp": false,
+  "fp": "Inductor_THT:L_Radial_D14.2mm_P10.00mm_Neosid_SD14",
+  "group": "power",
+  "value": "100u"
+ },
+ "NT1": {
+  "dnp": false,
+  "fp": "NetTie:NetTie-2_THT_Pad1.0mm",
+  "group": "power",
+  "value": "NetTie"
+ },
+ "NT2": {
+  "dnp": false,
+  "fp": "NetTie:NetTie-2_THT_Pad1.0mm",
+  "group": "slots",
+  "value": "NetTie"
+ },
+ "Q1": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-92_Inline",
+  "group": "screens",
+  "value": "2N3904"
+ },
+ "Q2": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown",
+  "group": "power",
+  "value": "IRF4905"
+ },
+ "Q3": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-92_Inline",
+  "group": "screens",
+  "value": "2N3904"
+ },
+ "Q4": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-92_Inline",
+  "group": "power",
+  "value": "2N3904"
+ },
+ "Q5": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown",
+  "group": "power",
+  "value": "IRF4905"
+ },
+ "Q6": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown",
+  "group": "aux",
+  "value": "IRF4905"
+ },
+ "Q7": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-92_Inline",
+  "group": "power",
+  "value": "2N3904"
+ },
+ "R1": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "10k"
+ },
+ "R10": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "aux",
+  "value": "10k"
+ },
+ "R11": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "1k"
+ },
+ "R12": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "1k"
+ },
+ "R13": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R14": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R15": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R16": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "120"
+ },
+ "R17": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "120"
+ },
+ "R18": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "4.7k"
+ },
+ "R19": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "4.7k"
+ },
+ "R2": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "100k"
+ },
+ "R20": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R21": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R22": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R23": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R24": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R25": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "20k"
+ },
+ "R26": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R27": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "20k"
+ },
+ "R28": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "10k"
+ },
+ "R29": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "screens",
+  "value": "20k"
+ },
+ "R3": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "47k"
+ },
+ "R30": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "video",
+  "value": "10k"
+ },
+ "R31": {
+  "dnp": true,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "video",
+  "value": "10k"
+ },
+ "R32": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "1k"
+ },
+ "R33": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "3.3k"
+ },
+ "R34": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "6.8k"
+ },
+ "R35": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "12k"
+ },
+ "R36": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "22k"
+ },
+ "R37": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "47k"
+ },
+ "R38": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "100k"
+ },
+ "R39": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "100k"
+ },
+ "R4": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "22k"
+ },
+ "R40": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "27k"
+ },
+ "R41": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "100k"
+ },
+ "R42": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "slots",
+  "value": "27k"
+ },
+ "R5": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "10k"
+ },
+ "R6": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "10k"
+ },
+ "R7": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "4.7k"
+ },
+ "R8": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "22k"
+ },
+ "R9": {
+  "dnp": false,
+  "fp": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+  "group": "power",
+  "value": "10k"
+ },
+ "SW1": {
+  "dnp": false,
+  "fp": "Button_Switch_THT:SW_DIP_SPSTx02_Slide_6.7x6.64mm_W7.62mm_P2.54mm_LowProfile",
+  "group": "screens",
+  "value": "TERM"
+ },
+ "U10": {
+  "dnp": false,
+  "fp": "Package_DIP:DIP-8_W7.62mm",
+  "group": "screens",
+  "value": "MCP2562-E/P"
+ },
+ "U11": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown",
+  "group": "power",
+  "value": "LD1117V33"
+ },
+ "U2": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-220-5_Horizontal_TabDown",
+  "group": "power",
+  "value": "LM2576HVT-5.0"
+ },
+ "U3": {
+  "dnp": false,
+  "fp": "Package_TO_SOT_THT:TO-220-5_Horizontal_TabDown",
+  "group": "power",
+  "value": "LM2576HVT-5.0"
+ },
+ "U5": {
+  "dnp": false,
+  "fp": "Package_DIP:DIP-8_W7.62mm",
+  "group": "screens",
+  "value": "MCP2562-E/P"
+ },
+ "U9": {
+  "dnp": false,
+  "fp": "Package_DIP:DIP-8_W7.62mm",
+  "group": "screens",
+  "value": "MCP2562-E/P"
+ }
+}

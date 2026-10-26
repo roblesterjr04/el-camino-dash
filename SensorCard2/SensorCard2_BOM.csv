@@ -1,0 +1,62 @@
+Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
+1,U1,STMicroelectronics STM32G0B1KBU6,"ST STM32G0B1KBU6: Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, FDCAN, UFQFPN-32 5 x 5 mm (exposed pad = VSS). Arrives blank: flash over J6 (SWD)",QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm,SMD,Top,"Arrives blank: flash over J6 (SWD, ST-Link)"
+1,U3,NXP TJA1051T/3/1J,"CAN transceiver (TJA1051T/3, pin-compatible with the MCP2562), VDD 5 V, VIO 3.3 V, S low. No termination: a card never terminates the bus",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
+1,U4,Fujitsu MB85RC256VPNF-G-JNERE1,"32 KB I2C FRAM, address 0x50, 3.3 V: odometer (A / B slots with CRC-8). Lives on the card: set a new card's mileage in firmware",SOIC-8_3.9x4.9mm_P1.27mm,SMD,Top,
+1,U5,Everlight EL817S1(C)(TU)-F,Tach isolation,SMDIP-4_W7.62mm,SMD,Top,LCSC C106900. Any PC817 in the 4-SMD gull wing
+1,U6,Diodes Inc AP2112K-3.3TRG1,"Diodes AP2112K-3.3TRG1: 600 mA LDO, 3.3 V, SOT-23-5. EN tied to VIN",SOT-23-5,SMD,Top,
+1,U7,Texas Instruments SN74LVC1T45DCKR,"3.3 -> 5 V level shifter on the sensor serial out (DIR high: A to B), so the main board's 10k / 20k dividers see rev A's 5 V",SOT-363_SC-70-6,SMD,Top,Level shifter: the sensor serial out at 5 V for the main board's dividers
+1,Y1,YXC X32258MOB4SI,"8 MHz crystal, 3.2 x 2.5 mm, CL 12 pF, ESR <= 180 R (YXC X32258MOB4SI; HSE, for the CAN bit timing)",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,"LCSC C2682775, as the GPS and radio cards (HSE for the CAN bit timing)"
+1,J1,Sullins PRPC015DBAN-M71RC,"Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, switched 12 V (8), constant 12 V (10), WAKE (12). Not used: the slot 3.3 V (the card makes its own), slot ID (the node is fixed), LAMP, REV, I2S, audio, AUX 12 V",PinHeader_2x15_P2.54mm_Horizontal,THT,Top,"Same part as the audio and GPS cards; on the bottom edge, pins pointing off the board"
+1,J2,JST S12B-PH-K-S,"Senders: 1 FUEL, 2 FUEL return, 3 ETEMP, 4 ETEMP V (5 V, 0.1 A PTC), 5 ETEMP return, 6 OILP, 7 OILP V (5 V, 0.1 A PTC), 8 OILP return, 9 AMB, 10 AMB return, 11 ALT L (alternator lamp terminal, 12 V level), 12 GND",JST_PH_S12B-PH-K_1x12_P2.00mm_Horizontal,THT,Top,
+1,J3,JST S4B-PH-K-S,"Speed sensor: 1 sensor power (5 V or 12 V by JP1, 0.1 A PTC), 2 signal, 3 GND, 4 GND / shield",JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal,THT,Top,
+1,J4,Molex 43650-0200,"Tach: 1 coil negative / HEI tach terminal / ignition box tach output, 2 GND",Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal,THT,Top,
+1,J5,XFCN PZ254V-12-4P,"RPM select jumpers (pulses per revolution; internal pull-ups): 1-2 = A, 3-4 = B",PinHeader_2x02_P2.54mm_Vertical,THT,Top,
+1,J6,Sullins PRPC005SBAN-M71RC,"SWD: 1 3V3 (target-voltage sense, not a supply: power the card from its slot), 2 SWDIO, 3 SWCLK, 4 NRST, 5 GND. As the GPS and radio cards",PinHeader_1x05_P2.54mm_Horizontal,THT,Top,
+1,J7,Sullins PRPC006SBAN-M71RC,"FTDI 6-pin pinout, 3.3 V logic (USART1): 1 GND, 2 CTS (grounded), 3 VCC (not used: power from the slot), 4 adapter TX (into the card), 5 adapter RX (out of the card), 6 DTR (not used)",PinHeader_1x06_P2.54mm_Horizontal,THT,Top,
+1,J8,Sullins PREC003SBAN-M71RC,"Sensor serial (USART2, 115200 8N1): 1 GND, 2 TX at 5 V (sensor frames out: jumper wire to the main board J27 pin 1), 3 RX in (3.3 V logic, 5 V tolerant through 1k; the center's keepalive)",PinHeader_1x03_P2.54mm_Horizontal,THT,Top,
+1,JP1,"(PCB solder jumper, no part)",Speed sensor supply: 1-2 (bridged as delivered) = 5 V; cut 1-2 and bridge 2-3 = slot switched 12 V,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP2,"(PCB solder jumper, no part)",FUEL topology: 1-2 (bridged as delivered) = pull-up to +3V3; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP3,"(PCB solder jumper, no part)",ETEMP topology: 1-2 (bridged as delivered) = pull-up to +3V3; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP4,"(PCB solder jumper, no part)",OILP topology: 1-2 (bridged as delivered) = pull-up to +3V3; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP5,"(PCB solder jumper, no part)",AMB topology: 1-2 (bridged as delivered) = pull-up to +3V3; cut 1-2 and bridge 2-3 = pull-down to GND,SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP6,"(PCB solder jumper, no part)",FUEL 100 select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP7,"(PCB solder jumper, no part)",FUEL 220 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP8,"(PCB solder jumper, no part)",FUEL 470 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP9,"(PCB solder jumper, no part)",ETEMP 220 select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP10,"(PCB solder jumper, no part)",ETEMP 1k select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP11,"(PCB solder jumper, no part)",ETEMP 10k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP12,"(PCB solder jumper, no part)",OILP 220 select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+1,JP13,"(PCB solder jumper, no part)",OILP 1k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP14,"(PCB solder jumper, no part)",OILP 100k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP15,"(PCB solder jumper, no part)",AMB 10k select: open as delivered,SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm,SMD,Top,Open as delivered
+1,JP16,"(PCB solder jumper, no part)",AMB 100k select: bridged as delivered,SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm,SMD,Top,Bridged as delivered
+8,D1 D4 D5 D6 D7 D8 D9 D10,"Nexperia BAT54S,215","Input clamps to GND / 3.3 V (ignition sense, alternator L, speed, the senders)",SOT-23,SMD,Top,
+1,D2,Vishay BAT42W-E3-08,"Hold diode: this card can only drive WAKE high, never load it (other cards drive it too)",D_SOD-123,SMD,Top,
+1,D3,Lite-On LTST-C191KGKT,Status (PB5),0603,SMD,Top,
+1,D11,Diodes Inc 1N4148W-7-F,Reverse clamp across the LED (coil kickback),D_SOD-123,SMD,Top,
+3,F1 F2 F3,Littelfuse 1206L010/60WR,"0.1 A, 60 V feed fuses, 1206: ETEMP V, OILP V, speed sensor power",1206,SMD,Top,
+1,R1,Yageo RC0603FR-0733KL,Ignition sense divider top (from the slot switched 12 V),0603,SMD,Top,
+13,R2 R15 R16 R18 R25 R29 R31 R33 R35 R37 R40 R41 R42,Yageo RC0603FR-0710KL,10k resistor,0603,SMD,Top,
+4,R3 R5 R28 R30,Yageo RC0603FR-07100KL,100k resistor,0603,SMD,Top,
+2,R4 R45,Yageo RC0603FR-0722KL,22k resistor,0603,SMD,Top,
+1,R6,Yageo RC0603FR-0747KL,WAKE into the MCU (series: the line may be up while the card is unpowered),0603,SMD,Top,
+6,R7 R8 R14 R24 R27 R46,Yageo RC0603FR-071KL,1k resistor,0603,SMD,Top,
+2,R9 R10,Yageo RC0603FR-074K7L,4.7k resistor,0603,SMD,Top,
+3,R11 R12 R13,Yageo RC0603FR-07100RL,100 resistor,0603,SMD,Top,
+2,R17 R19,Yageo RC0603FR-0715KL,15k resistor,0603,SMD,Top,
+1,R20,Yageo RC2010FK-07100RL,"FUEL bank, 100: 0-30R senders (the factory 1964 GM sender); 2010 for the dissipation into a shorted sender",2010,SMD,Top,Sender bias bank: selected by a solder jumper
+3,R21 R23 R26,Yageo RC1206FR-07220RL,220 resistor,1206,SMD,Top,
+1,R22,Yageo RC0805FR-07470RL,"FUEL bank, 470: 240-33R senders",0805,SMD,Top,Sender bias bank: selected by a solder jumper
+1,R39,Yageo RC0603FR-0739KL,Alternator L divider top (14.5 V -> 3.0 V),0603,SMD,Top,
+2,R43 R44,Yageo RC1206FR-074K7L,4.7k resistor,1206,SMD,Top,
+2,C1 C5,Samsung CL21B106KOQNNNE,10u capacitor,0805,SMD,Top,
+12,C2 C3 C4 C6 C7 C9 C12 C13 C14 C15 C16 C21,Samsung CL10B104KB8NNNC,100n capacitor,0603,SMD,Top,
+1,C8,Samsung CL21A475KOFNNNE,U1 VDD / VDDA bulk,0805,SMD,Top,
+2,C10 C11,Samsung CL10C150JB8NNNC,15p capacitor,0603,SMD,Top,
+4,C17 C18 C19 C20,Samsung CL10B103KB8NNNC,10n capacitor,0603,SMD,Top,
+1,C22,Samsung CL21B104KBCNNNC,"Speed sensor feed, at J3",0805,SMD,Top,
+2,C23 C24,Samsung CL10C102JB8NNNC,1n capacitor,0603,SMD,Top,
+1,R32,Yageo RC0603FR-0720KL,FUEL DIV: not fitted. Fit 20k for a 0.5-4.5 V transducer in pull-down mode (10k / 20k = 2/3),0603,SMD,Top,NOT FITTED as delivered (DNP)
+1,R34,Yageo RC0603FR-0720KL,ETEMP DIV: not fitted. Fit 20k for a 0.5-4.5 V transducer in pull-down mode (10k / 20k = 2/3),0603,SMD,Top,NOT FITTED as delivered (DNP)
+1,R36,Yageo RC0603FR-0720KL,OILP DIV: not fitted. Fit 20k for a 0.5-4.5 V transducer in pull-down mode (10k / 20k = 2/3),0603,SMD,Top,NOT FITTED as delivered (DNP)
+1,R38,Yageo RC0603FR-0720KL,AMB DIV: not fitted. Fit 20k for a 0.5-4.5 V transducer in pull-down mode (10k / 20k = 2/3),0603,SMD,Top,NOT FITTED as delivered (DNP)

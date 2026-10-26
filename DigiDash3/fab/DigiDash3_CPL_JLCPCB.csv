@@ -1,0 +1,150 @@
+Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
+C1,100u 63V,CP_Radial_D10.0mm_P5.00mm,219.890mm,-47.390mm,180,Bottom
+C2,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,199.650mm,-62.450mm,90,Bottom
+C3,100u 63V,CP_Radial_D10.0mm_P5.00mm,179.000mm,-45.000mm,90,Bottom
+C4,1000u 16V,CP_Radial_D10.0mm_P5.00mm,195.000mm,-80.900mm,90,Bottom
+C5,100u 63V,CP_Radial_D10.0mm_P5.00mm,206.000mm,-45.000mm,90,Bottom
+C6,1000u 16V,CP_Radial_D10.0mm_P5.00mm,223.000mm,-80.900mm,90,Bottom
+C7,10u 25V,CP_Radial_D5.0mm_P2.00mm,198.390mm,-51.890mm,270,Bottom
+C8,10u 25V,CP_Radial_D5.0mm_P2.00mm,267.390mm,-72.640mm,270,Bottom
+C9,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,272.400mm,-71.950mm,270,Bottom
+C10,100u 63V,CP_Radial_D10.0mm_P5.00mm,244.390mm,-95.140mm,0,Bottom
+C11,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,250.650mm,-101.940mm,270,Bottom
+C12,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,264.900mm,-100.190mm,270,Bottom
+C13,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,255.940mm,-107.640mm,0,Bottom
+C14,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,268.400mm,-100.190mm,270,Bottom
+C15,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,246.900mm,-101.940mm,270,Bottom
+C16,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,271.440mm,-107.140mm,0,Bottom
+C17,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,184.440mm,-90.640mm,180,Bottom
+C18,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,181.940mm,-99.390mm,0,Bottom
+C19,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,227.440mm,-86.390mm,0,Bottom
+C20,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,186.400mm,-47.950mm,90,Bottom
+C21,100n,C_Disc_D5.0mm_W2.5mm_P5.00mm,194.150mm,-70.450mm,90,Bottom
+D4,1N4744A,D_DO-41_SOD81_P10.16mm_Horizontal,240.750mm,-66.990mm,0,Bottom
+D5,1.5KE33A,D_DO-201AD_P15.24mm_Horizontal,247.000mm,-73.740mm,0,Bottom
+D6,SB560,D_DO-201AD_P15.24mm_Horizontal,175.000mm,-67.000mm,0,Bottom
+D7,SB560,D_DO-201AD_P15.24mm_Horizontal,202.000mm,-67.000mm,0,Bottom
+D8,1N4744A,D_DO-41_SOD81_P10.16mm_Horizontal,226.500mm,-54.490mm,270,Bottom
+D9,1N4744A,D_DO-41_SOD81_P10.16mm_Horizontal,241.250mm,-77.740mm,270,Bottom
+D10,1.5KE33A,D_DO-201AD_P15.24mm_Horizontal,265.250mm,-95.750mm,0,Bottom
+D11,SA24CA,D_DO-15_P10.16mm_Horizontal,95.440mm,-97.590mm,270,Bottom
+D12,SA24CA,D_DO-15_P10.16mm_Horizontal,139.440mm,-94.590mm,270,Bottom
+D13,SA24CA,D_DO-15_P10.16mm_Horizontal,301.000mm,-56.450mm,180,Bottom
+D14,SA24CA,D_DO-15_P10.16mm_Horizontal,320.000mm,-56.450mm,180,Bottom
+D15,1N4148,D_DO-35_SOD27_P7.62mm_Horizontal,226.060mm,-40.150mm,180,Bottom
+D16,BAT85,D_DO-35_SOD27_P7.62mm_Horizontal,136.390mm,-89.060mm,90,Bottom
+D17,BAT85,D_DO-35_SOD27_P7.62mm_Horizontal,60.400mm,-70.450mm,270,Bottom
+D18,BAT85,D_DO-35_SOD27_P7.62mm_Horizontal,121.390mm,-86.060mm,90,Bottom
+D19,BAT85,D_DO-35_SOD27_P7.62mm_Horizontal,146.390mm,-70.450mm,270,Bottom
+F1,5A mini blade,Fuseholder_Blade_Mini_Keystone_3568,287.040mm,-85.700mm,0,Bottom
+F2,PTC 0.5A,PTC_Radial_P5.08mm,279.250mm,-61.450mm,0,Bottom
+F3,PTC 0.1A,PTC_Radial_P5.08mm,294.690mm,-48.990mm,90,Bottom
+F4,PTC 0.5A,PTC_Radial_P5.08mm,280.250mm,-56.450mm,0,Bottom
+F5,PTC 0.5A,PTC_Radial_P5.08mm,289.500mm,-61.200mm,0,Bottom
+F6,PTC 0.5A,PTC_Radial_P5.08mm,309.000mm,-45.450mm,0,Bottom
+F7,PTC 0.5A,PTC_Radial_P5.08mm,314.690mm,-37.990mm,90,Bottom
+F8,PTC 1.1A,PTC_Radial_P5.08mm,277.690mm,-48.990mm,90,Bottom
+F9,PTC 0.5A,PTC_Radial_P5.08mm,55.990mm,-115.190mm,180,Bottom
+F10,PTC 0.5A,PTC_Radial_P5.08mm,189.750mm,-38.200mm,180,Bottom
+F11,PTC 0.1A,PTC_Radial_P5.08mm,66.240mm,-115.190mm,180,Bottom
+F12,PTC 0.2A,PTC_Radial_P5.08mm,137.500mm,-30.690mm,180,Bottom
+F13,PTC 0.5A,PTC_Radial_P5.08mm,78.740mm,-115.190mm,180,Bottom
+F14,PTC 0.5A,PTC_Radial_P5.08mm,178.000mm,-34.440mm,180,Bottom
+F15,PTC 0.1A,PTC_Radial_P5.08mm,66.240mm,-119.940mm,180,Bottom
+F16,PTC 0.2A,PTC_Radial_P5.08mm,124.500mm,-30.690mm,180,Bottom
+F17,PTC 0.5A,PTC_Radial_P5.08mm,89.000mm,-115.190mm,0,Bottom
+F18,PTC 0.5A,PTC_Radial_P5.08mm,167.750mm,-30.690mm,180,Bottom
+F19,PTC 0.1A,PTC_Radial_P5.08mm,76.490mm,-119.940mm,0,Bottom
+F20,PTC 0.2A,PTC_Radial_P5.08mm,114.250mm,-30.690mm,180,Bottom
+F21,PTC 0.5A,PTC_Radial_P5.08mm,90.500mm,-119.940mm,0,Bottom
+F22,PTC 0.5A,PTC_Radial_P5.08mm,157.500mm,-30.690mm,180,Bottom
+F23,PTC 0.1A,PTC_Radial_P5.08mm,120.750mm,-115.190mm,180,Bottom
+F24,PTC 0.2A,PTC_Radial_P5.08mm,106.690mm,-27.990mm,270,Bottom
+F25,PTC 0.5A,PTC_Radial_P5.08mm,188.250mm,-33.440mm,180,Bottom
+F26,PTC 0.5A,PTC_Radial_P5.08mm,156.250mm,-25.940mm,180,Bottom
+F27,PTC 0.1A,PTC_Radial_P5.08mm,122.500mm,-119.940mm,0,Bottom
+F28,PTC 0.2A,PTC_Radial_P5.08mm,142.250mm,-25.940mm,0,Bottom
+F29,PTC 0.5A,PTC_Radial_P5.08mm,185.500mm,-28.690mm,180,Bottom
+F30,PTC 0.5A,PTC_Radial_P5.08mm,168.000mm,-25.940mm,180,Bottom
+F31,PTC 0.1A,PTC_Radial_P5.08mm,196.690mm,-102.750mm,270,Bottom
+F32,PTC 0.2A,PTC_Radial_P5.08mm,200.000mm,-34.440mm,180,Bottom
+J6,Serial,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,302.000mm,-36.550mm,0,Bottom
+J7,Vehicle power,Molex_Micro-Fit_3.0_43650-0615_1x06_P3.00mm_Vertical,255.900mm,-51.415mm,0,Bottom
+J8,Video module,PinHeader_2x10_P2.54mm_Vertical,231.000mm,-93.000mm,90,Bottom
+J9,Backup Camera,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,302.000mm,-65.550mm,0,Bottom
+J10,Video aux,PinHeader_1x03_P2.54mm_Vertical,236.000mm,-91.000mm,0,Bottom
+J13,AUX 12V in,Molex_Mini-Fit_Jr_5566-02A_2x01_P4.20mm_Vertical,275.750mm,-84.000mm,90,Bottom
+J16,CAN debug,PinHeader_1x03_P2.54mm_Vertical,210.000mm,-100.000mm,90,Bottom
+J17,Cable port 1,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,283.000mm,-51.550mm,0,Bottom
+J22,Cable port 2,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,301.000mm,-51.550mm,0,Bottom
+J23,Cable port 3,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,319.000mm,-51.550mm,0,Bottom
+J24,Cable port 4,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,320.000mm,-36.550mm,0,Bottom
+J25,Trunk port,Molex_Micro-Fit_3.0_43650-0415_1x04_P3.00mm_Vertical,281.500mm,-36.415mm,0,Bottom
+J27,Sensor serial in,PinHeader_1x02_P2.54mm_Vertical,116.000mm,-26.000mm,90,Bottom
+J31,Slot 1,Slot_Socket_2x15_P2.54mm_Vertical,38.730mm,-55.220mm,180,Bottom
+J32,Slot 2,Slot_Socket_2x15_P2.54mm_Vertical,64.130mm,-55.220mm,180,Bottom
+J33,Slot 3,Slot_Socket_2x15_P2.54mm_Vertical,89.530mm,-55.220mm,180,Bottom
+J34,Slot 4,Slot_Socket_2x15_P2.54mm_Vertical,114.930mm,-55.220mm,180,Bottom
+J35,Slot 5,Slot_Socket_2x15_P2.54mm_Vertical,140.330mm,-55.220mm,180,Bottom
+J36,Slot 6,Slot_Socket_2x15_P2.54mm_Vertical,165.730mm,-55.220mm,180,Bottom
+JP1,Video VCC,PinHeader_1x03_P2.54mm_Vertical,203.000mm,-94.000mm,0,Bottom
+L1,100u,L_Radial_D14.2mm_P10.00mm_Neosid_SD14,175.500mm,-78.500mm,0,Bottom
+L2,100u,L_Radial_D14.2mm_P10.00mm_Neosid_SD14,203.500mm,-78.500mm,0,Bottom
+Q1,2N3904,TO-92_Inline,190.150mm,-90.120mm,180,Bottom
+Q2,IRF4905,TO-220-3_Horizontal_TabDown,254.170mm,-67.540mm,90,Bottom
+Q3,2N3904,TO-92_Inline,192.650mm,-100.620mm,180,Bottom
+Q4,2N3904,TO-92_Inline,171.650mm,-50.620mm,180,Bottom
+Q5,IRF4905,TO-220-3_Horizontal_TabDown,230.000mm,-62.000mm,90,Bottom
+Q6,IRF4905,TO-220-3_Horizontal_TabDown,244.770mm,-86.540mm,90,Bottom
+Q7,2N3904,TO-92_Inline,198.650mm,-47.380mm,180,Bottom
+R1,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,259.940mm,-57.400mm,0,Bottom
+R2,100k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,182.310mm,-51.150mm,180,Bottom
+R3,47k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,240.310mm,-49.650mm,180,Bottom
+R4,22k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,202.690mm,-51.150mm,0,Bottom
+R5,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,229.400mm,-41.950mm,270,Bottom
+R6,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,237.310mm,-66.900mm,180,Bottom
+R7,4.7k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,192.560mm,-51.150mm,180,Bottom
+R8,22k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,198.810mm,-42.400mm,180,Bottom
+R9,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,165.400mm,-43.950mm,270,Bottom
+R10,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,253.940mm,-91.390mm,0,Bottom
+R11,1k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,49.810mm,-107.140mm,180,Bottom
+R12,1k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,295.060mm,-107.140mm,180,Bottom
+R13,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,80.650mm,-96.440mm,270,Bottom
+R14,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,124.640mm,-92.440mm,270,Bottom
+R15,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,261.560mm,-111.140mm,180,Bottom
+R16,120,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,99.640mm,-104.060mm,90,Bottom
+R17,120,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,135.140mm,-103.190mm,270,Bottom
+R18,4.7k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,85.810mm,-92.640mm,180,Bottom
+R19,4.7k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,77.310mm,-98.390mm,180,Bottom
+R20,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,234.310mm,-70.400mm,180,Bottom
+R21,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,176.810mm,-99.390mm,180,Bottom
+R22,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,237.810mm,-81.900mm,180,Bottom
+R23,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,192.060mm,-104.640mm,180,Bottom
+R24,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,60.150mm,-82.200mm,270,Bottom
+R25,20k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,46.060mm,-98.390mm,180,Bottom
+R26,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,157.650mm,-76.450mm,270,Bottom
+R27,20k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,165.310mm,-99.390mm,180,Bottom
+R28,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,147.690mm,-40.900mm,0,Bottom
+R29,20k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,291.560mm,-98.390mm,180,Bottom
+R30,10k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,213.940mm,-96.890mm,0,Bottom
+R32,1k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,34.650mm,-69.200mm,270,Bottom
+R33,3.3k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,60.150mm,-66.560mm,90,Bottom
+R34,6.8k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,85.390mm,-69.200mm,270,Bottom
+R35,12k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,110.890mm,-68.950mm,270,Bottom
+R36,22k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,136.140mm,-69.200mm,270,Bottom
+R37,47k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,161.650mm,-69.200mm,270,Bottom
+R38,100k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,146.640mm,-66.560mm,90,Bottom
+R39,100k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,237.560mm,-73.900mm,180,Bottom
+R40,27k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,161.650mm,-66.310mm,90,Bottom
+R41,100k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,237.560mm,-78.150mm,180,Bottom
+R42,27k,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,95.890mm,-70.450mm,270,Bottom
+SW1,TERM,SW_DIP_SPSTx02_Slide_6.7x6.64mm_W7.62mm_P2.54mm_LowProfile,136.560mm,-115.500mm,180,Bottom
+U2,LM2576HVT-5.0,TO-220-5_Horizontal_TabDown,175.000mm,-62.000mm,90,Bottom
+U3,LM2576HVT-5.0,TO-220-5_Horizontal_TabDown,203.000mm,-62.000mm,90,Bottom
+U5,MCP2562-E/P,DIP-8_W7.62mm,84.000mm,-104.000mm,0,Bottom
+U9,MCP2562-E/P,DIP-8_W7.62mm,128.000mm,-100.000mm,0,Bottom
+U10,MCP2562-E/P,DIP-8_W7.62mm,254.000mm,-104.000mm,0,Bottom
+U11,LD1117V33,TO-220-3_Horizontal_TabDown,276.000mm,-72.000mm,90,Bottom
+J1,Center Screen - Master,PinHeader_2x20_P2.54mm_Vertical,150.116mm,-96.480mm,90,Top
+J4,Right Screen,PinHeader_2x20_P2.54mm_Vertical,272.036mm,-104.100mm,90,Top
+J5,Left Screen,PinHeader_2x20_P2.54mm_Vertical,28.196mm,-104.100mm,90,Top

@@ -7,7 +7,8 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 The console for the RetroSound knobs: the board fits a housing 111.5 x 38.5 mm outside (1.5 mm walls with 0.25 mm
 clearance). The OLED module (100 x 33.5 mm, 2 x 8 header on its right edge) sits on standoffs, centred left to right and
 flush with the board's top edge, so the housing's bezel has its widest band below the screen. Nothing else is on the
-front: the ESP32-S3 module, USB-C, the CAN cable, the two RJ9 knob jacks (top entry) and the passives are on the back. Four layers (F signal, In1 GND plane, In2 signal / power, B signal).
+front: the ESP32-S3 module, USB-C, the CAN cable, the two RJ9 knob jacks (top entry) and the passives are on the back. Two layers since 2026-10-26 (ground pours on both; it was four with a GND plane: the 2-layer board
+routes completely and costs a third as much).
 ICs and connectors are placed by hand below; every passive is then put at the free spot closest to the pins it
 connects to. With --route it runs Freerouting on a Specctra export and imports the result, then fills the ground planes.
 """
@@ -173,8 +174,7 @@ def main():
     comps, nets = netlist()
     groups = json.load(open(os.path.join(HERE, 'refs.json')))
     b = pcbnew.BOARD()
-    b.SetCopperLayerCount(4)
-    b.SetLayerType(pcbnew.In1_Cu, pcbnew.LT_POWER)      # solid GND plane: the router only drops vias into it
+    b.SetCopperLayerCount(2)
     ds = b.GetDesignSettings()
     ds.m_CopperEdgeClearance = mm(0.2)
     netobj = {}
@@ -408,7 +408,7 @@ def main():
         sh.SetStart(P(*a_))
         sh.SetEnd(P(*e_))
         b.Add(sh)
-    for lay in (pcbnew.In1_Cu, pcbnew.F_Cu, pcbnew.B_Cu, pcbnew.In2_Cu):
+    for lay in (pcbnew.F_Cu, pcbnew.B_Cu):
         z = pcbnew.ZONE(b)
         z.SetLayer(lay)
         z.SetNet(net('GND'))
@@ -433,7 +433,7 @@ def main():
     k.SetDoNotAllowZoneFills(False)
     k.SetDoNotAllowPads(False)
     k.SetDoNotAllowFootprints(False)
-    k.SetLayerSet(pcbnew.LSET.AllCuMask(4))
+    k.SetLayerSet(pcbnew.LSET.AllCuMask(2))
     o = k.Outline()
     o.NewOutline()
     for (x, y) in corners:
@@ -488,7 +488,10 @@ def stitch(b, pitch=2.0, fanout=None):
     wherever they clear everything (not under the antenna, the screw heads or a part), then, for each GND pad the
     filled pours still leave off the plane, a via beside it with a short track.
     With fanout=[refs] (before routing) it only gives every GND pin of those parts its own via, escaping inward under
-    the body first, locked so the router works around them: fine-pitch GND pins between signals get boxed in otherwise."""
+    the body first, locked so the router works around them: fine-pitch GND pins between signals get boxed in otherwise.
+    Two layers (since 2026-10-26): there is no plane, Freerouting routes GND itself and the pours join afterwards, so
+    this does nothing."""
+    return
     gnd = b.FindNet('GND')
     rv, gap, tw = 0.3, 0.2, 0.25
     items = []                          # (kind, geometry, net)
@@ -753,7 +756,7 @@ def stitch(b, pitch=2.0, fanout=None):
     print('stitching vias: %d on the grid, %d with a track to a GND pad; %d GND pads off the plane' % (n, m, len(left)))
 
 
-CU = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+CU = [pcbnew.F_Cu, pcbnew.B_Cu]
 PAD_GAP = 0.2                       # via copper to any pad's copper, same net or not: no via ever sits in or on a pad
 VIA_R = 0.3
 
@@ -779,7 +782,7 @@ def vias_on_pads(b, gap=0.13):
         r = v.GetWidth(pcbnew.F_Cu) // 2 + mm(gap)
         for fp in b.GetFootprints():
             for p in fp.Pads():
-                if any(p.IsOnLayer(l) and p.GetEffectiveShape(l).Collide(v.GetPosition(), r) for l in CU + [pcbnew.In1_Cu]):
+                if any(p.IsOnLayer(l) and p.GetEffectiveShape(l).Collide(v.GetPosition(), r) for l in CU):
                     out.append((v, p))
     return out
 
@@ -860,6 +863,7 @@ def unpad(b):
 
 def prune(b):
     """A via too close to a through-hole pin's drill is redundant (the pin reaches its plane through its own hole)."""
+    return                      # two layers: no stitching grid to prune
     holes = [(p.GetPosition(), p.GetDrillSize().x) for f in b.GetFootprints() for p in f.Pads() if p.GetDrillSize().x > 0]
     for v in [v for v in b.GetTracks() if v.GetClass() == 'PCB_VIA' and any(
             np.hypot((v.GetPosition().x - q.x) / 1e6, (v.GetPosition().y - q.y) / 1e6) < (v.GetDrill() + d) / 2e6 + 0.26
@@ -1085,8 +1089,8 @@ def freeroute(jar):
         bridge_usb_vbus(b, locked=True)    # before routing, so no via lands where it goes
         pcbnew.SaveBoard(PCB, b)
         for z in list(b.Zones()):
-            if not z.GetIsRuleArea() and z.GetLayer() != pcbnew.In1_Cu:
-                b.Remove(z)             # the In1 GND plane stays: Freerouting reaches it with vias
+            if not z.GetIsRuleArea():
+                b.Remove(z)             # no plane: Freerouting routes GND like any net; the pours come back after
         pcbnew.ExportSpecctraDSN(b, dsn)
         if os.path.exists(ses):
             os.remove(ses)

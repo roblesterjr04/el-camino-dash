@@ -1,0 +1,58 @@
+Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,Side,Your Instructions / Notes
+1,C1 C3 C5 C10,4,Rubycon,63ZLH100MEFC10X12.5,"100u 63V: Aluminium electrolytic 100 uF 63 V, radial 10 x 12.5 mm, 5 mm pitch",radial,THT,Bottom,
+2,C2 C9 C11 C12 C13 C14 C15 C16 C17 C18 C19 C20 C21,13,Vishay,K104K15X7RF5TL2,"100n: Ceramic 100 nF X7R 50 V, 5 mm pitch",radial,THT,Bottom,
+3,C4 C6,2,Rubycon,16ZLH1000MEFC10X16,"1000u 16V: Aluminium electrolytic 1000 uF 16 V, low ESR, radial 10 x 16 mm, 5 mm pitch",radial,THT,Bottom,Buck output: low ESR
+4,C7 C8,2,Rubycon,25YXF10MEFC5X11,"10u 25V: Aluminium electrolytic 10 uF 25 V, radial 5 x 11 mm, 2 mm pitch",radial,THT,Bottom,
+5,D4 D8 D9,3,onsemi,1N4744A,"1N4744A: Zener 15 V 1 W, DO-41",axial,THT,Bottom,
+6,D5 D10,2,Littelfuse,1.5KE33A-B,"1.5KE33A: TVS 33 V standoff, unidirectional, 1500 W, DO-201",axial,THT,Bottom,
+7,D6 D7,2,Vishay,SB560-E3/54,"SB560: Schottky 5 A 60 V, DO-201AD (1N5822 fits too)",axial,THT,Bottom,
+8,D11 D12 D13 D14,4,Littelfuse,SA24CA,"SA24CA: TVS 24 V bidirectional, 500 W, DO-15 (CAN clamp)",axial,THT,Bottom,
+9,D15,1,onsemi,1N4148,"1N4148: Signal diode, DO-35",axial,THT,Bottom,
+10,D16 D17 D18 D19,4,Vishay,BAT85S-TAP,"BAT85: Schottky 200 mA 30 V, DO-35",axial,THT,Bottom,
+11,F1,1,Keystone,3568,"5A mini blade: Fuse holder, mini blade (ATM), PCB",THT,THT,Bottom,Holder only; fit a 5 A mini blade fuse (Littelfuse 0297005.WXNV)
+12,F2 F4 F5 F6 F7 F9 F10 F13 F14 F17 F18 F21 F22 F25 F26 F29 F30,17,Bourns,MF-R050,"PTC 0.5A: PTC 0.5 A hold, 60 V, radial",radial,THT,Bottom,
+13,F3 F11 F15 F19 F23 F27 F31,7,Bourns,MF-R010,"PTC 0.1A: PTC 0.1 A hold, 60 V, radial",radial,THT,Bottom,
+14,F8,1,Bourns,MF-R110,"PTC 1.1A: PTC 1.1 A hold, 30 V, radial",radial,THT,Bottom,
+15,F12 F16 F20 F24 F28 F32,6,Bourns,MF-R020,"PTC 0.2A: PTC 0.2 A hold, 60 V, radial",radial,THT,Bottom,On the battery line
+16,J1,1,XFCN,PZ254V-12-40P,"Center Screen - Master: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"
+17,J4,1,XFCN,PZ254V-12-40P,"Right Screen: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"
+18,J5,1,XFCN,PZ254V-12-40P,"Left Screen: Pin header 2 x 20, 2.54 mm, vertical (male; the screen has the 40-pin socket)",THT 2x20,THT,Top,"FRONT side (screen side), the only parts on the front"
+19,J6,1,JST,B4B-PH-K-S(LF)(SN),"Serial: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+20,J7,1,Molex,43650-0615,"Vehicle power: Micro-Fit 3.0 header, 6 pin, 1 row, vertical",THT,THT,Bottom,
+21,J8,1,Connfly,DS1023-2*10SF11,"Video module: Socket 2 x 10, 2.54 mm, female, vertical, 8.5 mm (the module plugs in)",THT 2x10,THT,Bottom,"Fit a FEMALE socket here, not a pin header: the module carries the pins"
+22,J9,1,JST,B4B-PH-K-S(LF)(SN),"Backup Camera: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+23,J10,1,XFCN,PZ254V-11-3P,"Video aux: Pin header 1 x 3, 2.54 mm, vertical",THT 1x3,THT,Bottom,"Wires to the module: PCLK, RESET"
+24,J13,1,Molex,39-28-1023,"AUX 12V in: Mini-Fit Jr header 5566-02A, 2 pin, vertical, no pegs",THT,THT,Bottom,
+25,J16,1,XFCN,PZ254V-11-3P,"CAN debug: Pin header 1 x 3, 2.54 mm, vertical",THT 1x3,THT,Bottom,
+26,J17,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 1: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+27,J22,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 2: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+28,J23,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 3: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+29,J24,1,JST,B4B-PH-K-S(LF)(SN),"Cable port 4: JST PH header, 4 pin, vertical",THT,THT,Bottom,
+30,J25,1,Molex,43650-0415,"Trunk port: Micro-Fit 3.0 header, 4 pin, 1 row, vertical",THT,THT,Bottom,
+31,J27,1,XFCN,PZ254V-11-2P,"Sensor serial in: Pin header 1 x 2, 2.54 mm, vertical",THT 1x2,THT,Bottom,
+32,J31,1,Connfly,DS1023-2*15SF11,"Slot 1: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator (Sullins PPTC152LFBN-RC equal)",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+33,J32,1,Connfly,DS1023-2*15SF11,"Slot 2: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator (Sullins PPTC152LFBN-RC equal)",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+34,J33,1,Connfly,DS1023-2*15SF11,"Slot 3: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator (Sullins PPTC152LFBN-RC equal)",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+35,J34,1,Connfly,DS1023-2*15SF11,"Slot 4: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator (Sullins PPTC152LFBN-RC equal)",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+36,J35,1,Connfly,DS1023-2*15SF11,"Slot 5: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator (Sullins PPTC152LFBN-RC equal)",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+37,J36,1,Connfly,DS1023-2*15SF11,"Slot 6: Socket 2 x 15, 2.54 mm, female, vertical, 8.5 mm insulator (Sullins PPTC152LFBN-RC equal)",THT 2x15,THT,Bottom,Pin 1 = square pad. Seat flat: the cards plug in square to the board
+38,JP1,1,XFCN,PZ254V-11-3P,"Video VCC: Pin header 1 x 3, 2.54 mm, vertical, plus a shunt",THT 1x3,THT,Bottom,"Shunt 1-2 = 5 V, 2-3 = 3.3 V"
+39,L1 L2,2,Bourns,1140-101K-RC,"100u: Inductor 100 uH radial drum core, Isat 4 A or more, Irms 3 A or more, 10 mm pitch",radial,THT,Bottom,Any 100 uH radial with Isat >= 4 A on a 10 mm pitch (check the body against the footprint)
+40,Q1 Q3 Q4 Q7,4,onsemi,2N3904BU,"2N3904: NPN 40 V, TO-92 (E B C)",TO-92,THT,Bottom,
+41,Q2 Q5 Q6,3,Infineon,IRF4905PBF,"IRF4905: P-MOSFET 55 V, 20 mOhm, TO-220 lying flat",TO-220,THT,Bottom,
+42,R1 R5 R6 R9 R10 R13 R14 R15 R20 R21 R22 R23 R24 R26 R28 R30,16,Yageo,MFR-25FBF52-10K,"10k: Resistor 10k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+43,R2 R38 R39 R41,4,Yageo,MFR-25FBF52-100K,"100k: Resistor 100k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+44,R3 R37,2,Yageo,MFR-25FBF52-47K,"47k: Resistor 47k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+45,R4 R8 R36,3,Yageo,MFR-25FBF52-22K,"22k: Resistor 22k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+46,R7 R18 R19,3,Yageo,MFR-25FBF52-4K7,"4.7k: Resistor 4.7k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+47,R11 R12 R32,3,Yageo,MFR-25FBF52-1K,"1k: Resistor 1k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+48,R16 R17,2,Yageo,MFR-25FBF52-120R,"120: Resistor 120 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+49,R25 R27 R29,3,Yageo,MFR-25FBF52-20K,"20k: Resistor 20k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+50,R33,1,Yageo,MFR-25FBF52-3K3,"3.3k: Resistor 3.3k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+51,R34,1,Yageo,MFR-25FBF52-6K8,"6.8k: Resistor 6.8k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+52,R35,1,Yageo,MFR-25FBF52-12K,"12k: Resistor 12k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+53,R40 R42,2,Yageo,MFR-25FBF52-27K,"27k: Resistor 27k 1%, 1/4 W metal film, axial",axial,THT,Bottom,
+54,SW1,1,KingTek,DSWB02LHGET,"TERM: DIP switch, 2 position, slide, 2.54 mm pitch",DIP,THT,Bottom,Set position 1 (TERM) ON before shipping
+55,U2 U3,2,Texas Instruments,LM2576HVT-5.0/NOPB,"LM2576HVT-5.0: 5 V, 3 A step-down, 4-60 V in, TO-220-5 lying flat (HGSEMI / UMW LM2576HVT-5.0 are equals)",TO-220-5,THT,Bottom,
+56,U5 U9 U10,3,Microchip,MCP2562-E/P,"MCP2562-E/P: CAN FD transceiver, DIP-8",DIP-8,THT,Bottom,
+57,U11,1,STMicroelectronics,LD1117V33,"LD1117V33: LDO 3.3 V 800 mA, TO-220 lying flat",TO-220,THT,Bottom,

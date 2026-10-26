@@ -19,9 +19,6 @@ D1,B5819W,D_SOD-123,39.890mm,15.710mm,0,Bottom
 D2,B5819W,D_SOD-123,37.890mm,18.510mm,180,Bottom
 D5,NUP2105L,SOT-23,12.670mm,4.950mm,180,Bottom
 J2,USB-C,USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,42.000mm,3.700mm,180,Bottom
-J3,CAN to DigiDash,JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical,23.500mm,4.800mm,180,Bottom
-J4,Select knob (RJ9),RJ9_Assmann_A-2014-3-4-N-T-R_Vertical,57.000mm,13.850mm,180,Bottom
-J5,Volume knob (RJ9),RJ9_Assmann_A-2014-3-4-N-T-R_Vertical,75.000mm,13.850mm,180,Bottom
 R1,100k,R_0603_1608Metric,105.080mm,18.170mm,270,Bottom
 R2,10k,R_0603_1608Metric,37.630mm,32.720mm,0,Bottom
 R3,5.1k,R_0603_1608Metric,46.230mm,11.720mm,0,Bottom
@@ -39,5 +36,3 @@ U1,ESP32-S3-WROOM-1-N8,ESP32-S3-WROOM-1,26.000mm,22.200mm,180,Bottom
 U2,TJA1051T/3,SOIC-8_3.9x4.9mm_P1.27mm,30.850mm,6.150mm,180,Bottom
 U3,AP7361C-33E,SOT-223-3_TabPin2,12.740mm,23.860mm,270,Bottom
 U4,USBLC6-2SC6,SOT-23-6,42.200mm,12.350mm,0,Bottom
-J1,OLED 2x8 socket,PinSocket_2x08_P2.54mm_Vertical,102.770mm,27.140mm,0,Top
-J6,TSOP4838,Vishay_MOLD-3Pin,2.920mm,2.150mm,0,Top

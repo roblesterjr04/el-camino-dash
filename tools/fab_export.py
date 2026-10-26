@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Write a board's fab outputs into <BOARD_DIR>/fab: Gerbers + drill files (fab/gerbers, zipped), the placement file
 and a PCBWay / JLC centroid. Coordinates are measured from the drill / place origin, which each board's gen_pcb.py
-sets to the board's bottom-left corner. Not-fitted (DNP) parts are left out of the placement files.
+sets to the board's bottom-left corner. Not-fitted (DNP) parts are left out of the placement files, and on the boards in
+HAND_THT (through-hole parts soldered by hand) the through-hole parts too.
 
     python3 tools/fab_export.py AudioCarrier [DigiDash2 ...]
     python3 tools/fab_export.py --placement-only GPSCard ...   # placement / centroid / CPL only, Gerbers untouched
@@ -24,6 +25,9 @@ import zipfile
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 KICAD = '/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli'
 CLI = os.environ.get('KICAD_CLI', KICAD if os.path.exists(KICAD) else 'kicad-cli')
+# Boards whose through-hole parts are soldered by hand: they stay out of the placement files (the fab BOM lists
+# only the SMD parts too), so an assembly quote covers the SMD side only.
+HAND_THT = {'ConsoleBoardRS', 'SensorCard2'}
 # Footprint-name regex -> degrees added to KiCad's rotation in the JLC CPL, filled in as JLC's preview shows a part
 # landing turned. Empty until a board has been through JLC's placement check.
 JLC_ROT = {}
@@ -68,7 +72,7 @@ def export_gerbers(name, pcb, fab, gbr):
 def export_placement(name, pcb, fab, gbr):
     place = os.path.join(fab, name + '_placement.csv')
     run('pcb', 'export', 'pos', '--format', 'csv', '--units', 'mm', '--side', 'both', '--use-drill-file-origin', '--exclude-dnp',
-        '-o', place, pcb)
+        *(['--smd-only'] if name in HAND_THT else []), '-o', place, pcb)
     rows = list(csv.DictReader(open(place)))
     with open(os.path.join(fab, name + '_centroid.csv'), 'w', newline='') as f:
         w = csv.writer(f)
