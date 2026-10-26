@@ -61,10 +61,15 @@ jumpers, the 0.1 A PTC feeds, battery and ignition sense (dividers rescaled for 
 
 ## Firmware
 
-[`firmware/sensor_card`](../firmware/sensor_card) targets rev A (Arduino on the Mega 2560). Rev B needs a port:
-the channel, calibration, odometer and framing code is plain C++ and host-tested, so it moves as is; the hardware
-layer (ADC, the two capture timers, two UARTs, I2C, CAN) is rewritten for the STM32, and the MCP2515 driver becomes the
-FDCAN peripheral. Counts stay rev A's because the front end stayed ratiometric. Not started.
+[`firmware/sensor_card_stm32`](../firmware/sensor_card_stm32/README.md) (PlatformIO, the STM32duino core with ST's HAL
+for the ADC scan and FDCAN1). It is rev A's firmware ([`firmware/sensor_card`](../firmware/sensor_card), which stays
+for rev A cards) with only the hardware layer rewritten: the channel, calibration, odometer and framing code is built
+from rev A's directory, one copy for both cards, so the frames, the CAN IDs and the FRAM layout are byte-compatible.
+Counts stay rev A's 10-bit scale because the front end stayed ratiometric (the battery's are rescaled for the 3.3 V
+reference in firmware). Demo mode is `demo on` on the console; the RPM-select jumpers are read on PC6 / PB3; the
+console and the USB CAN link are USART1 on J7 (3.3 V). Builds clean and is host-tested; **not yet run on a card** (none
+is built): that README's "Verify on hardware" lists what to check first, and "Flashing over SWD" how to load it
+through J6.
 
 ## Status
 
