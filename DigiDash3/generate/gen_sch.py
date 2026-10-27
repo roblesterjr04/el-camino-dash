@@ -298,7 +298,7 @@ FP_TO220_3 = 'Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown'
 FP_TO220_5 = 'Package_TO_SOT_THT:TO-220-5_Horizontal_TabDown'
 FP_TO92 = 'Package_TO_SOT_THT:TO-92_Inline'
 FP_DIP8 = 'Package_DIP:DIP-8_W7.62mm'
-FP_L = 'Inductor_THT:L_Radial_D14.2mm_P10.00mm_Neosid_SD14'              # 100 uH radial drum core, 10 mm pitch
+FP_L = 'Inductor_THT:L_Radial_D14.2mm_P10.00mm_Neosid_SD14'              # radial drum core on a 10 mm pitch (the Abracon's leads are bent out to it)
 FP_DIPSW = 'Button_Switch_THT:SW_DIP_SPSTx02_Slide_6.7x6.64mm_W7.62mm_P2.54mm_LowProfile'
 FP_PH4 = 'Connector_JST:JST_PH_B4B-PH-K_1x04_P2.00mm_Vertical'          # vertical: every cable plugs in from the rear
 FP_SLOT = 'DigiDash3:Slot_Socket_2x15_P2.54mm_Vertical'                 # numbered to mate with the card's right-angle header
@@ -362,7 +362,7 @@ place(TVS, nid('D'), '1.5KE33A', FP_DO201, {'1': '12V_BATT', '2': 'GND'},
       descr='TVS, unidirectional, 33 V standoff (1.5KE33A, DO-201): clamps load dump below the bucks\' 60 V')
 cp_('100u 63V', '12V_BATT', 'GND', 'Input bulk (63 V: above the TVS clamp)')
 c_('100n', '12V_BATT', 'GND', 'Input HF')
-text(cur[0].x0, cur[0].y0 + 6, 'Two LM2576HV-5.0 (TI SNVS107 figure 1, 100 uH / 1000 uF / 5 A Schottky each): U2 feeds the three screens '
+text(cur[0].x0, cur[0].y0 + 6, 'Two LM2576HV-5.0 (TI SNVS107 figure 1 with 68 uH in place of 100 uH: about 45 % more ripple current, still continuous at this load; 1000 uF / 5 A Schottky each): U2 feeds the three screens '
      '(+5V_SCR), U3 feeds the board, the slots and the cable ports (+5V). Both ON/OFF pins hang on Q7: low (on) while the '
      'ignition is on or a card holds WAKE high. Off, the pins rest at 12V_BATT through 100k (ON/OFF max is VIN).', 1.6)
 for ref, out, sw, what in (('U2', '+5V_SCR', 'SW_A', 'the three screens'), ('U3', '+5V', 'SW_B', 'the board, the slots and the cable ports')):
@@ -370,8 +370,8 @@ for ref, out, sw, what in (('U2', '+5V_SCR', 'SW_A', 'the three screens'), ('U3'
           descr='5 V, 3 A step-down for %s (LM2576HV-5.0: 60 V in, fixed 5 V, FB tied to OUT), TO-220-5 lying flat' % what)
     cp_('100u 63V', '12V_BATT', 'GND', ref + ' input (100 uF, right at pin 1)')
     place(DS, nid('D'), 'SB560', FP_DO201, {'1': sw, '2': 'GND'}, descr=ref + ' catch diode: 5 A 60 V Schottky (1N5822 fits too)')
-    place(L, nid('L'), '100u', FP_L, {'1': sw, '2': out},
-          descr=ref + ' inductor: 100 uH radial drum core, Isat 4 A or more, Irms 3 A or more (Bourns 1140-101K-RC or equal, 10 mm pitch)')
+    place(L, nid('L'), '68u', FP_L, {'1': sw, '2': out},
+          descr=ref + ' inductor: 68 uH, 3.3 A radial drum core (Abracon AIAP-03-680K, 11.4 x 23 mm; its leads bent out to the 10 mm pitch)')
     cp_('1000u 16V', out, 'GND', ref + ' output (1000 uF, low ESR)')
 r_('100k', '12V_BATT', 'BUCK_ONOFF', 'ON/OFF pull-up: both bucks off until Q7 pulls the pins low')
 npn('Q7_B', 'GND', 'BUCK_ONOFF', 'Pulls both bucks on (ON/OFF low) while the ignition is on or a card holds WAKE', ref='Q7')

@@ -9,7 +9,7 @@ screen headers, mounting and screen holes and rear connector group as rev 2, so 
 | --- | --- |
 | `DigiDash3.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 329 × 113 mm, **2 layers**, parts on the back, screen headers on the front. KiCad 10 |
 | `DigiDash3.pretty/` | The slot socket (numbered to mate with the cards) and a radial PTC footprint, from `generate/gen_footprints.py` |
-| `DigiDash3_BOM.csv` | Parts list for hand assembly (`generate/gen_bom.py`): maker and part number per line |
+| `DigiDash3_BOM.csv` | Parts list for hand assembly (`generate/gen_bom.py`): grouped by vendor (DigiKey, then LCSC), with each line's product link and its unit price at quantity 1 where the page showed one (looked up 2026-10-26; `SOURCE` in the generator) |
 | `fab/` | Gerbers, drill, placement files (`python3 ../tools/fab_export.py DigiDash3`) |
 | `generate/` | The generators, from rev 2's: `gen_sch.py` (schematic), `gen_pcb.py` (placement + Freerouting), `gen_bom.py`, `drc.py` |
 
@@ -17,7 +17,7 @@ screen headers, mounting and screen holes and rear connector group as rev 2, so 
 
 | Block | Rev 2 (SMD) | Rev 3 (through-hole) |
 | --- | --- | --- |
-| 5 V | One TPS54560B, 5 A, 400 kHz | **Two LM2576HV-5.0** (TO-220-5 lying flat, 3 A, 52 kHz): U2 feeds the three screens (`+5V_SCR`), U3 feeds the board, the six slots and the cable ports (`+5V`). Each: 100 µF 63 V in, SB560 catch diode, 100 µH radial inductor, 1000 µF 16 V low-ESR out (TI SNVS107 figure 1) |
+| 5 V | One TPS54560B, 5 A, 400 kHz | **Two LM2576HV-5.0** (TO-220-5 lying flat, 3 A, 52 kHz): U2 feeds the three screens (`+5V_SCR`), U3 feeds the board, the six slots and the cable ports (`+5V`). Each: 100 µF 63 V in, SB560 catch diode, **68 µH** radial inductor (Abracon AIAP-03-680K, 3.3 A: no stocked 100 µH part of 3 A or more fits a 14 mm / 10 mm-pitch footprint, and 68 µH costs about 45 % more ripple current at this load, still continuous), 1000 µF 16 V out (TI SNVS107 figure 1) |
 | Enable | EN divider from the ignition, WAKE through a BAT54S | Both bucks' ON/OFF pins on one 2N3904 (Q7): low (on) while the ignition is on (47k) or a card holds WAKE (1N4148 + 10k). Off, the pins rest at 12V_BATT through 100k (ON/OFF may go to VIN) |
 | 3.3 V | AP7361C-33 SOT-223 | LD1117V33, TO-220 lying flat, 10 µF electrolytics in and out. Also feeds the video module when JP1 is strapped to 3.3 V |
 | 1.8 V | AP2112K-1.8 for the TVP5150 core | Gone with the decoder |
@@ -65,10 +65,10 @@ J8 (the module carries the pins; the BOM says so).
 - **Sides:** every part's body is on the back; only the three screen headers are on the front. Soldering is from
   the front (the pin tails come through there), so the screens come off first.
 - **Heights on the back, outside the cards:** rev 2's housing allowed about 10.5 mm over the power section. Rev 3's
-  power parts are taller: the 1000 µF output caps (10 × 16 mm) and the 100 µH inductors (about 14 mm) stand 16 mm;
+  power parts are taller: the inductors (Abracon AIAP-03-680K, 11.4 mm across) stand **23 mm**, the tallest parts on the board; the 1000 µF output caps 13 mm;
   the 100 µF caps 12.5 mm; the radial PTCs 8–9 mm; the TO-220s lying flat about 5 mm; the DIP transceivers 4 mm. The
   video module on J8 stands about 12 mm plus its own height. **The housing's power-section step needs to grow to
-  about 18 mm**, and the module's footprint (about 40 × 30 mm, at x 190–220, y 60–80) needs room behind J8.
+  about 25 mm over the two inductors (18 mm elsewhere)**, and the module's footprint (about 40 × 30 mm, at x 190–220, y 60–80) needs room behind J8.
 - **Under the cards** (7 mm limit) only lying-flat resistors, diodes, DIPs and TO-92s go; the placer keeps the tall
   parts out of the card envelopes (`TALL_RE` in `gen_pcb.py`).
 - **Placement:** slots, screen headers, holes and the rear connector group as rev 2 (`SLOTS`, `SCREENS`, `HOLES_MH`,
@@ -82,7 +82,8 @@ J8 (the module carries the pins; the BOM says so).
 on the net ties' pads (its clearance check keeps everything off a tie): AUDIO_GND from its F.Cu run at y 63.42 up to
 NT2 pad 2 (91.75, 61.85), and AUX_GND on B.Cu, 1.0 mm, from (249.65, 64.0) down to NT1 pad 2 (249.65, 71.5).
 **A regeneration drops those two** (re-add them, or check the DRC's two unconnected items). DRC: 0 errors; the
-expected warnings are the two library-mismatch notes and two silkscreen overlaps. Fab files exported. Not yet checked: the LM2576 layout by eye (each buck's input cap,
+expected warnings are the two library-mismatch notes and two silkscreen overlaps. Fab files exported. The inductors' leads are bent out to the 10 mm pads (the Abracon's own pitch is narrower); the body sits
+above the pads. Not yet checked: the LM2576 layout by eye (each buck's input cap,
 catch diode and inductor should sit tight round its pins), the housing against the heights above, and the module's
 PCLK / RESET / VCC against the actual breakout.
 

@@ -88,8 +88,8 @@ J34,Slot 4,Slot_Socket_2x15_P2.54mm_Vertical,114.930mm,-55.220mm,180,Bottom
 J35,Slot 5,Slot_Socket_2x15_P2.54mm_Vertical,140.330mm,-55.220mm,180,Bottom
 J36,Slot 6,Slot_Socket_2x15_P2.54mm_Vertical,165.730mm,-55.220mm,180,Bottom
 JP1,Video VCC,PinHeader_1x03_P2.54mm_Vertical,203.000mm,-94.000mm,0,Bottom
-L1,100u,L_Radial_D14.2mm_P10.00mm_Neosid_SD14,175.500mm,-78.500mm,0,Bottom
-L2,100u,L_Radial_D14.2mm_P10.00mm_Neosid_SD14,203.500mm,-78.500mm,0,Bottom
+L1,68u,L_Radial_D14.2mm_P10.00mm_Neosid_SD14,175.500mm,-78.500mm,0,Bottom
+L2,68u,L_Radial_D14.2mm_P10.00mm_Neosid_SD14,203.500mm,-78.500mm,0,Bottom
 Q1,2N3904,TO-92_Inline,190.150mm,-90.120mm,180,Bottom
 Q2,IRF4905,TO-220-3_Horizontal_TabDown,254.170mm,-67.540mm,90,Bottom
 Q3,2N3904,TO-92_Inline,192.650mm,-100.620mm,180,Bottom

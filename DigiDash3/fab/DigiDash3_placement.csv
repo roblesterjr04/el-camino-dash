@@ -88,8 +88,8 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "J35","Slot 5","Slot_Socket_2x15_P2.54mm_Vertical",140.330000,-55.220000,180.000000,bottom
 "J36","Slot 6","Slot_Socket_2x15_P2.54mm_Vertical",165.730000,-55.220000,180.000000,bottom
 "JP1","Video VCC","PinHeader_1x03_P2.54mm_Vertical",203.000000,-94.000000,0.000000,bottom
-"L1","100u","L_Radial_D14.2mm_P10.00mm_Neosid_SD14",175.500000,-78.500000,0.000000,bottom
-"L2","100u","L_Radial_D14.2mm_P10.00mm_Neosid_SD14",203.500000,-78.500000,0.000000,bottom
+"L1","68u","L_Radial_D14.2mm_P10.00mm_Neosid_SD14",175.500000,-78.500000,0.000000,bottom
+"L2","68u","L_Radial_D14.2mm_P10.00mm_Neosid_SD14",203.500000,-78.500000,0.000000,bottom
 "Q1","2N3904","TO-92_Inline",190.150000,-90.120000,180.000000,bottom
 "Q2","IRF4905","TO-220-3_Horizontal_TabDown",254.170000,-67.540000,90.000000,bottom
 "Q3","2N3904","TO-92_Inline",192.650000,-100.620000,180.000000,bottom

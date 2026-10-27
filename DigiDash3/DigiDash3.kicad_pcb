@@ -20727,7 +20727,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "100u"
+		(property "Value" "68u"
 			(at 5 -8.35 180)
 			(layer "B.Fab")
 			(hide yes)
@@ -20752,7 +20752,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Description" "U2 inductor: 100 uH radial drum core, Isat 4 A or more, Irms 3 A or more (Bourns 1140-101K-RC or equal, 10 mm pitch)"
+		(property "Description" "U2 inductor: 68 uH, 3.3 A radial drum core (Abracon AIAP-03-680K, 11.4 x 23 mm; its leads bent out to the 10 mm pitch)"
 			(at 0 0 180)
 			(layer "B.Fab")
 			(hide yes)
@@ -26897,7 +26897,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "100u"
+		(property "Value" "68u"
 			(at 5 -8.35 180)
 			(layer "B.Fab")
 			(hide yes)
@@ -26922,7 +26922,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Description" "U3 inductor: 100 uH radial drum core, Isat 4 A or more, Irms 3 A or more (Bourns 1140-101K-RC or equal, 10 mm pitch)"
+		(property "Description" "U3 inductor: 68 uH, 3.3 A radial drum core (Abracon AIAP-03-680K, 11.4 x 23 mm; its leads bent out to the 10 mm pitch)"
 			(at 0 0 180)
 			(layer "B.Fab")
 			(hide yes)
