@@ -157,7 +157,9 @@ ElcUsbParser::Event ElcUsbParser::feed(uint8_t b, uint8_t *text) {
 
 // ---- the board's end
 
-#if defined(ARDUINO) && !defined(ARDUINO_ARCH_AVR)  // the AVR's end of the link is the sensor card's card_usb.cpp
+// A board that defines ELC_USB_PORT_EXTERNAL brings its own port (the sensor cards' card_usb.cpp: the AVR one, and
+// the STM32 one, which stays at 115200); the AVR does so without the flag.
+#if defined(ARDUINO) && !defined(ARDUINO_ARCH_AVR) && !defined(ELC_USB_PORT_EXTERNAL)
 
 namespace {
 
@@ -320,7 +322,7 @@ void elc_usb_describe(char *out, size_t n) {
            (unsigned long)s_stats.bad);
 }
 
-#elif !defined(ARDUINO_ARCH_AVR)  // host build: no port
+#elif !defined(ARDUINO_ARCH_AVR) && !defined(ELC_USB_PORT_EXTERNAL)  // host build: no port
 
 static ElcUsbStats s_host_stats;
 void elc_usb_begin(uint32_t) {}

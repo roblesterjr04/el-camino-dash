@@ -1,0 +1,44 @@
+{
+  "build": {
+    "core": "stm32",
+    "cpu": "cortex-m0plus",
+    "extra_flags": "-DSTM32G0 -DSTM32G0xx -DSTM32G0B1xx -DARDUINO_GENERIC_G0B1KBUX",
+    "f_cpu": "64000000L",
+    "framework_extra_flags": {
+      "arduino": "-D__CORTEX_SC=0"
+    },
+    "mcu": "stm32g0b1kbu6",
+    "product_line": "STM32G0B1xx",
+    "variant": "STM32G0xx/G0B1K(B-C-E)(T-U)_G0C1K(C-E)(T-U)",
+    "arduino": {
+      "variant_h": "variant_generic.h"
+    }
+  },
+  "debug": {
+    "default_tools": [
+      "stlink"
+    ],
+    "jlink_device": "STM32G0B1KB",
+    "openocd_target": "stm32g0x",
+    "svd_path": "STM32G0B1.svd"
+  },
+  "frameworks": [
+    "arduino",
+    "stm32cube"
+  ],
+  "name": "DigiDash sensor card rev B (STM32G0B1KBU6)",
+  "upload": {
+    "maximum_ram_size": 147456,
+    "maximum_size": 131072,
+    "protocol": "stlink",
+    "protocols": [
+      "stlink",
+      "cmsis-dap",
+      "jlink",
+      "blackmagic",
+      "serial"
+    ]
+  },
+  "url": "https://github.com/robertlester/el-camino-dash/tree/main/SensorCard2",
+  "vendor": "DigiDash"
+}
