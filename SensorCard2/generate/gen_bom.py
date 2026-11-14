@@ -23,7 +23,7 @@ MPN = {     # maker, part number
     'U1': ('STMicroelectronics', 'STM32G0B1KBU6'), 'U3': ('NXP', 'TJA1051T/3/1J'), 'U4': ('Fujitsu', 'MB85RC256VPNF-G-JNERE1'),
     'U5': ('Everlight', 'EL817S1(C)(TU)-F'),          # PC817 in the 4-SMD gull wing (LCSC C106900)
     'U6': ('Diodes Inc', 'AP2112K-3.3TRG1'), 'U7': ('Texas Instruments', 'SN74LVC1T45DCKR'),
-    'Y1': ('YXC', 'X32258MOB4SI'),                     # 8 MHz, CL 12 pF (LCSC C2682775), as the GPS and radio cards
+    'Y1': ('YXC', 'OT32258MJBA4SL'),                   # 8 MHz CMOS oscillator, 3225 (LCSC C717687): HSE bypass on PC14
     'J1': ('Sullins', 'PRPC015DBAN-M71RC'), 'J2': ('JST', 'S12B-PH-K-S'), 'J3': ('JST', 'S4B-PH-K-S'),
     'J4': ('Molex', '43650-0200'), 'J5': ('XFCN', 'PZ254V-12-4P'), 'J6': ('Sullins', 'PRPC005SBAN-M71RC'),
     'J7': ('Sullins', 'PRPC006SBAN-M71RC'), 'J8': ('Sullins', 'PREC003SBAN-M71RC'),
@@ -35,7 +35,7 @@ BY_VALUE = {'BAT54S': ('Nexperia', 'BAT54S,215'), 'BAT42W': ('Vishay', 'BAT42W-E
 CAPS = {('10u', '0805'): 'CL21B106KOQNNNE', ('4.7u', '0805'): 'CL21A475KOFNNNE', ('1u', '0603'): 'CL10B105KO8NNNC',
         ('100n', '0603'): 'CL10B104KB8NNNC', ('100n', '0805'): 'CL21B104KBCNNNC',
         ('10n', '0603'): 'CL10B103KB8NNNC', ('15p', '0603'): 'CL10C150JB8NNNC', ('1n', '0603'): 'CL10C102JB8NNNC'}
-NOTES = {'Y1': 'LCSC C2682775, as the GPS and radio cards (HSE for the CAN bit timing)',
+NOTES = {'Y1': 'LCSC C717687. An oscillator, not a crystal: the 32-pin STM32G0B1 has no OSC_OUT (HSE bypass on PC14 only)',
          'U1': 'Arrives blank: flash over J6 (SWD, ST-Link)', 'U5': 'LCSC C106900. Any PC817 in the 4-SMD gull wing',
          'U7': 'Level shifter: the sensor serial out at 5 V for the main board\'s dividers',
          'J9': 'Plus one 2.54 mm jumper shunt, not fitted: bench only',

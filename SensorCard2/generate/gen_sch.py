@@ -261,7 +261,7 @@ PTC = stock('Device', 'Polyfuse')
 LED = stock('Device', 'LED')
 DS = stock('Device', 'D_Schottky')
 DD = stock('Device', 'D')
-XTAL = stock('Device', 'Crystal_GND24')
+OSC = stock('Oscillator', 'ASE-xxxMHz')
 BAT54S = stock('Diode', 'BAT54S')
 OPTO = stock('Isolator', 'PC817')
 MCU = stock('MCU_ST_STM32G0', 'STM32G0B1K_B-C-E_Ux', 'STM32G0B1KBU6', 'STM32G0B1KBU6')
@@ -292,7 +292,7 @@ FP_SC70_6 = 'Package_TO_SOT_SMD:SOT-363_SC-70-6'
 FP_SOD123 = 'Diode_SMD:D_SOD-123'
 FP_SOIC8 = 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm'
 FP_QFN32 = 'Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm'
-FP_XTAL = 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm'
+FP_OSC = 'Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm'   # YXC's 3225 land pattern: same pin order, pads within 0.15 mm
 FP_RA = 'Connector_PinHeader_2.54mm:PinHeader_%s_P2.54mm_Horizontal'     # right angle, on the left edge
 FP_V = 'Connector_PinHeader_2.54mm:PinHeader_%s_P2.54mm_Vertical'
 
@@ -369,13 +369,13 @@ c_('10u', '+3V3', 'GND', 'LDO output')
 c_('100n', '+3V3', 'GND', 'LDO output, HF')
 
 # ----------------------------------------------------------------------------- MCU
-cur[0] = Block('mcu', 2, 'MCU: STM32G0B1KBU6 (UFQFPN-32), 3.3 V, 8 MHz HSE (CAN bit timing). Every I/O pin is used: pin map in SensorCard2/README.md')
+cur[0] = Block('mcu', 2, 'MCU: STM32G0B1KBU6 (UFQFPN-32), 3.3 V, 8 MHz HSE from an oscillator in bypass (CAN bit timing). Every I/O pin is used: pin map in SensorCard2/README.md')
 text(cur[0].x0 + 200, cur[0].y0 + 6, 'PA11 / PA12 FDCAN1 RX / TX (AF3). PA9 / PA10 USART1 TX / RX (AF1): debug serial J7 (also the ROM bootloader). PA2 / PA3 USART2 TX / RX (AF1): '
      'sensor serial J8 (TX through a 3.3 -> 5 V level shifter).\\nPB6 / PB7 I2C1 SCL / SDA (AF6): FRAM. PA8 TIM1_CH1 (AF2): tach. PB4 TIM3_CH1 (AF1): speed. '
      'ADC: PA0 fuel, PA1 engine temp, PA4 oil pressure, PA5 ambient, PA6 alternator L, PA7 battery, PB0 WAKE, PB1 ignition.\\n'
      'PB2 / PC6 / PB9: temp feed monitor, oil feed monitor (digital: feed present), RPM select A. PB3 RPM select B. PA15 PWR_HOLD. PB5 LED. '
-     'PA13 / PA14 SWD (BOOT0 shares PA14). PC14 / PC15 the crystal. PF2 NRST.', 1.6)
-m = {'1': 'PRESS_MON', '2': 'HSE_IN', '3': 'HSE_OUT', '4': '+3V3', '5': 'GND', '6': 'NRST',
+     'PA13 / PA14 SWD (BOOT0 shares PA14). PC14 OSC_IN: the 8 MHz oscillator (HSE bypass; the 32-pin package has no OSC_OUT, so no crystal). PC15 unused. PF2 NRST.', 1.6)
+m = {'1': 'PRESS_MON', '2': 'HSE_IN', '3': None, '4': '+3V3', '5': 'GND', '6': 'NRST',
      '7': 'FUEL_ADC', '8': 'ENGINE_TEMP_ADC', '9': 'SENS_TX2', '10': 'SENS_RX2', '11': 'OIL_PRESSURE_ADC', '12': 'AMB_TEMP_ADC',
      '13': 'ALT_L', '14': 'BATT_SENSE', '15': 'WAKE_SENSE', '16': 'IGN_SENSE', '17': 'TEMP_MON', '18': 'TACH_SIG',
      '19': 'DBG_TX', '20': 'RPM_SEL_A', '21': 'DBG_RX', '22': 'CAN_RX', '23': 'CAN_TXD', '24': 'SWDIO', '25': 'SWCLK',
@@ -386,10 +386,13 @@ place(MCU, 'U1', 'STM32G0B1KBU6', FP_QFN32, m,
 c_('100n', '+3V3', 'GND', 'U1 VDD / VDDA, at pin 4')
 c_('4.7u', '+3V3', 'GND', 'U1 VDD / VDDA bulk')
 c_('100n', 'NRST', 'GND', 'NRST filter (the pin has its own pull-up)')
-place(XTAL, 'Y1', '8MHz', FP_XTAL, {'1': 'HSE_IN', '3': 'HSE_OUT', '2': 'GND', '4': 'GND'},
-      descr='8 MHz crystal, 3.2 x 2.5 mm, CL 12 pF, ESR <= 180 R (YXC X32258MOB4SI; HSE, for the CAN bit timing)')
-c_('15p', 'HSE_IN', 'GND', 'Y1 load (CL 12 pF crystal; 2 x (CL - ~4 pF stray))')
-c_('15p', 'HSE_OUT', 'GND', 'Y1 load')
+# The UFQFPN-32 G0B1 has no PF0 / PF1, so no HSE crystal driver: PC14 takes OSC_IN in bypass mode only and PC15 has no
+# OSC_OUT. A crystal here can never start (rev B's first boards); a CMOS oscillator into PC14 is the supported clock.
+place(OSC, 'Y1', '8MHz', FP_OSC, {'1': '+3V3', '2': 'GND', '3': 'HSE_IN', '4': '+3V3'},
+      descr='8 MHz CMOS oscillator, 3.2 x 2.5 mm, 1.8-3.3 V, +-20 ppm (YXC OT32258MJBA4SL, LCSC C717687): pin 1 tri-state '
+            '(high = on) tied to 3V3, pin 3 out to PC14 OSC_IN (HSE bypass)')
+c_('100n', '+3V3', 'GND', 'Y1 supply, at pin 4')
+cnt['C'] += 1   # C11 was the second crystal load cap: skip it so the later capacitors keep their rev B references
 place(LED, nid('D'), 'green', 'LED_SMD:LED_0603_1608Metric', {'1': 'LED_K', '2': 'STATUS_LED'}, descr='Status (PB5)')
 r_('1k', 'LED_K', 'GND', 'Status LED')
 place(HDR2[2], 'J5', 'RPM select', FP_V % '2x02', {'1': 'GND', '2': 'RPM_SEL_A', '3': 'GND', '4': 'RPM_SEL_B'},

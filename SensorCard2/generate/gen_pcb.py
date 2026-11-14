@@ -100,7 +100,7 @@ FIXED = {
     'J6': (HDR_X, J6_Y, 180, 'F'),            # SWD (1x5) where the ISP header was
     # chips
     'U1': (30.0, 31.0, 0, 'F'),               # STM32G0B1 (QFN-32): ADC pins (PA0-PA7, left / bottom) toward the senders, CAN / SWD toward the slot
-    'Y1': (22.5, 27.0, 90, 'F'),              # 8 MHz crystal beside OSC_IN / OSC_OUT (pins 2 / 3, the top of the left side)
+    'Y1': (22.5, 27.0, 90, 'F'),              # 8 MHz oscillator beside PC14 OSC_IN (pin 2, the top of the left side)
     'U7': (11.0, J8_Y, 0, 'F'),               # the 3.3 -> 5 V level shifter right behind J8 (sensor serial out)
     'U3': (53.0, H - 15.0, 0, 'F'),           # TJA1051 above the slot header's CAN pins (5 / 6)
     'U4': (43.5, H - 15.0, 0, 'F'),           # FRAM
@@ -291,7 +291,7 @@ def main():
                   CFG_Y0 + CFG_VAL_DY0 + 2 * CFG_VAL_PITCH + 1.8)   # the block and its labels
     occ['F'].rect(8.4, J8_Y - 6.0, 12.0, J8_Y + 1.0)         # room for the left-edge header pin legends
     occ['F'].rect(8.4, J7_Y - 13.6, 12.0, J7_Y + 1.0)
-    occ['F'].rect(8.9, J6_Y - 6.0, 15.4, J6_Y + 1.0)
+    occ['F'].rect(6.0, J6_Y - 13.4, 9.0, J6_Y + 1.0)          # the SWD legend, one name per pin
     occ['F'].rect(J2_X - 12.0, 7.9, J2_X + 12.0, 11.9)       # J2's pin legends
     occ['F'].rect(J3_X - 4.0, 7.9, J3_X + 4.0, 11.9)         # J3's
     occ['F'].rect(J3_X - 3.2, 14.4, J3_X + 3.2, 16.0)        # JP1's
@@ -422,13 +422,11 @@ def main():
         b.Add(t)
 
     # pin legends beside the left-edge headers (their pin 1 is the lowest pin)
-    for x0, y0, names in ((8.6, J8_Y, ['GND', 'TX', 'RX']), (8.6, J7_Y, ['GND', 'CTS', '--', 'RXI', 'TXO', 'DTR'])):
+    for x0, y0, names in ((8.6, J8_Y, ['GND', 'TX', 'RX']), (8.6, J7_Y, ['GND', 'CTS', '--', 'RXI', 'TXO', '--']),
+                         (6.2, J6_Y, ['3V3', 'DIO', 'CLK', 'RST', 'GND'])):   # J6's, between it and J5
         for k, s in enumerate(names):
             silk(s, x0, y0 - 2.54 * k, 0.8)
-    silk('ISP', 9.1, J6_Y - 5.08, 0.8)
-    silk('1 MISO 2 5V', 9.1, J6_Y - 2.9, 0.7)
-    silk('3 SCK 4 MOSI', 9.1, J6_Y - 1.5, 0.7)
-    silk('5 RST 6 GND', 9.1, J6_Y - 0.1, 0.7)
+    silk('SWD', 6.2, J6_Y - 12.7, 0.8)
     # top-edge connectors' pins, below them (pad 1 is on the right for the JST PH ones, seen from the parts side)
     for k, s in enumerate(['FUEL', 'G', 'TEMP', 'TV', 'G', 'OIL', 'OV', 'G', 'AMB', 'G', 'ALT', 'G']):
         silk(s, J2_X + 11.0 - 2.0 * k, 11.7, 0.7, rot=90)
@@ -448,9 +446,9 @@ def main():
         for k, (_, lab) in enumerate(vals):
             silk(lab, x + 1.0, CFG_Y0 + CFG_VAL_DY0 + CFG_VAL_PITCH * k, 0.7)
     silk('SENSOR CARD', 1.0, 3.2, 1.0)
-    silk('rev A  node 0x04', 1.0, 4.9, 0.8)
+    silk('rev B  node 0x04', 1.0, 4.9, 0.8)
     silk('not in slot 1', 1.0, 6.5, 0.8)
-    silk('SENSOR CARD  rev A', 46.0, 15.0, 1.0, pcbnew.B_SilkS)   # mirrored: the text runs to +x from here
+    silk('SENSOR CARD  rev B', 46.0, 15.0, 1.0, pcbnew.B_SilkS)   # mirrored: the text runs to +x from here
     # the configuration table on the back (it carries no parts): what each front-side jumper does
     for k, s in enumerate(['SENDER CONFIG (block on the front)',
                            'One column per channel. Top jumper:',
@@ -464,7 +462,7 @@ def main():
                            'AMB JP5: 10k JP15 100k JP16',
                            'SPEED PWR JP1: 1-2 5V*  2-3 12V',
                            'RPM SEL J5: none 8  A 4  B 6 pulses/rev',
-                           'DEMO J9: fitted = fake sweep (bench)',
+                           'DEMO: console command demo on',
                            'CAN node 0x04. Not slot 1']):
         silk(s, 46.0, 18.0 + 1.4 * k, 0.75, pcbnew.B_SilkS)
 

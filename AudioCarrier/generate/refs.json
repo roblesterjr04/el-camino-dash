@@ -265,7 +265,7 @@
   "value": "Program"
  },
  "J2": {
-  "fp": "AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle",
+  "fp": "AudioCarrier:RCA_Kycon_KLP42X-61_RightAngle",
   "group": "rca",
   "value": "RCA block"
  },
@@ -437,12 +437,12 @@
  "U2": {
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
   "group": "can",
-  "value": "MCP2562-E/SN"
+  "value": "TJA1051T/3"
  },
  "U3": {
   "fp": "Package_SO:VSSOP-8_3x3mm_P0.65mm",
   "group": "mic",
-  "value": "OPA2376AIDGK"
+  "value": "TLV9062AIDGK"
  },
  "U4": {
   "fp": "Package_SO:TSSOP-14_4.4x5mm_P0.65mm",

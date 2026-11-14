@@ -2,12 +2,12 @@
 
 A **slot card** for the DigiDash rev 2 board: **80 × 60 mm**, standing on edge in a 2×15 slot, its right-angle header
 on the bottom edge and its jacks on the top edge (`docs/hardware/accessory_ports.md`, rev 2 section). It goes in
-**slot 1**: the RCA block is 28.5 mm tall, and slot 1 is the one whose parts side faces off the end of the row. It is
+**slot 1**: the RCA block is 26.5 mm tall, and slot 1 is the one whose parts side faces off the end of the row. It is
 the clock master of the slot's **I2S rail**, which reaches every other slot (an AI voice card can go in any of them). The directory keeps its old name. On it:
 - an **ESP32-WROVER-E-N8R8** module (classic ESP32: A2DP + AVRCP + HFP; 8 MB flash, 8 MB PSRAM, PCB antenna)
 - two **TI PCM5102A** stereo DACs (front pair, rear pair)
 - a **TI PCM1808** ADC with an electret microphone preamp (hands-free calls)
-- a **2 × 2 right-angle RCA block** (Switchcraft PJRAS2X2S01X) and, beside it on the same top edge, a small
+- a **2 × 2 right-angle RCA block** (Kycon KLP42X-61-WW/RR) and, beside it on the same top edge, a small
   **3.5 mm jack** (Same Sky SJ-3523-SMT) for a hands-free car microphone (no line / aux input)
 - a **74LVC125** that puts the I2S clocks, the mic data and MCLK on the slot's link lines, for the partner card
 
@@ -16,7 +16,7 @@ CAN node from its slot (`0x14 + (slot − 1)`: `0x14` in slot 1), 5 V from the s
 | Files | |
 | --- | --- |
 | `AudioCarrier.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on both sides. Placed and routed (see [Status](#status)). KiCad 10 |
-| `AudioCarrier.pretty` | The ESP32-WROVER-E footprint (land pattern from the Espressif datasheet v2.4, figure 15; KiCad has none) and the RCA block (hole pattern from Switchcraft's PJRAS2X2S__X customer drawing), and a plain 3D model of the block. Everything else is stock KiCad (the jack: `Connector_Audio:Jack_3.5mm_CUI_SJ-3523-SMT_Horizontal`) |
+| `AudioCarrier.pretty` | The ESP32-WROVER-E footprint (land pattern from the Espressif datasheet v2.4, figure 15; KiCad has none) and the RCA block (hole pattern from Kycon's KLP42X-61-xx/xx drawing), and a plain 3D model of the block. Everything else is stock KiCad (the jack: `Connector_Audio:Jack_3.5mm_CUI_SJ-3523-SMT_Horizontal`) |
 | `generate/` | Scripts that produced the files (`gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py`) |
 
 ## Signal paths
@@ -88,28 +88,30 @@ solder tabs are ground.
 
 ## Board
 
-- **Outline:** 80 × 60 mm, no mounting holes: the slot and the case hold it. The RCA block's own screw hole (in the
-  middle of the four jacks) fastens it to the case panel, so plug forces go to the case and not the slot.
+- **Outline:** 80 × 60 mm, no mounting holes: the slot and the case hold it. The RCA block's plate has a hole in the
+  middle of the four jacks; if it takes a screw to the case panel, plug forces go to the case and not the slot (check
+  on the part: Kycon's drawing does not say).
 - **Slot header (J1):** right-angle 2×15 (`PinHeader_2x15_P2.54mm_Horizontal`) on the parts side, centred on the bottom
   edge: pin 1 is 17.78 mm right of the centre (seen from the parts side, top edge up), the pins count to the left, the
   plastic body's outer face is on the bottom edge and the pins stand 6 mm past it. `gen_pcb.py` checks the orientation
   from the pads, so each pin meets the same-numbered pad of the main board's slot socket.
 - **Top edge** (the case panel), from the left: the module's antenna end at the corner (x 1.2–19.2), the RCA block
-  (centred at x 52) and the 3.5 mm jack (x 72.3). These positions are constants at the top of `gen_pcb.py`; move them to suit the case.
-- **RCA block (J2):** the jacks face off the top edge (right-angle), and the plate's rear face is the board edge. The
-  body is 27 mm wide and 13.7 mm deep behind the edge, and **28.5 mm tall** above the card. The barrels (8.2 mm) and
-  the 1.5 mm plate stand out past the edge. From the drawing: tip pins 12.5 mm behind the plate, sleeve pins 5.25 mm,
-  plate tabs 8.75 mm.
+  (centred at x 48, x 30.1–65.9 with its tabs) and the 3.5 mm jack (x 72.3). These positions are constants at the top of `gen_pcb.py`; move them to suit the case.
+- **RCA block (J2):** Kycon KLP42X-61-WW/RR (white on top, red below). The jacks face off the top edge (right-angle),
+  and the plate's rear face is the board edge. The body is 34 mm wide and 10 mm deep behind the edge, and **26.5 mm
+  tall** above the card (jack centres 6.7 and 20.7 mm up, columns 18 mm apart). The 1.0 mm plate and the barrels
+  (7.8 mm) stand out past the edge. From the drawing (depths from the plate's front face): sleeve pins 1 / 4 at 7.0 mm,
+  lower tips 3 / 6 at 10.25 mm, upper tips 2 / 5 at 11.5 mm, each column's pins 4 mm apart; two snap-in side tabs
+  (2.4 mm wide, 7.5 mm deep, ±16.5 mm, barb to ±17.6 mm) in 1.9 × 3.0 mm slots, tied to ground. No switch contacts.
 - **Mic jack (J6):** Same Sky SJ-3523-SMT (KiCad's stock footprint; pin functions from the Same Sky datasheet: 1
   sleeve, 2 tip, 3 ring), right of the block on the same edge. Its body (6 wide, 5 tall, 14.5 deep) stands behind the
   edge, its 2.5 mm nose (Ø 5) past it: inside the housing envelope (card x 67.4–76.7, ≈6 mm off the parts face, nose
   to 2.5 mm past the edge). It is SMT (fab-assembled) with two plastic locating pegs. It replaces the Tinkersphere
   TS3328, which no distributor stocks and whose pins were never confirmed.
-- **Parts side (F):** the module (3.3 mm tall), regulator, CAN transceiver, link buffer, buttons (below the module), J10,
-  the RCA block and the jack.
-  In slot 1 this side faces off the end of the row, so its height is not limited.
-- **Back (B):** both DACs, the ADC, the op-amp and their passives, all under 1.2 mm tall (the slot spec allows 2.5 mm:
-  this side faces the card in slot 2).
+- **Parts side (F):** every part: the module (3.3 mm tall), regulator, CAN transceiver, link buffer, buttons (below
+  the module), J10, the RCA block and the jack, and behind the block and jack both DACs, the ADC, the op-amp and their
+  passives. In slot 1 this side faces off the end of the row, so its height is not limited.
+- **Back (B):** copper and silkscreen only, no parts: one side to assemble (this side faces the card in slot 2).
 - **Layers:** F signal, In1 solid GND, In2 signal / GND fill, B signal. 0.2 mm tracks, 0.3 mm on the supplies,
   0.13 mm clearance, 0.6 / 0.3 mm vias: standard 4-layer rules at JLCPCB / PCBWay.
 - **Antenna:** the WROVER-E's antenna end (its 6.22 mm antenna area) is on the top edge at the left corner, flush
@@ -124,12 +126,22 @@ solder tabs are ground.
 
 **Schematic: done** (the slot card, 90 parts). **PCB: placed and routed** (2026-10-23, rev G): 80 × 60 mm, 4 layers, 90
 placed parts (88 in the placement file: JP1 / JP2 are copper only). DRC with the schematic parity check: **no errors,
-nothing unconnected, no footprint / parity errors**; 31 silkscreen warnings (text at the edge, over pads, overlapping).
-Freerouting (60 passes) left one link of EN (SW1's right-hand pad to C10 / R2); it was joined by hand with a short
-B.Cu jumper through two vias (beside SW1 and above R2). A fresh `gen_pcb.py --route` run will not reproduce that and
-may leave other links. 580 vias, none touching a pad; nothing in the antenna keep-out. Fab outputs in `fab/`
+nothing unconnected, no footprint / parity errors**; 28 silkscreen warnings (text at the edge, over pads, overlapping) and one footprint-differs-from-library warning (U3, the mask-dam pads).
+Rev H (2026-10-27): every part on F (single-sided assembly), re-placed and re-routed by `gen_pcb.py --route`
+(120 passes); the ground stitching closed the one link Freerouting left. Two fan-out vias (R17 pad 2, R25 pad 1)
+were then moved by hand to 0.15 mm clear of their pads, the PCBWay via-off-pad rule. 550 vias, none touching a pad;
+nothing in the antenna keep-out. Fab outputs in `fab/`
 (`python3 ../tools/fab_export.py AudioCarrier`); `fab/AudioCarrier_BOM_PCBWay.csv` is kept by hand and matches the
 placement file; `AudioCarrier_BOM.csv` is the same list.
+Rev I (2026-10-27): RCA block **Switchcraft PJRAS2X2S01X → Kycon KLP42X-61-WW/RR** (34 mm wide, 6 pins + 2 snap-in
+tabs, 26.5 mm tall), centred at x 48 (was 52) so it clears the jack; re-placed and re-routed by `gen_pcb.py --route`.
+Freerouting left /EN, /I2S_LRC and U8 pin 7 (GND) open and the finisher could not join them, so they were finished
+by a one-off grid router (not in `generate/`): /EN a 5.5 mm F track by SW1; /I2S_LRC from U5 pin 15 through two vias
+to U6's side, after lifting U5 pin 16's GND fan-out stub (pin 16 reaches the pours without it); U8 pin 7 a track and
+a via to the plane. Ten Freerouting vias 0.137–0.146 mm from a pad were nudged (≤ 0.02 mm) to ≥ 0.15 mm, the PCBWay
+via-off-pad rule. DRC with the parity check: **0 errors, 0 unconnected**, 28 silkscreen warnings; 546 vias, none
+within 0.15 mm of a pad. Re-running `gen_pcb.py --route` does not reproduce these fixes. The finisher now checks
+clearance only against items near each join (it hung for 20+ minutes on the full board).
 
 - **Rev G (2026-10-23), before the PCBWay order:**
   - **Module:** ESP32-PICO-MINI-02-N8R2 (NRND) → **ESP32-WROVER-E-N8R8**. Footprint drawn from the datasheet v2.4
@@ -144,15 +156,16 @@ placement file; `AudioCarrier_BOM.csv` is the same list.
     first: it is 12 mm wide, more than the 9.3 mm the housing allows there.
   - **Moved:** the module (now x 1.2–19.2, y 0.2–31.6), SW1 / SW2 (below the module, y 36), the jack (x 72.3); every
     passive re-placed by the script; re-routed. Fixed: outline, J1, J2, J10, the jack's edge position.
-- **The RCA block's footprint** is drawn from Switchcraft's customer drawing
-  (`https://switchcraft.com/assets/1/24/pjras2x2s__x_series_cd.pdf`; it is proprietary, so it is not copied here). One
-  thing the drawing does not say: which line is the PCB edge. I took the dashed line (the plate's rear face) as the
-  edge. If the plate should sit flush with the case panel instead, the board edge moves 1.5 mm (the plate thickness).
-  Check with the block in hand and against the case panel cut-out.
+- **The RCA block's footprint** is drawn from Kycon's KLP42X-61-xx/xx drawing (series sheet, 2013; third-angle, so
+  the bottom view is not mirrored and left / right are as seen from the plug side). The pin positions were measured
+  off the vector drawing where it gives no dimension (the tabs' x, the pin order by depth). I took the plate's rear
+  face as the board edge; if the plate should sit flush with the case panel instead, the edge moves 1.0 mm. Check the
+  tab slots and the 1.4 mm pin holes with the block in hand. It replaced the Switchcraft PJRAS2X2S01X (27 mm wide,
+  different pinout) on 2026-10-27, before the first order.
 - **Earlier checks (2026-10-05), still valid:** PCM1808 (TI SLES177B pin table; MD0 / MD1 low = slave, FMT low = I2S;
   VREF 100n + 10u); PCM5102A (TI pin table; SCK low = internal PLL, FMT low = I2S, LDOO 100n as TI asks); MCP2562;
   TLV9062 (standard dual pinout; an OPA2376 until 2026-10-26, swapped for price, any RRIO dual with that pinout fits); 74LVC125 (1 / 4 / 10 / 13 OE, BCK / WS / ADC data / MCLK onto LINK0 / 1 / 2 / 4); J1
-  against the slot pinout and DigiDash2's J31–J36; the RCA block against Switchcraft's PC board layout.
+  against the slot pinout and DigiDash2's J31–J36; the RCA block against Kycon's drawing (2026-10-27).
 - **BOM complete:** every line of `fab/AudioCarrier_BOM_PCBWay.csv` has a maker and part number.
 - **Still open:**
   - `docs/hardware/housing_envelope.md` still lists the PICO module (card top corner, y 78–93, z 51–68.5, 2.6 mm);

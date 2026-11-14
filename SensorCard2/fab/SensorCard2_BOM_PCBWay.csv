@@ -5,7 +5,7 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footpr
 4,U5,1,Everlight,EL817S1(C)(TU)-F,Tach isolation,SMDIP-4_W7.62mm,SMD,Top,LCSC C106900. Any PC817 in the 4-SMD gull wing
 5,U6,1,Diodes Inc,AP2112K-3.3TRG1,"Diodes AP2112K-3.3TRG1: 600 mA LDO, 3.3 V, SOT-23-5. EN tied to VIN",SOT-23-5,SMD,Top,
 6,U7,1,Texas Instruments,SN74LVC1T45DCKR,"3.3 -> 5 V level shifter on the sensor serial out (DIR high: A to B), so the main board's 10k / 20k dividers see rev A's 5 V",SOT-363_SC-70-6,SMD,Top,Level shifter: the sensor serial out at 5 V for the main board's dividers
-7,Y1,1,YXC,X32258MOB4SI,"8 MHz crystal, 3.2 x 2.5 mm, CL 12 pF, ESR <= 180 R (YXC X32258MOB4SI; HSE, for the CAN bit timing)",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,"LCSC C2682775, as the GPS and radio cards (HSE for the CAN bit timing)"
+7,Y1,1,YXC,OT32258MJBA4SL,"8 MHz CMOS oscillator, 3.2 x 2.5 mm, 1.8-3.3 V, +-20 ppm (YXC OT32258MJBA4SL, LCSC C717687): pin 1 tri-state (high = on) tied to 3V3, pin 3 out to PC14 OSC_IN (HSE bypass)",Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm,SMD,Top,"LCSC C717687. An oscillator, not a crystal: the 32-pin STM32G0B1 has no OSC_OUT (HSE bypass on PC14 only)"
 8,D1 D4 D5 D6 D7 D8 D9 D10,8,Nexperia,"BAT54S,215","Input clamps to GND / 3.3 V (ignition sense, alternator L, speed, the senders)",SOT-23,SMD,Top,
 9,D2,1,Vishay,BAT42W-E3-08,"Hold diode: this card can only drive WAKE high, never load it (other cards drive it too)",D_SOD-123,SMD,Top,
 10,D3,1,Lite-On,LTST-C191KGKT,Status (PB5),0603,SMD,Top,
@@ -26,9 +26,8 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footpr
 25,R39,1,Yageo,RC0603FR-0739KL,Alternator L divider top (14.5 V -> 3.0 V),0603,SMD,Top,
 26,R43 R44,2,Yageo,RC1206FR-074K7L,4.7k resistor,1206,SMD,Top,
 27,C1 C5,2,Samsung,CL21B106KOQNNNE,10u capacitor,0805,SMD,Top,
-28,C2 C3 C4 C6 C7 C9 C12 C13 C14 C15 C16 C21,12,Samsung,CL10B104KB8NNNC,100n capacitor,0603,SMD,Top,
+28,C2 C3 C4 C6 C7 C9 C10 C12 C13 C14 C15 C16 C21,13,Samsung,CL10B104KB8NNNC,100n capacitor,0603,SMD,Top,
 29,C8,1,Samsung,CL21A475KOFNNNE,U1 VDD / VDDA bulk,0805,SMD,Top,
-30,C10 C11,2,Samsung,CL10C150JB8NNNC,15p capacitor,0603,SMD,Top,
-31,C17 C18 C19 C20,4,Samsung,CL10B103KB8NNNC,10n capacitor,0603,SMD,Top,
-32,C22,1,Samsung,CL21B104KBCNNNC,"Speed sensor feed, at J3",0805,SMD,Top,
-33,C23 C24,2,Samsung,CL10C102JB8NNNC,1n capacitor,0603,SMD,Top,
+30,C17 C18 C19 C20,4,Samsung,CL10B103KB8NNNC,10n capacitor,0603,SMD,Top,
+31,C22,1,Samsung,CL21B104KBCNNNC,"Speed sensor feed, at J3",0805,SMD,Top,
+32,C23 C24,2,Samsung,CL10C102JB8NNNC,1n capacitor,0603,SMD,Top,

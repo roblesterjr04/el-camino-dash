@@ -69,6 +69,22 @@ uint32_t s_sync_rows = 0;
 #if defined(ESP_PLATFORM)
 async_memcpy_handle_t s_dma = nullptr;  // AXI GDMA: copies redrawn rows between the two framebuffers
 SemaphoreHandle_t s_dma_done = nullptr;
+// Direct mode (p4_screen_set_direct): another task owns the framebuffers while LVGL's redraw is paused. The mutex is
+// held from p4_screen_direct_begin() to p4_screen_direct_present(), so turning direct mode off never cuts a frame.
+SemaphoreHandle_t s_direct_mux = nullptr;
+volatile bool s_direct = false;
+bool s_direct_flip_pending = false;  // a direct frame was handed to the panel; the old front is free after its flip
+
+// Wait for the panel to finish the flip asked for by the last direct frame (held by s_direct_mux).
+void direct_wait_flip() {
+  if (!s_direct_flip_pending) {
+    return;
+  }
+  const int64_t tw = esp_timer_get_time();
+  xSemaphoreTake(s_flip_done, pdMS_TO_TICKS(60));
+  s_wait_us += (uint64_t)(esp_timer_get_time() - tw);
+  s_direct_flip_pending = false;
+}
 #endif
 int16_t s_w = 0;
 int16_t s_h = 0;
@@ -118,15 +134,23 @@ bool IRAM_ATTR on_dma_done(async_memcpy_handle_t, async_memcpy_event_t *, void *
 }
 
 /** Copy whole rows [y1, y2] from src to dst (full-width rows are contiguous and cache-line aligned). */
+// At most this many rows per DMA copy. Each copy builds its descriptor list in internal DMA memory (about one item per
+// 4 KB), and a whole 800-row screen at once (about 320 items) did not fit, so it fell back to the CPU every frame
+// ("no mem for link list items"). 32 rows is about 13 items; a full screen is 25 copies, inside the backlog of 32.
+constexpr int32_t kDmaChunkRows = 32;
+
 void copy_rows(uint16_t *dst, const uint16_t *src, int32_t y1, int32_t y2, int *pending) {
-  const size_t off = (size_t)y1 * (size_t)s_w;
-  const size_t bytes = (size_t)(y2 - y1 + 1) * (size_t)s_w * sizeof(uint16_t);
-  if (s_dma && esp_async_memcpy(s_dma, dst + off, (void *)(src + off), bytes, on_dma_done, nullptr) == ESP_OK) {
-    (*pending)++;
-    return;
+  for (int32_t a = y1; a <= y2; a += kDmaChunkRows) {
+    const int32_t b = (a + kDmaChunkRows - 1 < y2) ? a + kDmaChunkRows - 1 : y2;
+    const size_t off = (size_t)a * (size_t)s_w;
+    const size_t bytes = (size_t)(b - a + 1) * (size_t)s_w * sizeof(uint16_t);
+    if (s_dma && esp_async_memcpy(s_dma, dst + off, (void *)(src + off), bytes, on_dma_done, nullptr) == ESP_OK) {
+      (*pending)++;
+      continue;
+    }
+    memcpy(dst + off, src + off, bytes);
+    writeback_rows(dst, a, b);
   }
-  memcpy(dst + off, src + off, bytes);
-  writeback_rows(dst, y1, y2);
 }
 #endif
 
@@ -285,13 +309,15 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel, bool legacy_layer) {
       s_double = true;
       // DMA row copies need 64-byte aligned rows (cache line); 800 px × 2 B = 1600 B = 25 lines.
       const bool aligned = ((uintptr_t)fb0 % 64 == 0) && ((uintptr_t)fb1 % 64 == 0) && ((s_w * 2) % 64 == 0);
-      s_dma_done = xSemaphoreCreateCounting(64, 0);
+      // One count per finished copy; a flip can issue a few dozen chunks (copy_rows) before it waits for them.
+      s_dma_done = xSemaphoreCreateCounting(512, 0);
       async_memcpy_config_t mcfg = ASYNC_MEMCPY_DEFAULT_CONFIG();
       mcfg.backlog = 32;
       mcfg.dma_burst_size = 64;
       if (!aligned || !s_dma_done || esp_async_memcpy_install_gdma_axi(&mcfg, &s_dma) != ESP_OK) {
         s_dma = nullptr;
       }
+      s_direct_mux = xSemaphoreCreateMutex();
     }
   }
 #endif
@@ -356,7 +382,77 @@ Arduino_GFX *p4_screen_begin(Arduino_GFX *panel, bool legacy_layer) {
 
 void p4_screen_legacy_dirty() { s_legacy_dirty = true; }
 
+bool p4_screen_set_direct(bool on) {
+#if defined(ESP_PLATFORM)
+  if (!s_double || !s_disp || !s_disp->refr_timer || !s_direct_mux) {
+    return false;
+  }
+  if (on == s_direct) {
+    return true;
+  }
+  if (on) {
+    if (!s_tear_free) {
+      return false;  // the hidden buffer is not level with the shown one
+    }
+    // Called between frames, so LVGL's last refresh has flipped and synced: both buffers match, nothing pending.
+    lv_timer_pause(s_disp->refr_timer);
+    xSemaphoreTake(s_direct_mux, portMAX_DELAY);
+    s_direct = true;
+    xSemaphoreGive(s_direct_mux);
+  } else {
+    xSemaphoreTake(s_direct_mux, portMAX_DELAY);  // waits out a frame being filled
+    direct_wait_flip();                           // and its flip, before LVGL draws into the hidden buffer
+    s_direct = false;
+    xSemaphoreGive(s_direct_mux);
+    lv_timer_resume(s_disp->refr_timer);
+    lv_obj_invalidate(lv_scr_act());  // both buffers hold the picture: redraw (and so sync) the whole screen
+  }
+  return true;
+#else
+  (void)on;
+  return false;
+#endif
+}
+
+uint16_t *p4_screen_direct_begin() {
+#if defined(ESP_PLATFORM)
+  if (!s_direct || !s_direct_mux) {
+    return nullptr;
+  }
+  xSemaphoreTake(s_direct_mux, portMAX_DELAY);
+  if (!s_direct) {
+    xSemaphoreGive(s_direct_mux);
+    return nullptr;
+  }
+  direct_wait_flip();  // the hidden buffer was the front until the last flip took effect
+  return s_back;
+#else
+  return nullptr;
+#endif
+}
+
+void p4_screen_direct_present() {
+#if defined(ESP_PLATFORM)
+  // The flip as in flush_cb, without waiting for it here: the panel shows the hidden buffer from its next frame, and
+  // the next p4_screen_direct_begin() (or leaving direct mode) waits for that before touching the old front, so the
+  // wait overlaps the filling task's work on its next frame.
+  xSemaphoreTake(s_flip_done, 0);
+  esp_lcd_panel_draw_bitmap(g_elc_dpi_panel, 0, 0, s_w, s_h, s_back);
+  s_direct_flip_pending = true;
+  s_flips++;
+  uint16_t *shown = s_back;
+  s_back = s_fb;
+  s_fb = shown;
+  xSemaphoreGive(s_direct_mux);
+#endif
+}
+
 void p4_screen_set_tear_free(bool on) {
+#if defined(ESP_PLATFORM)
+  if (s_direct) {
+    return;  // the framebuffers belong to the direct-mode task for now
+  }
+#endif
   if (on == s_tear_free || !s_double) {
     s_tear_free = on;
     return;
@@ -440,7 +536,12 @@ void p4_screen_frame() {
     return;
   }
   const int64_t t0 = esp_timer_get_time();
-  if (s_legacy_dirty && s_legacy_img && !lv_obj_has_flag(s_legacy_img, LV_OBJ_FLAG_HIDDEN)) {
+#if defined(ESP_PLATFORM)
+  const bool direct = s_direct;  // another task owns the framebuffers: run LVGL's timers and input, draw nothing
+#else
+  const bool direct = false;
+#endif
+  if (!direct && s_legacy_dirty && s_legacy_img && !lv_obj_has_flag(s_legacy_img, LV_OBJ_FLAG_HIDDEN)) {
     invalidate_changed_bands();
     s_legacy_dirty = false;
   }
@@ -449,7 +550,9 @@ void p4_screen_frame() {
     lv_indev_read_timer_cb(s_indev->driver->read_timer);
   }
   lv_timer_handler();
-  lv_refr_now(s_disp);  // draw this loop's legacy frame now, not on LVGL's 30 ms timer
+  if (!direct) {
+    lv_refr_now(s_disp);  // draw this loop's legacy frame now, not on LVGL's 30 ms timer
+  }
   s_lvgl_us += (uint64_t)(esp_timer_get_time() - t0);
   s_frames++;
 

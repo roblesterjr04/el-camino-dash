@@ -213,7 +213,7 @@ LED = stock('Device', 'LED')
 FB = stock('Device', 'FerriteBead_Small')
 TVS = stock('Device', 'D_TVS')
 IND = stock('Device', 'L')
-XTAL = stock('Device', 'Crystal_GND24')
+OSC = stock('Oscillator', 'ASE-xxxMHz')
 HDR2x15 = stock('Connector_Generic', 'Conn_02x15_Odd_Even')
 HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
 HDR1x3 = stock('Connector_Generic', 'Conn_01x03')
@@ -283,7 +283,7 @@ place('power:PWR_FLAG', '#FLG02', 'PWR_FLAG', '', 40, 85, {'1': 'GND'}, show_val
 
 # --- power
 G('power')
-text(15, 100, 'POWER: slot +5 V -> AP2112K-3.3 -> +3V3 (MCU, MCP2562 VIO, tuner VD, buffer, oscillator). Tuner VA (2.7-5.5 V) comes from +3V3 through a ferrite: +3V3A. '
+text(15, 100, 'POWER: slot +5 V -> AP2112K-3.3 -> +3V3 (MCU, MCP2562 VIO, tuner VD, buffer, Y1 oscillator). Tuner VA (2.7-5.5 V) comes from +3V3 through a ferrite: +3V3A. '
      'The tuner draws about 10 mA on each rail in FM.', 1.4)
 c_('10u', '+5V', 'GND', 25, 125, d='Slot 5 V bulk / LDO input')
 place(LDO, 'U3', 'AP2112K-3.3', 'Package_TO_SOT_SMD:SOT-23-5', 60, 120,
@@ -303,8 +303,8 @@ text(170, 30, 'MCU: STM32G0B1KBU6 (UFQFPN-32, the GP pinout). Pin use (DS13560 r
      'PB0 (15) tuner RST (output; pulled low, so the tuner stays in reset until the firmware starts).  PB1 (16) tuner INT (GPO2, input).\n'
      'PB2 (17) RET buffer enable, ACTIVE LOW (74LVC1G125 OE; 10k pull-up keeps it off at reset and while the MCU is blank).\n'
      'PA9 (19) USART1_TX AF1, PA10 (21) USART1_RX AF1: debug (J4, also the ROM bootloader).  PA0 (7) ADC1_IN0: slot ID.  PA5 (12) LED tuned, PA6 (13) LED stereo / RDS.\n'
-     'PC14 / PC15 (2 / 3): 8 MHz HSE.  PA13 SWDIO, PA14 SWCLK (BOOT0 shares it), PF2 = NRST.', 1.4)
-mcu = {'1': None, '2': 'HSE_IN', '3': 'HSE_OUT', '4': '+3V3', '5': 'GND', '6': 'NRST', '7': 'SLOT_ID', '8': None,
+     'PC14 (2) OSC_IN: 8 MHz oscillator, HSE bypass (no OSC_OUT on this package); PC15 (3) unused.  PA13 SWDIO, PA14 SWCLK (BOOT0 shares it), PF2 = NRST.', 1.4)
+mcu = {'1': None, '2': 'HSE_IN', '3': None, '4': '+3V3', '5': 'GND', '6': 'NRST', '7': 'SLOT_ID', '8': None,
        '9': None, '10': None, '11': None, '12': 'LED_TUNED', '13': 'LED_STEREO', '14': None, '15': 'TUN_RST', '16': 'TUN_INT',
        '17': 'RET_OE', '18': None, '19': 'DBG_TX', '20': None, '21': 'DBG_RX', '22': 'CAN_RX', '23': 'CAN_TXD',
        '24': 'SWDIO', '25': 'SWCLK', '26': None, '27': None, '28': None, '29': None, '30': 'TUN_SCL', '31': 'TUN_SDA',
@@ -314,11 +314,15 @@ place(MCU, 'U1', 'STM32G0B1KBU6', 'Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.4
 c_('100n', '+3V3', 'GND', 175, 165, d='VDD / VDDA, at pin 4')
 c_('4.7u', '+3V3', 'GND', 190, 165, d='VDD / VDDA bulk')
 c_('100n', 'NRST', 'GND', 260, 165, d='NRST filter (the pin has its own pull-up)')
-place(XTAL, 'Y1', '8MHz', 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm', 150, 120,
-      {'1': 'HSE_IN', '3': 'HSE_OUT', '2': 'GND', '4': 'GND'},
-      descr='8 MHz crystal, 3.2 x 2.5 mm, CL 10 pF, +-20 ppm or better (HSE, for CAN bit timing)')
-c_('12p', 'HSE_IN', 'GND', 135, 135, d='Crystal load (CL 10 pF crystal; 2 x (CL - stray))')
-c_('12p', 'HSE_OUT', 'GND', 165, 135, d='Crystal load (CL 10 pF crystal; 2 x (CL - stray))')
+# The UFQFPN-32 G0B1 has no PF0 / PF1, so no HSE crystal driver: PC14 takes OSC_IN in bypass mode only and PC15 has no
+# OSC_OUT (ST pin data: PC14 RCC_OSC_IN, PC15 RCC_OSC_EN / OSC32_OUT). A crystal here can never start; a CMOS oscillator
+# into PC14 is the supported clock. As SensorCard2.
+place(OSC, 'Y1', '8MHz', 'Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm', 150, 120,
+      {'1': '+3V3', '2': 'GND', '3': 'HSE_IN', '4': '+3V3'},
+      descr='8 MHz CMOS oscillator, 3.2 x 2.5 mm, 1.8-3.3 V, +-20 ppm (YXC OT32258MJBA4SL, LCSC C717687): pin 1 tri-state '
+            '(high = on) tied to 3V3, pin 3 out to PC14 OSC_IN (HSE bypass)')
+cnt['C'] += 1   # C8 was the first crystal load cap: skip it so the other capacitors keep their references
+c_('100n', '+3V3', 'GND', 165, 135, d='Y1 supply, at pin 4')
 r_('1k', 'LED_TUNED', 'LED_TUNED_A', 260, 95, 'LED current, about 1 mA')
 place(LED, 'D1', 'TUNED', 'LED_SMD:LED_0603_1608Metric', 280, 95, {'2': 'LED_TUNED_A', '1': 'GND'},
       descr='Off = tuner off, blinking = seeking, steady = tuned')

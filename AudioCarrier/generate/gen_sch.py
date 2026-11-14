@@ -224,12 +224,12 @@ R = stock('Device', 'R')
 C = stock('Device', 'C')
 FB = stock('Device', 'FerriteBead')
 JACK = stock('Connector_Audio', 'AudioJack3')
-RCA4 = box_symbol('AudioCarrier:PJRAS2X2', 'J', 'PJRAS2X2S01X',
-                  [('1', 'TIP_FL_white', 'passive'), ('2', 'TIP_FR_red', 'passive'), ('3', 'TIP_RL_white', 'passive'),
-                   ('4', 'TIP_RR_red', 'passive')],
-                  [('5', 'SLEEVE_L', 'passive'), ('6', 'SLEEVE_R', 'passive'), ('7', 'PLATE_L', 'passive'), ('8', 'PLATE_R', 'passive')],
-                  w=15.24, footprint='AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle',
-                  descr='Switchcraft PJRAS2X2S01X: 2 x 2 right-angle RCA jacks, white on top, red below. Left column FL / FR, right column RL / RR (seen from the plug side)')
+RCA4 = box_symbol('AudioCarrier:KLP42X61', 'J', 'KLP42X-61-WW/RR',
+                  [('2', 'TIP_FL_white', 'passive'), ('3', 'TIP_FR_red', 'passive'), ('5', 'TIP_RL_white', 'passive'),
+                   ('6', 'TIP_RR_red', 'passive')],
+                  [('1', 'SLEEVE_L', 'passive'), ('4', 'SLEEVE_R', 'passive'), ('7', 'TAB_L', 'passive'), ('8', 'TAB_R', 'passive')],
+                  w=15.24, footprint='AudioCarrier:RCA_Kycon_KLP42X-61_RightAngle',
+                  descr='Kycon KLP42X-61-WW/RR: 2 x 2 right-angle RCA jacks, white on top, red below. Left column FL / FR, right column RL / RR (seen from the plug side)')
 HDR2x15 = stock('Connector_Generic', 'Conn_02x15_Odd_Even')
 BUF = stock_as('74xx', '74LS125', 'AudioCarrier:74LVC125', '74LVC125APW')
 HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
@@ -310,7 +310,7 @@ def c_(v, a, b, x, y, fp=None, d=None):
 
 text(15, 12, 'AUDIO CARD  -  ESP32-WROVER-E + 2 x PCM5102A (4 line outputs) + PCM1808 (hands-free microphone input)', 3)
 text(15, 20, 'Card for a DigiDash slot, 80 x 60 mm, standing on edge (docs/hardware/accessory_ports.md); its place is slot 1 '
-     '(the RCA block is 28.5 mm tall). CAN node 0x14 + (slot - 1), from the slot ID on GPIO36. 5 V from the slot only; 3.3 V on board.', 1.6)
+     '(the RCA block is 26.5 mm tall). CAN node 0x14 + (slot - 1), from the slot ID on GPIO36. 5 V from the slot only; 3.3 V on board.', 1.6)
 
 # --- port
 G('port')
@@ -416,10 +416,10 @@ for n, (grp, ref, din, lo, ro, y, name) in enumerate([('dac_f', 'U5', 'I2S_DOUT_
 r_('100k', 'DAC_MUTE', 'GND', 445, 60, 'Keeps both DACs muted until GPIO4 goes high')
 
 G('rca')
-place(RCA4, 'J2', 'RCA block', 'AudioCarrier:RCA_Switchcraft_PJRAS2X2_RightAngle', 500, 90,
-      {'1': 'FL_LINE', '2': 'FR_LINE', '3': 'RL_LINE', '4': 'RR_LINE', '5': 'GND', '6': 'GND', '7': 'GND', '8': 'GND'},
-      descr='Switchcraft PJRAS2X2S01X on the right edge: FL white / FR red (left column), RL white / RR red (right column), seen from the plug side. Front-plate tabs and sleeves to ground')
-text(520, 80, 'J2: 2 x 2 RCA block (Switchcraft PJRAS2X2S01X, right angle)\nleft column FL white / FR red, right column RL white / RR red', 1.6)
+place(RCA4, 'J2', 'RCA block', 'AudioCarrier:RCA_Kycon_KLP42X-61_RightAngle', 500, 90,
+      {'2': 'FL_LINE', '3': 'FR_LINE', '5': 'RL_LINE', '6': 'RR_LINE', '1': 'GND', '4': 'GND', '7': 'GND', '8': 'GND'},
+      descr='Kycon KLP42X-61-WW/RR on the top edge: FL white / FR red (left column), RL white / RR red (right column), seen from the plug side. Sleeves and side tabs to ground')
+text(520, 80, 'J2: 2 x 2 RCA block (Kycon KLP42X-61-WW/RR, right angle)\nleft column FL white / FR red, right column RL white / RR red', 1.6)
 G('port')
 
 # --- microphone

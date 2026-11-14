@@ -16,7 +16,7 @@ to take the one 100-pin, $13 chip and the CAN controller off the BOM and make th
 
 | | Rev A | Rev B |
 | --- | --- | --- |
-| MCU | ATmega2560-16AU, 5 V, 16 MHz, TQFP-100 | STM32G0B1KBU6, 3.3 V, 64 MHz, UFQFPN-32, 8 MHz HSE crystal |
+| MCU | ATmega2560-16AU, 5 V, 16 MHz, TQFP-100 | STM32G0B1KBU6, 3.3 V, 64 MHz, UFQFPN-32, 8 MHz HSE from a CMOS oscillator (bypass) |
 | CAN | MCP2515 controller (SPI, own crystal) + transceiver | The MCU's FDCAN1 (PA11 / PA12) + TJA1051T/3 (VDD 5 V, VIO 3.3 V) |
 | Logic level | 5 V | 3.3 V. The sensor serial out (J8) keeps a 5 V output through a 74LVC1T45, so the main board's 10k / 20k dividers still see rev A's level |
 | Senders | Pull-up banks from 5 V, ADC ratiometric to 5 V | Pull-up banks from **3.3 V**, ADC ratiometric to 3.3 V: a resistive sender gives the **same counts** as rev A, so the screens' formulas and the calibration data carry over |
@@ -30,12 +30,28 @@ Unchanged: the slot header and its pin use, J2 senders, J3 speed (with JP1 and i
 J5 RPM select, J7 (FTDI pinout, now 3.3 V logic: USART1), J8 sensor serial out, the sender banks and their solder
 jumpers, the 0.1 A PTC feeds, battery and ignition sense (dividers rescaled for 3.3 V), WAKE in and out.
 
+## Clock: an oscillator, not a crystal (fixed 2026-11-13)
+
+The first rev B boards were drawn with an 8 MHz crystal (YXC X32258MOB4SI) and two 15 pF load capacitors on PC14 /
+PC15. **That crystal can never start**: the 32-pin STM32G0B1 has no PF0 / PF1, so it has no HSE crystal driver. ST's
+pin data (`MCU_ST_STM32G0` in KiCad, generated from it) gives PC14 `RCC_OSC_IN` and PC15 only `RCC_OSC_EN` /
+`RCC_OSC32_OUT`, no `RCC_OSC_OUT`. A clock into PC14 in HSE bypass is the only external HSE. On those boards the
+firmware falls back to the HSI (about ±1 %): it runs, with the CAN timing and the speed / tach readings on the HSI.
+
+Now Y1 is a **YXC OT32258MJBA4SL** (LCSC C717687): 8 MHz CMOS oscillator, 3.2 × 2.5 mm, 1.8-3.3 V, ±20 ppm, -40 to
+85 °C. Pinout from YXC's datasheet (YSO110TR series): 1 tri-state (high or open = on, tied to 3V3), 2 GND, 3 OUT
+(to PC14), 4 VDD (100 nF beside it). Footprint `Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm`: the same pin order, pads
+1.3 × 1.1 mm at ±1.05 / ±0.825 mm against YXC's recommended 1.3 × 1.2 at ±1.05 / ±0.95. The firmware selects
+`RCC_HSE_BYPASS` and keeps the HSI fallback, so the same build runs on both board versions. GPSCard and RadioCard use
+the same chip with the same crystal mistake.
+
 ## Pin map
 
 | Pin | Port | Function | To |
 | --- | --- | --- | --- |
 | 1 | PB9 | GPIO in | PRESS_MON (oil feed present) |
-| 2, 3 | PC14, PC15 | OSC_IN, OSC_OUT | Y1, 8 MHz |
+| 2 | PC14 | OSC_IN (HSE bypass) | Y1 pin 3, 8 MHz oscillator |
+| 3 | PC15 | unused | — |
 | 6 | PF2 | NRST | J6 pin 4, 100 nF |
 | 7 | PA0 | ADC1_IN0 | FUEL |
 | 8 | PA1 | ADC1_IN1 | ENGINE_TEMP |
@@ -73,8 +89,8 @@ through J6.
 
 ## Status
 
-**Schematic: done** (120 parts, 2026-10-26). **PCB: generated** by `gen_pcb.py` (placement + Freerouting on two layers):
-see the git log for the routed state and the DRC result. Not yet checked: the QFN's decoupling and crystal by eye, the
+**Schematic: done** (119 parts; 2026-10-26, clock changed 2026-11-13). **PCB: generated** by `gen_pcb.py` (placement + Freerouting on two layers):
+see the git log for the routed state and the DRC result. Not yet checked: the QFN's decoupling by eye, the
 front end against the DATASHEET's sender tables at 3.3 V, and the housing (nothing taller than rev A).
 
 ## Regenerating

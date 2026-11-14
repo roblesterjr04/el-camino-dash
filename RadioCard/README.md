@@ -5,7 +5,7 @@ on the bottom edge and the antenna jack on the top edge (`docs/hardware/accessor
 slot. Spec: [`docs/hardware/radio_card.md`](../docs/hardware/radio_card.md). On it:
 - a **Si4735-D60-GU** AM/FM/SW/LW tuner with RDS (SSOP-24), controlled over I2C, its digital audio a slave on the
   slot I2S rail's clocks, **its reference clock taken from the rail's BCK** (no oscillator)
-- an **STM32G0B1KBU6** (FDCAN) with an 8 MHz crystal, an **MCP2562** CAN transceiver and an **AP2112K-3.3** from the slot's 5 V
+- an **STM32G0B1KBU6** (FDCAN) with an 8 MHz oscillator into PC14 (HSE bypass), an **MCP2562** CAN transceiver and an **AP2112K-3.3** from the slot's 5 V
 - a **74LVC1G125** that puts the tuner's audio on the rail's RET line, only after the audio card grants it
 - **J2** SMA edge mount (Amphenol 132289) with a 0.13 pF ESD clamp and AN383's 56 nH FM match, **J5** for an AM ferrite
   loopstick, **J3** SWD and **J4** debug serial on the left edge, two LEDs
@@ -39,7 +39,8 @@ Slot +5 V ── U3 AP2112K-3.3 ── +3V3 (MCU, VIO, tuner VD) ── FB1 ─�
 
 | Pin | Port | Function | AF | To |
 | --- | --- | --- | --- | --- |
-| 2 / 3 | PC14 / PC15 | OSC_IN / OSC_OUT (HSE) | — | Y1 8 MHz (YXC X32258MOB4SI, CL 12 pF), 12 pF caps |
+| 2 | PC14 | OSC_IN (HSE bypass) | — | Y1 pin 3, 8 MHz oscillator (YXC OT32258MJBA4SL) |
+| 3 | PC15 | unused | — | — (the 32-pin package has no OSC_OUT) |
 | 4 | VDD / VDDA | 3.3 V | — | 100 nF + 4.7 µF |
 | 5, 33 (pad) | VSS | GND | — | |
 | 6 | PF2 | NRST | — | J3 pin 4, 100 nF |
@@ -95,6 +96,16 @@ Check before ordering:
 
 Open (spec, [Open](../docs/hardware/radio_card.md#open)): an AM network for the car whip (JP2), and tuning L1 on the
 car's whip and cable.
+
+**Clock: an oscillator, not a crystal (fixed 2026-11-13).** This card was first drawn with an 8 MHz crystal and two load
+caps on PC14 / PC15. **That crystal can never start**: the 32-pin STM32G0B1 has no PF0 / PF1, so no HSE crystal driver.
+ST's pin data gives PC14 `RCC_OSC_IN` and PC15 only `RCC_OSC_EN` / `RCC_OSC32_OUT`, no `RCC_OSC_OUT`; an external clock
+into PC14 in HSE bypass is the only external HSE. Found on the first SensorCard2 boards (same chip, same mistake).
+Now Y1 is a **YXC OT32258MJBA4SL** (LCSC C717687): 8 MHz CMOS oscillator, 3.2 × 2.5 mm, 1.8-3.3 V, ±20 ppm, -40 to
+85 °C. Pinout from YXC's datasheet (YSO110TR series): 1 tri-state (high or open = on, tied to 3V3), 2 GND, 3 OUT (to
+PC14), 4 VDD, with a 100 nF (C9) beside it. Footprint `Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm`: the same pin order,
+pads within 0.15 mm of YXC's land pattern. PC15 is unused. The board was edited in place: the old PC15 route now
+feeds the oscillator's 3V3, C8 is gone. This card's firmware (not written yet) must select `RCC_HSE_BYPASS`, as `firmware/sensor_card_stm32/src/hw_sys.cpp` does.
 
 ## Things to know
 

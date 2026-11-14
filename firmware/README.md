@@ -145,6 +145,9 @@ Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
 
 - center: `help`, `perf`, `shot [legacy]`, `demo on|off`, `theme 0|1|2`, `view 0..3`, `tap <x> <y> [ms]`,
   `drag <x> <y1> <y2> <ms>`, `knob left|right|press|back`, `menu on left|center|right`, `media on left|center|right`,
+  `cam [on|off|auto]` (rear camera view; `auto` follows the reverse input), `cam pins` / `cam timing` / `cam pclk` /
+  `cam vsync` (capture wiring checks), `cam bits` (with the view on: per data line D0–D7, the share of ones and
+  changes, valid BT.656 timing codes, and horizontal blanking compared bit by bit, naming stuck, noisy or swapped lines),
   `can`, `alerts` (every node's alerts; `alerts ack` acknowledges the top one, `alerts ack all` all of them),
   `tz [<posix>|<hours>]` (local zone: a POSIX string such as `CST6CDT,M3.2.0,M11.1.0` keeps DST without a
   network; a bare hour offset such as `-6` is fixed, no DST; `tz` alone shows it);

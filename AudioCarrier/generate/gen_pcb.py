@@ -6,10 +6,10 @@ Run with KiCad's python:  $KIPY generate/gen_pcb.py [--route FREEROUTING_JAR]
 
 The board is an 80 x 60 mm slot card (docs/hardware/accessory_ports.md): it stands on edge in a DigiDash slot, its
 right-angle 2x15 header centred on the bottom edge, its connectors and the module's antenna along the top edge. Four
-layers (F signal, In1 GND plane, In2 signal / power, B signal). F is the parts side (up to 28.5 mm: the RCA block, so
-the card goes in slot 1, whose parts side faces off the end of the row); B faces the next card and keeps to low SMD
-parts (the DACs, ADC and mic preamp). ICs and connectors are placed by hand below; every passive is then put at the
-free spot closest to the pins it connects to. With --route it runs Freerouting on a Specctra export and imports the
+layers (F signal, In1 GND plane, In2 signal / power, B signal). F is the parts side (up to 26.5 mm: the RCA block, so
+the card goes in slot 1, whose parts side faces off the end of the row) and carries every part: one side to assemble.
+B faces the next card and holds only copper and silkscreen. ICs and connectors are placed by hand below; every passive
+is then put at the free spot closest to the pins it connects to. With --route it runs Freerouting on a Specctra export and imports the
 result, then fills the ground planes.
 """
 import json
@@ -39,7 +39,7 @@ W, H = 80.0, 60.0          # a slot card: the bottom edge (y = H) goes into the 
 U1_X = 10.2                # the module's centre (ESP32-WROVER-E, 18 x 31.4 mm); its antenna end on the top edge, at the left corner
 U1_Y = 15.9                # module 0.2 ... 31.6 down from the top edge; the antenna area is its top 6.22 mm
 ANT_KEEP = (0.0, 0.0, U1_X + 9.0 + 5.0, 7.0)   # no copper (any layer) and no parts: the antenna area and 5 mm beside it
-RCA_X = 52.0               # the RCA block's centre on the top edge
+RCA_X = 48.0               # the RCA block's centre on the top edge (Kycon KLP42X-61: x 30.1 ... 65.9 with its tabs, clear of the jack)
 JACK_X = 72.3              # the 3.5 mm jack's centre on the top edge, right of the block (housing: card x 67.4 ... 76.7)
 # Slot header: pin 1 at 17.78 mm right of the centre (the pins count to the left), its plastic body's outer face on
 # the bottom edge, so the pins stand 6 mm past the edge into the socket.
@@ -90,17 +90,17 @@ FIXED = {
     'U2': (52.0, H - 13.0, 0, 'F'),      # CAN transceiver above the header's CAN pins (5 / 6)
     'U7': (64.5, H - 13.0, 0, 'F'),      # 3.3 V regulator beside the 5 V pins (1 / 2)
     'U8': (36.0, H - 13.0, 0, 'F'),      # link buffer above the LINK pins (15-18, 24)
-    'U5': (44.0, 20.0, 90, 'B'),         # front DAC, behind the RCA block
-    'U6': (54.0, 20.0, 90, 'B'),         # rear DAC, same orientation as U5
-    'U4': (66.0, 20.0, 0, 'B'),          # ADC, between the DACs and the mic preamp
-    'U3': (74.0, 20.0, 0, 'B'),          # mic preamp, behind the 3.5 mm jack
+    'U5': (44.0, 20.0, 90, 'F'),         # front DAC, behind the RCA block
+    'U6': (54.0, 20.0, 90, 'F'),         # rear DAC, same orientation as U5
+    'U4': (66.0, 20.0, 0, 'F'),          # ADC, between the DACs and the mic preamp
+    'U3': (74.0, 20.0, 0, 'F'),          # mic preamp, behind the 3.5 mm jack
 }
 U7_TAB = (FIXED['U7'][0] + 3.15, FIXED['U7'][1])      # SOT-223 tab (pin 2, GND on the AP7361C), 2 x 3.8 mm
 TAB_AREA = (U7_TAB[0] - 1.0, U7_TAB[1] - 3.4, U7_TAB[0] + 4.4, U7_TAB[1] + 3.4)   # ground copper beside it, with vias
 TAB_VIAS = [(U7_TAB[0] + dx, U7_TAB[1] + dy) for dx in (2.0, 3.4) for dy in (-2.2, -0.75, 0.75, 2.2)] + \
            [(U7_TAB[0] + dx, U7_TAB[1] + dy) for dx in (-0.4, 0.8) for dy in (-2.75, 2.75)]
 SIDE = {'port': 'F', 'power': 'F', 'esp': 'F', 'boot': 'F', 'can': 'F', 'misc': 'F', 'link': 'F',
-        'dac_f': 'B', 'dac_r': 'B', 'adc': 'B', 'mic': 'B', 'rca': 'F'}
+        'dac_f': 'F', 'dac_r': 'F', 'adc': 'F', 'mic': 'F', 'rca': 'F'}
 ANCHOR = {'power': ['U7'], 'esp': ['U1'], 'boot': ['U1', 'SW1', 'SW2', 'J10'], 'can': ['U2'], 'dac_f': ['U5'],
           'dac_r': ['U6'], 'adc': ['U4'], 'mic': ['U3', 'J6'], 'rca': ['J2'], 'port': ['J1'], 'link': ['U8', 'J1']}
 GROUP_ORDER = ['esp', 'dac_f', 'dac_r', 'adc', 'mic', 'can', 'power', 'boot', 'link', 'port', 'rca', 'misc']
@@ -367,8 +367,8 @@ def main():
         b.Add(t)
 
     # the jack columns, on the back (under the block): from the plug side the left column is FL / FR
-    silk('FL FR', RCA_X + 7.0, 3.5, 0.9, pcbnew.B_SilkS)
-    silk('RL RR', RCA_X - 7.0, 3.5, 0.9, pcbnew.B_SilkS)
+    silk('FL FR', RCA_X + 9.0, 3.5, 0.9, pcbnew.B_SilkS)
+    silk('RL RR', RCA_X - 9.0, 3.5, 0.9, pcbnew.B_SilkS)
     silk('MIC', JACK_X, 16.0, 0.8, pcbnew.B_SilkS)
     tx, ty = FIXED['J10'][0], FIXED['J10'][1]
     for k, s in enumerate(['G', 'TX', 'RX', 'IO0', 'EN']):
@@ -786,6 +786,24 @@ def geo(b):
                         (bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6), pad.GetNetname()))
     return out
 
+def near(items, a, e, m=4.5):
+    """The items whose bounding box comes within m of the box around a and e: the finisher's searches (a via at most
+    3.6 mm from an end, then a straight or L-shaped run) never reach further, so checking only these is the same test."""
+    x0, y0, x1, y1 = min(a[0], e[0]) - m, min(a[1], e[1]) - m, max(a[0], e[0]) + m, max(a[1], e[1]) + m
+    out = []
+    for it in items:
+        kind, g = it[1], it[2]
+        if kind == 'c':
+            bx0, by0, bx1, by1 = g[0] - g[2], g[1] - g[2], g[0] + g[2], g[1] + g[2]
+        elif kind == 's':
+            bx0, by0, bx1, by1 = min(g[0], g[2]) - g[4], min(g[1], g[3]) - g[4], max(g[0], g[2]) + g[4], max(g[1], g[3]) + g[4]
+        else:
+            bx0, by0, bx1, by1 = g
+        if bx1 >= x0 and bx0 <= x1 and by1 >= y0 and by0 <= y1:
+            out.append(it)
+    return out
+
+
 def seg_ok(items, lay, net, ax, ay, ex, ey, hw, gap=0.14):
     steps = max(2, int(np.hypot(ex - ax, ey - ay) / 0.05))
     for k in range(steps + 1):
@@ -871,11 +889,12 @@ def finish(b):
             for d, a, e in pairs[:60]:
                 if d > 10:
                     break
+                loc = near(items, a, e)
                 for lay in CU:
                     if lay not in a[2] or lay not in e[2]:
                         continue
                     for path in shapes(a, e):
-                        if all(seg_ok(items, lay, net, *p0, *p1, hw) for p0, p1 in zip(path, path[1:])):
+                        if all(seg_ok(loc, lay, net, *p0, *p1, hw) for p0, p1 in zip(path, path[1:])):
                             for p0, p1 in zip(path, path[1:]):
                                 if p0 == p1:
                                     continue
@@ -894,23 +913,24 @@ def finish(b):
                     break
             if not done:                # through one via beside either end
                 for d, a, e in pairs[:40]:
+                    loc = near(items, a, e)
                     for s0, s1 in ((a, e), (e, a)):
                         for r in np.arange(0.7, 3.6, 0.15):
                             for ang in np.arange(0, 2 * np.pi, np.pi / 12):
                                 vx, vy = float(s0[0] + r * np.cos(ang)), float(s0[1] + r * np.sin(ang))
-                                if not all(seg_ok(items, l, net, vx, vy, vx, vy, 0.3) for l in CU):
+                                if not all(seg_ok(loc, l, net, vx, vy, vx, vy, 0.3) for l in CU):
                                     continue
                                 if any(kind == 'r' and g[0] - 0.45 < vx < g[2] + 0.45 and g[1] - 0.45 < vy < g[3] + 0.45
-                                       for _, kind, g, _ in items):
+                                       for _, kind, g, _ in loc):
                                     continue            # never a via in a pad, not even one of its own net
-                                l0 = next((l for l in CU if l in s0[2] and seg_ok(items, l, net, s0[0], s0[1], vx, vy, hw)), None)
+                                l0 = next((l for l in CU if l in s0[2] and seg_ok(loc, l, net, s0[0], s0[1], vx, vy, hw)), None)
                                 if l0 is None:
                                     continue
                                 for l1 in CU:
                                     if l1 not in s1[2]:
                                         continue
                                     for path in shapes((vx, vy), s1):
-                                        if all(seg_ok(items, l1, net, *p0, *p1, hw) for p0, p1 in zip(path, path[1:])):
+                                        if all(seg_ok(loc, l1, net, *p0, *p1, hw) for p0, p1 in zip(path, path[1:])):
                                             for lay, (p0, p1) in [(l0, (s0[:2], (vx, vy)))] + [(l1, q) for q in zip(path, path[1:])]:
                                                 if p0 == p1:
                                                     continue

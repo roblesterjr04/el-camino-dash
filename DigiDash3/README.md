@@ -65,7 +65,7 @@ J8 (the module carries the pins; the BOM says so).
 - **Sides:** every part's body is on the back; only the three screen headers are on the front. Soldering is from
   the front (the pin tails come through there), so the screens come off first.
 - **Heights on the back, outside the cards:** rev 2's housing allowed about 10.5 mm over the power section. Rev 3's
-  power parts are taller: the inductors (Abracon AIAP-03-680K, 11.4 mm across) stand **23 mm**, the tallest parts on the board; the 1000 µF output caps 13 mm;
+  power parts are taller: the inductors (Abracon AIAP-03-680K, 11.4 mm across) stand **23 mm**, the tallest parts on the board; the 1000 µF output caps (Rubycon 16YXJ1000MT810X16) 16 mm;
   the 100 µF caps 12.5 mm; the radial PTCs 8–9 mm; the TO-220s lying flat about 5 mm; the DIP transceivers 4 mm. The
   video module on J8 stands about 12 mm plus its own height. **The housing's power-section step needs to grow to
   about 25 mm over the two inductors (18 mm elsewhere)**, and the module's footprint (about 40 × 30 mm, at x 190–220, y 60–80) needs room behind J8.

@@ -25,7 +25,7 @@ OUT = os.path.join(ROOT, 'DigiDash3_BOM.csv')
 PARTS = {
     # capacitors
     ('100u 63V', 'CP_Radial_D10.0mm_P5.00mm'): ('Nichicon', 'UPW1J101MPD', 'Aluminium electrolytic 100 uF 63 V, radial 10 x 12.5 mm, 5 mm pitch', 'radial', 'LCSC alternative: Rubycon 63YXF100MFFC10X12.5, C388845'),
-    ('1000u 16V', 'CP_Radial_D10.0mm_P5.00mm'): ('CX', '1000uF 16V 10x13', 'Aluminium electrolytic 1000 uF 16 V, radial 10 x 13 mm, 5 mm pitch', 'radial', 'Buck output. DigiKey alternatives Nichicon UHW1C102MPD / Panasonic EEU-FR1C102 (10 x 17.5) were on backorder'),
+    ('1000u 16V', 'CP_Radial_D10.0mm_P5.00mm'): ('Rubycon', '16YXJ1000MT810X16', 'Aluminium electrolytic 1000 uF 16 V, low impedance, radial 10 x 16 mm, 5 mm pitch', 'radial', 'Buck output. 16 mm tall, under the 23 mm inductors. Was CX 1000uF 16V 10x13 (LCSC C439782)'),
     ('10u 25V', 'CP_Radial_D5.0mm_P2.00mm'): ('Rubycon', '50YXJ10M5X11', 'Aluminium electrolytic 10 uF 50 V, radial 5 x 11 mm, 2 mm pitch', 'radial', ''),
     ('100n', 'C_Disc_D5.0mm_W2.5mm_P5.00mm'): ('Vishay', 'K104K15X7RF5TL2', 'Ceramic 100 nF X7R 50 V, 5 mm pitch', 'radial', 'DigiKey lists 2.5 mm lead spacing: confirm the 5 mm (F5) version, the footprint is 5 mm'),
     # diodes
@@ -107,7 +107,7 @@ DK = 'https://www.digikey.com/en/products/detail/'
 SOURCE = {
     ('Nichicon', 'UPW1J101MPD'): ('DigiKey', DK + 'nichicon/UPW1J101MPD/589677', None),
     ('Vishay', 'K104K15X7RF5TL2'): ('DigiKey', DK + 'vishay-beyschlag-draloric-bc-components/K104K15X7RF5TL2/286538', None),
-    ('CX', '1000uF 16V 10x13'): ('LCSC', 'https://www.lcsc.com/product-detail/C439782.html', 0.08),
+    ('Rubycon', '16YXJ1000MT810X16'): ('DigiKey', 'https://www.digikey.com/en/products/result?keywords=16YXJ1000MT810X16', None),
     ('Rubycon', '50YXJ10M5X11'): ('DigiKey', DK + 'rubycon/50YXJ10M5X11/3562914', None),
     ('onsemi', '1N4744A'): ('DigiKey', DK + 'onsemi/1N4744A/977267', 0.27),
     ('Littelfuse', '1.5KE33A'): ('DigiKey', DK + 'littelfuse-inc/1-5KE33A/688025', None),

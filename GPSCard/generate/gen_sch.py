@@ -207,7 +207,7 @@ R = stock('Device', 'R')
 C = stock('Device', 'C')
 LED = stock('Device', 'LED')
 PTC = stock('Device', 'Polyfuse')
-XTAL = stock('Device', 'Crystal_GND24')
+OSC = stock('Oscillator', 'ASE-xxxMHz')
 HDR2x15 = stock('Connector_Generic', 'Conn_02x15_Odd_Even')
 HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
 HDR1x4 = stock('Connector_Generic', 'Conn_01x04')
@@ -279,8 +279,8 @@ G('mcu')
 text(170, 30, 'MCU: STM32G0B1KBU6 (UFQFPN-32). Pin use (datasheet DS13560 alternate-function tables):\n'
      'PA11 (pin 22) FDCAN1_RX AF3, PA12 (pin 23) FDCAN1_TX AF3 (leave the PA11/PA12 -> PA9/PA10 remap off).\n'
      'PA2 (pin 9) USART2_TX AF1, PA3 (pin 10) USART2_RX AF1: the puck.  PA9 (pin 19) USART1_TX AF1, PA10 (pin 21) USART1_RX AF1: debug (J4, also the ROM bootloader UART).\n'
-     'PA0 (pin 7) ADC1_IN0: slot ID.  PA5 (pin 12): LED.  PC14 / PC15 (pins 2 / 3) OSC_IN / OSC_OUT: 8 MHz HSE.  PA13 SWDIO, PA14 SWCLK (BOOT0 shares it), PF2 = NRST.', 1.4)
-mcu = {'1': None, '2': 'HSE_IN', '3': 'HSE_OUT', '4': '+3V3', '5': 'GND', '6': 'NRST', '7': 'SLOT_ID', '8': None,
+     'PA0 (pin 7) ADC1_IN0: slot ID.  PA5 (pin 12): LED.  PC14 (pin 2) OSC_IN: 8 MHz oscillator, HSE bypass (no OSC_OUT on this package); PC15 unused.  PA13 SWDIO, PA14 SWCLK (BOOT0 shares it), PF2 = NRST.', 1.4)
+mcu = {'1': None, '2': 'HSE_IN', '3': None, '4': '+3V3', '5': 'GND', '6': 'NRST', '7': 'SLOT_ID', '8': None,
        '9': 'PUCK_TXD', '10': 'PUCK_RXD', '11': None, '12': 'LED', '13': None, '14': None, '15': None, '16': None,
        '17': None, '18': None, '19': 'DBG_TX', '20': None, '21': 'DBG_RX', '22': 'CAN_RX', '23': 'CAN_TXD',
        '24': 'SWDIO', '25': 'SWCLK', '26': None, '27': None, '28': None, '29': None, '30': None, '31': None,
@@ -290,11 +290,15 @@ place(MCU, 'U1', 'STM32G0B1KBU6', 'Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.4
 c_('100n', '+3V3', 'GND', 175, 165, d='VDD / VDDA, at pin 4')
 c_('4.7u', '+3V3', 'GND', 190, 165, d='VDD / VDDA bulk')
 c_('100n', 'NRST', 'GND', 260, 165, d='NRST filter (the pin has its own pull-up)')
-place(XTAL, 'Y1', '8MHz', 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm', 150, 120,
-      {'1': 'HSE_IN', '3': 'HSE_OUT', '2': 'GND', '4': 'GND'},
-      descr='8 MHz crystal, 3.2 x 2.5 mm, CL 12 pF, ESR <= 180 R (YXC X32258MOB4SI; HSE, for CAN bit timing)')
-c_('15p', 'HSE_IN', 'GND', 135, 135, d='Crystal load (CL 12 pF crystal; 2 x (CL - ~4 pF stray))')
-c_('15p', 'HSE_OUT', 'GND', 165, 135, d='Crystal load (CL 12 pF crystal; 2 x (CL - ~4 pF stray))')
+# The UFQFPN-32 G0B1 has no PF0 / PF1, so no HSE crystal driver: PC14 takes OSC_IN in bypass mode only and PC15 has no
+# OSC_OUT (ST pin data: PC14 RCC_OSC_IN, PC15 RCC_OSC_EN / OSC32_OUT). A crystal here can never start; a CMOS oscillator
+# into PC14 is the supported clock. As SensorCard2.
+place(OSC, 'Y1', '8MHz', 'Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm', 150, 120,
+      {'1': '+3V3', '2': 'GND', '3': 'HSE_IN', '4': '+3V3'},
+      descr='8 MHz CMOS oscillator, 3.2 x 2.5 mm, 1.8-3.3 V, +-20 ppm (YXC OT32258MJBA4SL, LCSC C717687): pin 1 tri-state '
+            '(high = on) tied to 3V3, pin 3 out to PC14 OSC_IN (HSE bypass)')
+cnt['C'] += 1   # C7 was the first crystal load cap: skip it so the other capacitors keep their references
+c_('100n', '+3V3', 'GND', 165, 135, d='Y1 supply, at pin 4')
 r_('1k', 'LED', 'LED_A', 260, 100, 'LED current, about 1 mA')
 place(LED, 'D1', 'GPS', 'LED_SMD:LED_0603_1608Metric', 280, 100, {'2': 'LED_A', '1': 'GND'},
       descr='Status LED: off = nothing from the puck, blinking = searching, steady = 3D fix')

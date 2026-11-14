@@ -159,15 +159,15 @@ The **per-slot card envelope**, the box each card may fill, including connectors
 
 | Slot | x (parts side → back side) | Card body x | y | z |
 | --- | --- | --- | --- | --- |
-| 1 | −6.0 (audio card RCA block) → 26.64 | 22.54–24.14 | 13–93 | 8.5–68.5 |
+| 1 | −4.0 (audio card RCA block) → 26.64 | 22.54–24.14 | 13–93 | 8.5–68.5 |
 | 2 | 27.94 → 52.04 | 47.94–49.54 | 13–93 | 8.5–68.5 |
 | 3 | 53.34 → 77.44 | 73.34–74.94 | 13–93 | 8.5–68.5 |
 | 4 | 78.74 → 102.84 | 98.74–100.34 | 13–93 | 8.5–68.5 |
 | 5 | 104.14 → 128.24 | 124.14–125.74 | 13–93 | 8.5–68.5 |
 | 6 | 129.54 → 153.64 | 149.54–151.14 | 13–93 | 8.5–68.5 |
 
-- **Slot 1 reaches past the board:** the audio card's RCA block stands 28.5 mm off its card, to x ≈ −6, which is
-  6 mm past the main board's left edge.
+- **Slot 1 reaches past the board:** the audio card's RCA block stands 26.5 mm off its card, to x ≈ −4, which is
+  4 mm past the main board's left edge.
 - **Under the cards** (z 0 to 8.5), the main board keeps parts under about 7 mm.
 
 ### Card edges, in the board frame
@@ -195,7 +195,7 @@ so the housing should treat slots 2–6 the same. The y and z values below hold 
 
 | Card | Item | y | Past the top edge (z) | Off the parts face | Notes |
 | --- | --- | --- | --- | --- | --- |
-| **Audio** (slot 1) | 2 × 2 RCA block (front / rear line out), right angle | 26.5–55.4 | to z 70.0 | **28.5** | Plugs from the rear |
+| **Audio** (slot 1) | 2 × 2 RCA block (Kycon KLP42X-61, front / rear line out), right angle | 27.5–62.5 | to z 69.5 | **26.5** | Plugs from the rear |
 | | 3.5 mm mic jack (Same Sky SJ-3523-SMT, Ø5 nose) | 18.2–23.2 | to z 71.0 | 5 | Plugs from the rear (HFP mic only) |
 | | ESP32-WROVER-E module (18 × 31.4 mm, since 2026-10-23), **PCB antenna** at the card's top corner | 74–92 | z 37–68.3 | 3.3 | Bluetooth: no metal close to the antenna end (the top 7 mm, z ≈ 61–68.5) |
 | | Programming header J10 (vertical 1 × 5) | 78–92 | z 10–14 | 8.6 | Reached from the open end of the row |
@@ -225,7 +225,7 @@ Checked against this page and the card PCBs, and fixed where they disagreed:
   20.7 mm behind the board to the rear and from 6.9 mm on the parts side to 2.8 mm on the back. That covers the 2 × 3
   ISP header, the solder tails and the LTE USB-C. A card slides in with them fitted. The lower-left cage ear moved
   from X −95 to −80 (under the upper one): it and its gusset sat in slot 3's notch.
-- **Slot 1 end plate** is open where the audio card's RCA block passes (board y 25.5–56.4, 53 mm behind the board to
+- **Slot 1 end plate** is open where the audio card's RCA block passes (board y 26.5–63.5, 53 mm behind the board to
   the rear). Slot panel 1 reaches 10.5 mm past the cage end to cover the block.
 - **Slot panels** have openings for each card's top-edge connectors, plus the 1 mm port margin. Pick the card in each
   slot in the feature dialog ("Slot 1 card" … "Slot 6 card"; as delivered: 1 Audio, 2 Sensor, 3 GPS, 4 Radio, 5–6

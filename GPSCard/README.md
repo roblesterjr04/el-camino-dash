@@ -4,7 +4,7 @@ A **slot card** for the DigiDash rev 2 board: **80 × 60 mm**, standing on edge 
 on the bottom edge and the GPS connector on the top edge (`docs/hardware/accessory_ports.md`, rev 2 section). It reads
 a **remote GPS puck** (receiver and antenna in one housing, on the dash under the windshield) over a 4-pin cable and
 sends position, motion, quality, time and status on CAN (`docs/hardware/gps_card.md` is the spec). Any slot. On it:
-- an **STM32G0B1KBU6** (UFQFPN-32, Cortex-M0+, built-in FDCAN) with an 8 MHz crystal
+- an **STM32G0B1KBU6** (UFQFPN-32, Cortex-M0+, built-in FDCAN) with an 8 MHz oscillator into PC14 (HSE bypass)
 - an **MCP2562** CAN transceiver (VDD 5 V, VIO 3.3 V, STBY low, no termination)
 - an **AP2112K-3.3** regulator from the slot's 5 V
 - the puck connector **J2** (JST PH 4-pin side entry, S4B-PH-K, same pinout as the main board's J6), with a 3.3 V / 5 V
@@ -34,8 +34,8 @@ Slot +5 V (1 / 2) ── U3 AP2112K-3.3 ── +3V3 (MCU, MCP2562 VIO, a 3.3 V p
 
 | Pin | Port | Function | AF | To |
 | --- | --- | --- | --- | --- |
-| 2 | PC14 | OSC_IN (HSE) | — | Y1 8 MHz, 15 pF |
-| 3 | PC15 | OSC_OUT (HSE) | — | Y1, 15 pF |
+| 2 | PC14 | OSC_IN (HSE bypass) | — | Y1 pin 3, 8 MHz oscillator |
+| 3 | PC15 | unused | — | — (the 32-pin package has no OSC_OUT) |
 | 4 | VDD / VDDA | 3.3 V | — | 100 nF + 4.7 µF |
 | 5, 33 (pad) | VSS / VSSA | GND | — | |
 | 6 | PF2 | NRST | — | J3 pin 4, 100 nF |
@@ -100,7 +100,7 @@ symbol nickname not being in a library table: the derived stock symbols are flat
 - **MCU pin functions: verified** against ST's CubeMX pin database (`STM32_open_pin_data`: `STM32G0B1K(B-C-E)Ux.xml`
   and `GPIO-STM32G0Bx_gpio_v1_0_Modes.xml`) and the schematic netlist: FDCAN1 on PA11 / PA12 (pins 22 / 23, **AF3**;
   an earlier note said AF9, which was wrong), USART2 on PA2 / PA3 (AF1), USART1 on PA9 / PA10 (pins 19 / 21, AF1),
-  HSE on PC14 / PC15 (pins 2 / 3), NRST on PF2 (pin 6), PA0 = ADC1_IN0, PA13 / PA14 SWD (AF0), VDD / VSS pins 4 / 5.
+  HSE in on PC14 (pin 2; **bypass only**: the first version wrongly put a crystal on PC14 / PC15, see below), NRST on PF2 (pin 6), PA0 = ADC1_IN0, PA13 / PA14 SWD (AF0), VDD / VSS pins 4 / 5.
   **Order the plain KBU6, not KBU6N:** the N variant has a different pinout (pin 20 is VDDIO2, pins 26–29 are PD0–PD3).
   Confirmed again against DS13560 Rev 6 (Figure 4 pinout, Tables 13 / 14 port A AFs).
 - **U1 footprint: checked** against DS13560 section 6.3 (A0B8). Package exposed pad 3.50 mm nominal (3.40–3.60); the
@@ -108,24 +108,20 @@ symbol nickname not being in a library table: the derived stock symbols are flat
   row sits 0.125 mm further out than ST's example land (5.75 / 4.00 mm outer / inner span vs ST's 5.50 / 3.75), which
   leaves a wider gap to the exposed pad. Either is fine for assembly; no change.
 - **No via in any pad: checked.** The pre-routing GND fan-out had put 4 GND vias in pads (2 in U1's exposed pad,
-  2 on Y1 pad 2); they and their stubs were removed. U1's EP still reaches GND through pin 5's track, Y1's GND pads
+  2 on Y1 pad 2); they and their stubs were removed. U1's EP still reaches GND through pin 5's track, Y1's GND pad
   through the F.Cu pour; every GND pad still reaches the ground plane. `gen_pcb.py`'s `stitch()` no longer treats big GND
   pads as free space and no longer falls back to a via in the pad. Closest via to a pad of another net: 0.139 mm.
 - **Other parts' pinouts: checked** against the netlist: MCP2562 (1 TXD, 2 VSS, 3 VDD 5 V, 4 RXD, 5 VIO 3.3 V,
   6 CANL, 7 CANH, 8 STBY low), AP2112K (1 VIN, 2 GND, 3 EN, 5 VOUT), USBLC6-2SC6 (1 / 6 TX, 3 / 4 RX, 5 VBUS = puck
-  power, 2 GND), crystal (1 / 3 signal, 2 / 4 GND), LED cathode to GND, JP1 1 = 3V3, 3 = 5 V.
+  power, 2 GND), oscillator (1 tri-state to 3V3, 2 GND, 3 OUT, 4 VDD), LED cathode to GND, JP1 1 = 3V3, 3 = 5 V.
 - **J1 vs the main board: checked.** Pins 1 / 2 +5 V, 3 / 4 / 7 / 19 / 20 GND, 5 CANH, 6 CANL, 11 slot ID match
   DigiDash2's J31–J36 slot nets. Placement matches `accessory_ports.md` (pin 1 at x + 17.78 mm, pad 2 below, pad 3
   to the left) and is identical to the audio and sensor cards' J1.
 - **J2: checked.** Pinout matches DigiDash2's J6 (1 3V3, 2 TX out, 3 RX in, 4 GND); rotated 180° so the body runs to
   the top edge and the plug opening faces off the board; pad 1 on the right.
-- **Crystal: YXC X32258MOB4SI** (LCSC C2682775, a stocked part): 8 MHz, 3225 4-pad, CL 12 pF, ESR ≤ 180 Ω, ±10 ppm,
-  ±20 ppm, -40 to +85 °C. C7 / C8 = **15 pF** C0G (2 × (12 − ~4 pF stray)). gm_crit about 0.4–0.5 mA/V (C0 3–5 pF)
-  against the G0B1's 1.5 mA/V Gmcritmax (DS13560 Table 42): about 3× margin. It replaces the earlier Abracon
-  ABM8-8.000MHZ-10-D1G-T (CL 10 pF, ESR up to 400 Ω, probably made to order). Do not swap in a common 18–20 pF 8 MHz
-  crystal with ESR 400 Ω: its gm_crit (about 1.8 mA/V) is over the limit, and it may not start.
+- **Clock: YXC OT32258MJBA4SL oscillator** (LCSC C717687), not a crystal; see "Clock" under Status.
 - **BOM: complete.** `fab/GPSCard_BOM_PCBWay.csv` (PCBWay format, every line with maker and part number, matches the
-  27 placed parts; `tools/fab_export.py` warns if it drifts) and `GPSCard_BOM.csv` (same parts, plus JP1).
+  26 placed parts; `tools/fab_export.py` warns if it drifts) and `GPSCard_BOM.csv` (same parts, plus JP1).
 - **Still by eye:** J2 against the case panel cut-out (J2 is centred at x 40); J3 / J4 (their right-angle pins stand
   about 6.5 mm past the left edge) against the neighbouring card and the case. KiCad's 3D viewer.
 - **JP1:** delivered bridged 1-2 (3.3 V puck). Most NEO-6M / M8 boards are fine on 3.3 V; drone-style pucks often want
@@ -133,11 +129,21 @@ symbol nickname not being in a library table: the derived stock symbols are flat
 - **Puck RX with no puck:** PA3 floats when nothing is plugged in; enable its internal pull-up in firmware.
 - The card outline (80 × 60 mm) against the case.
 
+**Clock: an oscillator, not a crystal (fixed 2026-11-13).** This card was first drawn with an 8 MHz crystal and two load
+caps on PC14 / PC15. **That crystal can never start**: the 32-pin STM32G0B1 has no PF0 / PF1, so no HSE crystal driver.
+ST's pin data gives PC14 `RCC_OSC_IN` and PC15 only `RCC_OSC_EN` / `RCC_OSC32_OUT`, no `RCC_OSC_OUT`; an external clock
+into PC14 in HSE bypass is the only external HSE. Found on the first SensorCard2 boards (same chip, same mistake).
+Now Y1 is a **YXC OT32258MJBA4SL** (LCSC C717687): 8 MHz CMOS oscillator, 3.2 × 2.5 mm, 1.8-3.3 V, ±20 ppm, -40 to
+85 °C. Pinout from YXC's datasheet (YSO110TR series): 1 tri-state (high or open = on, tied to 3V3), 2 GND, 3 OUT (to
+PC14), 4 VDD, with a 100 nF (C8) beside it. Footprint `Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm`: the same pin order,
+pads within 0.15 mm of YXC's land pattern. PC15 is unused. The board was edited in place: the old PC15 route now
+feeds the oscillator's 3V3, C7 is gone. This card's firmware (not written yet) must select `RCC_HSE_BYPASS`, as `firmware/sensor_card_stm32/src/hw_sys.cpp` does.
+
 ## Things to know
 
 - **Firmware is not written yet.** See `docs/hardware/gps_card.md` (auto-baud on USART2, UBX-NAV-PVT at 5 Hz or NMEA,
   CAN `0x222`–`0x226`, heartbeat `0x700 + node`, NET ANNOUNCE as product `0x0005`). Build with STM32duino (generic G0B1KBUx
-  variant) or STM32Cube. FDCAN clock from the 8 MHz HSE through the PLL.
+  variant) or STM32Cube. FDCAN clock from the 8 MHz HSE (oscillator, bypass mode) through the PLL.
 - **Flashing:** the STM32 comes from assembly blank. Use J3 with an ST-Link (V2 clones work); power the card from the
   slot, J3 pin 1 is only the voltage sense. With blank flash the G0 starts its ROM bootloader by itself, so J4 (USART1)
   also works with STM32CubeProgrammer over a USB-serial adapter. No BOOT0 strap: on the G0 it shares SWCLK and the

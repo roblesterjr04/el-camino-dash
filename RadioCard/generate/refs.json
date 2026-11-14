@@ -107,17 +107,11 @@
   "group": "mcu",
   "value": "100n"
  },
- "C8": {
-  "dnp": false,
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "12p"
- },
  "C9": {
   "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
-  "value": "12p"
+  "value": "100n"
  },
  "D1": {
   "dnp": false,
@@ -297,7 +291,7 @@
   "dnp": false,
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
   "group": "can",
-  "value": "MCP2562-E/SN"
+  "value": "TJA1051T/3"
  },
  "U3": {
   "dnp": false,
@@ -319,7 +313,7 @@
  },
  "Y1": {
   "dnp": false,
-  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+  "fp": "Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm",
   "group": "mcu",
   "value": "8MHz"
  }

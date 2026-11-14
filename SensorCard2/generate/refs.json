@@ -39,13 +39,7 @@
   "dnp": false,
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
-  "value": "15p"
- },
- "C11": {
-  "dnp": false,
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "15p"
+  "value": "100n"
  },
  "C12": {
   "dnp": false,
@@ -715,7 +709,7 @@
  },
  "Y1": {
   "dnp": false,
-  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+  "fp": "Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm",
   "group": "mcu",
   "value": "8MHz"
  }

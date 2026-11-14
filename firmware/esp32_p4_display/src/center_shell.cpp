@@ -149,7 +149,22 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     if (line == "cam auto") center_camera_set_mode(CameraMode::Auto);
     if (line == "cam vsync") center_camera_toggle_vsync_invert();
     if (line == "cam pclk") center_camera_toggle_pclk_invert();
-    char st[260];
+    if (line == "cam timing") {
+      char timing[256];
+      center_camera_field_timing(timing, sizeof(timing));
+      Serial.printf("cam: %s\n", timing);
+    }
+    if (line == "cam bits") {
+      static char bits[2048];
+      center_camera_bit_check(bits, sizeof(bits));
+      Serial.print(bits);
+    }
+    if (line == "cam pins") {
+      char pins[200];
+      center_camera_pin_edges(pins, sizeof(pins));
+      Serial.printf("cam: %s\n", pins);
+    }
+    char st[512];
     center_camera_status(st, sizeof(st));
     Serial.printf("cam: %s\n", st);
     return;
@@ -192,7 +207,7 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     return;
   }
   if (line == "help") {
-    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk] | audio | phone [demo idle|discover|incoming|active|waiting|held|pair|off] | menu [rotate <n>|press|back|open <0..6>] | can | alerts [ack [all]] | tap <x> <y> [ms] | knob left|right|press|back | role [left|center|right|auto] | menu on left|center|right | media on left|center|right | tz [<posix>|<hours>]");
+    Serial.println("Commands: shot [legacy] | perf | demo on|off | theme 0|1|2 | view 0..3 | cam [on|off|auto|vsync|pclk|pins|timing|bits] | audio | phone [demo idle|discover|incoming|active|waiting|held|pair|off] | menu [rotate <n>|press|back|open <0..6>] | can | alerts [ack [all]] | tap <x> <y> [ms] | knob left|right|press|back | role [left|center|right|auto] | menu on left|center|right | media on left|center|right | tz [<posix>|<hours>]");
     Serial.println("Time: UTC from GPS RMC/ZDA; local zone from tz (POSIX rules keep DST without a network).");
     return;
   }

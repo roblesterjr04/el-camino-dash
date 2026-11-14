@@ -1,7 +1,7 @@
 # Sensor card firmware, rev B (STM32G0B1)
 
 Firmware for the **rev B sensor card** ([`SensorCard2/`](../../SensorCard2/README.md)): the dash's sensor pack on a
-DigiDash slot card, now an **STM32G0B1KBU6** (Cortex-M0+, 64 MHz from an 8 MHz crystal, 3.3 V) with the chip's own
+DigiDash slot card, now an **STM32G0B1KBU6** (Cortex-M0+, 64 MHz from an 8 MHz oscillator on PC14 in HSE bypass, 3.3 V) with the chip's own
 **FDCAN1** through a TJA1051T/3 as **fixed CAN node `0x04`**, the MB85RC256V FRAM for the odometer and the
 calibration, and the same senders, speed, tach, ignition, battery and alternator inputs as rev A. It is a port of
 [`firmware/sensor_card`](../sensor_card/README.md) (rev A, ATmega2560), which stays as it is for rev A cards.
@@ -23,7 +23,7 @@ directory** (`build_src_filter`), with `../sensor_card/src` on the include path,
 
 | Here (`src/`) | Replaces | Does |
 | --- | --- | --- |
-| `hw_sys.*` | the AVR fuses, `.init3`, `wdt.h`, EEPROM settings | the clock tree (`SystemClock_Config`: HSE 8 MHz → PLL → 64 MHz, **HSI fallback** if the crystal does not start, shown by `status`), the reset cause, the chip's unique ID, the 2 s independent watchdog, restart |
+| `hw_sys.*` | the AVR fuses, `.init3`, `wdt.h`, EEPROM settings | the clock tree (`SystemClock_Config`: HSE 8 MHz → PLL → 64 MHz, **HSI fallback** if PC14 has no clock, shown by `status`), the reset cause, the chip's unique ID, the 2 s independent watchdog, restart |
 | `hw_adc.*`, `adc_scale.h` | the ADC interrupt scan | ADC1 + DMA, the 8 inputs in a ring of the last 32 scans, 16× hardware oversampling, no interrupt; counts rescaled to **rev A's 10-bit scale** (below); ignition and alternator L through their dividers with hysteresis |
 | `hw_capture.*`, `pulse_track.h` | Timer 4 / 5 input capture | TIM1_CH1 (tach, PA8) and TIM3_CH1 (speed, PB4) input capture on the falling edge, 0.5 µs ticks, the 16-bit counters extended by the overflow interrupt, the same hold-offs (`pulse_track.h` is the AVR logic, host-tested) |
 | `hw_fdcan.*` | `mcp2515.*` | FDCAN1 in classic mode, single-shot, 24-frame software queue in front of the 3-deep hardware FIFO, receive by interrupt into a 32-frame ring, bus-off recovery after 1 s |
@@ -54,7 +54,7 @@ FDCAN1's interrupt lines (which the G0 shares with TIM16 / TIM17) to a handle th
 runs on interrupt without touching a vector. A pure HAL / LL project would have meant writing the UART rings, the I2C
 master, the tick and the start-up code the core already provides, for no gain on a card that never sleeps and has 144 KB
 of RAM. The two things the core does by itself that this firmware overrides: its clock setup (HSI only on a generic
-variant: `hw_sys.cpp` supplies `SystemClock_Config` for the crystal) and `Serial`'s pins (`SERIAL_UART_INSTANCE=1`,
+variant: `hw_sys.cpp` supplies `SystemClock_Config` for the HSE oscillator) and `Serial`'s pins (`SERIAL_UART_INSTANCE=1`,
 `PIN_SERIAL_RX/TX`, in `platformio.ini`).
 
 The board is a custom definition, [`../boards/sensorcard2_g0b1kb.json`](../boards/sensorcard2_g0b1kb.json)
@@ -129,7 +129,7 @@ Bench setup differs from rev A:
 
 | Command | |
 | --- | --- |
-| `status` | node, ID, clock source (HSE, or HSI if the crystal failed), reset cause, FRAM, calibration source, the live readings, faults |
+| `status` | node, ID, clock source (HSE, or HSI if the oscillator gave no clock), reset cause, FRAM, calibration source, the live readings, faults |
 | `can` | FDCAN1 state (error state, the error counters, the last error code), tx sent / acked / dropped, rx / lost / overflowed, bus-off count; the NET and USB link counters |
 | `adc` | the counts the calibration sees (rev A's scale), the raw 12-bit samples of all eight inputs, and the ignition, alternator and battery lines in slot volts |
 | `demo on|off` | the slow fake sweep of everything (bench only) |
@@ -142,8 +142,8 @@ Reset cause bits (`status`): 01 power-on / brown-out, 02 NRST pin, 04 option-byt
 
 Nothing below has run on silicon. In this order, each step isolates one part:
 
-1. **Flash and `status`.** The console must come up and say `clock HSE 8 MHz`. `HSI (crystal failed)` means Y1 or
-   its load capacitors: everything still runs, but the CAN bit timing is then on the HSI's ±1 % and the UARTs on its
+1. **Flash and `status`.** The console must come up and say `clock HSE 8 MHz`. `HSI (no HSE clock)` means no clock on PC14 (Y1 the
+   8 MHz oscillator, its supply, or a first rev B board, which has a crystal that cannot start): everything still runs, but the CAN bit timing is then on the HSI's ±1 % and the UARTs on its
    drift, so fix it before trusting anything else.
 2. **`can`** should read `FDCAN1 up at 500 kbit/s, error active`. With `tools/can_relay.py` running the card appears
    as `sensor`. On a real bus with another node, `tx sent` and `acked` should climb together; `acked` stuck at 0 with
@@ -185,7 +185,7 @@ unchecked GM coolant table, the u32 bias). Rev B's own:
   filter) are what the reference manual says, not what a scope has seen.
 - The USB link stays at 115200 baud (the ESP32 boards switch up to 2 Mbit/s). The core's UART is interrupt-per-byte;
   460800 would likely work on the M0+ at 64 MHz and is worth trying once the card exists.
-- The HSI fallback keeps the console alive if the crystal fails but **does not retune the FDCAN** for it (the prescaler
+- The HSI fallback keeps the console alive if the oscillator fails but **does not retune the FDCAN** for it (the prescaler
   is for 64 MHz either way; the HSI gets to 64 MHz too, but at ±1 %, which CAN tolerates and a UART tolerates).
 - `demo` does not survive a restart (rev A's jumper did). If that matters on the bench, a byte in the FRAM identity
   block is the place to keep it.

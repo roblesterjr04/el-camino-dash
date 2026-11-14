@@ -284,7 +284,7 @@ void cmd_status() {
   const EngineOut &o = card.out;
   SAY("sensor card rev B fw %d, node 0x%02X, uid %08lX, up %lus, clock %s, reset cause %02X%s", CARD_FW_VERSION,
       (unsigned)kCardNode, (unsigned long)card.uid, (unsigned long)(millis() / 1000),
-      sys_clock_is_hse() ? "HSE 8 MHz" : "HSI (crystal failed)", (unsigned)sys_reset_cause(), card.demo ? ", DEMO" : "");
+      sys_clock_is_hse() ? "HSE 8 MHz" : "HSI (no HSE clock)", (unsigned)sys_reset_cause(), card.demo ? ", DEMO" : "");
   SAY("fram %s, calibration %s%s, odometer %s%s", card.fram ? "ok" : "none", card.cal_from_fram ? "from FRAM" : "defaults",
       card.cal_dirty ? " (unsaved)" : "", card.odo.known() ? "known" : "unknown", card.odo.persisted() ? "" : " (not stored)");
   SAY("ign %u alt %u | %d mph x10 | %lu rpm | fuel %ld.%ld%% (%s) | temp %ld (%s) | oil %ld kPa (%s) | batt %ld.%02ld V",

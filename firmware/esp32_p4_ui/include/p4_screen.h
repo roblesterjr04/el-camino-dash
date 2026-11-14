@@ -40,6 +40,22 @@ void p4_screen_frame();
  */
 void p4_screen_set_tear_free(bool on);
 
+/**
+ * Direct full-screen pictures (the backup camera). While on, LVGL stops redrawing, and another task fills the hidden
+ * framebuffer itself and shows it: no LVGL copy of a full-screen picture, no sync copy into the other buffer.
+ * Call from the LVGL loop. Turning it off waits out a frame being filled, then redraws the whole LVGL screen, which
+ * brings both buffers back level. Needs double buffering with tear-free on; returns false if it cannot turn on.
+ */
+bool p4_screen_set_direct(bool on);
+
+/**
+ * From the filling task: the hidden framebuffer (width × height RGB565, rows contiguous, cache-line aligned), or null
+ * if direct mode is off. A non-null return holds the screen until p4_screen_direct_present() shows it; the caller
+ * fills every pixel and writes its own CPU changes back from the cache first.
+ */
+uint16_t *p4_screen_direct_begin();
+void p4_screen_direct_present();
+
 /** Parent object for LVGL UI above the legacy layer. */
 lv_obj_t *p4_screen_ui_parent();
 

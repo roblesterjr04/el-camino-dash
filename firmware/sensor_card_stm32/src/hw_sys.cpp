@@ -10,7 +10,8 @@ uint8_t s_reset = 0xFF;  // read once
 void clock_from(uint32_t source, uint32_t plln) {
   RCC_OscInitTypeDef osc = {};
   osc.OscillatorType = source == RCC_PLLSOURCE_HSE ? RCC_OSCILLATORTYPE_HSE : RCC_OSCILLATORTYPE_HSI;
-  osc.HSEState = source == RCC_PLLSOURCE_HSE ? RCC_HSE_ON : RCC_HSE_OFF;
+  // HSE bypass: an 8 MHz CMOS oscillator drives PC14 (OSC_IN). The 32-pin G0B1 has no OSC_OUT, so it cannot run a crystal.
+  osc.HSEState = source == RCC_PLLSOURCE_HSE ? RCC_HSE_BYPASS : RCC_HSE_OFF;
   osc.HSIState = RCC_HSI_ON;  // the HSI stays on either way: it is the clock until the PLL is up
   osc.HSIDiv = RCC_HSI_DIV1;
   osc.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -22,7 +23,7 @@ void clock_from(uint32_t source, uint32_t plln) {
   osc.PLL.PLLQ = RCC_PLLQ_DIV2;
   osc.PLL.PLLR = RCC_PLLR_DIV2;  // SYSCLK 64 MHz
   if (HAL_RCC_OscConfig(&osc) != HAL_OK) {
-    if (source == RCC_PLLSOURCE_HSE) {  // the crystal did not start: run from the 16 MHz HSI instead
+    if (source == RCC_PLLSOURCE_HSE) {  // no clock on PC14 (no oscillator fitted, or it failed): run from the 16 MHz HSI instead
       clock_from(RCC_PLLSOURCE_HSI, 8);
       return;
     }

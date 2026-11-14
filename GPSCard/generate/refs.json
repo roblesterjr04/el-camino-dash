@@ -49,15 +49,10 @@
   "group": "mcu",
   "value": "100n"
  },
- "C7": {
-  "fp": "Capacitor_SMD:C_0603_1608Metric",
-  "group": "mcu",
-  "value": "12p"
- },
  "C8": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
   "group": "mcu",
-  "value": "12p"
+  "value": "100n"
  },
  "C9": {
   "fp": "Capacitor_SMD:C_0603_1608Metric",
@@ -132,7 +127,7 @@
  "U2": {
   "fp": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
   "group": "can",
-  "value": "MCP2562-E/SN"
+  "value": "TJA1051T/3"
  },
  "U3": {
   "fp": "Package_TO_SOT_SMD:SOT-23-5",
@@ -145,7 +140,7 @@
   "value": "USBLC6-2SC6"
  },
  "Y1": {
-  "fp": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+  "fp": "Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm",
   "group": "mcu",
   "value": "8MHz"
  }

@@ -5,7 +5,7 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,U5,Everlight EL817S1(C)(TU)-F,Tach isolation,SMDIP-4_W7.62mm,SMD,Top,LCSC C106900. Any PC817 in the 4-SMD gull wing
 1,U6,Diodes Inc AP2112K-3.3TRG1,"Diodes AP2112K-3.3TRG1: 600 mA LDO, 3.3 V, SOT-23-5. EN tied to VIN",SOT-23-5,SMD,Top,
 1,U7,Texas Instruments SN74LVC1T45DCKR,"3.3 -> 5 V level shifter on the sensor serial out (DIR high: A to B), so the main board's 10k / 20k dividers see rev A's 5 V",SOT-363_SC-70-6,SMD,Top,Level shifter: the sensor serial out at 5 V for the main board's dividers
-1,Y1,YXC X32258MOB4SI,"8 MHz crystal, 3.2 x 2.5 mm, CL 12 pF, ESR <= 180 R (YXC X32258MOB4SI; HSE, for the CAN bit timing)",Crystal_SMD_3225-4Pin_3.2x2.5mm,SMD,Top,"LCSC C2682775, as the GPS and radio cards (HSE for the CAN bit timing)"
+1,Y1,YXC OT32258MJBA4SL,"8 MHz CMOS oscillator, 3.2 x 2.5 mm, 1.8-3.3 V, +-20 ppm (YXC OT32258MJBA4SL, LCSC C717687): pin 1 tri-state (high = on) tied to 3V3, pin 3 out to PC14 OSC_IN (HSE bypass)",Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm,SMD,Top,"LCSC C717687. An oscillator, not a crystal: the 32-pin STM32G0B1 has no OSC_OUT (HSE bypass on PC14 only)"
 1,J1,Sullins PRPC015DBAN-M71RC,"Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, switched 12 V (8), constant 12 V (10), WAKE (12). Not used: the slot 3.3 V (the card makes its own), slot ID (the node is fixed), LAMP, REV, I2S, audio, AUX 12 V",PinHeader_2x15_P2.54mm_Horizontal,THT,Top,"Same part as the audio and GPS cards; on the bottom edge, pins pointing off the board"
 1,J2,JST S12B-PH-K-S,"Senders: 1 FUEL, 2 FUEL return, 3 ETEMP, 4 ETEMP V (5 V, 0.1 A PTC), 5 ETEMP return, 6 OILP, 7 OILP V (5 V, 0.1 A PTC), 8 OILP return, 9 AMB, 10 AMB return, 11 ALT L (alternator lamp terminal, 12 V level), 12 GND",JST_PH_S12B-PH-K_1x12_P2.00mm_Horizontal,THT,Top,
 1,J3,JST S4B-PH-K-S,"Speed sensor: 1 sensor power (5 V or 12 V by JP1, 0.1 A PTC), 2 signal, 3 GND, 4 GND / shield",JST_PH_S4B-PH-K_1x04_P2.00mm_Horizontal,THT,Top,
@@ -50,9 +50,8 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,R39,Yageo RC0603FR-0739KL,Alternator L divider top (14.5 V -> 3.0 V),0603,SMD,Top,
 2,R43 R44,Yageo RC1206FR-074K7L,4.7k resistor,1206,SMD,Top,
 2,C1 C5,Samsung CL21B106KOQNNNE,10u capacitor,0805,SMD,Top,
-12,C2 C3 C4 C6 C7 C9 C12 C13 C14 C15 C16 C21,Samsung CL10B104KB8NNNC,100n capacitor,0603,SMD,Top,
+13,C2 C3 C4 C6 C7 C9 C10 C12 C13 C14 C15 C16 C21,Samsung CL10B104KB8NNNC,100n capacitor,0603,SMD,Top,
 1,C8,Samsung CL21A475KOFNNNE,U1 VDD / VDDA bulk,0805,SMD,Top,
-2,C10 C11,Samsung CL10C150JB8NNNC,15p capacitor,0603,SMD,Top,
 4,C17 C18 C19 C20,Samsung CL10B103KB8NNNC,10n capacitor,0603,SMD,Top,
 1,C22,Samsung CL21B104KBCNNNC,"Speed sensor feed, at J3",0805,SMD,Top,
 2,C23 C24,Samsung CL10C102JB8NNNC,1n capacitor,0603,SMD,Top,

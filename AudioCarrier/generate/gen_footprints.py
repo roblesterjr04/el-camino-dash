@@ -76,27 +76,27 @@ def slot(num, x, y, w, h, dw, dh):
             (num, x, y, w, h, dw, dh))
 
 
-# Switchcraft PJRAS2X2S01X: four RCA jacks (2 x 2), right angle, PC mount, screw mounting. Hole pattern from Switchcraft's
-# customer drawing PJRAS2X2S__X (rev B, "P.C. board layout"). Origin: centre of the block, on the rear face of its front
-# plate (the dashed line on the drawing); the body is at -y, the jack barrels (8.2 mm) and the plate (1.5 mm) at +y,
-# so the board edge goes on y = 0. Seen from the front, as the plug side: left column x < 0.
-#   pad 1 tip, upper left  (insert A, white)      pad 2 tip, lower left  (insert C, red)
-#   pad 3 tip, upper right (insert B, white)      pad 4 tip, lower right (insert D, red)
-#   pad 5 sleeve, left column                     pad 6 sleeve, right column
-#   pads 7 / 8: front-plate tabs, left / right (tied to the sleeve, i.e. ground)
-b = [text('reference', 'REF**', 0, -16.5, 'F.SilkS'), text('value', 'PJRAS2X2S01X', 0, 4.0, 'F.Fab'),
-     pad(2, -10.75, -12.5, 2.4, 1.3), pad(1, -3.25, -12.5, 2.4, 1.3),
-     pad(4, 3.25, -12.5, 2.4, 1.3), pad(3, 10.75, -12.5, 2.4, 1.3),
-     pad(5, -3.25, -5.25, 2.6, 1.5), pad(6, 10.75, -5.25, 2.6, 1.5),
-     slot(7, -13.15, -8.75, 2.6, 3.8, 1.7, 3.0), slot(8, 13.15, -8.75, 2.6, 3.8, 1.7, 3.0),
-     rect(-13.5, -13.7, 13.5, 0, 'F.Fab', 0.1), rect(-14.0, 0, 14.0, 1.5, 'F.Fab', 0.1),
-     '  (fp_line (start -14.2 0) (end 14.2 0) (stroke (width 0.15) (type solid)) (layer "F.SilkS"))',
-     rect(-13.7, -14.0, 13.7, -0.3, 'F.SilkS', 0.12),
-     rect(-14.4, -14.3, 14.4, 0.4, 'F.CrtYd', 0.05),
+# Kycon KLP42X-61-WW/RR: four RCA jacks (2 x 2), right angle, PC mount, snap-in tabs. From Kycon's KLP42X-61-xx/xx
+# drawing (third-angle: the bottom view is not mirrored, so left / right are as seen from the plug side). Origin: centre
+# of the block, on the rear face of its 1.0 mm front plate; the body (to 10.0 mm behind it) is at -y, the plate and the
+# barrels (7.8 mm past the plate) at +y, so the board edge goes on y = 0. Pin depths on the drawing are from the plate's
+# front face (1.0 mm in front of the origin). Columns 18 mm apart; each has three pins 4 mm apart (1.1 mm blades):
+#   pad 1 sleeve, left column (x -9, 7.0 deep)      pad 4 sleeve, right column (x 9)
+#   pad 2 tip, upper left (X, white, 11.5 deep)     pad 5 tip, upper right (X1, white), x 5
+#   pad 3 tip, lower left (Z, red, 10.25 deep)      pad 6 tip, lower right (Z1, red), x 13
+#   pads 7 / 8: the snap-in side tabs, left / right (2.4 mm wide, centred 7.5 deep, barb to 17.6 mm out; tied to ground)
+b = [text('reference', 'REF**', 0, -13.0, 'F.SilkS'), text('value', 'KLP42X-61-WW/RR', 0, 4.0, 'F.Fab'),
+     pad(1, -9.0, -6.0, 2.3, 1.4), pad(2, -13.0, -10.5, 2.3, 1.4), pad(3, -5.0, -9.25, 2.3, 1.4),
+     pad(4, 9.0, -6.0, 2.3, 1.4), pad(5, 5.0, -10.5, 2.3, 1.4), pad(6, 13.0, -9.25, 2.3, 1.4),
+     slot(7, -16.7, -6.5, 2.9, 4.0, 1.9, 3.0), slot(8, 16.7, -6.5, 2.9, 4.0, 1.9, 3.0),
+     rect(-17.0, -10.0, 17.0, 0, 'F.Fab', 0.1), rect(-17.0, 0, 17.0, 1.0, 'F.Fab', 0.1),
+     '  (fp_line (start -17.2 0) (end 17.2 0) (stroke (width 0.15) (type solid)) (layer "F.SilkS"))',
+     rect(-17.2, -11.9, 17.2, -0.3, 'F.SilkS', 0.12),
+     rect(-18.4, -12.2, 18.4, 0.4, 'F.CrtYd', 0.05),
      text('user', 'PLUG SIDE', 0, 2.6, 'F.Fab', 0.8),
-     '  (model "${KIPRJMOD}/AudioCarrier.pretty/PJRAS2X2.wrl" (offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0)))']
-write('RCA_Switchcraft_PJRAS2X2_RightAngle',
-      'Switchcraft PJRAS2X2S01X, 4 x RCA jack (2 x 2), right angle PC mount. Pads from the customer drawing. Origin at the plate rear face (put the board edge at y = 0), body at -y. Body 27 x 13.7 mm, 28.5 mm tall; the barrels stand 8.2 mm and the plate 1.5 mm past the edge',
+     '  (model "${KIPRJMOD}/AudioCarrier.pretty/KLP42X61.wrl" (offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0)))']
+write('RCA_Kycon_KLP42X-61_RightAngle',
+      'Kycon KLP42X-61, 4 x RCA jack (2 x 2), right angle PC mount. Pads from the KLP42X-61-xx/xx drawing. Origin at the plate rear face (put the board edge at y = 0), body at -y. Body 34 x 10 mm, 26.5 mm tall; the plate stands 1.0 mm and the barrels 8.8 mm past the edge',
       'RCA phono 2x2 right angle', 'through_hole', b)
 
 
@@ -112,13 +112,13 @@ def _wrl():
         return ('Transform { translation %g %g %g children Shape { appearance Appearance { material Material { diffuseColor %s } } '
                 'geometry Cylinder { radius %g height %g } } }\n' % (cx * k, cy * k, cz * k, col, r * k, h * k))
     out = '#VRML V2.0 utf8\n'
-    out += box(0, 13.7 / 2, 28.5 / 2, 27.0, 13.7, 28.5, '0.08 0.08 0.08')
-    out += box(0, -0.75, 28.5 / 2, 28.0, 1.5, 28.5, '0.75 0.75 0.75')
-    for x in (-7.0, 7.0):
-        for zi, z in enumerate((14.25 + 7.0, 14.25 - 7.0)):
-            out += cyl(x, -1.5 - 4.1, z, 5.25, 8.2, '0.6 0.6 0.6')
-            out += cyl(x, -1.5 - 3.7, z, 3.0, 7.4, '0.9 0.9 0.9' if zi == 0 else '0.75 0.05 0.05')
-    open(os.path.join(OUT, 'PJRAS2X2.wrl'), 'w').write(out)
+    out += box(0, 10.0 / 2, 26.5 / 2, 34.0, 10.0, 26.5, '0.08 0.08 0.08')
+    out += box(0, -0.5, 26.5 / 2, 34.0, 1.0, 26.5, '0.75 0.75 0.75')
+    for x in (-9.0, 9.0):
+        for zi, z in enumerate((20.7, 6.7)):
+            out += cyl(x, -1.0 - 0.7, z, 5.1, 1.4, '0.6 0.6 0.6')
+            out += cyl(x, -1.0 - 3.9, z, 4.15, 7.8, '0.9 0.9 0.9' if zi == 0 else '0.75 0.05 0.05')
+    open(os.path.join(OUT, 'KLP42X61.wrl'), 'w').write(out)
 
 
 _wrl()
