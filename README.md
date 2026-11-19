@@ -14,6 +14,8 @@ the dash without a line of change to the screen firmware.
 > round display boards, ESP32 dev kits). Nothing is installed in the car yet. Several cards exist as KiCad designs and
 > as simulators in [`tools/`](tools/) but have not been built. Each README states what has and has not been tested
 > on hardware. See [Status](#status).
+>
+> **Updated often; issues are not monitored, pull requests are welcome.** See [Contributing](#contributing).
 
 ## Contents
 
@@ -330,8 +332,19 @@ Open items and known issues are listed in each README under *Status*, *Known iss
 
 ## Contributing
 
-Issues and pull requests are welcome, and so are main boards for other vehicles and new cards: open an issue to
-get a product number for a new card, and send a link to your board so it can be listed here. Some ground rules that keep the project consistent:
+**This repository is updated often, but issues are not monitored.** Questions, bug reports and feature requests
+opened as issues will probably go unanswered. **Pull requests are welcome** and are read: a fix, a correction to the
+docs, a new card, or a main board for another vehicle. If you find a bug, the best report is a pull request that fixes
+it, or one that adds a failing test or a note to the right README's *Known issues*.
+
+- **New card:** claim a product number by adding a row to the
+  [products registry](docs/protocols/can_channels.md#products) in your pull request (or use `0x8000` and above for a
+  private product that never needs one).
+- **New main board:** add it to the repository in its own directory, or send a pull request that links to it from
+  here.
+
+Expect the main branch to move; rebase before you open a pull request. Some ground rules that keep the project
+consistent:
 
 - **Specs first.** Wire formats live in `docs/protocols/`. Change the spec and the code together, and keep IDs in
   `firmware/elc_can/include/elc_can_ids.h` in step with `can_bus.md` and `can_channels.md`.

@@ -656,6 +656,8 @@ u16) are free for a product's own use.
 
 ### Products
 
+To claim a number for a new card, add the next free row in a pull request (issues are not monitored).
+
 | Product | What |
 | --- | --- |
 | `0x0000` | unspecified |

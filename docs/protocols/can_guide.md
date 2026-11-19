@@ -533,7 +533,7 @@ and `can_channels.md`; the Python simulators in `tools/` are a second reference.
 - [ ] 500 kbit/s, 11-bit IDs, accepts all IDs, ignores unknown ones.
 - [ ] Heartbeat at 1 Hz on `0x700 + node`, flags bit0 set.
 - [ ] NET ANNOUNCE at boot and on QUERY (after node × 8 ms); IDENTIFY does something visible.
-- [ ] A product number from the registry (ask for one in an issue, or use `0x8000`+ for a private product).
+- [ ] A product number from the registry (claim one by adding a row to the [products registry](can_channels.md#products) in your pull request, or use `0x8000`+ for a private product).
 - [ ] Descriptions (SENSOR DEFINE, ALERT DEFINE, UI ITEM) at boot and on QUERY; generation bumped when they change.
 - [ ] Repeats state as each channel requires (ALERT STATE at 1 Hz, SENSOR VALUE at its period).
 - [ ] Never drives the I2S rail's RET without a grant; releases it when the audio card's heartbeat stops.
