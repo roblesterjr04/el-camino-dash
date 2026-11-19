@@ -1,0 +1,22 @@
+Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
+1,U1,Microchip PIC18F26Q83-I/SP,"MCU: PIC18, 64 MHz, 64 KB flash, 4 KB RAM, CAN FD, 5 UARTs, 1.8-5.5 V",SPDIP-28 (0.3 in),THT,Top,"Fit in a socket (next line). Notch / pin 1 toward J3 (left). Arrives blank: programmed over J3"
+1,U1 socket,"Any 28-pin 0.3 in (narrow) DIP socket","IC socket for U1",DIP-28 0.3 in,THT,Top,"Turned-pin or leaf type. Solder the socket, not the PIC"
+1,U2,Microchip MCP2562-E/P,"CAN FD transceiver, VDD 5 V, VIO 3.3 V",PDIP-8,THT,Top,"Pin 1 (square pad) at the top right. An 8-pin 0.3 in socket fits too"
+1,U3,Microchip MCP1700-3302E/TO,"LDO 3.3 V 250 mA (1 GND, 2 VIN, 3 VOUT)",TO-92,THT,Top,"Wide-spaced pads (2.54 mm): bend the outer legs out. Flat face as the silk shows"
+1,Y1,Abracon ABL-16.000MHZ-B2,"Crystal 16 MHz, 18 pF load",HC-49/US,THT,Top,"Any 16 MHz HC-49/US crystal with an 18 pF load"
+2,C4 C5,"Any, C0G / NP0, 50 V","27p: Capacitor 27 pF C0G (crystal load)","Radial, 2.54 mm lead spacing",THT,Top,
+3,C3 C6 C7,KEMET C320C104K5R5TA,"100n: Capacitor 100 nF X7R 50 V","Radial, 2.54 mm lead spacing",THT,Top,"C3 = U1 VDD (pin 20), C6 = MCP2562 VDD, C7 = MCP2562 VIO"
+2,C1 C2,"Any, X5R, 10 V or more","10u: Capacitor 10 uF ceramic (C1 slot 5 V / U3 in, C2 U3 out)","Radial MLCC, 2.54 mm lead spacing",THT,Top,"Ceramic, not electrolytic: the MCP1700 wants ceramic in and out"
+1,C8,"Any, X7R, 16 V or more","1u: Capacitor 1 uF ceramic (puck supply, at J2)","Radial MLCC, 2.54 mm lead spacing",THT,Top,
+1,R1,"Any 1/4 W 1 % metal film (Yageo MFR-25FBF52-10K or equal)","10k: Resistor (slot ID pull-up)",Axial DIN0207,THT,Top,
+1,R2,"Any 1/4 W 1 % metal film","10k: Resistor (MCLR pull-up)",Axial DIN0207,THT,Top,
+2,R3 R4,"Any 1/4 W 1 % metal film","1k: Resistor (R3 LED, R4 CAN RXD series)",Axial DIN0207,THT,Top,
+2,R5 R6,"Any 1/4 W 1 % metal film","100: Resistor (puck TX / RX series)",Axial DIN0207,THT,Top,
+1,D1,"Any 3 mm green LED","GPS: status LED",3 mm,THT,Top,"Short lead / flat side = cathode = square pad"
+1,F1,Bel Fuse 0ZRE0025FF,"0.25A: PTC resettable fuse, 0.25 A hold (puck supply)","Radial, 5.1 mm",THT,Top,
+1,J1,Sullins PRPC015DBAN-M71RC,"DigiDash slot: pin header 2 x 15, 2.54 mm, right angle",THT,THT,Top,"Same as rev A. On the bottom edge, pins pointing off the board"
+1,J2,JST S4B-PH-K-S,"GPS puck: JST PH 4-pin, side entry (1 power, 2 TX, 3 RX, 4 GND)",THT,THT,Top,"Plug opening faces off the top edge"
+1,J3,"Any 1 x 6 2.54 mm right-angle male header","ICSP: 1 MCLR, 2 3V3, 3 GND, 4 ICSPDAT, 5 ICSPCLK, 6 NC (PICkit / MPLAB Snap pinout)",THT,THT,Top,"Left edge, pins pointing off the board. Pin 1 (MCLR) is the lowest pin"
+1,J4,Sullins PREC003SBAN-M71RC,"Debug serial: pin header 1 x 3, 2.54 mm, right angle (GND, TX, RX)",THT,THT,Top,"Left edge, below J3. Any 1 x 3 2.54 mm right-angle header"
+1,JP1,"Any 1 x 3 2.54 mm straight male header","Puck supply select (1 3V3, 2 puck, 3 5V)",THT,THT,Top,"Fit a shunt on 1-2 (3.3 V puck) or 2-3 (5 V puck)"
+1,JP1 shunt,Sullins QPC02SXGN-RC,"2.54 mm jumper shunt",-,-,-,"Any 2.54 mm shunt"

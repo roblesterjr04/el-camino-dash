@@ -26,49 +26,45 @@ def smd(num, x, y, w, h, extra=''):
     return ('  (pad "%s" smd rect (at %g %g) (size %g %g) (layers "F.Cu" "F.Paste" "F.Mask")%s)' % (num, x, y, w, h, extra))
 
 
-# ESP32-WROVER-E (-N8R8): Espressif ESP32-WROVER-E / -IE datasheet v2.4, figure 12 (dimensions) and figure 15 (recommended
-# PCB land pattern). 18.0 x 31.4 mm, antenna at the -Y end (the "antenna area", 6.22 mm deep). 38 castellated pins on a
-# 1.27 mm pitch, 19 per side: 1-19 down the left side (pin 1 7.44 mm from the antenna end, pin 19 1.1 mm from the far
-# end), 20-38 up the right side. Pads 1.5 x 0.9, their outer end 0.5 mm past the module edge (centres 17.5 mm apart).
-# Pin 39 is the ground EPAD: 3 x 3 pads of 0.9 mm in a 3.7 mm square, centred 7.5 mm from the left edge and 16.16 mm from
-# the far end. Here it is one 3.7 mm copper pad with the nine 0.9 mm paste openings, and no vias in it (no via in a pad
-# on this board): it reaches the ground pours by its spokes. The keep-out (no copper, any layer) covers the antenna area.
-M_W, M_L, ANT = 18.0, 31.4, 6.22
-TOP = -M_L / 2
-b = [text('reference', 'REF**', 0, TOP + 9.5, 'F.SilkS'), text('value', 'ESP32-WROVER-E', 0, 6.0, 'F.Fab')]
+def pad(num, x, y, size, drill, shape='circle'):
+    return ('  (pad "%s" thru_hole %s (at %g %g) (size %g %g) (drill %g) (layers "*.Cu" "*.Mask"))' %
+            (num, shape, x, y, size, size, drill))
+
+
+def line(x1, y1, x2, y2, layer, w):
+    return '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "%s"))' % (x1, y1, x2, y2, w, layer)
+
+
+# ESP32-DevKitC-VE (ESP32-WROVER-E) in two 1 x 19 female sockets. Pin positions and numbering as Espressif's own
+# footprint (espressif/kicad-libraries, Espressif.pretty/ESP32-DevKitC): origin at pin 1 (3V3), pins 1-19 (the
+# DevKitC's J2: 3V3, EN, VP, VN, 34, 35, 32, 33, 25, 26, 27, 14, 12, GND, 13, D2, D3, CMD, 5V) down the x = 0 row
+# from the antenna end, pins 20-38 (J3 bottom to top: CLK, D0, D1, 15, 2, 0, 4, 16, 17, 5, 18, 19, GND, 21, RX, TX, 22,
+# 23, GND) up the x = 25.4 row. The rows are 25.4 mm apart. 1.0 mm holes for the sockets' 0.64 mm square pins.
+# The module and its PCB antenna stand past the pin 1 end (-y): DK_ANT is how far the module can reach from pin 1
+# (WROVER-E on the -VE: measure on the board; 13 mm is the generous value used here). The keep-out under it is no
+# copper on any layer. Courtyards: the two socket strips only, so low SMD parts can sit under the DevKit (it stands
+# 8.5 mm up on the sockets).
+DK_ROW, DK_ANT, DK_END = 25.4, 13.0, 47.3
+b = [text('reference', 'REF**', DK_ROW / 2, -3.0, 'F.SilkS'), text('value', 'ESP32-DevKitC-VE', DK_ROW / 2, 30.0, 'F.Fab')]
 for k in range(19):
-    b.append(smd(1 + k, -8.75, round(TOP + 7.44 + 1.27 * k, 3), 1.5, 0.9))
-    b.append(smd(20 + k, 8.75, round(-TOP - 1.1 - 1.27 * k, 3), 1.5, 0.9))
-ex, ey = -M_W / 2 + 7.5, -TOP - 16.16
-b.append('  (pad "39" smd rect (at %g %g) (size 3.7 3.7) (layers "F.Cu" "F.Mask"))' % (ex, round(ey, 3)))
-for gx in (-1.4, 0, 1.4):
-    for gy in (-1.4, 0, 1.4):
-        b.append('  (pad "" smd rect (at %g %g) (size 0.9 0.9) (layers "F.Paste"))' % (round(ex + gx, 3), round(ey + gy, 3)))
-s = 0.12
-xs, y1, y2 = M_W / 2 + 0.11, TOP - 0.11, -TOP + 0.11
-b += [rect(-M_W / 2, TOP, M_W / 2, -TOP, 'F.Fab', 0.1),
-      '  (fp_line (start %g %g) (end %g %g) (stroke (width 0.1) (type solid)) (layer "F.Fab"))' % (-M_W / 2, TOP + ANT, M_W / 2, TOP + ANT),
-      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (-xs, y1, xs, y1, s),
-      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (-xs, y2, xs, y2, s),
-      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (-xs, y1, -xs, TOP + 6.9, s),
-      '  (fp_line (start %g %g) (end %g %g) (stroke (width %g) (type solid)) (layer "F.SilkS"))' % (xs, y1, xs, TOP + 6.9, s),
-      '  (fp_poly (pts (xy -10.0 %g) (xy -10.4 %g) (xy -10.4 %g)) (stroke (width 0.12) (type solid)) (fill solid) (layer "F.SilkS"))' % (
-          TOP + 7.44, TOP + 7.14, TOP + 7.74),
-      rect(-9.75, TOP - 0.25, 9.75, -TOP + 0.25, 'F.CrtYd', 0.05),
-      text('user', 'ANTENNA', 0, TOP + 3.1, 'F.Fab', 0.8),
+    b.append(pad(1 + k, 0, round(2.54 * k, 3), 1.7, 1.0, 'rect' if k == 0 else 'circle'))
+    b.append(pad(20 + k, DK_ROW, round(45.72 - 2.54 * k, 3), 1.7, 1.0))
+for x in (0, DK_ROW):
+    b += [rect(x - 1.27, -1.27, x + 1.27, 46.99, 'F.SilkS', 0.12), rect(x - 1.27, -1.27, x + 1.27, 46.99, 'F.Fab', 0.1),
+          rect(x - 1.52, -1.52, x + 1.52, 47.24, 'F.CrtYd', 0.05)]
+mx1, mx2 = DK_ROW / 2 - 9.0, DK_ROW / 2 + 9.0          # the module: 18 mm wide, centred between the rows
+b += [rect(-1.5, -1.1, DK_ROW + 1.5, DK_END, 'F.Fab', 0.1),
+      rect(mx1, -DK_ANT, mx2, -1.1, 'F.Fab', 0.1),
+      line(-0.6, -2.0, 0.6, -2.0, 'F.SilkS', 0.15),
+      text('user', 'ANTENNA', DK_ROW / 2, -DK_ANT / 2 - 1.0, 'F.Fab', 0.8),
+      text('user', 'USB', DK_ROW / 2, DK_END - 1.5, 'F.Fab', 0.8),
       '  (zone (net 0) (net_name "") (layers "*.Cu") (hatch edge 0.5) (connect_pads (clearance 0)) (min_thickness 0.25)'
       ' (keepout (tracks not_allowed) (vias not_allowed) (pads not_allowed) (copperpour not_allowed) (footprints allowed))'
       ' (fill (thermal_gap 0.5) (thermal_bridge_width 0.5))'
-      ' (polygon (pts (xy %g %g) (xy %g %g) (xy %g %g) (xy %g %g))))' % (-M_W / 2, TOP - 0.3, M_W / 2, TOP - 0.3, M_W / 2, TOP + ANT,
-                                                                       -M_W / 2, TOP + ANT)]
-write('ESP32-WROVER-E',
-      'Espressif ESP32-WROVER-E module (classic ESP32, Bluetooth Classic + BLE, Wi-Fi, PCB antenna), 18.0 x 31.4 mm. Land pattern from the datasheet v2.4 (figure 15). Antenna end at -Y: keep copper away from it',
-      'ESP32 WROVER-E module', 'smd', b)
-
-
-def pad(num, x, y, size, drill):
-    return ('  (pad "%s" thru_hole circle (at %g %g) (size %g %g) (drill %g) (layers "*.Cu" "*.Mask"))' %
-            (num, x, y, size, size, drill))
+      ' (polygon (pts (xy %g %g) (xy %g %g) (xy %g %g) (xy %g %g))))' % (mx1, -DK_ANT - 0.5, mx2, -DK_ANT - 0.5, mx2, -1.6, mx1, -1.6)]
+write('ESP32-DevKitC_Socket',
+      'Espressif ESP32-DevKitC-VE (ESP32-WROVER-E) in two 1 x 19 2.54 mm female sockets, rows 25.4 mm apart (pin numbers as Espressif.pretty/ESP32-DevKitC). The module and antenna reach past pin 1: keep copper away',
+      'ESP32 DevKitC socket', 'through_hole', b)
 
 
 def slot(num, x, y, w, h, dw, dh):

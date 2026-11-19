@@ -171,6 +171,10 @@ def power(net, x, y, outward=None):
   )''' % (lib_id, f(x), f(y), rot, uid('p'), ref, f(x), f(y), net, f(x + 2.54), f(y), f(x), f(y), f(x), f(y), uid('pp'), SHEET, ref))
 
 
+# Through-hole parts: soldered by hand, so DNP (do not place) for the assembler. They stay in the BOM as DNP lines.
+DNP = {'J1', 'J2', 'J6', 'U1'}
+
+
 def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True, unit=1, first=True):
     """nets: {pin number: net name | None (unconnected -> no-connect flag)}; every pin must be listed or be omitted on purpose."""
     if first:
@@ -185,8 +189,8 @@ def place(lib_id, ref, value, footprint, x, y, nets, descr=None, show_value=True
         return f(x + px), f(y - py)
 
     rp, vp = pos('Reference', (0, 3)), pos('Value', (0, -3))
-    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom yes) (on_board yes) (dnp no) (uuid "%s")' % (
-        lib_id, f(x), f(y), unit, uid('s' + ref + str(unit))),
+    lines = ['  (symbol (lib_id "%s") (at %s %s 0) (unit %d) (in_bom yes) (on_board yes) (dnp %s) (uuid "%s")' % (
+        lib_id, f(x), f(y), unit, 'yes' if ref in DNP else 'no', uid('s' + ref + str(unit))),
         '    (property "Reference" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)))' % (ref, rp[0], rp[1]),
         '    (property "Value" "%s" (at %s %s 0) (effects (font (size 1.27 1.27)) (justify left)%s))' % (
             value, vp[0], vp[1], '' if show_value else ' hide'),
@@ -232,31 +236,30 @@ RCA4 = box_symbol('AudioCarrier:KLP42X61', 'J', 'KLP42X-61-WW/RR',
                   descr='Kycon KLP42X-61-WW/RR: 2 x 2 right-angle RCA jacks, white on top, red below. Left column FL / FR, right column RL / RR (seen from the plug side)')
 HDR2x15 = stock('Connector_Generic', 'Conn_02x15_Odd_Even')
 BUF = stock_as('74xx', '74LS125', 'AudioCarrier:74LVC125', '74LVC125APW')
-HDR1x5 = stock('Connector_Generic', 'Conn_01x05')
-SJ = stock('Jumper', 'SolderJumper_2_Open')
-SW = stock('Switch', 'SW_Push')
 CAN = stock('Interface_CAN_LIN', 'MCP2562-E-P')
 OPA = stock_as('Amplifier_Operational', 'LM2904', 'AudioCarrier:TLV9062', 'TLV9062AIDGK')
-LDO = stock_as('Regulator_Linear', 'SPX2920M3-3.3_SOT223', 'AudioCarrier:AP7361C-33E', 'AP7361C-33E')   # 1 IN, 2 GND (tab), 3 OUT
 for n in ('GND', '+5V', '+3V3', 'PWR_FLAG'):
     stock('power', n)
 
-# ESP32-WROVER-E pin numbers from the Espressif datasheet v2.4, table 3. Pins 17-22 (GPIO6-11, the flash) and 27 / 28
-# (GPIO16 / 17, the PSRAM) are not brought out; 39 is the ground EPAD.
-GND_PINS = ['1', '15', '38', '39']
-ESP = box_symbol('AudioCarrier:ESP32-WROVER-E', 'U', 'ESP32-WROVER-E',
-                 [('2', '3V3', 'power_in'), ('3', 'EN', 'input'), ('4', 'I36', 'input'), ('5', 'I39', 'input'),
-                  ('6', 'I34', 'input'), ('7', 'I35', 'input'), ('34', 'RXD0', 'bidirectional'), ('35', 'TXD0', 'bidirectional')] +
-                 [(n, 'NC', 'no_connect') for n in ('17', '18', '19', '20', '21', '22', '27', '28', '32')] +
-                 [(n, 'GND', 'power_in') for n in GND_PINS],
-                 [('25', 'IO0', 'bidirectional'), ('24', 'IO2', 'bidirectional'), ('26', 'IO4', 'bidirectional'),
-                  ('29', 'IO5', 'bidirectional'), ('14', 'IO12', 'bidirectional'), ('16', 'IO13', 'bidirectional'),
-                  ('13', 'IO14', 'bidirectional'), ('23', 'IO15', 'bidirectional'), ('30', 'IO18', 'bidirectional'),
-                  ('31', 'IO19', 'bidirectional'), ('33', 'IO21', 'bidirectional'), ('36', 'IO22', 'bidirectional'),
-                  ('37', 'IO23', 'bidirectional'), ('10', 'IO25', 'bidirectional'), ('11', 'IO26', 'bidirectional'),
-                  ('12', 'IO27', 'bidirectional'), ('8', 'IO32', 'bidirectional'), ('9', 'IO33', 'bidirectional')],
-                 w=17.78, footprint='AudioCarrier:ESP32-WROVER-E',
-                 descr='Espressif ESP32-WROVER-E-N8R8 module: classic ESP32 (Bluetooth Classic for A2DP / HFP), 8 MB flash, 8 MB PSRAM, PCB antenna, 18.0 x 31.4 mm')
+# ESP32-DevKitC-VE (ESP32-WROVER-E) in two 1 x 19 sockets. Pin numbers and names as Espressif's KiCad library
+# (Espressif.kicad_sym, ESP32-DevKitC): 1-19 the J2 row, 20-38 the J3 row from its USB end. GPIO6-11 (CLK, D0-D3, CMD)
+# are the module's flash and GPIO16 / 17 its PSRAM: not connected.
+DK = box_symbol('AudioCarrier:ESP32-DevKitC', 'U', 'ESP32-DevKitC-VE',
+                [('19', '5V', 'power_in'), ('1', '3V3', 'power_out'), ('2', 'EN', 'input'), ('3', 'IO36', 'input'),
+                 ('4', 'IO39', 'input'), ('5', 'IO34', 'input'), ('6', 'IO35', 'input'), ('7', 'IO32', 'bidirectional'),
+                 ('8', 'IO33', 'bidirectional'), ('9', 'IO25', 'bidirectional'), ('10', 'IO26', 'bidirectional'),
+                 ('11', 'IO27', 'bidirectional'), ('12', 'IO14', 'bidirectional'), ('13', 'IO12', 'bidirectional'),
+                 ('15', 'IO13', 'bidirectional'), ('16', 'D2', 'no_connect'), ('17', 'D3', 'no_connect'),
+                 ('18', 'CMD', 'no_connect'), ('14', 'GND', 'power_in')],
+                [('38', 'GND', 'power_in'), ('37', 'IO23', 'bidirectional'), ('36', 'IO22', 'bidirectional'),
+                 ('35', 'TXD0', 'bidirectional'), ('34', 'RXD0', 'bidirectional'), ('33', 'IO21', 'bidirectional'),
+                 ('32', 'GND', 'power_in'), ('31', 'IO19', 'bidirectional'), ('30', 'IO18', 'bidirectional'),
+                 ('29', 'IO5', 'bidirectional'), ('28', 'IO17', 'no_connect'), ('27', 'IO16', 'no_connect'),
+                 ('26', 'IO4', 'bidirectional'), ('25', 'IO0', 'bidirectional'), ('24', 'IO2', 'bidirectional'),
+                 ('23', 'IO15', 'bidirectional'), ('22', 'D1', 'no_connect'), ('21', 'D0', 'no_connect'),
+                 ('20', 'CLK', 'no_connect')],
+                w=17.78, footprint='AudioCarrier:ESP32-DevKitC_Socket',
+                descr='Espressif ESP32-DevKitC-VE (ESP32-WROVER-E, 8 MB flash, 8 MB PSRAM) in two 1 x 19 female sockets; USB for programming, its own 3.3 V regulator')
 
 # Pin tables below are from the TI datasheets (PCM5100A/5101A/5102A SLAS859C, PCM1808 SLES177B), PW packages.
 DAC = box_symbol('AudioCarrier:PCM5102A_TSSOP20', 'U', 'PCM5102APW',
@@ -308,9 +311,9 @@ def c_(v, a, b, x, y, fp=None, d=None):
     return ref
 
 
-text(15, 12, 'AUDIO CARD  -  ESP32-WROVER-E + 2 x PCM5102A (4 line outputs) + PCM1808 (hands-free microphone input)', 3)
+text(15, 12, 'AUDIO CARD  -  ESP32-DevKitC-VE (socketed) + 2 x PCM5102A (4 line outputs) + PCM1808 (hands-free microphone input)', 3)
 text(15, 20, 'Card for a DigiDash slot, 80 x 60 mm, standing on edge (docs/hardware/accessory_ports.md); its place is slot 1 '
-     '(the RCA block is 26.5 mm tall). CAN node 0x14 + (slot - 1), from the slot ID on GPIO36. 5 V from the slot only; 3.3 V on board.', 1.6)
+     '(the RCA block is 26.5 mm tall). CAN node 0x14 + (slot - 1), from the slot ID on GPIO36. 5 V from the slot only; 3.3 V from the DevKitC\'s regulator.', 1.6)
 
 # --- port
 G('port')
@@ -333,60 +336,40 @@ place('power:PWR_FLAG', '#FLG04', 'PWR_FLAG', '', 70, 85, {'1': '+3V3A'}, show_v
 
 # --- power
 G('power')
-text(15, 100, 'POWER: +5 V -> AP7361C-33E (ESP32, digital sides; tab = GND on a copper area with vias to the plane). Ferrites make +5VA (PCM1808 analog, mic op-amp) and +3V3A (PCM5102A analog + charge pump).', 1.4)
-c_('22u', '+5V', 'GND', 25, 125)
-c_('10u', '+5V', 'GND', 40, 125)
-place(LDO, 'U7', 'AP7361C-33E', 'Package_TO_SOT_SMD:SOT-223-3_TabPin2', 75, 120, {'1': '+5V', '2': 'GND', '3': '+3V3'},
-      descr='Diodes AP7361C-33E-13: 3.3 V 1 A LDO, SOT-223, pin 1 IN, 2 GND (tab), 3 OUT. Stable with ceramics >= 2.2 uF')
-c_('22u', '+3V3', 'GND', 105, 125, d='LDO output (ceramic: the AP7361C is stable with MLCCs >= 2.2 uF)')
-c_('100n', '+3V3', 'GND', 120, 125)
+text(15, 100, 'POWER: +5 V from the slot to the DevKitC 5V pin; its own 3.3 V regulator supplies +3V3 (the converters\' digital sides, the buffer, CAN VIO: tens of mA). Ferrites make +5VA (PCM1808 analog, mic op-amp) and +3V3A (PCM5102A analog + charge pump). Do not plug the DevKitC USB in while the card is powered from the slot.', 1.4)
+cnt['C'] = cnt.get('C', 0) + 1          # C1 (the regulator input cap) is gone with the regulator: keep the numbers
+c_('10u', '+5V', 'GND', 40, 125, d='+5 V bulk at the slot header')
+cnt['C'] += 1                            # C3 (regulator output) is gone
+c_('100n', '+3V3', 'GND', 120, 125, d='+3V3 from the DevKitC, at its pin')
 place(FB, 'FB1', '600R @100MHz', 'Inductor_SMD:L_0603_1608Metric', 145, 125, {'1': '+5V', '2': '+5VA'})
 c_('10u', '+5VA', 'GND', 165, 125)
 c_('100n', '+5VA', 'GND', 180, 125)
 place(FB, 'FB2', '600R @100MHz', 'Inductor_SMD:L_0603_1608Metric', 200, 125, {'1': '+3V3', '2': '+3V3A'})
 c_('10u', '+3V3A', 'GND', 220, 125)
 
-# --- ESP32
+# --- ESP32 (the DevKitC)
 G('esp')
-en = {}
 sig = {'IO32': 'CAN_TXD', 'IO33': 'CAN_RX', 'IO14': 'I2S_BCLK', 'IO25': 'I2S_LRC', 'IO27': 'I2S_DOUT_F',
-       'IO26': 'I2S_DOUT_R', 'I35': 'ADC_DOUT', 'IO4': 'DAC_MUTE', 'IO13': 'NODE0', 'IO22': 'NODE1',
-       'I34': 'LINK_SDIN', 'I36': 'SLOT_ID', 'IO21': 'LINK_EN_N',
-       'IO0': 'BOOT', 'EN': 'EN', 'TXD0': 'UART_TX', 'RXD0': 'UART_RX', '3V3': '+3V3', 'GND': 'GND'}
-for num, (px, py, ang, nm, typ, u) in lib_pins[ESP].items():
-    en[num] = sig.get(nm)
-place(ESP, 'U1', 'ESP32-WROVER-E-N8R8', 'AudioCarrier:ESP32-WROVER-E', 260, 215, en,
-      descr='Espressif ESP32-WROVER-E-N8R8: classic ESP32 module, 8 MB flash, 8 MB PSRAM, antenna end on the board edge')
-c_('10u', '+3V3', 'GND', 230, 290, d='Module supply, at pin 2')
-c_('100n', '+3V3', 'GND', 245, 290, d='Module supply, at pin 2')
+       'IO26': 'I2S_DOUT_R', 'IO35': 'ADC_DOUT', 'IO4': 'DAC_MUTE', 'IO34': 'LINK_SDIN', 'IO36': 'SLOT_ID',
+       'IO21': 'LINK_EN_N', 'IO0': 'MCLK', '3V3': '+3V3', '5V': '+5V', 'GND': 'GND'}
+dk = {num: sig.get(nm) for num, (px, py, ang, nm, typ, u) in lib_pins[DK].items()}
+place(DK, 'U1', 'ESP32-DevKitC-VE', 'AudioCarrier:ESP32-DevKitC_Socket', 260, 215, dk,
+      descr='Espressif ESP32-DevKitC-VE (ESP32-WROVER-E, 8 MB PSRAM) in two 1 x 19 female sockets: programmed over its own USB, its own 3.3 V regulator')
+cnt['C'] += 3                            # C8 / C9 (module supply) and C10 (EN) are on the DevKitC now
+cnt['R'] = cnt.get('R', 0) + 2           # R2 / R3 (EN / BOOT pull-ups) too
 text(215, 150, 'I2S0 master: BCK GPIO14, WS GPIO25, DOUT GPIO27 (front DAC), DIN GPIO35 (PCM1808), MCLK GPIO0 (12.288 MHz for the ADC).\n'
-     'I2S1 slave on the same BCK / WS pins: DOUT GPIO26 (rear DAC). GPIO4 = DAC mute (XSMT), pulled low. '
-     'GPIO32 / 33 CAN, GPIO13 / 22 rev 1 node straps, unused on rev 2. GPIO12 / 2 / 15 / 5 left open (boot straps: GPIO12 must read low at reset for the 3.3 V flash).\n'
-     'Slot: GPIO36 slot ID (ADC1), GPIO34 I2S1 data in from the I2S rail (LINK3 = RET), GPIO21 low enables the rail buffer.', 1.4)
-
-G('boot')
-text(15, 150, 'BOOT / PROGRAMMING', 1.6)
-r_('10k', '+3V3', 'EN', 30, 180)
-c_('1u', 'EN', 'GND', 50, 180)
-place(SW, 'SW1', 'RESET', 'Button_Switch_SMD:SW_SPST_PTS810', 75, 180, {'1': 'EN', '2': 'GND'})
-r_('10k', '+3V3', 'BOOT', 30, 215)
-place(SW, 'SW2', 'BOOT', 'Button_Switch_SMD:SW_SPST_PTS810', 75, 215, {'1': 'BOOT', '2': 'GND'})
-place(HDR1x5, 'J10', 'Program', 'Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical', 115, 200,
-      {'1': 'GND', '2': 'UART_TX', '3': 'UART_RX', '4': 'BOOT', '5': 'EN'},
-      descr='USB-serial adapter: GND, adapter RX <- TX0, adapter TX -> RX0, IO0, EN. 3.3 V logic. Do not power from the adapter')
-text(15, 235, 'Flash: hold BOOT, tap RESET, then upload. Power the board from the port. BOOT (GPIO0) is also the ADC master clock: normal boot needs it high.', 1.4)
+     'I2S1 slave on the same BCK / WS pins: DOUT GPIO26 (rear DAC). GPIO4 = DAC mute (XSMT), pulled low. GPIO32 / 33 CAN.\n'
+     'Slot: GPIO36 slot ID (ADC1), GPIO34 I2S1 data in from the I2S rail (LINK3 = RET), GPIO21 low enables the rail buffer.\n'
+     'Programming: the DevKitC\'s USB (its BOOT / EN buttons and auto-reset). GPIO0 is the BOOT strap there too: the PCM1808 SCKI input just sits on it.', 1.4)
 
 # --- CAN
 G('can')
-text(15, 250, 'CAN: MCP2562 (VDD 5 V, VIO 3.3 V, STBY low). No 120 R: the carrier never terminates the bus.', 1.4)
+text(15, 250, 'CAN: TJA1051T/3 (VDD 5 V, VIO 3.3 V). No 120 R: the card never terminates the bus.', 1.4)
 place(CAN, 'U2', 'TJA1051T/3', FP_SOIC, 55, 285, {'1': 'CAN_TXD', '2': 'GND', '3': '+5V', '4': 'CAN_RXD', '5': '+3V3',
                                                       '6': 'CANL', '7': 'CANH', '8': 'GND'})
 r_('1k', 'CAN_RXD', 'CAN_RX', 95, 275, 'Series R on the receive line, as on the DigiDash board')
 c_('100n', '+5V', 'GND', 115, 275)
 c_('100n', '+3V3', 'GND', 130, 275)
-place(SJ, 'JP1', 'Node bit 0', FP_SJ, 100, 310, {'1': 'NODE0', '2': 'GND'}, descr='Rev 1 carrier only (node strap, GPIO13); unused on rev 2: leave open')
-place(SJ, 'JP2', 'Node bit 1', FP_SJ, 140, 310, {'1': 'NODE1', '2': 'GND'}, descr='Rev 1 carrier only (node strap, GPIO22); unused on rev 2: leave open')
-text(15, 322, 'Node: both open = 0x10 (audio bridge), JP1 = 0x11, JP2 = 0x12.', 1.4)
 
 # --- DACs
 text(330, 30, 'PCM5102A: 3-wire I2S, SCK tied to ground (internal PLL from BCK, BCK must be 64 fS), FMT low = I2S, FLT low, DEMP low.\n'
@@ -433,8 +416,8 @@ r_('1k', '+5VA', 'MICV', 90, 365, 'Electret bias supply filter (with the 47 uF)'
 c_('47u', 'MICV', 'GND', 105, 365, fp=FP_C1206, d='Electret bias supply filter: 1k + 47 uF, about 3 Hz')
 r_('2.2k', 'MICV', 'MIC_TIP', 120, 365, 'Electret bias (plug-in power)')
 c_('100p', 'MIC_TIP', 'GND', 135, 365, d='RF bypass, at the jack')
-place(JACK, 'J6', 'Mic in', 'Connector_Audio:Jack_3.5mm_CUI_SJ-3523-SMT_Horizontal', 60, 380, {'T': 'MIC_TIP', 'R': 'GND', 'S': 'GND'},
-      descr='Same Sky SJ-3523-SMT-TR 3.5 mm jack, right angle (pins: 1 sleeve, 2 tip, 3 ring). Tip = electret mic, ring and sleeve = ground')
+place(JACK, 'J6', 'Mic in', 'Connector_Audio:Jack_3.5mm_CUI_SJ1-3533NG_Horizontal', 60, 380, {'T': 'MIC_TIP', 'R': 'GND', 'S': 'GND'},
+      descr='Same Sky SJ1-3533NG 3.5 mm jack, right angle, through-hole (pins T / R / S). Tip = electret mic, ring and sleeve = ground')
 c_('1u', 'MIC_TIP', 'MIC_IN', 150, 365)
 r_('100k', 'MIC_IN', 'VMID', 165, 365)
 r_('10k', '+5VA', 'VMID', 180, 380)
@@ -462,8 +445,8 @@ c_('10u', 'ADC_VREF', 'GND', 455, 365, d='VREF decoupling')
 c_('100n', '+5VA', 'GND', 470, 365, d='VCC')
 c_('10u', '+5VA', 'GND', 485, 365, d='VCC')
 c_('100n', '+3V3', 'GND', 500, 365, d='VDD')
-r_('33', 'BOOT', 'ADC_SCKI', 440, 395, 'Series damping on the master clock (GPIO0 doubles as the BOOT strap net)')
-text(430, 415, 'GPIO0 outputs the 12.288 MHz clock (256 x 48 kHz) after boot. The BOOT switch / J10 IO0 still pull it low to enter the ROM loader.', 1.4)
+r_('33', 'MCLK', 'ADC_SCKI', 440, 395, 'Series damping on the master clock (GPIO0, also the DevKitC BOOT strap)')
+text(430, 415, 'GPIO0 outputs the 12.288 MHz clock (256 x 48 kHz) after boot. The DevKitC BOOT button and auto-reset still pull it low to enter the ROM loader.', 1.4)
 
 # --- links and the audio bus
 G('link')
@@ -490,8 +473,8 @@ r_('10', 'AUDIO_GND', 'GND', 600, 440, 'Audio bus ground: tied here through 10 R
 out = ['(kicad_sch (version 20230121) (generator eeschema)',
        '  (uuid "%s")' % SHEET,
        '  (paper "A2")',
-       '  (title_block (title "DigiDash audio card") (date "2026-10-23") (rev "G")',
-       '    (comment 1 "ESP32-WROVER-E + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + 3.5 mm hands-free mic input")',
+       '  (title_block (title "DigiDash audio card") (date "2026-11-19") (rev "J")',
+       '    (comment 1 "ESP32-DevKitC-VE + 2 x PCM5102A + PCM1808 -> 4 RCA line outputs + 3.5 mm hands-free mic input")',
        '    (comment 2 "Card for a DigiDash slot (2x15, on edge), slot 1"))',
        '  (lib_symbols']
 for t in lib_text.values():

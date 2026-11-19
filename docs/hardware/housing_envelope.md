@@ -213,28 +213,45 @@ so the housing should treat slots 2–6 the same. The y and z values below hold 
 | | ESP32-S3 module, **PCB antenna** at the card's top corner | ≈78–93 | z ≈51–68.5 | 3.1 | Wi-Fi: no metal close to it (or the -1U module with an external antenna if the case is metal) |
 | | USB-C (programming), on the left edge | 85.3–98.1 | z 25.6–39.4 | — | |
 
-## Housing model (Onshape, "Cluster housing FS" v5, 2026-10-23)
+## Housing model (Onshape, "Cluster housing FS" v6, 2026-11-17)
 
-Checked against this page and the card PCBs, and fixed where they disagreed:
+Source: [Housing/cluster_housing.fs](../../Housing/cluster_housing.fs), a copy of the Onshape Feature Studio "Cluster
+housing FS" in the "Gauge cluster" document. Edit it in Onshape and copy it back here. The feature instance stores
+every parameter value, so a changed default only takes effect once the instance's value is changed too.
 
-- **Cards beside their pin row.** The cage rails, the rear cover's card slots and the reference cards were centred on
-  each socket's pin row. The card body is at +2.54 … +4.14 mm (centre +3.34), so every card hit the rear cover. Now
-  the "Card offset from pin row" is 3.34 mm and the "Card position in its slot" is 9.34 mm, so the slot panels stay where
-  they were.
-- **Header notches.** The cage's bottom wall and its rails are notched for every card's left-edge headers, from
-  20.7 mm behind the board to the rear and from 6.9 mm on the parts side to 2.8 mm on the back. That covers the 2 × 3
-  ISP header, the solder tails and the LTE USB-C. A card slides in with them fitted. The lower-left cage ear moved
-  from X −95 to −80 (under the upper one): it and its gusset sat in slot 3's notch.
-- **Slot 1 end plate** is open where the audio card's RCA block passes (board y 26.5–63.5, 53 mm behind the board to
-  the rear). Slot panel 1 reaches 10.5 mm past the cage end to cover the block.
-- **Slot panels** have openings for each card's top-edge connectors, plus the 1 mm port margin. Pick the card in each
-  slot in the feature dialog ("Slot 1 card" … "Slot 6 card"; as delivered: 1 Audio, 2 Sensor, 3 GPS, 4 Radio, 5–6
-  empty). Cards: the audio RCA block and 3.5 mm jack; the sensor PH 12, PH 4 and Micro-Fit tach; the GPS PH 4; the
-  radio SMA and AM header.
+- **Board model.** The DigiDash3 STEP is imported into its own Part Studio, "boardmodel-v4", and the feature places it
+  as the reference board ("Show board model"). A new board export needs a new import and a new `BoardV4` import line.
+- **Front housing** (screen bezel, two halves split at X 0 with stepped laps) is as in v5. The two upper cage bosses
+  moved from X −80 / −45 to **X −90 / −62**; the old spots landed on PTCs F24 and F28.
+- **Rear shell** replaces the flat rear covers, the card cage and the six slot panels. Two printed pieces, split at
+  X 4.5 ("Rear shell split"):
+  - *Left (card pod):* a crowned hull over the back of the board, with a flared, bowed pod over the card slots. The
+    card guides (top and bottom walls with rail pairs) and the webs to the skin are part of it.
+  - *Right (nacelle, port well):* the hull continues over the power section into a tapered nacelle over the 24.7 mm
+    inductors and the camera module, and a dished port well over the rear connector group. Each plug passes through
+    the well floor ("Port well floor", 15 mm off the board's back); the fuse stands up through it.
+  - *Card bay hatch:* a domed, hollow lid on the pod with four corner screws, a rib bearing on each card's back half,
+    and openings for each slot's top-edge connectors. Pick the card in each slot as before ("Slot 1 card" … "Slot 6
+    card"; as delivered 1 Audio, 2 Sensor, 3 GPS, 4 Radio, 5–6 empty).
+  - Shape settings: hull depth 12, hull crown 5, pod flare 12, pod corner radius 8, shell edge radius 6, hatch crown 7.
+- **Card indexing.** Each card body sits 3.34 mm from its pin row on the parts side (toward slot 1), and the rails
+  are offset to suit. Each slot also has an **index rib** on the top guide wall where a reversed card's body would have
+  to sit (6.68 mm toward slot 1 from the guide), so a card turned around cannot reach its socket. A correctly fitted
+  card has 4 mm between its parts face and the rib.
+- **Header notches** in the bottom guide wall for every card's left-edge headers, as in v5.
+- **Camera module (J8).** The module (29 × 37.65 mm, on right-angle pins) stands straight back from the 20-pin header.
+  The nacelle roof has edge-guide ribs that hold the module's far edge, and its end has a hole for the right-angle RCA
+  jack centred on the edge opposite the header. Settings: "Module parts face the board's bottom edge" (true), RCA axis
+  7 mm off the module's PCB, RCA body 13.5 mm, nose 4 mm past the edge. All of these are guesses until the module is in
+  hand.
 
-Collision test (solid test boxes against every housing part, 2026-10-23): the six cards, their left-edge headers, the
-RCA block and every top-edge connector are clear, and no housing parts interfere with each other. Control boxes (a
-card at the old position, a header beside its notch, a plug at a blank panel) all clash, as they should.
+Collision test (2026-11-17): every housing part against the board model, the reference cards and the camera module, plus
+boxes for the parts with no 3D model (Molex connectors, fuse, PTCs at an assumed 9.5 mm, F8 at 13.5 mm, the 16 mm and
+12.5 mm capacitors). Everything clears by at least 1.5 mm except the fuse, which passes through its opening with
+0.7 mm. A reversed card is blocked in all six slots.
+
+Board-level note: inductor **L1** is 0.24 mm from slot 6's card envelope (its 2.5 mm allowance for solder tails), so the
+pod opens into the nacelle there with no wall between them.
 
 ## Open items for the housing
 

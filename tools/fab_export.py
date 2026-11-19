@@ -27,7 +27,7 @@ KICAD = '/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli'
 CLI = os.environ.get('KICAD_CLI', KICAD if os.path.exists(KICAD) else 'kicad-cli')
 # Boards whose through-hole parts are soldered by hand: they stay out of the placement files (the fab BOM lists
 # only the SMD parts too), so an assembly quote covers the SMD side only.
-HAND_THT = {'ConsoleBoardRS', 'SensorCard2'}
+HAND_THT = {'ConsoleBoardRS', 'SensorCard2', 'GPSCard2', 'AudioCarrier'}
 # Footprint-name regex -> degrees added to KiCad's rotation in the JLC CPL, filled in as JLC's preview shows a part
 # landing turned. Empty until a board has been through JLC's placement check.
 JLC_ROT = {}
@@ -92,6 +92,8 @@ def export_placement(name, pcb, fab, gbr):
     if os.path.exists(bom):
         listed = set()
         for r in csv.DictReader(open(bom)):
+            if any((v or '').startswith('DNP') for v in r.values()):
+                continue                # a DNP line: in the BOM, never placed
             listed |= set(re.split(r'[\s,;]+', r['Designator'].strip())) - {''}
         placed = {r['Ref'] for r in rows}
         if listed - placed or placed - listed:
