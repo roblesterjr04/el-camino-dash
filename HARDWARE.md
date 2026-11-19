@@ -3,6 +3,11 @@
 Every board in this repository, which revision replaces which, and how the boards are generated and sent to a fab.
 Each board directory has its own README with the details; this page only collects them.
 
+**Building for another vehicle?** Every card mates with any main board that meets the slot interface. Start with
+[`docs/hardware/main_board_guide.md`](docs/hardware/main_board_guide.md) (the contract, pin by pin) and
+[`docs/protocols/can_guide.md`](docs/protocols/can_guide.md) (the bus). [`BenchBoard`](BenchBoard/README.md) is the
+smallest complete main board to copy from.
+
 Status words below: **designed** means the schematic and board files exist and are routed; **ordered**, **built**
 and **tested** are used only where a README or the git history says so. "Not stated" means nothing in the repository
 says either way.

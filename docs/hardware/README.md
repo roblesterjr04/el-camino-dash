@@ -5,6 +5,7 @@ Specs and plans that span more than one board. Each board's own README (listed i
 
 | File | What it covers | Implemented by |
 | --- | --- | --- |
+| [`main_board_guide.md`](main_board_guide.md) | **Designing your own main board** for another vehicle or enclosure: the card slot contract pin by pin, the CAN bus on the board, slot IDs, power and WAKE, the I2S rail, screen headers, minimum boards, bring-up | Reference boards: [`DigiDash2`](../../DigiDash2/), [`BenchBoard`](../../BenchBoard/) |
 | [`accessory_ports.md`](accessory_ports.md) | Rev 2 card slots: the 2×15 slot pinout, card envelope, slot ID, I2S rail, AUX 12 V, cable and trunk ports. Rev 1 accessory ports (2×5 headers) | Boards: [`DigiDash2`](../../DigiDash2/), [`DigiDash3`](../../DigiDash3/), [`BenchBoard`](../../BenchBoard/), every slot card. Rev 1: [`DigiDash`](../../DigiDash/) |
 | [`cable_harnesses.md`](cable_harnesses.md) | The mating cables for every board connector: housings, terminals, wire gauge | Cables for [`DigiDash2`](../../DigiDash2/), the cards and [`ConsoleBoardRS`](../../ConsoleBoardRS/) |
 | [`digidash_rev2_plan.md`](digidash_rev2_plan.md) | The plan for main board rev 2: what rev 1 did badly, SMD conversion, the sensor pack moved to a card, the video decoder on the board | Board: [`DigiDash2`](../../DigiDash2/) (and [`DigiDash3`](../../DigiDash3/), its through-hole copy). Firmware steps in it: not done |

@@ -4,13 +4,24 @@ Specifications for the dash: the boards and their mechanical limits in [`hardwar
 formats between boards in [`protocols/`](protocols/README.md). Each board directory also has its own README with
 its schematic blocks, pin map, status and how to regenerate it; [`HARDWARE.md`](../HARDWARE.md) lists them all.
 
+## Building your own main board or card
+
+Two guides are written for that, and are the place to start:
+
+- [`hardware/main_board_guide.md`](hardware/main_board_guide.md): the contract a main board must meet so every card
+  fits: the slot pinout pin by pin, CAN wiring and termination, slot-ID resistors and node numbers, power and WAKE,
+  the I2S rail, the screen headers, minimum boards and a bring-up checklist.
+- [`protocols/can_guide.md`](protocols/can_guide.md): the CAN bus explained end to end: from the card's pins to the bus,
+  node numbers, the ID map and priority, heartbeats, the transfer framing, discovery, every channel, a card's life
+  from power-on, worked frames, compatibility rules and how to implement a node.
+
 ## Reading order
 
 For a newcomer, in this order:
 
 1. **The system.** The root [`README.md`](../README.md) (what the dash does, which boards exist) and
    [`HARDWARE.md`](../HARDWARE.md) (every board, which revision is current).
-2. **The CAN bus.** [`protocols/can_bus.md`](protocols/can_bus.md): the physical layer, node numbers and the
+2. **The CAN bus.** [`protocols/can_guide.md`](protocols/can_guide.md) for the explanation, then [`protocols/can_bus.md`](protocols/can_bus.md): the physical layer, node numbers and the
    cluster's own messages. Then [`protocols/usb_link.md`](protocols/usb_link.md): how the bench runs the same bus
    over USB with no transceivers.
 3. **Channels.** [`protocols/can_channels.md`](protocols/can_channels.md): the accessory protocol on CAN (alerts,
@@ -27,6 +38,7 @@ For a newcomer, in this order:
 
 | File | What it specifies |
 | --- | --- |
+| [`main_board_guide.md`](hardware/main_board_guide.md) | **Designing your own main board**: the slot interface every card relies on, CAN, slot IDs, power, screens, bring-up |
 | [`accessory_ports.md`](hardware/accessory_ports.md) | Rev 2's six card slots (2×15 socket, pinout, 80 × 60 mm card envelope, slot ID, I2S rail, AUX 12 V) and rev 1's accessory ports and cable ports |
 | [`cable_harnesses.md`](hardware/cable_harnesses.md) | Every cable the dash needs: board connector, mating housing, terminals, wire gauge |
 | [`digidash_rev2_plan.md`](hardware/digidash_rev2_plan.md) | Why and how the main board was redrawn from rev 1 to rev 2: SMD conversion, sensor pack to a card, video decoder on the board |

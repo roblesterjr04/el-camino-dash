@@ -1,13 +1,14 @@
 # El Camino Dash
 
-An open hardware and firmware digital instrument cluster for a 1964 Chevrolet El Camino.
+A modular, open hardware and firmware digital instrument cluster, built on a CAN bus and plug-in cards.
 
-Three round touch screens sit where the original gauges were: a speedometer on the left, a tach / clock / media /
-trip screen in the center, and fuel, oil, coolant and charge on the right. Every gauge face is drawn in code, in
-three themes (Classic, Modern, Fallout). A main board behind the screens carries plug-in **slot cards**: a sensor
-card that reads the car's senders, an audio card (Bluetooth music and hands-free calls), an AM/FM radio, GPS and an
-LTE gateway. A small console in the dash with an OLED and two knobs works like a car radio head unit. Everything
-talks on one CAN bus.
+The reference build is the dash of a **1964 Chevrolet El Camino**: three round touch screens sit where the original
+gauges were, a main board behind them is shaped to that dash, and a small console works like the car's radio. But
+only the main board knows which car it is in. Everything else (the screens, the sensor card, the audio card, the
+radio, GPS, the LTE gateway, the console) is a node on one CAN bus that plugs into a **standard 2×15 card slot** or a
+4-pin cable port. **Draw a main board for your own car, boat, kit car or bench, give it the same slots, and every card
+in this repository plugs straight in.** Design a new card, and it adds its readings, alerts and settings pages to
+the dash without a line of change to the screen firmware.
 
 > **Status: work in progress.** The display, console and audio firmware run on bench hardware (Waveshare ESP32-P4
 > round display boards, ESP32 dev kits). Nothing is installed in the car yet. Several cards exist as KiCad designs and
@@ -16,8 +17,9 @@ talks on one CAN bus.
 
 ## Contents
 
+- [A modular platform](#a-modular-platform)
 - [What it does](#what-it-does)
-- [System overview](#system-overview)
+- [System overview](#system-overview-the-el-camino-reference-build)
 - [Hardware](#hardware)
 - [Firmware](#firmware)
 - [Repository layout](#repository-layout)
@@ -30,6 +32,48 @@ talks on one CAN bus.
 - [Contributing](#contributing)
 - [Safety](#safety)
 - [License](#license)
+
+## A modular platform
+
+```
+          your main board                              the cards (unchanged, from any project)
+  ┌───────────────────────────────┐
+  │ shaped for your dash          │      ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+  │ 1–3 screen headers            │◄─────┤ sensor │ │ audio  │ │ radio  │ │  GPS   │ │ yours  │
+  │ 1–6 card slots (2×15)         │ slot │ card   │ │ card   │ │ card   │ │ card   │ │        │
+  │ power, fuses, WAKE            │      └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
+  │ CAN bus, terminated at ends   │
+  │ cable ports ──► console       │      every card: CAN + power on the slot, node number from the slot,
+  └───────────────────────────────┘      services found by discovery, no configuration
+```
+
+The platform is three agreements, each documented in full:
+
+| Agreement | What it fixes | Document |
+| --- | --- | --- |
+| **The card slot** | A 2×15, 2.54 mm socket: power (5 V, 3.3 V, switched and constant 12 V, AUX 12 V), CAN, a slot-ID resistor, WAKE, dash-light and reverse levels, an I2S digital audio rail and an analog audio bus. 80 × 60 mm cards standing on edge | [`docs/hardware/main_board_guide.md`](docs/hardware/main_board_guide.md) (designing a main board), [`docs/hardware/accessory_ports.md`](docs/hardware/accessory_ports.md) (the slot spec) |
+| **The CAN bus** | Classic CAN, 500 kbit/s, terminated only on the main board; node numbers from the slot (`0x14 + slot − 1`); IDs as `channel base + node` | [`docs/protocols/can_guide.md`](docs/protocols/can_guide.md) (the guide), [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md) |
+| **The channel protocol** | How a card announces itself and uses the dash: alerts, sensor readings, menu pages, input, sounds, discovery | [`docs/protocols/can_channels.md`](docs/protocols/can_channels.md) |
+
+What that buys you:
+
+- **A main board is cheap to redraw.** It has no microcontroller: just power, the bus, the slots, the screen headers
+  and the vehicle connectors. [`BenchBoard/`](BenchBoard/) (100 × 100 mm, two slots, one screen) is a complete
+  small example; [`DigiDash2/`](DigiDash2/) is the full El Camino board.
+- **Cards need no configuration.** A card reads its slot from a resistor on the main board and takes its node number
+  from it. Two identical cards never clash; moving a card just renumbers it.
+- **The dash finds services by discovery.** Cards announce what they produce and consume; the screens find the audio
+  sink, the GPS or the internet gateway from those announcements.
+- **New cards extend the dash without firmware changes elsewhere.** A card that publishes a SENSOR reading gets it
+  logged and shown; one that defines an ALERT gets a chime and a banner; one that describes UI items gets a page in
+  the menu on the round screens and on the console.
+- **Fewer screens or slots is fine.** One screen runs as the center; slots can be any subset of the six.
+- **The sensor card is a card too.** If your car's senders, speed sensor or tach differ, change the sensor card
+  (or calibrate it from the menu), not the main board.
+
+Ideas for cards nobody has built yet: transmission or oil temperature, wideband O2, tire pressure, parking sensors
+(PLAY a tick sound on the audio card), steering-wheel buttons (INPUT), a data logger, a voice assistant on the I2S rail.
+`tools/cards_sim.py` already simulates several of them, so the dash side can be tried before the hardware exists.
 
 ## What it does
 
@@ -52,7 +96,7 @@ talks on one CAN bus.
 - **More.** GPS time and location with a POSIX time zone, a reversing camera on the center screen (TVP5150 decoder),
   per-screen touch menus, settings kept in NVS and on SD. The cluster never uses Wi-Fi.
 
-## System overview
+## System overview: the El Camino reference build
 
 ```
                          ┌──────────────── DigiDash main board (behind the screens) ────────────────┐
@@ -247,10 +291,12 @@ Run them all before sending a change that touches shared code.
 
 ## Documentation map
 
-Start with [`docs/README.md`](docs/README.md). The most important specs:
+Start with [`docs/README.md`](docs/README.md). Building your own main board or card? Read the first two rows. The most important specs:
 
 | Document | Covers |
 | --- | --- |
+| [`docs/hardware/main_board_guide.md`](docs/hardware/main_board_guide.md) | **Designing your own main board**: the slot contract, CAN wiring, slot IDs, power, screens, bring-up |
+| [`docs/protocols/can_guide.md`](docs/protocols/can_guide.md) | **The CAN bus explained**: pins to bus, node numbers, ID map, framing, discovery, every channel, a card's life, worked frames |
 | [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md) | Physical layer, node numbers, the cluster's messages (sensors, settings, media, phone, console) |
 | [`docs/protocols/can_channels.md`](docs/protocols/can_channels.md) | The accessory channel protocol: NET, SYSTEM, ALERT, SENSOR, UI, INPUT, AUDIO, BULK, ONLINE, LOG |
 | [`docs/protocols/usb_link.md`](docs/protocols/usb_link.md) | CAN over USB for the bench |
@@ -284,7 +330,8 @@ Open items and known issues are listed in each README under *Status*, *Known iss
 
 ## Contributing
 
-Issues and pull requests are welcome. Some ground rules that keep the project consistent:
+Issues and pull requests are welcome, and so are main boards for other vehicles and new cards: open an issue to
+get a product number for a new card, and send a link to your board so it can be listed here. Some ground rules that keep the project consistent:
 
 - **Specs first.** Wire formats live in `docs/protocols/`. Change the spec and the code together, and keep IDs in
   `firmware/elc_can/include/elc_can_ids.h` in step with `can_bus.md` and `can_channels.md`.
