@@ -193,9 +193,9 @@ kept off the touch bus, where the GT911 can also sit at 0x5D). Module VCC is the
 GPIO25 is also a USB pin on the P4, so it carries the slow reverse signal rather than video data. GPIO34–36 are boot
 straps and are not used for the camera.
 
-### Ambient illumination (all three round displays)
+### Ambient illumination (center input, side screens follow over CAN)
 
-**One digital input per board**, internal pull-up: **LOW** → dim backlight, **HIGH** (open) → full. Tie the same vehicle signal to **GPIO 24** on each ESP32-P4 module (silk **“24”** on the Waveshare 2×20 header). **GPIO 23** is not labeled on that header and is not used as the default harness pin. Do **not** use **GPIO 15** (SDIO to the C6 co-processor on the 3.4C board; BLE only, Wi-Fi unused). Override in firmware: `-DELC_ILLUMINATION_GPIO=…` / `-1` to disable.
+**One digital input, on the center only**, internal pull-up: **LOW** → dim backlight, **HIGH** (open) → full. DigiDash3 drives the center's **GPIO 24** (J1, silk **“24”** on the Waveshare 2×20 header) from the dash-light feed (J7 pin 6) through Q1. The left and right screens do not read their own GPIO 24 (it is not wired to them): they dim from bit3 of the center's `0x210` CAN frame, which the center re-sends as soon as the input changes. **GPIO 23** is not labeled on that header and is not used. Do **not** use **GPIO 15** (SDIO to the C6 co-processor on the 3.4C board; BLE only, Wi-Fi unused). Override in firmware: `-DELC_ILLUMINATION_GPIO=…` / `-1` to disable.
 
 ### TSPS — bench theme GPIO (optional)
 

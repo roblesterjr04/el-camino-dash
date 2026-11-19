@@ -302,28 +302,44 @@ void elc_backlight_set_user(uint8_t pct, bool follow_lights) {
 
 bool elc_illumination_is_night(void) { return s_night == 1; }
 
-void elc_illumination_set_external(bool night) {
+// A screen whose own input is not wired (the side screens on DigiDash3: only the center's GPIO24 has the Q1 driver)
+// follows the center over CAN instead. Same firmware on all three, so this is chosen at run time by the role.
 #if ELC_ILLUMINATION_GPIO < 0
+static bool s_external = true;
+#else
+static bool s_external = false;
+#endif
+
+void elc_illumination_use_external(bool external) {
+#if ELC_ILLUMINATION_GPIO >= 0
+  s_external = external;
+#else
+  (void)external;
+#endif
+}
+
+void elc_illumination_set_external(bool night) {
+  if (!s_external) {
+    return;
+  }
   const int8_t n = night ? 1 : 0;
   if (n != s_night) {
     s_night = n;
     elc_backlight_apply();
   }
-#else
-  (void)night;
-#endif
 }
 
 void elc_illumination_gpio_poll(void) {
-#if ELC_ILLUMINATION_GPIO < 0
-  if (s_applied < 0) {  // day until the center says otherwise (elc_illumination_set_external)
-    if (s_night < 0) {
-      s_night = 0;
+  if (s_external) {
+    if (s_applied < 0) {  // day until the center says otherwise (elc_illumination_set_external)
+      if (s_night < 0) {
+        s_night = 0;
+      }
+      elc_backlight_apply();
     }
-    elc_backlight_apply();
+    return;
   }
-  return;
-#else
+#if ELC_ILLUMINATION_GPIO >= 0
   static bool s_pin_inited = false;
   if (!s_pin_inited) {
     pinMode(ELC_ILLUMINATION_GPIO, INPUT_PULLUP);
@@ -371,6 +387,7 @@ void elc_illumination_gpio_poll(void) {}
 void elc_backlight_set_user(uint8_t, bool) {}
 bool elc_illumination_is_night(void) { return false; }
 void elc_illumination_set_external(bool) {}
+void elc_illumination_use_external(bool) {}
 #endif
 
 Arduino_GFX *create_tsps_display() {

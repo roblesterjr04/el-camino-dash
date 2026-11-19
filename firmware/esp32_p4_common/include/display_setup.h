@@ -21,6 +21,9 @@ void elc_illumination_gpio_poll(void);
 // follow_lights=false keeps full brightness regardless of the headlight input.
 void elc_backlight_set_user(uint8_t pct, bool follow_lights);
 bool elc_illumination_is_night(void);
-// Night state from elsewhere (the center's, over CAN) on a screen built without an illumination input
-// (ELC_ILLUMINATION_GPIO < 0). Ignored where the screen reads its own input.
+// Night state from elsewhere (the center's, over CAN). Applied only on a screen that follows the center: one built
+// without an illumination input (ELC_ILLUMINATION_GPIO < 0) or one told to with elc_illumination_use_external(true).
 void elc_illumination_set_external(bool night);
+// true: ignore this screen's own illumination GPIO and dim from elc_illumination_set_external (the side screens,
+// whose GPIO24 is not wired on DigiDash3). Call before the first elc_illumination_gpio_poll().
+void elc_illumination_use_external(bool external);

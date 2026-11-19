@@ -160,6 +160,9 @@ static void drain_uart_text() {
 void side_setup(uint8_t role) {
   s_role = role;
   s_right = role == ELC_CAN_SCREEN_RIGHT;
+  // Only the center's GPIO24 is wired to the illumination driver (DigiDash3 Q1): a side screen's own pin floats high
+  // (= day), so it dims from the center's 0x210 "dash lights on" bit instead.
+  elc_illumination_use_external(true);
   // Receive only: the center alone answers the sensor pack, and this board's GPIO4 is the position strap
   // (tied to GND or 3V3 through 1 kΩ on the DigiDash board), so it must never drive it.
   s_link.begin(Serial1, SENSOR_UART_RX, -1);

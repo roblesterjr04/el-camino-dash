@@ -126,8 +126,8 @@ Screens are 0 left (speedometer), 1 center, 2 right.
 - **Brightness**: every screen applies the center's level; bit0 = dims with the headlights.
 
 `0x210` flags: bit0 dims with the headlights, bit1 media showing on the media screen, bit2 the right screen's second
-Classic layout (fuel + lamps), bit3 the dash lights are on (the center's illumination input; the side screens have no
-input of their own on DigiDash2 and dim from this bit; the center re-sends `0x210` as soon as it changes). Older 2-byte frames still
+Classic layout (fuel + lamps), bit3 the dash lights are on (the center's illumination input; the side screens
+ignore their own GPIO24, which DigiDash3 does not wire, and dim from this bit; the center re-sends `0x210` as soon as it changes). Older 2-byte frames still
 decode (center, center, 100 %, dims).
 
 Any node changes a setting with `0x212`; the center applies it, saves it and answers with a fresh `0x210` (even
