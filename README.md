@@ -1,93 +1,316 @@
 # El Camino Dash
 
-Digital gauge cluster for a 1964 El Camino: three round MIPI-DSI displays driven by ESP32-P4 boards, fed by an ATmega328P sensor pack, with a classic-ESP32 Bluetooth audio bridge.
+An open hardware and firmware digital instrument cluster for a 1964 Chevrolet El Camino.
 
-The earlier Raspberry Pi / pygame dashboard is shelved; it is preserved at git tag `pi-pygame-final`.
+Three round touch screens sit where the original gauges were: a speedometer on the left, a tach / clock / media /
+trip screen in the center, and fuel, oil, coolant and charge on the right. Every gauge face is drawn in code, in
+three themes (Classic, Modern, Fallout). A main board behind the screens carries plug-in **slot cards**: a sensor
+card that reads the car's senders, an audio card (Bluetooth music and hands-free calls), an AM/FM radio, GPS and an
+LTE gateway. A small console in the dash with an OLED and two knobs works like a car radio head unit. Everything
+talks on one CAN bus.
 
-## System
+> **Status: work in progress.** The display, console and audio firmware run on bench hardware (Waveshare ESP32-P4
+> round display boards, ESP32 dev kits). Nothing is installed in the car yet. Several cards exist as KiCad designs and
+> as simulators in [`tools/`](tools/) but have not been built. Each README states what has and has not been tested
+> on hardware. See [Status](#status).
+
+## Contents
+
+- [What it does](#what-it-does)
+- [System overview](#system-overview)
+- [Hardware](#hardware)
+- [Firmware](#firmware)
+- [Repository layout](#repository-layout)
+- [Getting started](#getting-started)
+- [Tests](#tests)
+- [Making the boards](#making-the-boards)
+- [Documentation map](#documentation-map)
+- [Status](#status)
+- [History](#history)
+- [Contributing](#contributing)
+- [Safety](#safety)
+- [License](#license)
+
+## What it does
+
+- **Gauges.** Speed, odometer and trip, tach, fuel, oil pressure, coolant temperature, battery voltage, charge lamp,
+  efficiency. Vector faces (LVGL) scale to 720×720 and 800×800 panels. If sensor data stops for 400 ms the needles
+  fall to rest and the face shows **NO DATA** rather than a false zero.
+- **Themes.** Classic (black glass, chrome, cream numerals), Modern (flat, orange arcs) and Fallout (green phosphor).
+  A long press on the center screen changes all three screens at once.
+- **Sensors on CAN.** The sensor card reads the original senders, the speed sensor, the tach signal, ignition, battery
+  and the alternator lamp, keeps the odometer in FRAM, and sends the readings on CAN. Calibration is done from the
+  menu ([`docs/protocols/sensor_calibration.md`](docs/protocols/sensor_calibration.md)).
+- **Audio and phone.** The audio card is a Bluetooth A2DP / AVRCP / HFP sink with two stereo DACs (front and rear), a
+  microphone input, a 10-band equaliser, fader and balance. Now playing, album art and the call card appear on the
+  screens; calls are answered from the console or the touch screen.
+- **Radio head unit.** The console (ESP32-S3, 256×64 OLED, two RetroSound-style knobs, IR receiver) selects the
+  source, tunes the radio, handles calls and pairing, and shows every card's settings page.
+- **Accessory protocol.** Cards announce themselves and publish alerts, sensors, menu pages, input and sounds through a
+  documented CAN channel protocol ([`docs/protocols/can_channels.md`](docs/protocols/can_channels.md)), so a new card
+  can add a page to the menu without changing the screen firmware.
+- **More.** GPS time and location with a POSIX time zone, a reversing camera on the center screen (TVP5150 decoder),
+  per-screen touch menus, settings kept in NVS and on SD. The cluster never uses Wi-Fi.
+
+## System overview
 
 ```
- vehicle senders ──► sensor_pack (ATmega328P) ── UART 115200, 36-byte frames ──┬──► speedo  (ESP32-P4, left)
- (fuel, temp, oil,      │  FRAM (MB85RC @0x50):                                 ├──► center  (ESP32-P4, middle)
-  hall, coil, IGN, ALT) │  odometer, A/B slots                                  └──► TSPS    (ESP32-P4, right)
-                                                                                        ▲  ▲
- GPS (NEO-6M, NMEA 9600) ─────────────────────────────────── UART2 ─────────────── center │
- phone ── A2DP/AVRCP ──► ESP32-D audio bridge (carrier on J18-J21) ── CAN ─────── center  │
-                                               center ── cluster I2C (theme) ──► speedo 0x3C, TSPS 0x3D
- encoder controller (RP2040: knobs, IR, SSD1322 OLED) ── UART ──► (not yet connected to an ESP32 — see Status)
+                         ┌──────────────── DigiDash main board (behind the screens) ────────────────┐
+  vehicle 12 V ─────────►│ power, ignition / WAKE, reverse and dash-light sense, video decoder     │
+  senders, speed, tach ─►│                                                                          │
+  camera ───────────────►│  [J5] LEFT screen        [J1] CENTER screen        [J4] RIGHT screen     │
+                         │  speedometer             tach / clock / media /    fuel / oil / temp /   │
+                         │  ESP32-P4, node 0x02     efficiency, camera, GPS   charge                │
+                         │                          ESP32-P4, node 0x01       ESP32-P4, node 0x03   │
+                         │                                                                          │
+                         │  six card slots (2×15): CAN, 5 V, 3.3 V, AUX 12 V, slot ID, I2S rail     │
+                         │   ├ Sensor card   (node 0x04)   senders, speed, tach, odometer (FRAM)    │
+                         │   ├ Audio card    (node 0x14+)  Bluetooth, DACs, mic, EQ; I2S clock master│
+                         │   ├ Radio card                  Si4735 AM/FM with RDS                    │
+                         │   ├ GPS card                    remote GPS puck                          │
+                         │   └ LTE card                    SIMCom A7670 gateway                     │
+                         │                                                                          │
+                         │  cable ports ── ConsoleBoardRS (node 0x13): OLED, 2 knobs, IR            │
+                         │  USB-CAN tap                                                             │
+                         └──────────────────────────── CAN 500 kbit/s ──────────────────────────────┘
 ```
 
-**CAN bus** (DigiDash board, 500 kbit/s, one MCP2562 per node, 120 Ω at the left and right screens):
+- **One CAN bus** (500 kbit/s, 11-bit IDs, terminated at the left and right screens) links everything. The cluster's
+  own traffic (sensor frames, theme, settings, media, phone, console) is in
+  [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md); the accessory channel protocol that cards use is in
+  [`docs/protocols/can_channels.md`](docs/protocols/can_channels.md).
+- **The three screens run one firmware image.** Each reads its position from a strap on the main board's header
+  (left to GND, right to 3.3 V, center open) and becomes the speedometer, the center screen or the right screen.
+- **The center screen** owns the cluster settings, GPS time and location, the time zone, the camera and SD storage,
+  and re-sends theme and settings to the others. Any screen can host the touch menu.
+- **The sensor card is the source of truth** for readings and the odometer. A serial fallback (the original UART fan-out)
+  can still feed the screens directly through a jumper.
+- **The I2S rail** is a five-line digital audio bus to every slot. The audio card is its clock master; the radio and
+  other cards ask for its return line before they send audio.
 
-```
- left (speedo) ── accessory ports J18..J21 ── cable ports J17 / J22 ── center ── right (TSPS)
-                    (carrier boards)            └─ short PH cable ── console (OLED + knobs, ESP32-S3)
-```
+Pinouts, connectors and power are in [`docs/hardware/accessory_ports.md`](docs/hardware/accessory_ports.md) and
+[`WIRING_PINOUT.md`](WIRING_PINOUT.md).
 
-The center re-sends each sensor frame and the theme on CAN. Accessories are carrier boards with their own MCU and
-transceiver on generic ports: four 2×5 header positions on the back of the board and two JST PH cable ports, each
-with fused +5 V (and +12 V on the headers); see `docs/hardware/accessory_ports.md`. The audio bridge is one such
-carrier and talks to the center over CAN only (the bench uses the USB CAN link, `docs/protocols/usb_link.md`). The console (OLED + knobs) is its own
-board on a short cable to cable port J17; accessories never terminate the bus, so it works with any of them unplugged.
-See `docs/protocols/can_bus.md`.
+## Hardware
 
-- **sensor_pack** is the source of truth for all readings and the odometer. One TX fans out to all three displays; only the center sends the 0xA5 keepalive back.
-- **center** also owns GPS time/location, the time zone (`tz` on its serial console), touch menu, BLE, SD settings, and theme sync to the other two displays. The cluster never uses Wi-Fi.
-- If sensor data stops arriving for 400 ms, the gauges dim and show **NO DATA** instead of reading zero.
+Every board is a KiCad 10 project generated by Python scripts in its `generate/` folder. The full list, with revision
+history and status, is in [`HARDWARE.md`](HARDWARE.md).
 
-## Repository
-
-| Path | What |
+| Board | What it is |
 | --- | --- |
-| `firmware/esp32_p4_display` | The round displays: one firmware, position (left / center / right) from a strap on the DigiDash board (PlatformIO, Arduino framework) |
-| `firmware/elc_can` | Shared CAN (TWAI) library for the displays and accessories: IDs, frame codecs, heartbeat. Host tests in `test/host/` |
-| `firmware/esp32_p4_common` | Shared library: sensor UART (`SensorLink`), display setup, cluster I2C, watchdog, boot splash. Host tests in `test/host/` |
-| `firmware/esp32_p4_ui` | Shared LVGL layer: gauge faces, the menu (on any round screen), media over CAN, touch |
-| `firmware/esp32_classic_bt_audio` | PlatformIO wrapper that builds `arduino/sketches/esp32_audio_bridge` |
-| `firmware/esp32_p4_display_litmus` | Panel bring-up test |
-| `firmware/sensor_card` | ATmega2560 sensor card firmware for the rev 2 board (`SensorCard/`): CAN node `0x04`, calibration, odometer. Host tests in `test/host/` |
-| `arduino/sketches/sensor_pack` | ATmega328P sensor + odometer firmware (rev 1) |
-| `arduino/sketches/encoder_controller` | RP2040 knobs / IR / OLED |
-| `arduino/scripts` | Flash helpers and `monitor_sensor_pack.py` bench decoder |
-| `scripts/export_*_rgb565_assets.py` | Regenerate the `*_gen.h` image headers from `assets/` |
-| `docs/protocols` | Wire formats: sensor UART, CAN bus, the accessory channel protocol on CAN (`can_channels.md`), cluster/audio I2C, encoder UART |
-| `tools/screenshot.py` | Screenshot a display over its USB console (`shot` command) |
-| `WIRING_PINOUT.md` | Vehicle harness |
+| [`DigiDash2/`](DigiDash2/) | Main board, rev 2: three screen headers, six card slots, power, video decoder, 4 layers, SMD assembled by the fab |
+| [`DigiDash3/`](DigiDash3/) | Main board, rev 3: rev 2 with every part through-hole, 2 layers, for hand assembly |
+| [`DigiDash/`](DigiDash/) | Main board, rev 1 (superseded): plug-in dev boards and accessory headers |
+| [`SensorCard/`](SensorCard/) | Sensor card rev A: ATmega2560 + MCP2515 |
+| [`SensorCard2/`](SensorCard2/) | Sensor card rev B: STM32G0B1 with built-in FDCAN, 2 layers |
+| [`AudioCarrier/`](AudioCarrier/) | Audio card: ESP32-DevKitC-VE in sockets, 2× PCM5102A DAC, PCM1808 ADC + mic preamp, RCA outputs |
+| [`RadioCard/`](RadioCard/) | AM/FM radio card: Si4735 tuner, STM32G0B1 |
+| [`GPSCard/`](GPSCard/), [`GPSCard2/`](GPSCard2/) | GPS card: STM32G0B1 (rev A, SMD) or PIC18F26Q83 (rev B, through-hole) |
+| [`LTECard/`](LTECard/) | LTE gateway card: ESP32-S3 + SIMCom A7670 core board |
+| [`ConsoleBoardRS/`](ConsoleBoardRS/) | Console: ESP32-S3, SSD1322 OLED, RetroSound knobs on RJ9, IR receiver |
+| [`ConsoleBoard/`](ConsoleBoard/) | Console, earlier variant with keys and encoders on the board |
+| [`BenchBoard/`](BenchBoard/) | Bench stand-in for the main board: two slots, one screen, a USB-CAN header |
+| [`Panel/`](Panel/) | All current boards on one fab panel |
+| [`Housing/`](Housing/) | Onshape FeatureScript for the cluster housing; a turn-signal indicator puck |
 
-## Build and flash
+Off-the-shelf parts: the screens are **Waveshare ESP32-P4-WIFI6-Touch-LCD-4C** (4", 720×720) on the left and right and
+**-3.4C** (3.4", 800×800) in the center; they plug into the main board on 2×20 headers.
 
-Display boards: the same image on all three; each board finds its position from the strap on the DigiDash board
-(pick the env that matches the panel: `display-waveshare3c4` = 3.4" 800×800, `display-waveshare4c` = 4" 720×720):
+## Firmware
+
+PlatformIO projects under [`firmware/`](firmware/). Shared code is in libraries; every board runs the firmware that
+ships (there are no separate bench builds). Details, gestures, console commands and panel targets:
+[`firmware/README.md`](firmware/README.md).
+
+| Directory | Runs on | What |
+| --- | --- | --- |
+| [`firmware/esp32_p4_display`](firmware/esp32_p4_display/) | All three screens (ESP32-P4) | One image; position from the strap |
+| [`firmware/esp32_p4_ui`](firmware/esp32_p4_ui/) | library | LVGL screen layer, gauge faces, menu, media / phone / accessory pages, touch |
+| [`firmware/esp32_p4_common`](firmware/esp32_p4_common/) | library | Sensor link, panel setup, cluster I2C, watchdog, boot splash |
+| [`firmware/elc_can`](firmware/elc_can/) | library | CAN IDs, frame codecs, TWAI driver with heartbeat and bus-off recovery |
+| [`firmware/esp32s3_console`](firmware/esp32s3_console/) | Console (ESP32-S3) | Radio head unit UI on the OLED |
+| [`firmware/esp32_classic_bt_audio`](firmware/esp32_classic_bt_audio/) | Audio card (classic ESP32) | Audio sink and Bluetooth bridge; builds [`arduino/sketches/esp32_audio_bridge`](arduino/sketches/) |
+| [`firmware/sensor_card`](firmware/sensor_card/) | Sensor card rev A (ATmega2560) | Senders, speed, tach, odometer, calibration |
+| [`firmware/sensor_card_stm32`](firmware/sensor_card_stm32/) | Sensor card rev B (STM32G0B1) | Port of rev A; same logic, new hardware layer |
+| [`firmware/esp32_p4_display_litmus`](firmware/esp32_p4_display_litmus/) | Any P4 panel | Panel bring-up test |
+| [`arduino/sketches/`](arduino/sketches/) | various | Rev 1 sensor pack (ATmega328P), the audio bridge source, older experiments |
+
+The radio, GPS, LTE and other cards do not have firmware yet; their behaviour on CAN is simulated by
+[`tools/can_relay.py`](tools/can_relay.py) and the `*_sim.py` modules next to it.
+
+## Repository layout
+
+```
+el-camino-dash/
+├── README.md               this file
+├── HARDWARE.md             every board: lineage, status, how to regenerate and order
+├── WIRING_PINOUT.md        vehicle harness and screen header pinouts
+├── firmware/               PlatformIO firmware and shared libraries
+├── arduino/                Arduino sketches and arduino-cli helpers (rev 1 sensor pack, audio bridge source)
+├── docs/
+│   ├── protocols/          wire formats: CAN bus, CAN channels, sensor UART, USB link, calibration, I2C
+│   └── hardware/           specs and plans: accessory ports, cards, housing envelope, harnesses, costing
+├── tools/                  bench relay and card simulators, gauge / console previews, fab export scripts
+├── scripts/                asset export (boot splash to RGB565)
+├── assets/                 boot splash and the original Classic gauge art (design reference)
+├── <Board>/                one directory per KiCad board (see Hardware)
+└── Housing/                enclosure CAD
+```
+
+Each directory has its own README.
+
+## Getting started
+
+### Prerequisites
+
+- **Python 3** for the tools and generators.
+- **PlatformIO 6.1.18 or later.** Each `flash.sh` installs it into a local `.venv`; for a PlatformIO you installed
+  yourself, add the builder's Python packages with `firmware/requirements-pio.txt` (see
+  [`firmware/boards/README.md`](firmware/boards/README.md)). Platform and library versions are pinned in each `platformio.ini`.
+- **A C++17 compiler** (Apple clang or gcc) for the host tests and the previews.
+- **KiCad 10** to open or regenerate the boards.
+
+### See the gauges without hardware
+
+The faces render on a desktop with the same code that runs on the screens:
+
+```bash
+cd firmware/esp32_p4_display && pio run -e display-waveshare3c4 && cd -   # once, to fetch LVGL
+tools/gauge_preview/build.sh
+python3 tools/gauge_preview/preview.py faces.png 0,1,0 2,1,0 1,1,0
+```
+
+The console's OLED has the same kind of preview in [`tools/console_preview/`](tools/console_preview/). See
+[`tools/README.md`](tools/README.md).
+
+### Flash a screen
+
+Any Waveshare ESP32-P4 round display board will do. Pick the environment that matches the panel
+(`display-waveshare3c4` = 3.4" 800×800, `display-waveshare4c` = 4" 720×720); never flash one panel's profile on the
+other.
 
 ```bash
 cd firmware/esp32_p4_display
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ./flash.sh -e display-waveshare3c4 --upload-port /dev/cu.usbmodem…
 ```
 
-Or build only: `pio run -e display-waveshare3c4`. Platform and library versions are pinned in each `platformio.ini`.
+Off the main board the position strap is open, so the board starts as the center screen. Type `role left`,
+`role right` or `role auto` on its serial console (115200) to change that.
 
-Sensor pack (ATmega328P):
+### Run a bench without a main board
+
+[`tools/can_relay.py`](tools/can_relay.py) connects every board plugged into the computer over USB as if they were
+on one CAN bus ([`docs/protocols/usb_link.md`](docs/protocols/usb_link.md)). It also sends a simulated drive in place
+of the sensor card, the computer's clock in place of GPS, and simulated radio, audio, GPS, LTE and other cards:
 
 ```bash
-bash arduino/scripts/install_arduino_cli.sh
-bash arduino/scripts/upload_sensor_pack.sh /dev/cu.usbmodem101 arduino:avr:uno
-python3 arduino/scripts/monitor_sensor_pack.py --port /dev/cu.usbmodem101
+python3 tools/can_relay.py            # every USB serial port found
+python3 tools/can_relay.py --frames   # also log the frames
 ```
 
-BT audio bridge (classic ESP32 only): `firmware/esp32_classic_bt_audio/flash.sh --upload-port /dev/cu.…` (DevKitC-VE; `ENV=esp32dev` for the older WROOM board).
+With a real CAN bus, plug a USB-CAN adapter into the main board's tap or the [`BenchBoard`](BenchBoard/).
 
-**The sensor pack and the three displays must be flashed together** when the wire format changes (see `docs/protocols/sensor_uart.md`).
+### Other boards
+
+```bash
+firmware/esp32s3_console/flash.sh --upload-port /dev/cu.usbmodem…         # console
+firmware/esp32_classic_bt_audio/flash.sh --upload-port /dev/cu.usbmodem…  # audio card (DevKitC-VE)
+cd firmware/sensor_card_stm32 && pio run -e sensorcard2 -t upload          # sensor card rev B (ST-Link on SWD)
+cd firmware/sensor_card && pio run -e sensorcard_isp -t upload --upload-port usb   # sensor card rev A (USBasp on the ISP header)
+```
+
+Each firmware README has the details (programmers, environments, console commands).
 
 ## Tests
 
+The logic that does not touch hardware is tested on the host with sanitizers. No toolchain beyond a C++ compiler is needed:
+
 ```bash
-firmware/esp32_p4_common/test/host/run_tests.sh   # sensor UART parser, runs on the host with ASan/UBSan
-firmware/elc_can/test/host/run_tests.sh           # CAN frame codecs
+firmware/elc_can/test/host/run_tests.sh               # CAN frame codecs
+firmware/esp32_p4_common/test/host/run_tests.sh       # sensor UART parser (currently fails to compile: missing elc_can include path)
+firmware/esp32s3_console/test/host/run_tests.sh       # console UI state machine
+firmware/esp32_classic_bt_audio/test/host/run_tests.sh  # chimes, DSP, audio sink
+firmware/sensor_card/test/host/run_tests.sh           # sensor card rev A logic
+firmware/sensor_card_stm32/test/host/run_tests.sh     # sensor card rev B (rev A suite plus its own)
 ```
 
-## Status / open items
+Run them all before sending a change that touches shared code.
 
-- **Encoder controller is not wired into the ESP32 firmware yet.** Its UART protocol was designed for the Pi (`docs/protocols/nano_uart.md`). The plan is a console board (ESP32-S3, SSD1322 OLED on SPI, two encoders, two keys) on a 4-pin cable off the CAN bus. Its connector is cable port J17 (JST PH) on the DigiDash board (`docs/hardware/accessory_ports.md`).
-- **D11 on the sensor pack** selects demo-sweep mode when HIGH and is a plain input with no pull resistor. Make sure the harness ties it LOW (or add a pull-down), or the gauges can show fake data.
-- **Sensor data link integrity** is a 1-byte XOR. A CRC-8 plus a version byte would be stronger, but that means reflashing all four boards at once.
+## Making the boards
+
+- Boards are generated, not hand-drawn: `generate/gen_sch.py`, `gen_pcb.py` and friends write the KiCad files, and a
+  `drc.py` checks them. Small changes may be made by hand in the routed `.kicad_pcb` instead; each board README says how.
+- `fab/` in each board holds Gerbers, drill files, placement and the assembler's BOM, made by
+  `python3 tools/fab_export.py <Board>`. Run `tools/mask_dams.py` after regenerating a board.
+- Fabrication and cost notes: [`docs/hardware/panel_order_costing.md`](docs/hardware/panel_order_costing.md) and
+  [`HARDWARE.md`](HARDWARE.md).
+
+## Documentation map
+
+Start with [`docs/README.md`](docs/README.md). The most important specs:
+
+| Document | Covers |
+| --- | --- |
+| [`docs/protocols/can_bus.md`](docs/protocols/can_bus.md) | Physical layer, node numbers, the cluster's messages (sensors, settings, media, phone, console) |
+| [`docs/protocols/can_channels.md`](docs/protocols/can_channels.md) | The accessory channel protocol: NET, SYSTEM, ALERT, SENSOR, UI, INPUT, AUDIO, BULK, ONLINE, LOG |
+| [`docs/protocols/usb_link.md`](docs/protocols/usb_link.md) | CAN over USB for the bench |
+| [`docs/protocols/sensor_uart.md`](docs/protocols/sensor_uart.md) | The serial sensor frames (rev 1 and the fallback) |
+| [`docs/protocols/sensor_calibration.md`](docs/protocols/sensor_calibration.md) | How each reading is calibrated |
+| [`docs/hardware/accessory_ports.md`](docs/hardware/accessory_ports.md) | Card slot pinout, I2S rail, power, node numbers |
+| [`docs/hardware/digidash_rev2_plan.md`](docs/hardware/digidash_rev2_plan.md) | Why rev 2 looks the way it does |
+| [`WIRING_PINOUT.md`](WIRING_PINOUT.md) | Vehicle harness |
+
+## Status
+
+Bench testing only; nothing is in the car. In short:
+
+- **Screens:** run on Waveshare P4 boards on the bench: all three positions, themes, menu, media, phone, call card,
+  accessory pages, the camera (capture still stalls about once a second on the bench).
+- **Console:** firmware runs on bench hardware; UI state machine host-tested.
+- **Audio card:** Bluetooth bridge runs on a DevKitC; the I2S rail is untested on hardware.
+- **Sensor card:** rev A and rev B firmware build and are host-tested; neither has run on a card.
+- **Radio, GPS, LTE cards:** hardware designed; no firmware yet (simulated in `tools/`).
+- **Main board:** rev 2 is routed and DRC clean; rev 3 (through-hole) is in progress.
+
+Open items and known issues are listed in each README under *Status*, *Known issues* or *Open items*.
+
+## History
+
+- The first version ran on a Raspberry Pi with pygame. It is shelved and kept at git tag `pi-pygame-final`.
+- The ESP32-P4 rev 1 main board ([`DigiDash/`](DigiDash/)) used an ATmega328P sensor pack on a UART fan-out
+  ([`arduino/sketches/sensor_pack`](arduino/sketches/)) and plug-in dev boards.
+- Rev 2 ([`DigiDash2/`](DigiDash2/)) moved the sensor pack and all accessories onto slot cards on CAN; rev 3
+  ([`DigiDash3/`](DigiDash3/)) is the same board in through-hole parts.
+
+## Contributing
+
+Issues and pull requests are welcome. Some ground rules that keep the project consistent:
+
+- **Specs first.** Wire formats live in `docs/protocols/`. Change the spec and the code together, and keep IDs in
+  `firmware/elc_can/include/elc_can_ids.h` in step with `can_bus.md` and `can_channels.md`.
+- **One firmware per board.** No bench-only builds: bench setups use the USB CAN link and the serial consoles.
+- **Run the host tests** for any library you touch.
+- **Boards are generated.** Change the `generate/` scripts, regenerate, run the board's `drc.py`, and re-export `fab/`;
+  say in the PR whether the board was regenerated or hand-edited.
+- **Say what was tested on hardware** and what was not.
+
+## Safety
+
+This is a hobby project, not a certified instrument. A display can freeze, reboot or show a wrong value. Keep a way to
+see speed and critical warnings that does not depend on this cluster, check every reading against a known-good gauge
+before trusting it, and fuse every connection to the vehicle's 12 V. You use the designs and firmware at your own risk.
+
+## License
+
+Two licenses, split by what the file is:
+
+| What | License | File |
+| --- | --- | --- |
+| Hardware: every board directory (KiCad schematics, PCBs, footprints, `generate/` output, `fab/`, BOMs), `Housing/` and the mechanical files | CERN Open Hardware Licence v2, Permissive (CERN-OHL-P-2.0) | [`LICENSE-HARDWARE`](LICENSE-HARDWARE) |
+| Software and documentation: `firmware/`, `arduino/`, `tools/`, `scripts/`, the board generator scripts, `docs/` and the READMEs | MIT | [`LICENSE`](LICENSE) |
+
+Third-party material keeps its own license: the LVGL fonts in `firmware/esp32_p4_ui/src/fonts/` are generated from Barlow, Saira and VT323 (SIL Open
+Font License 1.1) and Material Icons (Apache 2.0); see [their README](firmware/esp32_p4_ui/src/fonts/README.md).
+`firmware/esp32_p4_ui/include/FreeSansBold*.h` are Adafruit GFX conversions of GNU FreeFont (GPL with font exception).
+The Waveshare panel init tables in `firmware/esp32_p4_common/src/` carry their own SPDX headers (MIT and Apache 2.0).
+The BDF fonts in `tools/oled_sim/fonts/` keep the notices in their headers.

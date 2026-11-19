@@ -17,6 +17,8 @@ exactly as they would in the dash, without ordering the 309 × 104 mm 4-layer ma
 | `fab/` | Gerbers, drill, placement, centroid (`python3 ../tools/fab_export.py BenchBoard`) and the assembler's BOM |
 | `generate/` | `gen_sch.py`, `gen_pcb.py`, `gen_bom.py`, `drc.py`, `sexp.py` (`refs.json` is written by `gen_sch.py`). The GPS card's 2-layer generators, adapted |
 
+**Firmware:** none on the board itself. The screen runs [`firmware/esp32_p4_display`](../firmware/esp32_p4_display/); each card runs its own (see [`HARDWARE.md`](../HARDWARE.md)).
+
 ## Connectors, jumpers, LEDs
 
 | Ref | Silk | What it is |

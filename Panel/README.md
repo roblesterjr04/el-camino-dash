@@ -29,6 +29,8 @@ Left out: `DigiDash` (rev 1, reference only), `ConsoleBoard` (replaced by Consol
 
 References and nets carry the board's prefix (`AU-R1`, `AU-GND`); the silkscreen keeps the board's own (`R1`).
 
+**Status:** generated. The files in `fab/` were last rebuilt on 2026-11-13 and predate later board changes: they still carry the audio card's ESP32-WROVER-E module and Switchcraft RCA block (audio card rev J has a DevKitC-VE and a Kycon RCA block). Regenerate before ordering ([Regenerating](#regenerating)). Ordered: not stated.
+
 ## Through-hole parts are assembled too
 
 Since 2026-10-23 the assembler fits **every** part, through-hole included: all 49 connectors, headers, slot sockets,

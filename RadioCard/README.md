@@ -19,6 +19,8 @@ CAN node from its slot (`0x14 + (slot − 1)`), product `0x0009`, node type 9. 5
 | `fab/` | Gerbers, drill, placement and centroid (`python3 tools/fab_export.py RadioCard`), and the assembler's BOM `RadioCard_BOM_PCBWay.csv` (the 48 placed parts) |
 | `generate/` | Scripts that produced the files (`gen_sch.py`, `gen_pcb.py`, `drc.py`, `sexp.py`; `refs.json` / `netlist.json` are written by `gen_sch.py`). Copied from `GPSCard/generate/`. Every symbol and footprint is stock KiCad 10 |
 
+**Firmware:** not written yet. On the bench, `tools/radio_sim.py` with `tools/can_relay.py` stands in for the card ([`docs/hardware/radio_card.md`](../docs/hardware/radio_card.md#simulated-card)).
+
 ## Signal paths
 
 ```

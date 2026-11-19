@@ -12,6 +12,8 @@ keys and encoders: [`ConsoleBoardRS/`](../ConsoleBoardRS/).
 | `ConsoleBoard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The board: 100.0 × 50.0 mm, 4 layers, parts on both sides. KiCad 10 |
 | `generate/` | Scripts that produced the files (`gen_sch.py`, `gen_pcb.py`, `drc.py`). Everything comes from stock KiCad libraries |
 
+**Status:** superseded by [`ConsoleBoardRS/`](../ConsoleBoardRS/README.md) and left off the panel ([`Panel/README.md`](../Panel/README.md)). Ordered or built: not stated. The console firmware ([`firmware/esp32s3_console/`](../firmware/esp32s3_console/README.md)) is now written for ConsoleBoardRS.
+
 ## Mechanics
 
 ```

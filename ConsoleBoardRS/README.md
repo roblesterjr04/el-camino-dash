@@ -12,6 +12,10 @@ right) on RJ9 (4P4C) cables instead of keys on the board. Same ESP32-S3, the sam
 | `generate/` | `gen_footprints.py`, `gen_sch.py`, `gen_pcb.py`, `drc.py` (see [Regenerating](#regenerating)) |
 | `ConsoleBoardRS_BOM.csv`, `fab/` | BOM, Gerbers / drill, placement and centroid, PCBWay BOM |
 
+**Status:** the current console board; on the panel ([`Panel/README.md`](../Panel/README.md)). Ordered or built: not stated.
+
+**Firmware:** [`firmware/esp32s3_console/`](../firmware/esp32s3_console/README.md).
+
 ## Mechanics
 
 ```

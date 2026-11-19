@@ -2,6 +2,16 @@
 
 Arduino assets and tooling for the El Camino Dash project live here.
 
+## Status
+
+The product firmware is the PlatformIO code in [`firmware/`](../firmware/). Of the sketches here, only
+`esp32_audio_bridge` is current, and it is built and flashed through
+[`firmware/esp32_classic_bt_audio`](../firmware/esp32_classic_bt_audio/) (the `arduino-cli` build below has no CAN).
+`sensor_pack` is the rev 1 sensor pack, superseded on the rev 2 board by `firmware/sensor_card`. `encoder_controller`
+and the Raspberry Pi parts of this page (the optional SSH to the Pi in `upload_sensor_pack.sh`) belong to the shelved Pi version (git tag
+`pi-pygame-final`); the ESP32-S3 console in `firmware/esp32s3_console` replaced the encoder controller. See
+[`sketches/README.md`](sketches/README.md).
+
 ## Layout
 
 - `arduino/sketches/` — sketches by feature/module.

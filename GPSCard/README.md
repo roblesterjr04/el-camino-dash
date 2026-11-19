@@ -19,6 +19,8 @@ No radio and no RF parts. CAN node from its slot (`0x14 + (slot − 1)`), 5 V fr
 | `GPSCard_BOM.csv` | Parts list |
 | `generate/` | Scripts that produced the files (`gen_sch.py`, `gen_pcb.py`, `drc.py`, `sexp.py`; `refs.json` is written by `gen_sch.py`). Copied from `AudioCarrier/generate/` and adapted. Every symbol and footprint is stock KiCad 10, so there is no `gen_footprints.py` and no project library |
 
+**Firmware:** not written yet. The CAN messages it must send are in [`docs/hardware/gps_card.md`](../docs/hardware/gps_card.md); the clock note under [Status](#status) says what the firmware has to select.
+
 ## Signal paths
 
 ```

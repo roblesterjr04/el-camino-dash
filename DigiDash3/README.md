@@ -13,6 +13,8 @@ screen headers, mounting and screen holes and rear connector group as rev 2, so 
 | `fab/` | Gerbers, drill, placement files (`python3 ../tools/fab_export.py DigiDash3`) |
 | `generate/` | The generators, from rev 2's: `gen_sch.py` (schematic), `gen_pcb.py` (placement + Freerouting), `gen_bom.py`, `drc.py` |
 
+**Firmware:** none on the board itself. The three screens run [`firmware/esp32_p4_display`](../firmware/esp32_p4_display/), as on rev 2.
+
 ## What changed from rev 2
 
 | Block | Rev 2 (SMD) | Rev 3 (through-hole) |
