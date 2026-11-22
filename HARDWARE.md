@@ -30,7 +30,7 @@ Console      ConsoleBoard (keys and encoders on the board)
                └─► ConsoleBoard4Key (four lit keys; renamed the same day)
                      └─► ConsoleBoardRS (RetroSound knobs on RJ9)
 
-Others       AudioCarrier (audio card), RadioCard, LTECard; Panel (fab panel of the current boards); Housing
+Others       AudioCarrier (audio card), RadioCard, LTECard, AICard; Panel (fab panel of the current boards); Housing
 ```
 
 ## Boards
@@ -48,6 +48,7 @@ Others       AudioCarrier (audio card), RadioCard, LTECard; Panel (fab panel of 
 | [`GPSCard`](GPSCard/README.md) | GPS card, rev A: reads a remote GPS puck, sends position and time on CAN | — | 80 × 60 mm, 2 layers | STM32G0B1KBU6 | Not written | Designed: routed, DRC clean; oscillator fix 2026-11-13. Ordered: not stated |
 | [`GPSCard2`](GPSCard2/README.md) | GPS card, rev B: the same card with every part through-hole | Alternative to GPSCard, same slot and messages | 80 × 60 mm, 2 layers | PIC18F26Q83 (SPDIP-28) | Not written | Designed: routed, DRC clean. Not ordered, not built (its README) |
 | [`LTECard`](LTECard/README.md) | LTE gateway card: ESP32-S3 with a SIMCom A7670 core board, online data on CAN | — | 80 × 60 mm, 4 layers | ESP32-S3-WROOM-1-N16R8 | Not written; plan in [`docs/hardware/lte_card.md`](docs/hardware/lte_card.md) | Designed: routed, DRC clean (2026-10-01). Not ordered (its README); core board geometry provisional |
+| [`AICard`](AICard/README.md) | AI voice card: ESP32-S3 front end (CAN, I2S rail, wake word, allow-list) and a Pi-header Linux compute module (speech, local and online models) on a 2×20 socket; the module's 5 V from AUX 12 V | — | 80 × 60 mm, 4 layers | ESP32-S3-WROOM-1U-N16R8 (+ Radxa Zero 3W class module) | [`firmware/ai_card`](firmware/ai_card/README.md) and [`firmware/ai_agent`](firmware/ai_agent/README.md) (host-tested) | Designed in KiCad 7: routed, DRC 0 errors (2026-10-04); merged to main 2026-11-22. ERC / parity not run; module geometry provisional; no PCBWay BOM. Not ordered |
 | [`ConsoleBoard`](ConsoleBoard/README.md) | Console: ESP32-S3, SSD1322 OLED, Back / View keys, two encoders | Superseded by ConsoleBoardRS (left off the panel) | 100 × 50 mm, 4 layers | ESP32-S3-WROOM-1-N8 | [`firmware/esp32s3_console`](firmware/esp32s3_console/README.md) (now written for ConsoleBoardRS) | Designed. Ordered: not stated |
 | [`ConsoleBoard4Key`](ConsoleBoard4Key/README.md) | Console with four lit keys, for a 111.5 × 38.5 mm housing. Only its `.kicad_pro` is tracked | Became ConsoleBoardRS (2026-10-03) | 108 × 35 mm (git history) | ESP32-S3 | — | Abandoned |
 | [`ConsoleBoardRS`](ConsoleBoardRS/README.md) | Console: ESP32-S3, SSD1322 OLED, two RetroSound knobs on RJ9, IR receiver | Supersedes ConsoleBoard and ConsoleBoard4Key | 108 × 35 mm, 2 layers (4 before 2026-10-26) | ESP32-S3 | [`firmware/esp32s3_console`](firmware/esp32s3_console/README.md) | Designed. On the panel. Ordered: not stated |

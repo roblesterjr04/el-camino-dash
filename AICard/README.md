@@ -130,7 +130,8 @@ powered without the main board needs AUX GND and GND joined at the supply.
 747 tracks and 635 vias (558 of them GND stitching), Freerouting 2.4.1 plus the script's own steps, no hand edits.
 DRC (KiCad 7.0.11): **0 errors, 0 unconnected.** Warnings only: 78 "library not in the library table" (the project has no
 `fp-lib-table`, as on the LTE card), 20 silkscreen past the edge (J1, J3 and J4 stick out of the outline on purpose), 3 silkscreen
-clipped by mask, 2 silkscreen overlaps. **Not ordered.** Fab files: `fab/` (`python3 ../tools/fab_export.py AICard`).
+clipped by mask, 2 silkscreen overlaps. **Not ordered.** Merged to main on 2026-11-22; the BOM CSV was regenerated then (the committed one predated the
+220k / 47k AUX sense divider and listed 22k / 33k, which would have put about 7 V on GPIO5). Fab files: `fab/` (`python3 ../tools/fab_export.py AICard`).
 
 What has **not** been checked, and what to do about it before ordering:
 - **No ERC and no schematic-parity check were run**: KiCad 7's command line has neither (KiCad 8+ does). A script checked the
@@ -144,6 +145,15 @@ What has **not** been checked, and what to do about it before ordering:
   0.19 mm instead of 0.25 mm; confirm the fab's limit. Only the A4 / B9 VBUS contacts are wired (the others sit 4.8 mm away across the
   signal pads, and VBUS powers nothing here).
 - **Thermal**: nothing has been measured; the design relies on the two-step throttle in the firmware (`docs/hardware/ai_card.md`).
+- **AUX budget (changed on the main board after this card was drawn).** Since 2026-10-19 DigiDash2's AUX 12 V is sized for
+  about **3 A for all slots together** (5 A fuse; it was 10 A). This card's 3 A peak at 5 V is about 1.4 A from 12 V, and the
+  LTE card's modem buck about 1 A: both fit, with little margin. Measure the module's peak before adding another AUX user.
+- **The module's UART on header pins 8 / 10** may be its Linux debug console (on Radxa Zero 3 boards it usually is, at
+  1.5 Mbaud): either turn the console off in the module's image or move the link to another UART. Confirm on the module.
+- **Slot numbering was fixed on the main board on 2026-10-19** (`accessory_ports.md`, Numbering). The card side did not change
+  and J1 is placed as on the audio and LTE cards, so this card should mate; confirm in KiCad's 3D viewer with DigiDash2.
+- **KiCad 7 files.** Open and save in KiCad 10 before any edit (then re-run `fab_export.py` and `tools/mask_dams.py`), and make a
+  PCBWay BOM in `fab/pcbway/` as on the other cards. Every part is SMD except J1–J3, which PCBWay can fit too.
 - **Pin 1 of J1** against the main board's slot, and the USB-C and debug header against the case, in KiCad's 3D viewer.
 - The 5 V pre-route (`preroute()`) was blocked by the placer's passives in this run and the router did the whole 5 V run; check that
   net's width and layers in the layout (it is the module's supply).

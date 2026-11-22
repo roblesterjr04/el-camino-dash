@@ -17,7 +17,7 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 1,J1,"right-angle 2 x 15 pin header, 2.54 mm, 6 mm mating pins (e.g. Samtec TSW-115-08-G-D-RA)","Right-angle 2x15 header on the bottom edge (the slot pinout, docs/hardware/accessory_ports.md). Used: 5 V, GND, CAN, slot ID, I2S rail BCK / WS / MIC (inputs) and RET (a 3-state output), AUX 12 V / AUX GND (25-30). Not used: switched / constant 12 V, 3.3 V, WAKE, LAMP, REV, MCLK, audio bus",PinHeader_2x15_P2.54mm_Horizontal,THT,Top,
 1,J2,"female 2 x 20 socket, 2.54 mm, 8.5 mm insulator (e.g. Sullins PPPC202LFBN-RC)","Female socket 2 x 20, 2.54 mm, 8.5 mm insulator: the compute module plugs in here. Raspberry Pi 40-pin pinout",PinSocket_2x20_P2.54mm_Vertical,THT,Top,The module itself is a separate part: Radxa Zero 3W 8 GB with eMMC (or a Pi-header compatible board). Not on the BOM
 1,J3,"1 x 3 right-angle pin header, 2.54 mm","Right angle, left edge: GND, TX0 (to the adapter RX), RX0 (from the adapter TX). 3.3 V logic. Not a supply",PinHeader_1x03_P2.54mm_Horizontal,THT,Top,
-1,J4,"GCT USB4105-GF-A (USB 2.0 Type-C, 16-pin, horizontal)","USB 2.0 Type-C receptacle, GCT USB4105-xx-A (16-pin, horizontal, top mount) on the left edge",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,SMD,Top,
+1,J4,"GCT USB4105-GF-A (USB 2.0 Type-C, 16-pin, horizontal)","USB 2.0 Type-C receptacle, GCT USB4105-xx-A (16-pin, horizontal, top mount) on the left edge. Only the A4 / B9 VBUS contacts are wired (to the ESD clamp): VBUS powers nothing here, and A9 / B4 sit 4.8 mm away across the signal pads",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,SMD,Top,
 1,L1,"Bourns SRP7028A-6R8M (Isat >= 5 A, Irms >= 3 A: check)","6.8 uH shielded, 7 x 7 mm, Isat >= 5 A, Irms >= 3 A (Bourns SRP7028A-6R8M or equal: check the ratings)",L_Bourns_SRP7028A_7.3x6.6mm,SMD,Top,
 1,Q1,"Diodes DMP6350S-7 (P-FET, -60 V, SOT-23)","P-FET (60 V, SOT-23): connects AUX 12 V to the EN divider when its gate is pulled down by Q2. Vgs is limited by the 47k / 47k divider",SOT-23,SMD,Top,Q1: 60 V rating for load-dump on AUX 12 V; Vgs limited to half the supply by the 47k / 47k divider
 1,Q2,"onsemi 2N7002 (N-FET, 60 V, SOT-23)",N-FET: GPIO11 high turns the module's buck on,SOT-23,SMD,Top,
@@ -27,12 +27,11 @@ Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
 3,R9 R10 R11,100,Series on the rail input BCK; Series on the rail input WS; Series on the rail input MIC,0603,SMD,Top,
 5,R12 R17 R19 R21 R31,100k,RET buffer off until the firmware pulls GPIO17 low (the rail rule: off at power-up); ALIVE low when the module is off; SHUTDOWN_REQ low while the ESP32 resets; ATTN low when the module is off ...,0603,SMD,Top,
 1,R13,33,RET series damping,0603,SMD,Top,
-1,R22,22k,AUX present divider top,0603,SMD,Top,
-1,R23,33k,AUX present divider bottom,0603,SMD,Top,
+1,R22,220k,"AUX present divider top (on the AUX 12 V side, in the buck area)",0603,SMD,Top,
+3,R23 R28 R29,47k,AUX present divider bottom; Q1 gate pull-up (off by default); Q1 gate pull-down through Q2: Vgs = half of AUX 12 V (7 V at 14.4 V),0603,SMD,Top,
 1,R25,243k,RT: 400 kHz (R3),0603,SMD,Top,
 1,R26,442k,EN divider top (R1): starts above about 6.5 V,0603,SMD,Top,
 1,R27,90.9k,EN divider bottom (R2),0603,SMD,Top,
-2,R28 R29,47k,Q1 gate pull-up (off by default); Q1 gate pull-down through Q2: Vgs = half of AUX 12 V (7 V at 14.4 V),0603,SMD,Top,
 1,R32,53.6k,Feedback top (R5): 5.0 V,0603,SMD,Top,
 1,R33,10.2k,Feedback bottom (R6),0603,SMD,Top,
 1,R34,16.9k,Compensation (R4),0603,SMD,Top,

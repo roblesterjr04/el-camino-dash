@@ -114,6 +114,9 @@ These are the numbers a designer should plan around, **not measured results**. T
 | Compute module | **AUX 12 V** (pins 25–27, return 28–30) → TPS54560B buck → 5 V, 5 A | 1–1.5 A typical, 3 A peak | Enabled by the ESP32 only. Same buck as the LTE card (`LTECard/`), with an ESP32-controlled enable |
 | Bulk | 470 µF at the module's 5 V, 3 × 47 µF at the buck | | A burst of CPU load must not sag the 5 V |
 
+The main board's AUX is sized for **about 3 A from 12 V, all slots together** (5 A fuse, since 2026-10-19). The module's
+3 A peak at 5 V is about 1.4 A from 12 V; with the LTE card's buck (about 1 A) that fits, but with little margin.
+
 - **Grounds:** AUX GND is not GND (the LTE card's rule, `LTECard/README.md`): the buck and the module's ground return are
   on AUX GND, the ESP32 side on GND, and only logic crosses, through 1 k resistors.
 - **With the key off:** the card is off (the dash 5 V is). Waking the car for a voice command is **not** in version 1. The
