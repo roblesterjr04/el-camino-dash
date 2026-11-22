@@ -1,0 +1,15 @@
+[Unit]
+Description=El Camino AI card assistant
+After=network.target llama-server.service whisper-server.service
+Wants=llama-server.service whisper-server.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/elc-ai/env
+ExecStart=/usr/bin/python3 -m elc_ai --config /etc/elc-ai/config.toml
+WorkingDirectory=/opt/elc-ai
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

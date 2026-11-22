@@ -153,6 +153,7 @@ history and status, is in [`HARDWARE.md`](HARDWARE.md).
 | [`RadioCard/`](RadioCard/) | AM/FM radio card: Si4735 tuner, STM32G0B1 |
 | [`GPSCard/`](GPSCard/), [`GPSCard2/`](GPSCard2/) | GPS card: STM32G0B1 (rev A, SMD) or PIC18F26Q83 (rev B, through-hole) |
 | [`LTECard/`](LTECard/) | LTE gateway card: ESP32-S3 + SIMCom A7670 core board |
+| [`AICard/`](AICard/) | AI voice card: ESP32-S3 front end + a Pi-header Linux compute module (speech, local and online models). Not ordered; the module's fit is provisional |
 | [`ConsoleBoardRS/`](ConsoleBoardRS/) | Console: ESP32-S3, SSD1322 OLED, RetroSound knobs on RJ9, IR receiver |
 | [`ConsoleBoard/`](ConsoleBoard/) | Console, earlier variant with keys and encoders on the board |
 | [`BenchBoard/`](BenchBoard/) | Bench stand-in for the main board: two slots, one screen, a USB-CAN header |
@@ -178,6 +179,8 @@ ships (there are no separate bench builds). Details, gestures, console commands 
 | [`firmware/esp32_classic_bt_audio`](firmware/esp32_classic_bt_audio/) | Audio card (classic ESP32) | Audio sink and Bluetooth bridge; builds [`arduino/sketches/esp32_audio_bridge`](arduino/sketches/) |
 | [`firmware/sensor_card`](firmware/sensor_card/) | Sensor card rev A (ATmega2560) | Senders, speed, tach, odometer, calibration |
 | [`firmware/sensor_card_stm32`](firmware/sensor_card_stm32/) | Sensor card rev B (STM32G0B1) | Port of rev A; same logic, new hardware layer |
+| [`firmware/ai_card`](firmware/ai_card/) | AI voice card (ESP32-S3) | CAN node, rail audio, wake word, compute-module power, the assistant's allow-list |
+| [`firmware/ai_agent`](firmware/ai_agent/) | AI card's compute module (Linux) | Speech to text, intents, on-board and online models, speech |
 | [`firmware/esp32_p4_display_litmus`](firmware/esp32_p4_display_litmus/) | Any P4 panel | Panel bring-up test |
 | [`arduino/sketches/`](arduino/sketches/) | various | Rev 1 sensor pack (ATmega328P), the audio bridge source, older experiments |
 
