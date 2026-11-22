@@ -521,7 +521,8 @@ def rules(b):
             setattr(ds, name, mm(val))
     if hasattr(ds, 'm_MinResolvedSpokes'):
         ds.m_MinResolvedSpokes = 1          # header pins also reach the In1 plane through their holes
-    d = ds.m_NetSettings.m_DefaultNetClass
+    ns = ds.m_NetSettings
+    d = ns.GetDefaultNetclass() if hasattr(ns, 'GetDefaultNetclass') else ns.m_DefaultNetClass   # KiCad 8+ / KiCad 7
     d.SetClearance(mm(0.13))
     d.SetTrackWidth(mm(0.2))
     d.SetViaDiameter(mm(0.6))

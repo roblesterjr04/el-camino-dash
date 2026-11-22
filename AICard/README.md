@@ -40,7 +40,7 @@ CAN node from its slot (`0x14 + (slot − 1)`), product `0x0007`. Firmware: `fir
 
 | Files | |
 | --- | --- |
-| `AICard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on the front only. Generated with KiCad 7.0.11's libraries (the files open in KiCad 7–10) |
+| `AICard.kicad_sch` / `.kicad_pcb` / `.kicad_pro` | The card: 80 × 60 mm, 4 layers, parts on the front only. Generated with KiCad 7.0.11; the files were upgraded to KiCad 10 format on 2026-11-22 |
 | `AICard_BOM.csv` | Bill of materials (`generate/gen_bom.py`) |
 | `generate/` | `gen_sch.py`, `gen_pcb.py`, `gen_bom.py`, `drc.py`, `sexp.py`; `refs.json` is written by `gen_sch.py`. Copied from `LTECard/generate/` and adapted. Every footprint is stock KiCad, so there is no `.pretty` library |
 
@@ -133,14 +133,23 @@ DRC (KiCad 7.0.11): **0 errors, 0 unconnected.** Warnings only: 78 "library not 
 clipped by mask, 2 silkscreen overlaps. **Not ordered.** Merged to main on 2026-11-22; the BOM CSV was regenerated then (the committed one predated the
 220k / 47k AUX sense divider and listed 22k / 33k, which would have put about 7 V on GPIO5). Fab files: `fab/` (`python3 ../tools/fab_export.py AICard`).
 
+**KiCad 10 pass (2026-11-22).** Both files upgraded with `kicad-cli sch upgrade` / `pcb upgrade`; nothing on the board moved.
+- **ERC** (KiCad 10.0.2): 0 errors, 409 warnings: 396 endpoints off grid, 13 library notes (the `AICard` symbol nickname is not in a
+  library table; J4's and the LEDs' symbols differ from KiCad 10's copies).
+- **DRC with the schematic parity check** (`generate/drc.py`, now kicad-cli as on the other cards): 0 errors, 0 unconnected.
+  Warnings: 68 footprints differ from KiCad 10's library copies, 68 *Description* fields set in the schematic only, 20 silkscreen past
+  the edge (J1, J3, J4, on purpose), 5 silkscreen over copper, 2 silkscreen overlaps. Parity otherwise clean: every part, value and net matches.
+- **Mask dams:** `tools/mask_dams.py` narrowed J4's eight 0.5 mm-pitch signal pads to 0.28 mm (0.22 mm gaps); zones refilled.
+- **AP7361C-33E pinout checked** against the Diodes datasheet: suffix E is SOT223 (ER is the reversed SOT223R), pin 1 IN, 2 GND
+  (tab), 3 OUT, as drawn. ConsoleBoardRS uses the same part and pinout.
+- **Power tracks** measured in the routed board (the 5 V pre-route was blocked and the router laid them): MOD_5V 1.0 mm on F.Cu
+  and B.Cu (a 0.8 mm stub at a pad), AUX12 and AUX_GND 0.8 mm, BUCK_SW 1.0 mm, the slot +5 V 0.3 mm (it feeds only the ESP32 side).
+- **Fab files** re-exported with KiCad 10 (`fab/`, inner layers now `.g1` / `.g2`, plus a JLC CPL).
+
 What has **not** been checked, and what to do about it before ordering:
-- **No ERC and no schematic-parity check were run**: KiCad 7's command line has neither (KiCad 8+ does). A script checked the
-  netlist instead (every single-pin net is a deliberately unused pin; the key nets and pin maps were read back). Open the project
-  in KiCad 10, run ERC, and run DRC with *Test for parity between PCB and schematic*.
 - **The compute module** (size, header end, mounting holes, which pins it powers from): see the box at the top.
 - **The buck** is the main board's circuit with a smaller inductor and the 470 µF at the load; its loop was not simulated. Check L1's
   ratings (Isat ≥ 5 A, Irms ≥ 3 A) and the compensation with TI WEBENCH or a load-step test on the real module.
-- **AP7361C-33E pinout** (VIN 1, GND 2 / tab, VOUT 3) is KiCad's symbol (it shares the SPX2920's); check it against the Diodes datasheet.
 - **J4 (the GCT USB4105)**: its own locating hole is 0.194 mm from pad B12, so the project's minimum hole clearance is set to
   0.19 mm instead of 0.25 mm; confirm the fab's limit. Only the A4 / B9 VBUS contacts are wired (the others sit 4.8 mm away across the
   signal pads, and VBUS powers nothing here).
@@ -152,13 +161,14 @@ What has **not** been checked, and what to do about it before ordering:
   1.5 Mbaud): either turn the console off in the module's image or move the link to another UART. Confirm on the module.
 - **Slot numbering was fixed on the main board on 2026-10-19** (`accessory_ports.md`, Numbering). The card side did not change
   and J1 is placed as on the audio and LTE cards, so this card should mate; confirm in KiCad's 3D viewer with DigiDash2.
-- **KiCad 7 files.** Open and save in KiCad 10 before any edit (then re-run `fab_export.py` and `tools/mask_dams.py`), and make a
-  PCBWay BOM in `fab/pcbway/` as on the other cards. Every part is SMD except J1–J3, which PCBWay can fit too.
+- **No PCBWay BOM yet** (`fab/pcbway/`, as on the other cards). Every part is SMD except J1–J3, which PCBWay can fit too.
 - **Pin 1 of J1** against the main board's slot, and the USB-C and debug header against the case, in KiCad's 3D viewer.
-- The 5 V pre-route (`preroute()`) was blocked by the placer's passives in this run and the router did the whole 5 V run; check that
-  net's width and layers in the layout (it is the module's supply).
 
 ## Regenerating
+
+**The generators still write KiCad 7 format** (`gen_sch.py`, `gen_pcb.py`): after a regeneration run `kicad-cli sch upgrade` and
+`kicad-cli pcb upgrade` on the two files, then `tools/mask_dams.py AICard` and `gen_pcb.py --fill`. `--fill` runs on KiCad 10's
+Python (`$KIPY`); the full place-and-route has only been run on KiCad 7.
 
 KiCad's stock libraries and `kicad-cli`, a Python with `pcbnew` and `numpy`, and Freerouting (Java; **2.4.1 needs Java 25** and
 runs with `--gui.enabled=false`; 1.9.0 with Java 17+ also worked for the LTE card). This card was generated with KiCad
