@@ -195,10 +195,9 @@ so the housing should treat slots 2–6 the same. The y and z values below hold 
 
 | Card | Item | y | Past the top edge (z) | Off the parts face | Notes |
 | --- | --- | --- | --- | --- | --- |
-| **Audio** (slot 1) | 2 × 2 RCA block (Kycon KLP42X-61, front / rear line out), right angle | 27.5–62.5 | to z 69.5 | **26.5** | Plugs from the rear |
-| | 3.5 mm mic jack (Same Sky SJ-3523-SMT, Ø5 nose) | 18.2–23.2 | to z 71.0 | 5 | Plugs from the rear (HFP mic only) |
-| | ESP32-WROVER-E module (18 × 31.4 mm, since 2026-10-23), **PCB antenna** at the card's top corner | 74–92 | z 37–68.3 | 3.3 | Bluetooth: no metal close to the antenna end (the top 7 mm, z ≈ 61–68.5) |
-| | Programming header J10 (vertical 1 × 5) | 78–92 | z 10–14 | 8.6 | Reached from the open end of the row |
+| **Audio** (slot 1) | 2 × 2 RCA block (Kycon KLP42X-61, front / rear line out), right angle, centred at card x 48 (rev J) | 28–62 (tabs 27.1–62.9) | plate to z 69.5, **barrels to z 77.3** | **26.5** | Plugs from the rear. Barrel axes 6.7 and 20.7 mm off the face, at y 36 and 54 |
+| | 3.5 mm mic jack (Same Sky SJ1-3533NG, through-hole) | 17.4–25.7 | to z 72.5 | ≈5.5 | Plugs from the rear (HFP mic only) |
+| | ESP32-DevKitC-VE in two 1 × 19 sockets (rev J), **PCB antenna** at the card's left edge | ≈38–93 | z ≈27–56 | ≈14 (socket height; measure) | Bluetooth: no metal close to the antenna end (y ≈ 81–93) |
 | **GPS** | JST PH 4-pin to the GPS puck, side entry | 47.5–58.4 | to z 68.9 | 4.8 | Plugs from the rear |
 | | SWD + debug serial, right angle on the left edge | to 99.5 | z 30.7–54.4 | 2.5 | |
 | **Sensor** | JST PH 12-pin (senders, speed, tach), side entry | 52.5–79.4 | to z 68.9 | 4.8 | Plugs from the rear |
@@ -231,7 +230,9 @@ every parameter value, so a changed default only takes effect once the instance'
     inductors and the camera module, and a dished port well over the rear connector group. Each plug passes through
     the well floor ("Port well floor", 15 mm off the board's back); the fuse stands up through it.
   - *Card bay hatch:* a domed, hollow lid on the pod with four corner screws, a rib bearing on each card's back half,
-    and openings for each slot's top-edge connectors. Pick the card in each slot as before ("Slot 1 card" … "Slot 6
+    and openings for each slot's top-edge connectors. Since v6.1 (2026-11-22) the audio openings follow the rev J card:
+    the RCA block's at y 27.5–62.5 (it was 26.5–55.4, from the block's old position at card x 52, so the hatch sat over
+    the block's outer 7 mm and partly over two of its barrels), the jack's at y 16.4–26.7 and wide enough for a 10 mm plug. Pick the card in each slot as before ("Slot 1 card" … "Slot 6
     card"; as delivered 1 Audio, 2 Sensor, 3 GPS, 4 Radio, 5–6 empty).
   - Shape settings: hull depth 12, hull crown 5, pod flare 12, pod corner radius 8, shell edge radius 6, hatch crown 7.
 - **Card indexing.** Each card body sits 3.34 mm from its pin row on the parts side (toward slot 1), and the rails
@@ -249,6 +250,11 @@ Collision test (2026-11-17): every housing part against the board model, the ref
 boxes for the parts with no 3D model (Molex connectors, fuse, PTCs at an assumed 9.5 mm, F8 at 13.5 mm, the 16 mm and
 12.5 mm capacitors). Everything clears by at least 1.5 mm except the fuse, which passes through its opening with
 0.7 mm. A reversed card is blocked in all six slots.
+
+Re-check (2026-11-22, v6.1), after the reference audio card gained its RCA block, barrels and jack: no clashes between
+any of the six reference cards and any housing part. The RCA block clears the hatch by 1.0 mm (the port margin) and the
+pod wall by 1.7 mm; the barrels have 3.5–4.7 mm to the edge of the hatch opening, so plug shells up to about 15 mm
+across go in; the mic jack clears the hatch by 2.0 mm.
 
 Board-level note: inductor **L1** is 0.24 mm from slot 6's card envelope (its 2.5 mm allowance for solder tails), so the
 pod opens into the nacelle there with no wall between them.

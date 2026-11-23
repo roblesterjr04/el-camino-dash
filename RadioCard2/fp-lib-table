@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "RadioCard2")(type "KiCad")(uri "${KIPRJMOD}/RadioCard2.pretty")(options "")(descr "RadioCard2 project footprints (the PCB spark gap)"))
+)

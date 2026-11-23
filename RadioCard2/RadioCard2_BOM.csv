@@ -1,0 +1,38 @@
+Qty,Designators,Manufacturer part,Description,Package,Type,Side,Notes
+1,U1,Microchip PIC18F26Q83-I/SP,"MCU: PIC18, 64 MHz, 64 KB flash, 4 KB RAM, CAN FD, I2C, 5 UARTs, 1.8-5.5 V",SPDIP-28 (0.3 in),THT,Top,"Fit in a socket (next line). Notch / pin 1 toward J3 (left). Arrives blank: programmed over J3 (ICSP)"
+1,U1 socket,"Any 28-pin 0.3 in (narrow) DIP socket","IC socket for U1",DIP-28 0.3 in,THT,Top,"Turned-pin or leaf type. Solder the socket, not the PIC"
+1,U2,Microchip MCP2562-E/P,"CAN FD transceiver, VDD 5 V, VIO 3.3 V",PDIP-8,THT,Top,"An 8-pin 0.3 in socket fits too"
+1,U3,Microchip MCP1700-3302E/TO,"LDO 3.3 V 250 mA (1 GND, 2 VIN, 3 VOUT)",TO-92,THT,Top,"Wide-spaced pads (2.54 mm): bend the outer legs out. Flat face as the silk shows"
+1,U5,Texas Instruments SN74HC125N,"74HC125: quad 3-state buffer, OE active low (buffer A drives the rail's RET pin)",PDIP-14,THT,Top,"Runs at 3.3 V. Any 74HC125 / 74AHC125 in DIP-14. A 14-pin socket fits too"
+1,Tuner,"Si4737-C40-GU breakout (FMBreakout.brd, OSH Park, owner-built)","AM / FM / WB + RDS tuner with digital audio out, on a 22.4 x 29.4 mm board with a 1 x 8 and a 1 x 9 male header",Module,Module,Top,"Already built. Plugs into J6 / J7, headphone jack toward the slot (silk 'jack end'). Check its header pinout against the chip by continuity before first power"
+1,Y1,Abracon ABL-16.000MHZ-B2,"Crystal 16 MHz, 18 pF load",HC-49/US,THT,Top,"Any 16 MHz HC-49/US crystal with an 18 pF load"
+2,C6 C7,"Any, C0G / NP0, 50 V","27p: Capacitor 27 pF C0G (crystal load)","Radial, 2.54 mm lead spacing",THT,Top,
+5,C4 C5 C8 C9 C11,KEMET C320C104K5R5TA,"100n: Capacitor 100 nF X7R 50 V","Radial, 2.54 mm lead spacing",THT,Top,"C4 = tuner 3.3V (at J7 pin 3), C5 = U1 VDD (pin 20), C8 = MCP2562 VDD, C9 = MCP2562 VIO, C11 = 74HC125 VCC"
+3,C1 C2 C3,"Any, X5R, 10 V or more","10u: Capacitor 10 uF ceramic (C1 slot 5 V / U3 in, C2 U3 out, C3 tuner supply)","Radial MLCC, 2.54 mm lead spacing",THT,Top,"Ceramic, not electrolytic: the MCP1700 wants ceramic in and out"
+1,C12,"Any, C0G / NP0, 50 V","1n: Capacitor 1 nF C0G (FM coupling to FMI)","Radial, 2.54 mm lead spacing",THT,Top,"C0G only"
+1,C13,"Any, X7R, 16 V or more","470n: Capacitor 470 nF (AM coupling to AMI)","Radial MLCC, 2.54 mm lead spacing",THT,Top,
+1,C10,"Any, C0G / NP0, 50 V","2.2p: Capacitor 2.2 pF C0G (noise capacitor on the DFS line)","Radial, 2.54 mm lead spacing",THT,Top,"C0G, +-0.25 pF if you can get it"
+1,FB1,Murata BL01RN1A2A2B,"Ferrite bead, through-hole (tuner supply)",Axial bead,THT,Top,"Any through-hole bead of about 100 R at 100 MHz, rated 0.1 A or more"
+1,L1,"56 nH axial RF inductor","56nH: FM antenna match to RF ground (AN383 fig. 23), Q >= 15 at 100 MHz","Axial, 7.62 mm lead spacing",THT,Top,"Or wind about 5 turns of 0.5 mm enamelled wire on a 3 mm form. Tuned on the bench (README, Tuning L1): fit it in two turned-pin socket contacts so values swap without desoldering. Always fit one: it also drains static off the whip"
+2,L1 socket,"2 contacts cut from a turned-pin (machined) SIP socket strip","Sockets for L1, so it can be swapped while tuning",-,THT,Top,"Optional. Any machined-pin strip whose tails fit 0.8 mm holes"
+3,R1 R2 R14,"Any 1/4 W 1 % metal film (Yageo MFR-25FBF52-10K or equal)","10k: Resistor (R1 slot ID pull-up, R2 MCLR pull-up, R14 RET buffer off at reset)",Axial DIN0207,THT,Top,
+3,R3 R4 R5,"Any 1/4 W 1 % metal film","1k: Resistor (R3 / R4 LEDs, R5 CAN RXD series)",Axial DIN0207,THT,Top,
+1,R6,"Any 1/4 W 1 % metal film","604: Resistor (DOUT series)",Axial DIN0207,THT,Top,"600-620 R is fine"
+2,R7 R8,"Any 1/4 W 1 % metal film","2k: Resistor (DFS / DCLK series)",Axial DIN0207,THT,Top,
+4,R9 R10 R11 R13,"Any 1/4 W 1 % metal film","100k: Resistor (R9 / R10 rail BCK / WS idle pull-downs, R11 tuner reset, R13 RCLK)",Axial DIN0207,THT,Top,
+1,R15,"Any 1/4 W 1 % metal film","33: Resistor (RET series, at the rail pin)",Axial DIN0207,THT,Top,
+0,R12,"Any 0 R link","0: MCLK to RCLK link (fallback reference clock)",Axial DIN0207,THT,Top,DNP
+0,D2,Texas Instruments TPD1E0B04DPYR,"ESD clamp, 1 channel, 0.13 pF (antenna)",X1SON-2 1.0 x 0.6 mm,SMD,Top,"DNP: no through-hole version exists; D4 / D5 and SG1 stand in for it. Pads are on the board if it is ever fab-placed"
+2,D4 D5,Vishay 1N5711,"Schottky diode 70 V, 2 pF: antenna ESD clamp pair, back to back to GND (about 0.4 V clamp)",DO-35,THT,Top,"Mounted standing up (2.54 mm pads). Cathode band to the pad marked K. Any 1N5711 (ST, Vishay, onsemi)"
+0,SG1,"(PCB copper, nothing to fit)","Spark gap 0.25 mm on the antenna node",-,PCB,Top,"Keep it clean: no solder, flux or conformal coat across the gap"
+2,D1 D3,"Any 3 mm green LED","TUNED / STEREO-RDS: status LEDs",3 mm,THT,Top,"Short lead / flat side = cathode = square pad"
+1,J1,Sullins PRPC015DBAN-M71RC,"DigiDash slot: pin header 2 x 15, 2.54 mm, right angle",THT,THT,Top,"Same as the other cards. On the bottom edge, pins pointing off the board"
+1,J2,Amphenol RF 132289,"SMA jack, edge mount, for 1.6 mm board (antenna)",Edge mount,SMD,Top,"Already on hand. Hand-soldered: centre pin on the top pad, ground legs on both faces. Top edge. For the car whip, a DIN 41585 (Motorola) female to SMA male pigtail"
+1,J3,"Any 1 x 6 2.54 mm right-angle male header","ICSP: 1 MCLR, 2 3V3, 3 GND, 4 ICSPDAT, 5 ICSPCLK, 6 NC (PICkit / MPLAB Snap pinout)",THT,THT,Top,"Left edge, pins pointing off the board. Pin 1 (MCLR) is the lowest pin"
+1,J4,Sullins PREC003SBAN-M71RC,"Debug serial: pin header 1 x 3, 2.54 mm, right angle (GND, TX, RX)",THT,THT,Top,"Left edge, below J3"
+1,J5,Sullins PRPC002SBAN-M71RC,"AM loopstick: pin header 1 x 2, 2.54 mm, right angle (1 AM node, 2 GND)",THT,THT,Top,"Top edge; ferrite loopstick 180-450 uH on a wire pair"
+1,J6,Sullins PPTC081LFBN-RC,"Tuner breakout, left header: female header 1 x 8, 2.54 mm, vertical, 8.5 mm",THT,THT,Top,"Any 1 x 8 2.54 mm female header"
+1,J7,Sullins PPTC091LFBN-RC,"Tuner breakout, right header: female header 1 x 9, 2.54 mm, vertical, 8.5 mm",THT,THT,Top,"Any 1 x 9 2.54 mm female header"
+1,JP1,"Any 1 x 3 2.54 mm straight male header","Tuner address (1 GND, 2 SEN, 3 3V3)",THT,THT,Top,"Fit a shunt on 1-2 (SEN low, I2C address 0x11, the firmware default)"
+1,JP1 shunt,Sullins QPC02SXGN-RC,"2.54 mm jumper shunt",-,-,-,"Any 2.54 mm shunt"
+1,JP2,"Any 1 x 2 2.54 mm straight male header","AM from whip (1 SMA node, 2 AM node)",THT,THT,Top,"No shunt as delivered (AM from the loopstick only)"

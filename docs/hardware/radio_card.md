@@ -4,6 +4,9 @@
 routed). It follows the audio card's generator pattern (`AudioCarrier/generate/`, `GPSCard/`, `LTECard/`), and the GPS
 card's MCU and programming header. Until the card is built, `tools/can_relay.py` stands in for it on the bench
 (`tools/radio_sim.py`, see [Simulated card](#simulated-card)).
+**Rev B, every part through-hole for hand assembly:** [`RadioCard2/`](../../RadioCard2/README.md), the owner's Si4737
+breakout (plug-in module) + a PIC18F26Q83 (DIP-28, as GPSCard2) + MCP2562 DIP-8 + 74HC125 DIP-14 instead of the
+Si4735 and STM32G0B1; same slot, rail use and CAN messages. On rev B the antenna ESD clamp D2 is not fitted: a PCB spark gap and two 1N5711 Schottky diodes stand in for it.
 
 **Checked against** the Si4730/31/34/35-D60 data sheet (rev 1.2), AN332 *Si47xx Programming Guide* (Skyworks 207003A),
 AN383 *Si47xx Antenna, Schematic, Layout and Design Guidelines* (207075A) and ST DS13560 rev 4. What they settled is in

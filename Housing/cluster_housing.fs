@@ -1,10 +1,12 @@
 FeatureScript 3083;
 import(path : "onshape/std/common.fs", version : "3083.0");
-BoardV4::import(path : "b779ac360a00653b1f8efd1f", version : "922320867a952ff0357b0ed8");
+BoardV4::import(path : "b779ac360a00653b1f8efd1f", version : "d1ccd6621638a5a789dc223e");
 
 // Gauge cluster housing - v6 (2026-11-17): DigiDash3 board model, one sculpted rear shell (crowned hull, flared card
 // pod with a crowned hatch, nacelle over the inductors and the camera module, dished port well), index ribs so a card
 // only reaches its socket with its parts facing slot 1, the J8 camera module and its RCA jack.
+// v6.1 (2026-11-22): the hatch's audio opening follows the rev J card (RCA block y 27.5-62.5, was 26.5-55.4; jack opening
+// widened for the plug), and the reference audio card carries its RCA block, barrels and jack for the clash check.
 // v5 (no front lip, rectangular board moved down, six 60x80 accessory cards in a card cage).
 // v5 (2026-10-23): cards beside their pin row (+3.34 mm), cage notched for the cards' left-edge headers, slot 1's end
 // plate opened for the audio RCA block, slot panels cut for each card's top-edge connectors (per-slot card choice).
@@ -46,14 +48,28 @@ export enum SlotCard
 
 function cardCutouts(card is SlotCard) returns array
 {
-    if (card == SlotCard.AUDIO)    // 2 x 2 RCA block (28.5 mm off the face), 3.5 mm jack
-        return [[26.5, 55.4, -29.3, -0.8], [16.3, 25.6, -6.8, -0.8]];
+    if (card == SlotCard.AUDIO)    // 2 x 2 RCA block (board y 28-62, 26.5 mm off the face; card rev J, block centre at
+                                   // card x 48), 3.5 mm jack (y 17.4-25.7; opening sized for a 10 mm plug overmold)
+        return [[27.5, 62.5, -29.3, -0.8], [16.4, 26.7, -8.8, 1.9]];
     if (card == SlotCard.SENSOR)   // JST PH 12 senders, JST PH 4 speed, Micro-Fit 2 tach
         return [[52.5, 79.5, -5.6, -0.8], [37.5, 48.5, -5.6, -0.8], [16.1, 26.8, -10.8, -0.8]];
     if (card == SlotCard.GPS)      // JST PH 4 to the puck
         return [[47.5, 58.5, -5.6, -0.8]];
     if (card == SlotCard.RADIO)    // edge-mount SMA (straddles the card), AM loopstick header
         return [[42.3, 53.6, -2.9, 2.9], [55.6, 61.8, -3.3, -0.8]];
+    return [];
+}
+
+// Top-edge connector bodies, added to the reference cards so the clash check sees them:
+// [board y0, board y1, X lo, X hi, depth into the card from its top edge, reach past the top edge] in mm.
+// For cylinders (the RCA barrels): [board y, X of the axis, radius, reach past the top edge, "cyl"].
+function cardParts(card is SlotCard) returns array
+{
+    if (card == SlotCard.AUDIO)    // Kycon KLP42X-61 body + plate, its four barrels, Same Sky SJ1-3533NG
+        return [[28.0, 62.0, -27.3, -0.8, 10.0, 1.0],
+                [54.0, -7.5, 4.15, 8.8, "cyl"], [36.0, -7.5, 4.15, 8.8, "cyl"],
+                [54.0, -21.5, 4.15, 8.8, "cyl"], [36.0, -21.5, 4.15, 8.8, "cyl"],
+                [17.4, 25.7, -6.3, -0.8, 14.0, 4.0]];
     return [];
 }
 
@@ -1109,6 +1125,19 @@ export const gaugeClusterHousing = defineFeature(function(context is Context, id
         for (var x in cxs)
         {
             const card = mkBox(context, id + ("rcard" ~ i), x - definition.cardT / 2, x + definition.cardT / 2, cy0, cy1, cz0, cz1);
+            var cp = [];
+            var k = 0;
+            for (var p in cardParts(slotCards[i]))
+            {
+                if (size(p) == 5)
+                    cp = append(cp, cylY(context, id + ("rcp" ~ i ~ "x" ~ k), x + p[1] * mm, zOfY(cz0, p[0]), cy1 - 0.1 * mm, cy1 + p[3] * mm, p[2] * mm));
+                else
+                    cp = append(cp, mkBox(context, id + ("rcp" ~ i ~ "x" ~ k), x + p[2] * mm, x + p[3] * mm, cy1 - p[4] * mm, cy1 + p[5] * mm,
+                                zOfY(cz0, p[1]), zOfY(cz0, p[0])));
+                k += 1;
+            }
+            if (size(cp) > 0)
+                boolAdd(context, id + ("rcpu" ~ i), card, cp);
             setProperty(context, { "entities" : card, "propertyType" : PropertyType.NAME, "value" : "REF card " ~ (i + 1) });
             refs = append(refs, card);
             i += 1;

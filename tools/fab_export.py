@@ -27,7 +27,7 @@ KICAD = '/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli'
 CLI = os.environ.get('KICAD_CLI', KICAD if os.path.exists(KICAD) else 'kicad-cli')
 # Boards whose through-hole parts are soldered by hand: they stay out of the placement files (the fab BOM lists
 # only the SMD parts too), so an assembly quote covers the SMD side only.
-HAND_THT = {'ConsoleBoardRS', 'SensorCard2', 'GPSCard2', 'AudioCarrier'}
+HAND_THT = {'ConsoleBoardRS', 'SensorCard2', 'GPSCard2', 'AudioCarrier', 'RadioCard2'}
 # Footprint-name regex -> degrees added to KiCad's rotation in the JLC CPL, filled in as JLC's preview shows a part
 # landing turned. Empty until a board has been through JLC's placement check.
 JLC_ROT = {}
