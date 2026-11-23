@@ -18,6 +18,18 @@ test/host/run_tests.sh                           # UI state machine tests on the
 | `src/console_input.cpp` | The knobs: a 1 kHz ADC task (below), click on release, hold at 650 ms |
 | `src/console_pins.h` | Pins and input build flags |
 | `src/main.cpp` | CAN (`elc_can`), the loop and the serial console |
+| `src/fw_portal.{h,cpp}` | Firmware updates: the Wi-Fi hotspot and upload page, the console's own update, the screens' files sent over CAN |
+
+## Firmware updates
+
+**Menu → Service → Firmware update** (only while the car stands still) opens a Wi-Fi hotspot, `ElCamino-XXXX`, with a
+password made up each time and shown on the OLED. On a phone or laptop, join it, open http://192.168.4.1 and upload
+`.elcfw` files one at a time. The console writes its own file into its spare app slot and restarts. It sends a
+screen's file over CAN to every screen of that build, which shows its progress and restarts. The OLED shows the
+progress and then each screen's result. Back on the right ring, or a hold on either knob, closes the hotspot (not while
+a file is still going). It also closes after 10 minutes with nothing uploaded, or when the car moves. The console
+takes its own update over CAN too, from `tools/fw_update.py`. A new image is kept after 20 s; a reset before that brings
+the old one back. Steps and safeguards: [the top README](../../README.md#firmware-updates-without-usb).
 
 ## Controls
 
@@ -165,7 +177,8 @@ and `remote KEY [hold]` presses a button without a remote.
 For the bench, without knobs wired: `help`, `state` (CAN, phone, the audio card's source and what plays, cluster),
 `chan` (the channel node's announced nodes and accessory pages), `keys` (what the two soft keys say now),
 `key left|right [hold]` (the right ring), `left +N|-N|click|hold|ringl|ringr`, `right +N|-N|click|hold`, `knobs` (the
-knob lines), `demo on` (a pretend center, sensors and phone). Every
+knob lines), `demo on` (a pretend center, sensors and phone), `fw` (app slots, an update in progress, the last upload),
+`fw start|stop` (the update hotspot, as the menu does), `fw good` (keep a new image now). Every
 command the console sends is logged as `tx 0x215 phone ANSWER arg 0 slot 0 list 3`.
 
 The console follows the first audio bridge it hears: a node whose heartbeat says audio bridge (node type 1). Its

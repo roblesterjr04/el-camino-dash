@@ -95,7 +95,9 @@ bool ElcCan::bus_send(const ElcCanFrame &f) {
   twai_message_t m = {};
   m.identifier = f.id;
   m.data_length_code = f.len > 8 ? 8 : f.len;
-  m.ss = 1;  // single shot: see elc_can.h
+  // Single shot (elc_can.h), except BULK data: it is paced, has the lowest priority but one, and would otherwise lose
+  // every arbitration it meets; the controller retries it until it is acknowledged.
+  m.ss = (f.id & ~0x1F) == ELC_CH_BULK_DATA ? 0 : 1;
   memcpy(m.data, f.data, m.data_length_code);
   return twai_transmit(&m, 0) == ESP_OK;
 }

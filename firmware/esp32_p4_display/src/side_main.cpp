@@ -9,8 +9,10 @@
 #include <cluster_peer.h>
 #include <display_setup.h>
 #include <elc_can.h>
+#include <elc_fw_esp32.h>
 #include <elc_gauges.h>
 #include <elc_watchdog.h>
+#include <fw_overlay.h>
 #include <gauge_console.h>
 #include <gauge_link.h>
 #include <chan_screen.h>
@@ -214,7 +216,8 @@ void side_setup(uint8_t role) {
     char reply[1024];
     if (phone_can_command(line, reply, sizeof(reply)) ||  // phone, phone demo …
         menu_can_command(line, reply, sizeof(reply)) ||   // menu, menu rotate|press|back|open …
-        chan_screen_command(line, reply, sizeof(reply))) {  // chan, chan query
+        chan_screen_command(line, reply, sizeof(reply)) ||  // chan, chan query
+        elc_fw_esp32_command(line, reply, sizeof(reply))) {  // fw, fw good
       Serial.println(reply);
       return true;
     }
@@ -248,6 +251,9 @@ void side_setup(uint8_t role) {
                 s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, display_role_can_node(role), ElcCanNodeType::Display) ? "up" : "off",
                 ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, (unsigned)display_role_can_node(role));
   chan_screen_begin(s_can, role);  // the channel protocol: announce, accessory pages, SYSTEM
+  // Firmware updates over CAN (README, Firmware updates without USB): only while the car stands still.
+  elc_fw_esp32_begin(chan_screen(), ELC_PRODUCT_DISPLAY, ELC_CAN_FW_VERSION);
+  elc_fw_esp32_set_allowed([](void *) { return !s_link.fresh() || s_link.last().speed_rpm == 0; }, nullptr);
   if (s_right) {
     Serial.printf("right: theme=%d classic_%d (3 s hold when not the media screen)\n", (int)s_theme, s_classic2 ? 2 : 1);
   }
@@ -260,6 +266,7 @@ void side_loop() {
   persist_theme_if_changed();
   s_can.poll();
   chan_screen_poll(millis());
+  elc_fw_esp32_poll(millis(), s_can.running());  // restarts into a new image; keeps one that runs well
   s_link.poll();
   drain_uart_text();
   s_console.poll(s_link);
@@ -317,6 +324,7 @@ void side_loop() {
     gauges_update(gd, now);
   }
   phone_can_poll(cluster_peer_state().media_screen == s_role, now);  // call card on the media screen
+  fw_overlay_poll(elc_fw_esp32_target(), now);  // over everything while an update arrives
   p4_screen_frame();
 
   s_link.poll();

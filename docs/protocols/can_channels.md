@@ -9,7 +9,8 @@ AUDIO_CMD (SOURCE, MEDIA, VOLUME) and reads NOW PLAYING. The center runs the ALE
 `center_alerts.cpp`): it collects every node's alerts, raises its own, plays the chimes and sends ACK and SUMMARY.
 **Not implemented yet:** the alert banner and list on the menu screen (the bench acknowledges with the center's
 `alerts ack`), the center raising alerts from other nodes' SENSOR thresholds (flag bit2), the accessory settings backup and restore on the center's SD
-card, INPUT (no node sends or acts on it), BULK and AUDIO_STREAM users, the sink's sounds other than the chimes (2-4)
+card, INPUT (no node sends or acts on it), BULK READ and sound uploads (BULK WRITE carries firmware updates: [the
+firmware profile](#the-firmware-profile-kind-2)), AUDIO_STREAM users, the sink's sounds other than the chimes (2-4)
 and its zones, and the radio card's firmware (`tools/radio_sim.py` simulates it for the bench). The audio card's
 firmware (`arduino/sketches/esp32_audio_bridge`: `sink.cpp`, `audio_engine.cpp`) is the AUDIO_CMD sink (node type 5):
 STATUS, SOURCE (Bluetooth, the radio on RET, aux in, off), VOLUME, MEDIA (forwarded to the radio), the chimes, NET RAIL,
@@ -32,7 +33,7 @@ document defines that interface as a set of **channels**, one per dash service, 
 | AUDIO_CMD | Play and stop sounds from the sink's library; volume, media transport | audio sink |
 | AUDIO_STREAM | Stream a voice-quality sound (short, one at a time) | audio sink |
 | SYSTEM | Time, ignition, lights, reverse, speed, units, dimming, power-down notice | center |
-| BULK | Move files: sound clips to the sink, later firmware images | whoever owns the object |
+| BULK | Move files: firmware images to any board, sound clips to the sink | whoever owns the object |
 | NET, LOG | Discovery, capabilities, identify, text logs to the center's SD card | everyone / center |
 
 ## Is this realistic?
@@ -236,7 +237,8 @@ A voice card is the first user: it listens on MIC all the time (wake word) and a
 
 A card with an internet uplink (an LTE card) announces as node type 7, does the online work itself and broadcasts the
 results on [ONLINE](#online-0x360--node). The cluster never uses Wi-Fi: nothing joins a network, and CAN carries the
-results, the gateway's status and its commands.
+results, the gateway's status and its commands. (The one exception is the console's firmware-update hotspot, opened by
+hand while parked: [The firmware profile](#the-firmware-profile-kind-2).)
 
 | Field | Values |
 | --- | --- |
@@ -577,34 +579,100 @@ For audio an accessory generates and the sink cannot have stored (a voice prompt
 
 ## BULK (`0x320 + node` control, `0x340 + node` data)
 
-Moving objects larger than a transfer: a sound clip to the sink, later a firmware image to an accessory. It
-generalises the album-art mechanism in `can_bus.md` (receiver-driven, re-ask for what is missing), which stays
-as it is.
+Moving objects larger than a transfer: a firmware image to a board, a sound clip to the sink. It generalises the
+album-art mechanism in `can_bus.md` (receiver-driven, re-ask for what is missing), which stays as it is.
+**Implemented** for WRITE in `firmware/elc_can` (`elc_bulk`: `ElcBulkWriter`, `ElcBulkReceiver`; host-tested), and
+used by [the firmware profile](#the-firmware-profile-kind-2). READ and the sound-clip kind have no user yet.
 
 | Op | Name | Sender | Payload after the opcode |
 | --- | --- | --- | --- |
-| `0x01` | INFO | object owner / receiver of a write | to node u8, tag u8, session u8 (0–7, `0xFF` = refused), size u32, CRC-32 u32 |
+| `0x01` | INFO | object owner / receiver of a write | to node u8, tag u8, session u8 (0–7, `0xFF` = refused), size u32, CRC-32 u32, refused only: why u8 |
 | `0x81` | READ | reader | dest u8, tag u8, kind u8, object u16 |
-| `0x82` | WRITE | writer | dest u8, tag u8, kind u8, object u16, size u32, CRC-32 u32 |
+| `0x82` | WRITE | writer | dest u8, tag u8, kind u8, object u16, size u32, CRC-32 u32, session u8; kind 2 only: firmware version u16, build (text, ≤ 32 bytes) |
 | `0x83` | WANT | receiving side | dest u8, session u8, first chunk u24, credit u8 (chunks it can take now) |
-| `0x84` | END | receiving side | dest u8, session u8, result u8 (0 ok, 1 CRC mismatch, 2 no space, 3 aborted) |
+| `0x84` | END | receiving side; a writer aborting | dest u8, session u8, result u8 (0 ok, 1 CRC mismatch, 2 no space, 3 aborted, 4 rejected) |
 
 Data frames on `0x340 + sender`, **no tail byte**: bytes 0–2 = session (top 3 bits) and chunk number (21 bits),
 bytes 3–7 = 5 bytes of the object (chunk n = bytes 5n…5n+4). Up to 10 MB per object.
 
-- The **sender of the data** picks the session (it owns the data IDs), returns it in INFO with the asker's tag, and
-  sends only chunks the receiver has asked for with WANT. The receiver asks for more before its credit runs out and
-  re-asks from its first missing chunk after 300 ms of quiet.
-- The object's CRC-32 (IEEE, as in zlib) is checked by the receiver before END ok.
-- Pace: all BULK data, together with album art, at most one frame per 0.8 ms (about a third of the bus, ~6 KB/s).
-- Kinds: 1 sound clip (object = slot, 16-bit PCM or IMA-ADPCM WAV, ≤ 64 KB), 2 firmware image (the update
-  procedure is a later profile; v1 fixes only the transport), 3 file on the center's SD card, `0x80`+ product-specific.
+- The **sender of the data** picks the session (it owns the data IDs). For a READ the owner returns it in INFO with
+  the asker's tag; for a WRITE the writer puts it at the end of the WRITE and the receiver echoes it in INFO.
+- **WRITE to everyone** (dest `0x00`) is a multicast: every node that takes the object answers INFO, and one data
+  frame feeds every receiver at that chunk. The writer waits 600 ms for INFOs, then serves the lowest chunk any
+  receiver has credit for, so the slowest is served first. Nodes that take no such object stay quiet; a node the object
+  is meant for that cannot take it (another build of the same product, busy, not now) answers INFO refused, so the
+  writer can say why. A unicast WRITE is answered either way. A WRITE with no INFO is sent again after 1 s, three
+  times in all.
+- INFO refused, why: 1 does not take this kind / object, 2 another product or build, 3 too big, 4 busy, 5 not now
+  (the vehicle is moving).
+- The writer sends only chunks the receiver has asked for with WANT. The receiver asks for more (credit 96: within a
+  TWAI receive queue) when half its credit is used. **Loss:** a chunk past the first missing one means a frame was lost;
+  the receiver keeps such chunks (up to its credit ahead) and asks for the missing one alone (WANT credit 1), at most
+  every 20 ms. After 300 ms with no progress it asks again from its first missing chunk.
+- The writer goes back to a WANT's first chunk only for a repair (credit 1), a WANT that repeats the last one's first
+  chunk (nothing arrived), or a first chunk past where it is. Any other WANT only adds credit, so frames already on
+  their way are not sent twice.
+- The object's CRC-32 (IEEE, as in zlib) is checked by the receiver before END ok. A receiver that is still busy after
+  the last byte (writing flash) sends WANT with credit 0 once a second so the writer keeps waiting; the writer gives
+  up on a receiver it has not heard from for 6 s, and a receiver on a writer after 8 s. END is sent three times,
+  100 ms apart.
+- Data frames are the one thing on the bus sent with the controller's automatic retransmission (`ElcCan`): they have
+  the lowest priority but one and would otherwise be lost every time they meet other traffic. Only receivers that
+  asked are sent to, so someone is there to acknowledge them.
+- Pace: all BULK data, together with album art, at most one frame per 0.8 ms (about a third of the bus, ~6 KB/s);
+  the firmware profile allows more while the car stands still.
+- Kinds: 1 sound clip (object = slot, 16-bit PCM or IMA-ADPCM WAV, ≤ 64 KB), 2 firmware image (below), 3 file on the
+  center's SD card, `0x80`+ product-specific.
+
+### The firmware profile (kind 2)
+
+Updating a board's firmware without its USB port: the screens, the console, and any ESP32 card that adds the target.
+In `firmware/elc_can`: `elc_fw` (the file header, `ElcFwTarget`), `elc_fw_esp32` (the OTA slot and rollback). Who
+sends it: the console's Wi-Fi update page (`firmware/esp32s3_console/src/fw_portal.cpp`), or a laptop as the service
+tool (`tools/fw_update.py`). The steps for a person are in the [README](../../README.md#firmware-updates-without-usb).
+
+- **The object is an `.elcfw` file**: a 64-byte header, then the image exactly as PlatformIO builds it
+  (`firmware.bin`). `firmware/scripts/elc_fw.py` writes it next to `firmware.bin` after every build.
+
+  | Bytes | Field |
+  | --- | --- |
+  | 0–3 | magic `ELFW` |
+  | 4, 5 | header version u8 (1), header size u8 (64) |
+  | 6–7 | product u16 (the registry below) |
+  | 8–9 | firmware version u16 |
+  | 10–11 | flags u16 (0) |
+  | 12–15 | image size u32 |
+  | 16–19 | image CRC-32 u32 |
+  | 20–23 | build time u32 (UTC s) |
+  | 24–55 | build: the PlatformIO environment, NUL-padded (`display-waveshare4c`, `display-waveshare3c4`, `console`) |
+  | 56–59 | git commit u32 (first 8 hex digits, 0 = unknown) |
+  | 60–63 | CRC-32 of bytes 0–59 |
+
+- **WRITE**: object = the product, size = the whole file, CRC-32 = the **image's** CRC (from the header: the header
+  has its own), then the firmware version and the build. dest `0x00` reaches every node of that product and build at
+  once: the 4" build updates the left and right screens together, and the center (built for the 3.4" panel) answers
+  "another build" and stays as it is.
+- **The receiver checks the header before anything touches flash**: magic, header CRC, the product and build are its
+  own, and size and CRC match the WRITE. Any mismatch ends the transfer (END 4). Then the image goes to the spare OTA
+  slot: staged in PSRAM first on boards that have room (the P4 screens), so flash is written only after the CRC
+  matched; written as it arrives on boards that do not (the console). The ESP-IDF image check (SHA-256) runs before the
+  slot is made the boot image. A failure at any point leaves the running firmware as it was.
+- **Restart and rollback.** END ok, then the node restarts into the new image 1.5 s later. The image boots "on trial"
+  (ESP-IDF app rollback, on in the Arduino-ESP32 3.x bootloader): the firmware keeps it once it has run well for 20 s
+  (the screens: with CAN up). A reset before that, from a crash, the watchdog or the ignition, boots the old image
+  again. So a bad image cannot leave a board you cannot reach.
+- **Only while parked.** A screen refuses (INFO why 5) while the sensors say the car moves or, on the center, while
+  the reversing camera shows; the console's page will not start then and closes if the car moves. While an image
+  arrives a screen shows its progress over everything instead of the gauges.
+- **Pace**: one data frame per 0.4 ms (about 12 KB/s, a little over half the bus), since nothing else of any size runs
+  while the car is parked. A 4 MB screen image takes about six minutes; the two 4" screens take it in the same six.
 
 ## ONLINE (`0x360 + node`)
 
 Internet results, for everyone. **The dash does as much of its online work as possible over CAN**: the node with the
 internet connection (the LTE gateway, `docs/hardware/lte_card.md`) does the lookups itself and broadcasts only the
-answers, which are a few dozen bytes. The cluster never uses Wi-Fi.
+answers, which are a few dozen bytes. The cluster never uses Wi-Fi for this (the console's firmware-update hotspot is
+the only Wi-Fi anywhere, and only while someone has it open).
 
 | Op | Name | Sent | Payload after the opcode |
 | --- | --- | --- | --- |
@@ -792,6 +860,7 @@ change to any other firmware: the audio sink and the menu screen already listen 
 | SYSTEM, ALERT, INPUT, UI, NET, LOG, ONLINE | < 1 % |
 | Accessory sensors (budget: 20 values at 10 Hz) | ~6 % |
 | BULK and album art together (paced, only while transferring) | ≤ 34 % |
+| A firmware update (parked only) | ~55 % |
 | AUDIO_STREAM, one at a time (8 kHz / 16 kHz) | 16 % / 31 % |
 
 Design ceiling about 70 %, which the stream rule under AUDIO_STREAM keeps. Higher-priority channels are unaffected
@@ -814,7 +883,7 @@ by bulk and stream traffic anyway, because those have the higher IDs.
 4. INPUT and the console's readings from SENSOR (with the console firmware), and AUDIO_CMD (on the audio bridge
    first, then the audio carrier).
 5. UI items in the menu, then the settings backup on the center's SD card.
-6. BULK (sound upload), then AUDIO_STREAM, then firmware update over CAN as its own profile.
+6. BULK: firmware update over CAN (done: the firmware profile), then sound upload, then AUDIO_STREAM.
 
 ## Open questions
 

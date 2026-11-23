@@ -703,6 +703,7 @@ void ConsoleUi::build_rows() {
       for (uint8_t i = 1; _ch && i < 32; i++) nodes += _ch->nodeInfo(i).announced;
       snprintf(v, sizeof(v), "%d announced", nodes);
       row_add(ConsoleRow::Info, kRNone, 0, "Channel nodes", _ch ? v : "Off", !_ch);
+      row_add(ConsoleRow::Action, kRFwUpdate, 0, "Firmware update", stopped(now) ? "Wi-Fi" : "Stop the car", !stopped(now));
       break;
     }
     case kMAccessories: {
@@ -804,8 +805,17 @@ void ConsoleUi::do_confirmed(uint32_t now_ms) {
       }
       break;
     case kRAccItem: accessory_can_set(_cf_node, _cf_arg, _cf_value); break;
+    case kRFwUpdate:
+      _fw_request = true;
+      close_menu();
+      break;
     default: break;
   }
+}
+
+bool ConsoleUi::stopped(uint32_t now_ms) const {
+  const bool fresh = _sensor_ms && now_ms - _sensor_ms < kSensorFreshMs;
+  return !fresh || _s.mph < 1.0f;
 }
 
 void ConsoleUi::confirm_answer(bool yes, uint32_t now_ms) {
@@ -870,6 +880,10 @@ void ConsoleUi::menu_click(uint32_t now_ms) {
     }
     case kRTripReset:
       if (_s.odo_valid) confirm(kRTripReset, 0, 0, 0, "Reset Trip A?");
+      return;
+    case kRFwUpdate:
+      if (stopped(now_ms)) confirm(kRFwUpdate, 0, 0, 0, "Start a Wi-Fi update?");
+      else toast("UPDATE", "Stop the car", now_ms);
       return;
     case kRAdvanced: _advanced = !_advanced; build_rows(); return;
     case kRAccItem: {

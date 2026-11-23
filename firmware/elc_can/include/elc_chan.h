@@ -189,6 +189,22 @@ struct ElcNetRail {
 size_t elc_net_encode_rail(const ElcNetRail &r, uint8_t *out, size_t cap);
 bool elc_net_decode_rail(const uint8_t *p, size_t n, ElcNetRail &out);
 
+/** Something more that runs on a board's channels (a BULK writer or receiver, the firmware update target): it sees
+ *  every frame (raw channels too) and every complete transfer, and is polled. Added with ElcChannels::addService(). */
+class ElcChService {
+ public:
+  virtual ~ElcChService() {}
+  virtual void chFrame(const ElcCanFrame &f, uint32_t now_ms) {
+    (void)f;
+    (void)now_ms;
+  }
+  virtual void chTransfer(const ElcChTransfer &t, uint32_t now_ms) {
+    (void)t;
+    (void)now_ms;
+  }
+  virtual void chPoll(uint32_t now_ms) { (void)now_ms; }
+};
+
 // ---- the service a board runs ----
 class ElcChannels {
  public:
@@ -232,6 +248,10 @@ class ElcChannels {
   /** One transfer on base + this node. False if it did not fit or a frame could not be queued. */
   bool send(uint16_t base, const uint8_t *payload, size_t len);
   bool send(uint16_t base, const ElcChWriter &w) { return w.ok() && send(base, w.data(), w.size()); }
+  /** One frame as it is (raw channels: BULK_DATA, AUDIO_STREAM). */
+  bool sendRaw(const ElcCanFrame &f) { return _send && _send(f, _send_ctx); }
+  /** A service sees every frame and transfer and is polled with the channels. False when the table is full. */
+  bool addService(ElcChService *s);
   void announce();
   void query(uint8_t dest, uint8_t what);
   /** Bumps the description generation (a description changed) and re-announces. */
@@ -270,4 +290,6 @@ class ElcChannels {
   uint8_t _pending_what = 0;
   uint32_t _pending_at = 0;
   uint32_t _in = 0, _out = 0, _send_fail = 0;
+  static const int kServices = 4;
+  ElcChService *_svc[kServices] = {nullptr};
 };

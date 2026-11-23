@@ -150,7 +150,7 @@ when nothing changed, so the asker sees the outcome). Settings:
 `0x213` flags: bit0 reserved (was Wi-Fi connected), bit1 GPS fix, bit2 NMEA arriving, bit3 audio bridge heard,
 bit4 demo on, bit5 and bit6 reserved (were saved Wi-Fi network, joining), bit7 in reverse (the center shows the rear
 camera). Reserved bits are sent as 0. The side screens build their menu's Service page from these. The cluster
-never uses Wi-Fi.
+never uses Wi-Fi (apart from the console's firmware-update hotspot, opened by hand while parked).
 
 The center's serial console sets the screens with `menu on left|center|right` and `media on left|center|right`.
 

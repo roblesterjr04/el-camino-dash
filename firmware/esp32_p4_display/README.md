@@ -23,6 +23,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # or let fl
 - Not implemented (from the code and `center_alerts.h`): the alert banner and list on the menu screen (alerts are
   acknowledged with `alerts ack` on the center's console); reading the GPS card's CAN frames `0x222`–`0x226` (the
   center takes GPS only from its UART; see *Known issues*).
+- Firmware updates over CAN (`fw_overlay`, `elc_fw_esp32`): built and compile-checked; the transfer and the target
+  are host-tested in `elc_can`. Not yet tried on a board: the PSRAM staging, the flash write and the rollback.
 - No host tests in this directory. The shared libraries have theirs ([`elc_can`](../elc_can/),
   [`esp32_p4_common`](../esp32_p4_common/)), and the faces render on a Mac with `tools/gauge_preview`.
 
@@ -115,6 +117,12 @@ low at reset = download mode). `tools/screenshot.py` never toggles them either:
 python3 tools/screenshot.py --port /dev/cu.usbmodem… -o center.png
 ```
 
+**In the car, without USB:** every build also writes `.pio/build/<env>/<env>.elcfw` ([`../scripts/elc_fw.py`](../scripts/elc_fw.py)).
+Upload that from the console's Wi-Fi update page, or send it with `tools/fw_update.py` from a USB-CAN adapter on the
+bus. The 4" file updates the left and right screens together. A screen takes it only while the car stands still (the
+center: also with the camera off), shows the progress over the face, and restarts into it. A new image that resets in
+its first 20 s, or that has no CAN in that time, is rolled back. See [the top README](../../README.md#firmware-updates-without-usb).
+
 On the bench, with no CAN transceivers, run `python3 tools/can_relay.py` and the boards talk over their USB ports
 ([`docs/protocols/usb_link.md`](../../docs/protocols/usb_link.md)); it also supplies a simulated drive, the time and
 the slot cards that are not built yet.
@@ -164,7 +172,8 @@ The full list with what each command does is in [`../README.md`](../README.md); 
   `alerts [ack [all]]`, `tz [<posix>|<hours>]`, `chan [query]`.
 - Left / right (`gauge_console.cpp` + `side_main.cpp`): `help`, `perf`, `shot`, `demo on|off`, `theme 0|1|2`,
   `variant 0|1` (right; 0 = four gauges, 1 = fuel + lamps, asked of the center), `can`, `chan [query]`.
-- Every screen: `role [left|center|right|auto]`, `phone`, `phone demo …`, `menu`, `menu rotate <n>|press|back|open <page>`.
+- Every screen: `role [left|center|right|auto]`, `phone`, `phone demo …`, `menu`, `menu rotate <n>|press|back|open <page>`,
+  `fw` (build, app slots, an update arriving or why the last failed), `fw good` (keep a new image now).
 
 ## How it talks to the rest of the system
 

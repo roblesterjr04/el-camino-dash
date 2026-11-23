@@ -10,6 +10,7 @@
 #include <elc_usb_link.h>
 #include <Preferences.h>
 #include <elc_can.h>
+#include <elc_fw_esp32.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,7 @@
 #include "console_input.h"
 #include "console_pins.h"
 #include "console_ui.h"
+#include "fw_portal.h"
 #include "oled_gfx.h"
 #include "oled_ssd1322.h"
 
@@ -26,6 +28,10 @@
 #ifndef ELC_CAN_RX_PIN
 #define ELC_CAN_RX_PIN -1
 #endif
+
+LV_FONT_DECLARE(con_cl_mid);
+LV_FONT_DECLARE(con_cl_body);
+LV_FONT_DECLARE(con_cl_small);
 
 static ElcCan s_can;
 static ElcChannels s_chan;
@@ -178,7 +184,35 @@ static void print_help() {
   Serial.println("  log on|off           log the frames sent");
   Serial.println("  demo on|off          pretend center, sensors and phone (no bus needed)");
   Serial.println("  demo call            (demo) an incoming call: the right ring right answers, left declines");
+  Serial.println("  fw                   firmware: this console's slots, an update in progress, the last upload");
+  Serial.println("  fw start|stop        the Wi-Fi update page (as Menu > Service > Firmware update)");
+  Serial.println("  fw good              keep the running image now (instead of after 20 s)");
 }
+
+// ---- firmware updates (fw_portal.h; this console also takes its own over CAN: elc_fw_esp32.h) ----
+
+/** A frame of the OLED while an update owns it: the Wi-Fi page, or this console taking an image over CAN. */
+static bool draw_update(uint32_t now) {
+  const ElcFwTarget *t = elc_fw_esp32_target();
+  if (fw_portal_active()) {
+    fw_portal_draw(s_gfx, now, &con_cl_mid, &con_cl_body, &con_cl_small);
+  } else if (t && (t->active() || t->phase() == ElcFwTarget::Phase::Done)) {
+    char b[32];
+    s_gfx.clear();
+    s_gfx.text(t->phase() == ElcFwTarget::Phase::Done ? "Updated, restarting" : "Updating firmware", 4, 28, &con_cl_body, 15);
+    snprintf(b, sizeof(b), "%u%%", (unsigned)(t->progress() / 10));
+    s_gfx.text(b, 252, 28, &con_cl_body, 15, TextAlign::Right);
+    s_gfx.bar(4, 40, 248, 6, t->progress() / 1000.0f, 13, 3);
+    s_gfx.text("Keep the ignition on", 4, 60, &con_cl_small, 8);
+  } else {
+    return false;
+  }
+  oled_flush(s_gfx, s_ui.level_scale(), s_ui.oled_drive());
+  return true;
+}
+
+static void portal_redraw(uint32_t now) { draw_update(now); }
+static bool portal_stopped() { return s_ui.stopped(millis()); }
 
 static void shot() {
   const uint8_t *p = s_gfx.pixels();
@@ -195,6 +229,13 @@ static void shot() {
 
 static void handle_line(char *line) {
   const uint32_t now = millis();
+  {
+    char reply[700];
+    if (fw_portal_command(line, reply, sizeof(reply))) {  // fw, fw start|stop|good
+      Serial.println(reply);
+      return;
+    }
+  }
   char *cmd = strtok(line, " \t");
   char *arg = strtok(nullptr, " \t");
   if (!cmd) return;
@@ -322,14 +363,36 @@ void setup() {
   s_chan.onTransfer(on_transfer, nullptr);
   accessory_can_begin(&s_chan);
   s_ui.attach(&s_chan);
+  // Firmware updates: this console's own image over CAN (a laptop on the bus), and the Wi-Fi page that updates it and
+  // the screens (Menu > Service > Firmware update)
+  elc_fw_esp32_begin(&s_chan, ELC_PRODUCT_CONSOLE, ELC_CAN_FW_VERSION);
+  elc_fw_esp32_set_allowed([](void *) { return s_ui.stopped(millis()); }, nullptr);
+  FwPortalConfig pc;
+  pc.can = &s_can;
+  pc.chan = &s_chan;
+  pc.stopped = portal_stopped;
+  pc.redraw = portal_redraw;
+  fw_portal_begin(pc);
 }
 
 void loop() {
   s_can.poll();  // first: frames are stamped with millis() as they arrive, and nothing below may be older than them
   const uint32_t now = millis();
 
+  // A new image is kept once the console has run 20 s (its own Wi-Fi page can always put another on, so running is
+  // enough); one that finished arriving over CAN restarts the console here.
+  elc_fw_esp32_poll(now, true);
+  if (s_ui.take_fw_request() && !fw_portal_start(now)) Serial.println("fw: the update page did not open (see fw)");
+  fw_portal_poll(now);
+
   ConsoleInputEvents ev;
   console_input_poll(ev, now);
+  if (fw_portal_active()) {
+    // the update page has the knobs: the left soft key or a hold on either knob closes it (not while a file goes)
+    const bool back = ev.key_click[0] || ev.key_hold[0] || ev.left_hold || ev.right_hold || ev.left_click;
+    if (back && !fw_portal_busy()) fw_portal_stop();
+    ev = ConsoleInputEvents();
+  }
   if (ev.left_steps) s_ui.left_turn(ev.left_steps, now);
   if (ev.left_click) s_ui.left_click(now);
   if (ev.left_hold) s_ui.left_hold(now);
@@ -356,8 +419,10 @@ void loop() {
   static uint32_t s_frame_ms = 0;
   if (now - s_frame_ms >= 33 && !s_all_on) {  // ~30 frames/s: page slides and the marquee stay smooth
     s_frame_ms = now;
-    s_ui.render(s_gfx, now);
-    oled_flush(s_gfx, s_ui.level_scale(), s_ui.oled_drive());
+    if (!draw_update(now)) {
+      s_ui.render(s_gfx, now);
+      oled_flush(s_gfx, s_ui.level_scale(), s_ui.oled_drive());
+    }
   }
   delay(1);
 }
