@@ -10,6 +10,7 @@ Everything here runs on a Mac or Linux computer; nothing here is flashed to a bo
 | [`chan_sim.py`](#chan_simpy) | Bench & simulation | Channel-protocol framing and the base class every simulated card shares |
 | [`radio_sim.py`](#radio_simpy) | Bench & simulation | Simulated AM/FM radio card (used by `can_relay.py`) |
 | [`screenshot.py`](#screenshotpy) | Bench & simulation | Saves what a round display shows as a PNG, over its USB console |
+| [`fw_update.py`](#fw_updatepy) | Bench & service | Sends an `.elcfw` firmware file over CAN to every board of its build (or one node), from a USB-CAN adapter or a board's USB link |
 | [`gauge_preview/`](gauge_preview/) | Previews | Renders the gauge faces, call card and menu on the host with the firmware's own code |
 | [`console_preview/`](console_preview/) | Previews | Renders the console OLED's screens on the host with the console firmware's own code |
 | [`oled_sim/`](oled_sim/) | Previews (legacy) | Window that draws the old encoder controller's OLED from its UART lines (Raspberry Pi era) |
@@ -26,6 +27,31 @@ The bench has no CAN wiring: each board carries its CAN traffic over its USB ser
 builds. Wire format and behaviour: [`docs/protocols/usb_link.md`](../docs/protocols/usb_link.md). The CAN messages
 are in [`docs/protocols/can_bus.md`](../docs/protocols/can_bus.md), the accessory channel protocol the simulated
 cards speak in [`docs/protocols/can_channels.md`](../docs/protocols/can_channels.md).
+
+### fw_update.py
+
+The service tool (node `0x1F`) for [firmware updates without USB](../README.md#firmware-updates-without-usb): it sends
+an `.elcfw` file (PlatformIO writes one next to every `firmware.bin`) as a BULK firmware WRITE, the same transfer the
+console's Wi-Fi page makes ([the firmware profile](../docs/protocols/can_channels.md#the-firmware-profile-kind-2)).
+Every node of the file's product and build takes it at once; `--dest` picks one node. It prints each node's result and
+exits 0 only if every node that took the file updated.
+
+| Option | Default | |
+| --- | --- | --- |
+| `file` | | The `.elcfw` file |
+| `--can IFACE[:CHANNEL]` | | A USB-CAN adapter through [python-can](https://python-can.readthedocs.io/) (`pip install python-can`): `socketcan:can0`, `slcan:/dev/ttyACM0`, `pcan:PCAN_USBBUS1`, `gs_usb:0`. 500 kbit/s |
+| `--usb PORT` | | A board's USB port as the gateway onto its bus (bench; `pip install pyserial`) |
+| `--dest NODE` | every node of the build | One node, e.g. `0x13` for the console |
+| `--pace N` | `2.5` | Data frames per millisecond |
+| `--list` | | The nodes on the bus, their product and firmware version |
+| `--test` | | Builds the firmware's own receiver (`firmware/elc_can/test/host/fw_target_pipe.cpp`) and updates three simulated screens through it, one of them losing frames; no hardware |
+
+```bash
+python3 tools/fw_update.py --can socketcan:can0 --list
+python3 tools/fw_update.py --can socketcan:can0 display-waveshare4c.elcfw   # the left and right screens
+python3 tools/fw_update.py --usb /dev/cu.usbmodem1101 --dest 0x13 console.elcfw
+python3 tools/fw_update.py --test
+```
 
 ### can_relay.py
 

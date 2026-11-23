@@ -15,6 +15,8 @@
 #include <media_can.h>
 #include <phone_can.h>
 #include <elc_watchdog.h>
+#include <elc_fw_esp32.h>
+#include <fw_overlay.h>
 #include <sensor_link.h>
 
 #include "center_audio_link.h"
@@ -333,6 +335,7 @@ void center_loop() {
   }
   // Call card while this is the media screen; never over the reversing camera.
   phone_can_poll(center_ui_media_screen() == ELC_CAN_SCREEN_CENTER && !center_camera_showing(), now);
+  fw_overlay_poll(elc_fw_esp32_target(), now);  // over everything while an update arrives
   p4_screen_note_app_us((uint32_t)(esp_timer_get_time() - draw_t0));
   p4_screen_frame();
 

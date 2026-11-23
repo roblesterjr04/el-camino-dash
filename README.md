@@ -26,6 +26,7 @@ the dash without a line of change to the screen firmware.
 - [Firmware](#firmware)
 - [Repository layout](#repository-layout)
 - [Getting started](#getting-started)
+- [Firmware updates without USB](#firmware-updates-without-usb)
 - [Tests](#tests)
 - [Making the boards](#making-the-boards)
 - [Documentation map](#documentation-map)
@@ -96,7 +97,10 @@ Ideas for cards nobody has built yet: transmission or oil temperature, wideband 
   documented CAN channel protocol ([`docs/protocols/can_channels.md`](docs/protocols/can_channels.md)), so a new card
   can add a page to the menu without changing the screen firmware.
 - **More.** GPS time and location with a POSIX time zone, a reversing camera on the center screen (TVP5150 decoder),
-  per-screen touch menus, settings kept in NVS and on SD. The cluster never uses Wi-Fi.
+  per-screen touch menus, settings kept in NVS and on SD. The cluster never uses Wi-Fi, apart from the console's
+  firmware-update hotspot, which you open by hand while the car is parked.
+- **Firmware updates without USB.** New firmware for the screens and the console goes in from a phone or a laptop
+  with every board still in the dash: see [Firmware updates without USB](#firmware-updates-without-usb).
 
 ## System overview: the El Camino reference build
 
@@ -270,17 +274,68 @@ cd firmware/sensor_card && pio run -e sensorcard_isp -t upload --upload-port usb
 
 Each firmware README has the details (programmers, environments, console commands).
 
+## Firmware updates without USB
+
+Once the cluster is in the dash, the boards' USB ports cannot be reached. The screens and the console take new
+firmware over the CAN bus instead, and nothing has to come out. Flash each board over USB once with firmware that has
+this feature; after that, every update can go in this way.
+
+**1. Build.** Every build writes an update file next to `firmware.bin`:
+
+| Board | Build | Update file |
+| --- | --- | --- |
+| Left and right screens (4") | `cd firmware/esp32_p4_display && pio run -e display-waveshare4c` | `.pio/build/display-waveshare4c/display-waveshare4c.elcfw` |
+| Center screen (3.4") | `cd firmware/esp32_p4_display && pio run -e display-waveshare3c4` | `.pio/build/display-waveshare3c4/display-waveshare3c4.elcfw` |
+| Console | `cd firmware/esp32s3_console && pio run` | `.pio/build/console/console.elcfw` |
+
+`python3 firmware/scripts/elc_fw.py show <file>` prints what a file is for.
+
+**2a. From a phone or laptop, over the console's Wi-Fi (the everyday way).** Park the car with the ignition on, then
+choose **Menu → Service → Firmware update → OK** on the console. It opens a Wi-Fi hotspot named `ElCamino-XXXX`
+and shows a new password on its screen. Join that network, open **http://192.168.4.1**, and upload the files one at a
+time:
+
+- `console.elcfw` updates the console. It restarts into the new firmware, which closes the page.
+- `display-waveshare4c.elcfw` updates the left and right screens together. `display-waveshare3c4.elcfw` updates the
+  center screen.
+
+Each screen being updated shows its progress, then restarts. The page lists each screen's result. The hotspot closes
+when you press Back on the console, after 10 minutes with nothing uploaded, or when the car moves. It is the only time
+the cluster uses Wi-Fi.
+
+**2b. From a laptop on the CAN bus (the bench, or recovery).** Connect a USB-CAN adapter to the main board's CAN tap
+(J16), or to any point on the bus. On the bench, a board on USB can act as the gateway instead:
+
+```bash
+python3 tools/fw_update.py --can socketcan:can0 --list          # who is on the bus, and their firmware
+python3 tools/fw_update.py --can socketcan:can0 display-waveshare4c.elcfw
+python3 tools/fw_update.py --usb /dev/cu.usbmodem1101 --dest 0x13 console.elcfw   # one node only
+```
+
+**What protects you.**
+
+- A board checks that a file is for its own product and build before anything touches flash. A 4" file never lands
+  on the 3.4" center, and a damaged file is refused (CRC-32, then the ESP-IDF image check).
+- The new image goes into the spare app slot. The running firmware is untouched until the new one has fully arrived
+  and been checked.
+- A new image starts **on trial**. If it crashes or resets in its first 20 s, the board goes back to the old firmware
+  by itself. Turning the ignition off in those 20 s also counts as a failure, so wait for the gauges to come back.
+- Updates are refused while the car moves, and on the center while the reversing camera shows.
+
+How it works on the wire, for a card that wants to take updates too: [the firmware profile](docs/protocols/can_channels.md#the-firmware-profile-kind-2).
+
 ## Tests
 
 The logic that does not touch hardware is tested on the host with sanitizers. No toolchain beyond a C++ compiler is needed:
 
 ```bash
-firmware/elc_can/test/host/run_tests.sh               # CAN frame codecs
+firmware/elc_can/test/host/run_tests.sh               # CAN frame codecs, channels, alerts, BULK and firmware updates
 firmware/esp32_p4_common/test/host/run_tests.sh       # sensor UART parser (currently fails to compile: missing elc_can include path)
 firmware/esp32s3_console/test/host/run_tests.sh       # console UI state machine
 firmware/esp32_classic_bt_audio/test/host/run_tests.sh  # chimes, DSP, audio sink
 firmware/sensor_card/test/host/run_tests.sh           # sensor card rev A logic
 firmware/sensor_card_stm32/test/host/run_tests.sh     # sensor card rev B (rev A suite plus its own)
+python3 tools/fw_update.py --test                     # the laptop update tool against the firmware's receiver
 ```
 
 Run them all before sending a change that touches shared code.

@@ -733,6 +733,34 @@ static void test_trip_reset() {
   CHECK(press(ui, "Reset", true) && ui.trip_set() && ui.trip_base() == 1000 && ui.take_persist_dirty());
 }
 
+static void test_firmware_update_entry() {
+  std::printf("service page: Firmware update asks first, and only while the car stands still\n");
+  Rig r;
+  ConsoleUi &ui = r.ui;
+  boot(ui);
+  ui.right_click(T);
+  CHECK(pick(ui, "Service") && row(ui, "Firmware update") && !row(ui, "Firmware update")->dim);
+  CHECK(pick(ui, "Firmware update") && ui.menu_page() == ConsoleUi::kMConfirm);
+  CHECK(!ui.take_fw_request());
+  CHECK(pick(ui, "OK") && ui.mode() == ConsoleMode::Drive);  // the menu closes for the update page
+  CHECK(ui.take_fw_request() && !ui.take_fw_request());
+
+  // moving: the row is dimmed and a click only says why
+  ElcCanSensor s;
+  s.speed_rpm = 575;
+  s.engine_rpm = 2200;
+  s.flags = 0x03;
+  ElcCanFrame f[ELC_CAN_SENSOR_FRAMES];
+  elc_can_encode_sensor(s, f);
+  for (auto &x : f) ui.feed(x, T);
+  CHECK(!ui.stopped(T));
+  ui.right_click(T);
+  CHECK(pick(ui, "Service") && row(ui, "Firmware update") && row(ui, "Firmware update")->dim);
+  CHECK(pick(ui, "Firmware update") && ui.menu_page() != ConsoleUi::kMConfirm && !ui.take_fw_request());
+  T += 5000;  // the sensors go quiet: no data counts as standing still
+  CHECK(ui.stopped(T));
+}
+
 static void test_sensor_card_page() {
   std::printf("sensor card: Show advanced reaches advanced items inside groups; its tank size sets the gallons\n");
   Rig r;
@@ -1177,6 +1205,7 @@ int main() {
   test_calls();
   test_call_keeps_source();
   test_trip_reset();
+  test_firmware_update_entry();
   test_sensor_card_page();
   test_no_center();
   test_card_is_bridge();

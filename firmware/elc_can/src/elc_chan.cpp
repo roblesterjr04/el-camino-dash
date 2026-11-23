@@ -304,7 +304,21 @@ void ElcChannels::setFactoryDefaults(bool on) {
 
 void ElcChannels::setSlot(uint8_t slot) { _me.flags = (uint8_t)((_me.flags & ~0x0E) | ((slot & 7) << 1)); }
 
+bool ElcChannels::addService(ElcChService *s) {
+  for (auto &x : _svc) {
+    if (x == s) return true;
+    if (!x) {
+      x = s;
+      return true;
+    }
+  }
+  return false;
+}
+
 void ElcChannels::feed(const ElcCanFrame &f, uint32_t now_ms) {
+  for (ElcChService *s : _svc) {
+    if (s) s->chFrame(f, now_ms);
+  }
   if (f.id >= 0x700 && f.id < 0x720 && f.len >= 8 && (f.data[7] & 1)) {  // a channel node's heartbeat
     const uint8_t n = (uint8_t)(f.id - 0x700);
     if (n != _node && n && !_nodes[n].announced && (!_asked_ms[n] || now_ms - _asked_ms[n] >= 5000)) {
@@ -337,11 +351,17 @@ void ElcChannels::feed(const ElcCanFrame &f, uint32_t now_ms) {
       }
     }
   }
+  for (ElcChService *s : _svc) {
+    if (s) s->chTransfer(t, now_ms);
+  }
   if (_on_transfer) _on_transfer(t, _on_transfer_ctx);
 }
 
 void ElcChannels::poll(uint32_t now_ms) {
   if (!_send) return;
+  for (ElcChService *s : _svc) {
+    if (s) s->chPoll(now_ms);
+  }
   if (!_booted) {
     _booted = true;
     announce();

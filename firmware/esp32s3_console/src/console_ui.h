@@ -134,6 +134,14 @@ class ConsoleUi {
   uint8_t page() const { return _page; }
   bool alive(uint32_t now_ms) const;
   const ConsoleSensors &sensors() const { return _s; }
+  /** The car stands still (or no sensor data says otherwise): firmware updates may start. */
+  bool stopped(uint32_t now_ms) const;
+  /** Menu → Service → Firmware update was confirmed: the board opens its update page (fw_portal). True once. */
+  bool take_fw_request() {
+    const bool r = _fw_request;
+    _fw_request = false;
+    return r;
+  }
   const ElcCanClusterState &cluster() const { return _cl; }
   const ElcCanPhoneStatus &phone() const { return _ph; }
   bool phone_fresh(uint32_t now_ms) const { return _ph_ms && now_ms - _ph_ms < 3000; }
@@ -189,6 +197,7 @@ class ConsoleUi {
     kRAccNode, kRAccItem, kRAccOpt, kRAdvanced,                                         // accessories (arg)
     kRYes, kRNo,                                                                        // confirmation
     kRSound, kREqBand,                                                                  // the sink's page, a band (arg)
+    kRFwUpdate,                                                                         // service: the Wi-Fi update page
   };
   // What a soft key does.
   enum KeyAct : uint8_t {
@@ -393,6 +402,7 @@ class ConsoleUi {
   ConsoleContrast _contrast = ConsoleContrast::Auto;
   uint8_t _drive = kDriveDefault;
   bool _persist_dirty = false;
+  bool _fw_request = false;
 
   ConsoleAction _q[16];
   uint8_t _qh = 0, _qn = 0;

@@ -5,6 +5,7 @@
 #include <p4_screen.h>
 #include <p4_touch.h>
 #include <chan_screen.h>
+#include <elc_fw_esp32.h>
 #include <menu_can.h>
 #include <phone_can.h>
 #include <ui_menu.h>
@@ -61,7 +62,8 @@ static void handle_shell_line(Preferences &prefs, const String &line) {
     if (phone_can_command(line.c_str(), reply, sizeof(reply)) ||  // phone, phone demo …
         menu_can_command(line.c_str(), reply, sizeof(reply)) ||   // menu, menu rotate|press|back|open … (not "menu on")
         chan_screen_command(line.c_str(), reply, sizeof(reply)) ||  // chan, chan query
-        center_alerts_command(line.c_str(), reply, sizeof(reply))) {  // alerts, alerts ack [all]
+        center_alerts_command(line.c_str(), reply, sizeof(reply)) ||  // alerts, alerts ack [all]
+        elc_fw_esp32_command(line.c_str(), reply, sizeof(reply))) {  // fw, fw good
       Serial.println(reply);
       return;
     }

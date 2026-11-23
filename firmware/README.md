@@ -109,6 +109,24 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Or `firmware/flash_display.sh` (same image for every screen; `ENV=display-waveshare4c` for the 4" panel).
 
+## Firmware updates without USB
+
+In the car the screens' USB ports are out of reach, so the screens and the console also take new firmware over CAN.
+How to do it is in the [top README](../README.md#firmware-updates-without-usb); the wire format is
+[the firmware profile](../docs/protocols/can_channels.md#the-firmware-profile-kind-2). In the code:
+
+- Every build also writes `<env>.elcfw` next to `firmware.bin` (`scripts/elc_fw.py`, an `extra_scripts` entry: it
+  also sets `ELC_FW_VARIANT` to the environment's name, which a board compares with the file's build). The product
+  number is `custom_elc_product` in `platformio.ini`.
+- `elc_can`: `elc_bulk` (BULK WRITE, both ends), `elc_fw` (the file header and `ElcFwTarget`), `elc_fw_esp32` (the
+  spare OTA slot, PSRAM staging, keeping or rolling back a new image). A board calls `elc_fw_esp32_begin()` after its
+  channels are up and `elc_fw_esp32_poll()` every loop.
+- The screens (`side_main.cpp`, `center_can.cpp`) take updates only while the sensors say the car stands still (and,
+  on the center, the camera is off), and cover the face with the progress (`esp32_p4_ui/src/fw_overlay.cpp`). A new
+  image is kept after 20 s with CAN up; a reset before that brings the old one back.
+- The console (`esp32s3_console/src/fw_portal.cpp`) runs the Wi-Fi page and sends the screens' files over CAN; it also
+  takes its own updates over CAN from `tools/fw_update.py`.
+
 ## UART wiring
 
 **sensor_pack TX** → **all three ESP32 UART RX** in parallel (same 115200 8N1 stream). Only the **center** sends the 0xA5 keepalive back (its GPIO 4 → sensor RX, bench harness only: J1 leaves that pin open); the left and right screens open the UART receive-only, because on the DigiDash board their GPIO 4 is the position strap. See [WIRING_PINOUT.md](../WIRING_PINOUT.md) for the full vehicle harness.
@@ -125,7 +143,8 @@ Service, Phone and Accessories (every accessory's UI page, `accessory_can`) page
 the center backs it with its own state (`center_menu.cpp`), the speedo and TSPS with CAN (`cluster_peer.cpp`: setting
 requests to the center, state from `0x210` / `0x213`, see `docs/protocols/can_bus.md`). The Screens page
 picks the **interface screen** (menu) and the **media screen**. The sensor log and GPS data pages are still the
-older Arduino_GFX full-screen pages on the center; from a side screen they open there. The cluster never uses Wi-Fi.
+older Arduino_GFX full-screen pages on the center; from a side screen they open there. The cluster never uses Wi-Fi
+(the one exception is the console's firmware-update hotspot: [Firmware updates without USB](#firmware-updates-without-usb)).
 
 **Phone page** (any screen, from `phone_can`): the connected phone with signal and battery; *Pair new phone* (opens
 the bridge's pairing window, then "Discoverable as ElCamino-Media · m:ss left" and *Stop*); the paired list (choose
@@ -156,7 +175,8 @@ Console on the flashing USB port (115200, `Serial` = UART0 on the 3.4C boards):
   with the paired list and the pairing window) and `phone demo idle|discover|incoming|active [muted] [onphone]|waiting|held|pair|off`
   (synthetic bridge frames fed locally, to see the call card and the Phone page without a phone; the page's commands
   act on the demo; `off` hands back to the bridge); `menu` (the `0x217` state and texts this board would send) and
-  `menu rotate <n>|press|back|open <0..7>` (as `0x216` from node `0x13`).
+  `menu rotate <n>|press|back|open <0..7>` (as `0x216` from node `0x13`); `fw` (the firmware: build, app slots, an
+  update arriving or the last one's result) and `fw good` (keep a new image now instead of after 20 s).
 
 Grab a screenshot from the Mac with:
 

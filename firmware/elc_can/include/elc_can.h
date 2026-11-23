@@ -5,7 +5,9 @@
 //
 // Frames are sent single-shot (no hardware retry). Everything on this bus is periodic, so a lost
 // frame is replaced by the next one; and with no transceiver fitted (bench) or nobody else on the
-// bus, the controller does not sit retransmitting an unacknowledged frame forever.
+// bus, the controller does not sit retransmitting an unacknowledged frame forever. The exception is
+// BULK data (0x340 + node), which the controller retries: it is sent only to receivers that asked
+// for it (elc_bulk.h), so someone is there to acknowledge it.
 //
 // Build flags: ELC_CAN_TX_PIN / ELC_CAN_RX_PIN (-1 disables CAN on that board).
 //

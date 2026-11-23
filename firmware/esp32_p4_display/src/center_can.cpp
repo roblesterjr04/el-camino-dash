@@ -5,12 +5,16 @@
 #include <cstring>
 
 #include <elc_can.h>
+#include <elc_fw_esp32.h>
+#include <sensor_link.h>
 #include <chan_screen.h>
 #include <media_can.h>
 #include <menu_can.h>
 #include <phone_can.h>
 
+#include "center_camera.h"
 #include "center_gps.h"
+#include "center_ui.h"
 #include "center_time.h"
 
 #ifndef ELC_CAN_TX_PIN
@@ -68,11 +72,21 @@ void center_can_begin() {
   const bool ok = s_can.begin(ELC_CAN_TX_PIN, ELC_CAN_RX_PIN, ELC_CAN_NODE_CENTER, ElcCanNodeType::Display);
   Serial.printf("CAN: %s (TX=%d RX=%d)\n", ok ? "up" : "off", ELC_CAN_TX_PIN, ELC_CAN_RX_PIN);
   chan_screen_begin(s_can, ELC_CAN_SCREEN_CENTER);  // the channel protocol: announce, accessory pages, LOG
+  // Firmware updates over CAN (README, Firmware updates without USB): only while the car stands still and the
+  // reversing camera is not on the screen.
+  elc_fw_esp32_begin(chan_screen(), ELC_PRODUCT_DISPLAY, ELC_CAN_FW_VERSION);
+  elc_fw_esp32_set_allowed(
+      [](void *) {
+        const SensorLink &l = center_sensor_link();
+        return (!l.fresh() || l.last().speed_rpm == 0) && !center_camera_showing();
+      },
+      nullptr);
 }
 
 void center_can_poll() {
   s_can.poll();
   chan_screen_poll(millis());
+  elc_fw_esp32_poll(millis(), s_can.running());  // restarts into a new image; keeps one that runs well
 }
 
 void center_can_send_sensor(const SensorPacketValues &v) {
